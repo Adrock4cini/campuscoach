@@ -1,5 +1,7 @@
+import { useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
@@ -7,6 +9,7 @@ import {
   FlaskConical, Brain, Zap, Target, Gamepad2, Clock, 
   ArrowRight, Sparkles, Trophy 
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const studyModes = [
   { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary" },
@@ -17,7 +20,22 @@ const studyModes = [
   { icon: Trophy, label: "Timed Challenge", desc: "Beat your best score", color: "bg-danger/10 text-danger" },
 ];
 
+const durations = [15, 25, 45];
+
 export default function StudyLab() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const preselectedClass = searchParams.get("classId");
+  const [selectedDuration, setSelectedDuration] = useState(25);
+  const [selectedClass, setSelectedClass] = useState<string | null>(preselectedClass);
+  const [modeModal, setModeModal] = useState<string | null>(null);
+
+  const handleStartSprint = () => {
+    const classId = selectedClass || classes[0].id;
+    navigate(`/focus-sprint?classId=${classId}&duration=${selectedDuration}`);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -26,10 +44,7 @@ export default function StudyLab() {
       </div>
 
       {/* Focus Sprint */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="shadow-card border-primary/20 bg-primary/5">
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
@@ -39,22 +54,45 @@ export default function StudyLab() {
               <div className="flex-1">
                 <h3 className="font-display font-semibold text-foreground text-lg">Focus Sprint</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Pick a class, choose your time, and study with zero distractions. 
-                  You'll get a progress summary when you're done.
+                  Pick a class, choose your time, and study with zero distractions.
                 </p>
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  <Badge variant="secondary" className="cursor-pointer hover:bg-primary/10">15 min</Badge>
-                  <Badge variant="secondary" className="cursor-pointer hover:bg-primary/10 bg-primary/10 text-primary">25 min</Badge>
-                  <Badge variant="secondary" className="cursor-pointer hover:bg-primary/10">45 min</Badge>
+                  {durations.map(d => (
+                    <Badge
+                      key={d}
+                      variant="secondary"
+                      className={`cursor-pointer transition-all ${
+                        selectedDuration === d
+                          ? "bg-primary/10 text-primary ring-1 ring-primary"
+                          : "hover:bg-primary/10"
+                      }`}
+                      onClick={() => setSelectedDuration(d)}
+                    >
+                      {d} min
+                    </Badge>
+                  ))}
                 </div>
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
                   {classes.map(c => (
-                    <Badge key={c.id} variant="outline" className="cursor-pointer hover:bg-muted text-xs">
+                    <Badge
+                      key={c.id}
+                      variant="outline"
+                      className={`cursor-pointer transition-all text-xs ${
+                        selectedClass === c.id
+                          ? "bg-primary/10 text-primary border-primary ring-1 ring-primary"
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => setSelectedClass(c.id)}
+                    >
                       {c.name}
                     </Badge>
                   ))}
                 </div>
-                <Button size="sm" className="mt-4 bg-gradient-calm border-0 text-primary-foreground hover:opacity-90">
+                <Button
+                  size="sm"
+                  className="mt-4 bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
+                  onClick={handleStartSprint}
+                >
                   <ArrowRight className="h-4 w-4 mr-1.5" />
                   Start Focus Sprint
                 </Button>
@@ -75,7 +113,10 @@ export default function StudyLab() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.06 }}
             >
-              <Card className="shadow-card hover:shadow-elevated transition-all cursor-pointer group">
+              <Card
+                className="shadow-card hover:shadow-elevated transition-all cursor-pointer group"
+                onClick={() => setModeModal(mode.label)}
+              >
                 <CardContent className="p-5">
                   <div className={`h-10 w-10 rounded-lg ${mode.color} flex items-center justify-center mb-3`}>
                     <mode.icon className="h-5 w-5" />
@@ -100,14 +141,20 @@ export default function StudyLab() {
             No problem. Here's what would make the biggest impact right now:
           </p>
           <div className="space-y-2">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer">
+            <div
+              className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+              onClick={() => navigate("/focus-sprint?classId=math150&duration=15")}
+            >
               <div className="h-2 w-2 rounded-full bg-warning" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Review Algebra Chapter 4 flashcards</p>
                 <p className="text-xs text-muted-foreground">~10 min · Biggest impact on your exam readiness</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer">
+            <div
+              className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+              onClick={() => navigate("/focus-sprint?classId=psych101&duration=15")}
+            >
               <div className="h-2 w-2 rounded-full bg-primary" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Quick quiz: Psychology Memory models</p>
@@ -127,11 +174,46 @@ export default function StudyLab() {
             That's okay. Let's do just one tiny thing. One flashcard set. One quick review. 
             Starting is the hardest part, and you just did it by opening this page.
           </p>
-          <Button size="sm" variant="outline">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate("/focus-sprint?classId=psych101&duration=15")}
+          >
             Give me the easiest next step
           </Button>
         </CardContent>
       </Card>
+
+      {/* Study Mode Modal */}
+      <Dialog open={!!modeModal} onOpenChange={() => setModeModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">{modeModal}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Choose a class to start {modeModal?.toLowerCase()}:</p>
+            <div className="space-y-2">
+              {classes.map(c => (
+                <button
+                  key={c.id}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                  onClick={() => {
+                    setModeModal(null);
+                    navigate(`/focus-sprint?classId=${c.id}&duration=25`);
+                  }}
+                >
+                  <div className={`h-3 w-3 rounded-full ${c.color}`} />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.currentTopic}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
