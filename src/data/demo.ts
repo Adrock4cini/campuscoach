@@ -304,6 +304,102 @@ export const studySessions: StudySession[] = [
 
 export const studyStreak = 4;
 
+export const lectures: Lecture[] = [
+  {
+    id: "n1",
+    classId: "psych101",
+    className: "Intro to Psychology",
+    title: "Lecture 7: Memory Models",
+    date: "April 2, 2026",
+    type: "recording",
+    hasTranscript: true,
+    hasAINotes: true,
+    keyTopics: ["Short-term memory", "Encoding", "Retrieval cues"],
+    transcript: "Today we're going to cover the three main models of memory. The multi-store model, proposed by Atkinson and Shiffrin, suggests that memory consists of three stores: sensory memory, short-term memory, and long-term memory. Information flows through these stores in a linear fashion. Sensory memory holds information for a very brief period — less than a second for visual information. Short-term memory can hold about 7 items, plus or minus 2, for about 20-30 seconds without rehearsal. Long-term memory has essentially unlimited capacity and duration. Encoding is the process of converting information into a form that can be stored. There are several types of encoding: visual, acoustic, and semantic. Research shows that semantic encoding — encoding based on meaning — leads to stronger memory traces. Retrieval cues are stimuli that help us access stored memories. Context-dependent memory shows that we recall information better when we're in the same environment where we learned it.",
+    keyPoints: [
+      "Multi-store model: sensory → short-term → long-term memory",
+      "Short-term memory capacity: 7±2 items, 20-30 seconds",
+      "Semantic encoding creates strongest memory traces",
+      "Context-dependent memory improves recall",
+      "Retrieval cues help access stored memories",
+    ],
+    concepts: ["Multi-store model", "Sensory memory", "Short-term memory", "Long-term memory", "Encoding types", "Retrieval cues", "Context-dependent memory"],
+  },
+  {
+    id: "n2",
+    classId: "bio200",
+    className: "Biology II",
+    title: "Lab Session: Cell Division",
+    date: "April 1, 2026",
+    type: "photo",
+    hasTranscript: false,
+    hasAINotes: true,
+    keyTopics: ["Mitosis phases", "Cytokinesis"],
+    keyPoints: [
+      "Mitosis has 4 phases: prophase, metaphase, anaphase, telophase",
+      "Cytokinesis splits the cytoplasm after nuclear division",
+      "Animal cells pinch inward; plant cells build a cell plate",
+    ],
+    concepts: ["Prophase", "Metaphase", "Anaphase", "Telophase", "Cytokinesis", "Cell plate", "Cleavage furrow"],
+  },
+  {
+    id: "n3",
+    classId: "math150",
+    className: "College Algebra",
+    title: "Chapter 4: Polynomial Functions",
+    date: "March 31, 2026",
+    type: "manual",
+    hasTranscript: false,
+    hasAINotes: false,
+    keyTopics: ["Degree", "Zeros", "End behavior"],
+    keyPoints: [
+      "The degree of a polynomial determines end behavior",
+      "Zeros are found by factoring or using the rational root theorem",
+      "Multiplicity affects how the graph touches/crosses the x-axis",
+    ],
+    concepts: ["Degree", "Leading coefficient", "Zeros", "Multiplicity", "End behavior", "Rational root theorem"],
+  },
+  {
+    id: "n4",
+    classId: "eng102",
+    className: "English Composition II",
+    title: "Argumentative Essay Structure",
+    date: "March 30, 2026",
+    type: "pdf",
+    hasTranscript: false,
+    hasAINotes: true,
+    keyTopics: ["Thesis statement", "Counterarguments", "Evidence"],
+    keyPoints: [
+      "A strong thesis takes a clear, debatable position",
+      "Address counterarguments to strengthen your argument",
+      "Use evidence from credible sources, properly cited in MLA",
+    ],
+    concepts: ["Thesis statement", "Counterargument", "Rebuttal", "Evidence", "MLA citation", "Topic sentences"],
+  },
+];
+
+export const calendarEvents: CalendarEvent[] = (() => {
+  const events: CalendarEvent[] = [];
+  classes.forEach(c => {
+    c.days.forEach(day => {
+      const hour = parseInt(c.time);
+      const isPM = c.time.includes("PM") && hour !== 12;
+      const h = isPM ? hour + 12 : hour;
+      events.push({ id: `cal-${c.id}-${day}`, day, startHour: h, duration: 1, label: c.name, type: "class", linkedId: c.id, linkedRoute: `/classes/${c.id}` });
+    });
+  });
+  workShifts.forEach(s => {
+    const startH = parseInt(s.startTime);
+    const isPM = s.startTime.includes("PM") && startH !== 12;
+    const endH = parseInt(s.endTime);
+    const endPM = s.endTime.includes("PM") && endH !== 12;
+    const start = isPM ? startH + 12 : startH;
+    const end = endPM ? endH + 12 : endH;
+    events.push({ id: `cal-${s.id}`, day: s.day, startHour: start, duration: end - start, label: "Work", type: "work" });
+  });
+  return events;
+})();
+
 export function getDaysUntil(dateStr: string): number {
   const target = new Date(dateStr);
   const now = new Date("2026-04-04");
