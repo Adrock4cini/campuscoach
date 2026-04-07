@@ -55,6 +55,32 @@ export interface StudySession {
   score?: number;
 }
 
+export interface Lecture {
+  id: string;
+  classId: string;
+  className: string;
+  title: string;
+  date: string;
+  type: 'recording' | 'photo' | 'manual' | 'pdf';
+  hasTranscript: boolean;
+  hasAINotes: boolean;
+  keyTopics: string[];
+  transcript?: string;
+  keyPoints?: string[];
+  concepts?: string[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  day: string;
+  startHour: number;
+  duration: number;
+  label: string;
+  type: 'class' | 'work' | 'exam' | 'assignment' | 'study';
+  linkedId?: string;
+  linkedRoute?: string;
+}
+
 export const studentName = "Aspen";
 
 export const classes: ClassInfo[] = [
