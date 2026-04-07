@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "My Classes", url: "/classes", icon: BookOpen },
   { title: "Calendar", url: "/calendar", icon: CalendarDays },
   { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
@@ -71,7 +71,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
+                      end={item.url === "/dashboard"}
                       className="hover:bg-muted/50 transition-colors"
                       activeClassName="bg-primary/10 text-primary font-medium"
                     >
