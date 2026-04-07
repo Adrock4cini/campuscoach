@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +8,20 @@ import {
   assignments, getPriorityColor, getStatusLabel, getDaysUntil 
 } from "@/data/demo";
 import { ArrowUpDown, Lightbulb, ListChecks, HelpCircle, FileEdit, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function AssignmentsPage() {
-  const sorted = [...assignments].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
+  const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);
+
+  const sorted = [...assignments].sort((a, b) => {
+    if (sortBy === 'priority') {
+      const order = { high: 0, medium: 1, low: 2 };
+      return order[a.priority] - order[b.priority];
+    }
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -18,9 +30,13 @@ export default function AssignmentsPage() {
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Assignments</h1>
           <p className="text-muted-foreground mt-1">{assignments.filter(a => a.status !== 'turned-in').length} active assignments</p>
         </div>
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSortBy(sortBy === 'date' ? 'priority' : 'date')}
+        >
           <ArrowUpDown className="h-4 w-4 mr-1.5" />
-          Sort by due date
+          Sort by {sortBy === 'date' ? 'priority' : 'due date'}
         </Button>
       </div>
 
@@ -38,40 +54,42 @@ export default function AssignmentsPage() {
             >
               <Card className={`shadow-card ${urgency}`}>
                 <CardContent className="p-5">
-                  <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 className="font-display font-semibold text-foreground">{a.title}</h3>
-                        <Badge variant="secondary" className={`text-xs ${getPriorityColor(a.priority)}`}>
-                          {a.priority}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{a.className}</p>
-                      <p className="text-sm text-foreground/80 mb-3">{a.instructions}</p>
-                      
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>⏱ {a.estimatedTime}</span>
-                        <span>📅 Due {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}</span>
-                        <Badge variant="outline" className="text-xs">{getStatusLabel(a.status)}</Badge>
+                  <Link to={`/assignments/${a.id}`} className="block">
+                    <div className="flex flex-col md:flex-row md:items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="font-display font-semibold text-foreground hover:text-primary transition-colors">{a.title}</h3>
+                          <Badge variant="secondary" className={`text-xs ${getPriorityColor(a.priority)}`}>
+                            {a.priority}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{a.className}</p>
+                        <p className="text-sm text-foreground/80 mb-3">{a.instructions}</p>
+                        
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>⏱ {a.estimatedTime}</span>
+                          <span>📅 Due {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}</span>
+                          <Badge variant="outline" className="text-xs">{getStatusLabel(a.status)}</Badge>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
 
                   {/* AI Actions */}
                   <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" className="text-xs h-8">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setAiModal({ assignmentId: a.id, type: "steps" })}>
                       <ListChecks className="h-3 w-3 mr-1" /> Break into steps
                     </Button>
-                    <Button variant="outline" size="sm" className="text-xs h-8">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setAiModal({ assignmentId: a.id, type: "expected" })}>
                       <HelpCircle className="h-3 w-3 mr-1" /> What's expected?
                     </Button>
-                    <Button variant="outline" size="sm" className="text-xs h-8">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setAiModal({ assignmentId: a.id, type: "start" })}>
                       <Lightbulb className="h-3 w-3 mr-1" /> Help me start
                     </Button>
-                    <Button variant="outline" size="sm" className="text-xs h-8">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setAiModal({ assignmentId: a.id, type: "outline" })}>
                       <FileEdit className="h-3 w-3 mr-1" /> Outline
                     </Button>
-                    <Button variant="outline" size="sm" className="text-xs h-8">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setAiModal({ assignmentId: a.id, type: "quiz" })}>
                       <Sparkles className="h-3 w-3 mr-1" /> Quiz me
                     </Button>
                   </div>
@@ -85,6 +103,27 @@ export default function AssignmentsPage() {
       <Button variant="outline" className="w-full border-dashed">
         + Add Assignment
       </Button>
+
+      <Dialog open={!!aiModal} onOpenChange={() => setAiModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              {aiModal?.type === 'steps' && 'Break Into Steps'}
+              {aiModal?.type === 'expected' && "What's Expected"}
+              {aiModal?.type === 'start' && 'Help Me Start'}
+              {aiModal?.type === 'outline' && 'Rough Outline'}
+              {aiModal?.type === 'quiz' && 'Quiz Me'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-foreground/80 leading-relaxed space-y-2">
+            {aiModal?.type === 'steps' && <p>1. Read through the full instructions (10 min){'\n'}2. Identify what you already know (5 min){'\n'}3. Research and gather sources (20 min){'\n'}4. Create an outline (15 min){'\n'}5. Write the first draft (1-2 hours){'\n'}6. Review and revise (30 min){'\n\n'}Start with step 1 — just reading. That's it for now!</p>}
+            {aiModal?.type === 'expected' && <p>Your professor is looking for:{'\n\n'}✓ Clear understanding of the material{'\n'}✓ Original thinking and connections{'\n'}✓ Proper formatting and citations{'\n'}✓ Timely submission{'\n\n'}Focus on showing you engaged with the content.</p>}
+            {aiModal?.type === 'start' && <p>The hardest part is starting. Here's your first 10 minutes:{'\n\n'}1. Open a blank doc (1 min){'\n'}2. Write your name and the title (1 min){'\n'}3. Write ONE sentence about the main idea (3 min){'\n'}4. List 3 points you want to make (5 min){'\n\n'}That's it! You're started. The rest flows from here. 💪</p>}
+            {aiModal?.type === 'outline' && <p>I. Introduction{'\n'}   - Context/hook{'\n'}   - Main argument{'\n\n'}II. Key Point 1{'\n'}   - Evidence{'\n'}   - Analysis{'\n\n'}III. Key Point 2{'\n'}   - Evidence{'\n'}   - Analysis{'\n\n'}IV. Conclusion{'\n'}   - Summary{'\n'}   - Final thought</p>}
+            {aiModal?.type === 'quiz' && <p>Quick check — can you answer these?{'\n\n'}1. What's the main topic of this assignment?{'\n'}2. What format does your professor expect?{'\n'}3. What sources do you need?{'\n'}4. What's the most important thing to include?{'\n\n'}If you can answer these, you're ready to start writing!</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
