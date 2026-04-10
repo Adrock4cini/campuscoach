@@ -7,10 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
 import { 
-  FlaskConical, Brain, Zap, Target, Gamepad2, Clock, 
+  Brain, Zap, Target, Gamepad2, Clock, 
   ArrowRight, Sparkles, Trophy 
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const studyModes: { icon: React.ElementType; label: string; desc: string; color: string; mode: StudyMode }[] = [
   { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary", mode: "flashcards" },
