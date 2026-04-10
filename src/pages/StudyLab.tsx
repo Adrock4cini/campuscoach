@@ -5,19 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
+import { StudyMode } from "@/data/questions";
 import { 
-  FlaskConical, Brain, Zap, Target, Gamepad2, Clock, 
+  Brain, Zap, Target, Gamepad2, Clock, 
   ArrowRight, Sparkles, Trophy 
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const studyModes = [
-  { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary" },
-  { icon: Target, label: "Multiple Choice", desc: "Test your knowledge", color: "bg-accent/10 text-accent" },
-  { icon: Sparkles, label: "Fill in the Blank", desc: "Active recall training", color: "bg-success/10 text-success" },
-  { icon: Zap, label: "True / False", desc: "Fast-paced review", color: "bg-warning/10 text-warning" },
-  { icon: Gamepad2, label: "Matching Game", desc: "Connect concepts", color: "bg-primary/10 text-primary" },
-  { icon: Trophy, label: "Timed Challenge", desc: "Beat your best score", color: "bg-danger/10 text-danger" },
+const studyModes: { icon: React.ElementType; label: string; desc: string; color: string; mode: StudyMode }[] = [
+  { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary", mode: "flashcards" },
+  { icon: Target, label: "Multiple Choice", desc: "Test your knowledge", color: "bg-accent/10 text-accent", mode: "multiple-choice" },
+  { icon: Sparkles, label: "Fill in the Blank", desc: "Active recall training", color: "bg-success/10 text-success", mode: "fill-blank" },
+  { icon: Zap, label: "True / False", desc: "Fast-paced review", color: "bg-warning/10 text-warning", mode: "true-false" },
+  { icon: Gamepad2, label: "Matching Game", desc: "Connect concepts", color: "bg-primary/10 text-primary", mode: "matching" },
+  { icon: Trophy, label: "Timed Challenge", desc: "Beat your best score", color: "bg-danger/10 text-danger", mode: "timed-challenge" },
 ];
 
 const durations = [15, 25, 45];
@@ -29,7 +29,7 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string | null>(preselectedClass);
-  const [modeModal, setModeModal] = useState<string | null>(null);
+  
 
   const handleStartSprint = () => {
     const classId = selectedClass || classes[0].id;
@@ -115,7 +115,7 @@ export default function StudyLab() {
             >
               <Card
                 className="shadow-card hover:shadow-elevated transition-all cursor-pointer group"
-                onClick={() => setModeModal(mode.label)}
+                onClick={() => navigate(`/study-lab/session?mode=${mode.mode}`)}
               >
                 <CardContent className="p-5">
                   <div className={`h-10 w-10 rounded-lg ${mode.color} flex items-center justify-center mb-3`}>
@@ -143,7 +143,7 @@ export default function StudyLab() {
           <div className="space-y-2">
             <div
               className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
-              onClick={() => navigate("/focus-sprint?classId=math150&duration=15")}
+              onClick={() => navigate("/study-lab/session?mode=flashcards")}
             >
               <div className="h-2 w-2 rounded-full bg-warning" />
               <div className="flex-1">
@@ -153,7 +153,7 @@ export default function StudyLab() {
             </div>
             <div
               className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
-              onClick={() => navigate("/focus-sprint?classId=psych101&duration=15")}
+              onClick={() => navigate("/study-lab/session?mode=multiple-choice")}
             >
               <div className="h-2 w-2 rounded-full bg-primary" />
               <div className="flex-1">
@@ -184,36 +184,6 @@ export default function StudyLab() {
         </CardContent>
       </Card>
 
-      {/* Study Mode Modal */}
-      <Dialog open={!!modeModal} onOpenChange={() => setModeModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">{modeModal}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Choose a class to start {modeModal?.toLowerCase()}:</p>
-            <div className="space-y-2">
-              {classes.map(c => (
-                <button
-                  key={c.id}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
-                  onClick={() => {
-                    setModeModal(null);
-                    navigate(`/focus-sprint?classId=${c.id}&duration=25`);
-                  }}
-                >
-                  <div className={`h-3 w-3 rounded-full ${c.color}`} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.currentTopic}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

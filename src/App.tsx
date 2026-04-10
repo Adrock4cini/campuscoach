@@ -9,6 +9,7 @@ import MyClasses from "./pages/MyClasses";
 import ClassDetail from "./pages/ClassDetail";
 import CalendarPage from "./pages/CalendarPage";
 import StudyLab from "./pages/StudyLab";
+import StudySession from "./pages/StudySession";
 import FocusSprint from "./pages/FocusSprint";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AssignmentDetail from "./pages/AssignmentDetail";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/classes/:classId" element={<ClassDetail />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/study-lab" element={<StudyLab />} />
+            <Route path="/study-lab/session" element={<StudySession />} />
             <Route path="/focus-sprint" element={<FocusSprint />} />
             <Route path="/assignments" element={<AssignmentsPage />} />
             <Route path="/assignments/:assignmentId" element={<AssignmentDetail />} />
