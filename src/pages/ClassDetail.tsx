@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +11,22 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, Mic, FlaskConical,
+  CheckCircle2, Circle, Loader2, Mic, FlaskConical, Pencil,
 } from "lucide-react";
+import { ProfessorHints } from "@/components/ProfessorHints";
+import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import type { ProfessorHint, Chapter } from "@/data/demo";
 
 export default function ClassDetail() {
   const { classId } = useParams();
   const navigate = useNavigate();
   const c = classes.find(cl => cl.id === classId);
+
+  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [classHints, setClassHints] = useState<ProfessorHint[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (!c) {
     return (
@@ -31,16 +41,28 @@ export default function ClassDetail() {
   const classExams = exams.filter(e => e.classId === c.id);
   const classLectures = lectures.filter(l => l.classId === c.id);
 
+  const editFields: EditField[] = [
+    { key: "name", label: "Class Name", type: "text" },
+    { key: "professor", label: "Professor", type: "text" },
+    { key: "location", label: "Location", type: "text" },
+    { key: "time", label: "Time", type: "text" },
+    { key: "currentTopic", label: "Current Topic", type: "text" },
+    { key: "nextExamDate", label: "Next Exam Date", type: "date" },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/classes")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">{c.name}</h1>
           <p className="text-muted-foreground">Current topic: {c.currentTopic}</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Info row */}
@@ -85,19 +107,39 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
+      {/* Professor Hints */}
+      <Card className="shadow-card">
+        <CardContent className="p-5">
+          <ProfessorHints
+            hints={classHints}
+            onAdd={h => setClassHints(prev => [...prev, h])}
+            onDelete={id => setClassHints(prev => prev.filter(h => h.id !== id))}
+            onTogglePin={id => setClassHints(prev => prev.map(h => h.id === id ? { ...h, pinned: !h.pinned } : h))}
+          />
+        </CardContent>
+      </Card>
+
       {/* Chapter Progress */}
       <Card className="shadow-card">
         <CardHeader><CardTitle className="text-lg font-display">Chapter Progress</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {c.chapters.map(ch => (
-            <div key={ch.number} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
+            <div
+              key={ch.number}
+              className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30 cursor-pointer transition-colors group"
+              onClick={() => { setSelectedChapter(ch); setDrawerOpen(true); }}
+            >
               {ch.status === 'completed' ? <CheckCircle2 className="h-5 w-5 text-success" /> :
                ch.status === 'in-progress' ? <Loader2 className="h-5 w-5 text-warning" /> :
                <Circle className="h-5 w-5 text-muted-foreground/30" />}
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Ch {ch.number}: {ch.title}</p>
+                {ch.professorHints && ch.professorHints.length > 0 && (
+                  <p className="text-xs text-primary mt-0.5">📌 {ch.professorHints.length} hint{ch.professorHints.length > 1 ? "s" : ""}</p>
+                )}
               </div>
               <Badge variant="secondary" className="text-xs capitalize">{ch.status.replace('-', ' ')}</Badge>
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           ))}
         </CardContent>
@@ -106,7 +148,12 @@ export default function ClassDetail() {
       {/* Upcoming Assignments */}
       {classAssignments.length > 0 && (
         <Card className="shadow-card">
-          <CardHeader><CardTitle className="text-lg font-display">Assignments</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-display">Assignments</CardTitle>
+              <Link to="/assignments" className="text-xs text-primary hover:underline">View all</Link>
+            </div>
+          </CardHeader>
           <CardContent className="space-y-2">
             {classAssignments.map(a => (
               <Link key={a.id} to={`/assignments/${a.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
@@ -169,6 +216,32 @@ export default function ClassDetail() {
           ))}
         </CardContent>
       </Card>
+
+      {/* Chapter Detail Drawer */}
+      <ChapterDetailDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        chapter={selectedChapter}
+        classId={c.id}
+        className={c.name}
+      />
+
+      {/* Edit Class Modal */}
+      <EditItemModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={`Edit ${c.name}`}
+        fields={editFields}
+        values={{
+          name: c.name,
+          professor: c.professor,
+          location: c.location,
+          time: c.time,
+          currentTopic: c.currentTopic,
+          nextExamDate: c.nextExamDate,
+        }}
+        onSave={(vals) => { /* mock save */ }}
+      />
     </div>
   );
 }

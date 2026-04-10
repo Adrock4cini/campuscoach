@@ -7,16 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { exams, getDaysUntil, getReadinessColor, getReadinessLabel, getReadinessBg } from "@/data/demo";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, XCircle, Brain, Target, Zap,
+  ArrowLeft, ArrowRight, CheckCircle2, XCircle, Brain, Target, Zap, Pencil,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ProfessorHints } from "@/components/ProfessorHints";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import type { ProfessorHint } from "@/data/demo";
 
 export default function ExamDetail() {
   const { examId } = useParams();
   const navigate = useNavigate();
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const e = exams.find(ex => ex.id === examId);
+  const [hints, setHints] = useState<ProfessorHint[]>(e?.professorHints || []);
 
   if (!e) {
     return (
@@ -30,16 +35,25 @@ export default function ExamDetail() {
   const days = getDaysUntil(e.date);
   const gradeEstimate = e.readiness >= 80 ? "A-/B+" : e.readiness >= 65 ? "B/B-" : e.readiness >= 45 ? "C+/B-" : "C/C-";
 
+  const editFields: EditField[] = [
+    { key: "title", label: "Exam Title", type: "text" },
+    { key: "date", label: "Exam Date", type: "date" },
+    { key: "className", label: "Class", type: "text" },
+  ];
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/exams")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-display font-semibold text-foreground">{e.title}</h1>
           <p className="text-muted-foreground text-sm">{e.className} · {days} days away</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Readiness */}
@@ -58,6 +72,18 @@ export default function ExamDetail() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Professor Hints */}
+      <Card className="shadow-card">
+        <CardContent className="p-5">
+          <ProfessorHints
+            hints={hints}
+            onAdd={h => setHints(prev => [...prev, h])}
+            onDelete={id => setHints(prev => prev.filter(h => h.id !== id))}
+            onTogglePin={id => setHints(prev => prev.map(h => h.id === id ? { ...h, pinned: !h.pinned } : h))}
+          />
+        </CardContent>
+      </Card>
 
       {/* Topics */}
       <Card className="shadow-card">
@@ -140,7 +166,6 @@ export default function ExamDetail() {
           <div className="text-sm text-foreground/80 space-y-3">
             <p>Ready to test yourself on <strong>{e.title}</strong>?</p>
             <p>This will cover: {e.topics.join(", ")}</p>
-            <p className="text-muted-foreground">Practice tests are generated from your lecture notes and study materials. The more you've captured, the better the questions!</p>
             <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={() => { setActiveModal(null); navigate(`/study-lab?classId=${e.classId}`); }}>
               <Zap className="h-4 w-4 mr-1.5" /> Start Practice Test
             </Button>
@@ -153,7 +178,6 @@ export default function ExamDetail() {
           <DialogHeader><DialogTitle className="font-display">Flashcards</DialogTitle></DialogHeader>
           <div className="text-sm text-foreground/80 space-y-3">
             <p>Flashcard deck for <strong>{e.title}</strong></p>
-            <p>Topics: {e.topics.join(", ")}</p>
             <p>Focus on your weak areas: {e.weakAreas.join(", ")}</p>
             <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={() => { setActiveModal(null); navigate(`/study-lab?classId=${e.classId}`); }}>
               <Brain className="h-4 w-4 mr-1.5" /> Start Flashcards
@@ -161,6 +185,15 @@ export default function ExamDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditItemModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={`Edit ${e.title}`}
+        fields={editFields}
+        values={{ title: e.title, date: e.date, className: e.className }}
+        onSave={() => {}}
+      />
     </div>
   );
 }
