@@ -5,19 +5,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
+import { StudyMode } from "@/data/questions";
 import { 
   FlaskConical, Brain, Zap, Target, Gamepad2, Clock, 
   ArrowRight, Sparkles, Trophy 
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const studyModes = [
-  { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary" },
-  { icon: Target, label: "Multiple Choice", desc: "Test your knowledge", color: "bg-accent/10 text-accent" },
-  { icon: Sparkles, label: "Fill in the Blank", desc: "Active recall training", color: "bg-success/10 text-success" },
-  { icon: Zap, label: "True / False", desc: "Fast-paced review", color: "bg-warning/10 text-warning" },
-  { icon: Gamepad2, label: "Matching Game", desc: "Connect concepts", color: "bg-primary/10 text-primary" },
-  { icon: Trophy, label: "Timed Challenge", desc: "Beat your best score", color: "bg-danger/10 text-danger" },
+const studyModes: { icon: React.ElementType; label: string; desc: string; color: string; mode: StudyMode }[] = [
+  { icon: Brain, label: "Flashcards", desc: "Quick recall practice", color: "bg-primary/10 text-primary", mode: "flashcards" },
+  { icon: Target, label: "Multiple Choice", desc: "Test your knowledge", color: "bg-accent/10 text-accent", mode: "multiple-choice" },
+  { icon: Sparkles, label: "Fill in the Blank", desc: "Active recall training", color: "bg-success/10 text-success", mode: "fill-blank" },
+  { icon: Zap, label: "True / False", desc: "Fast-paced review", color: "bg-warning/10 text-warning", mode: "true-false" },
+  { icon: Gamepad2, label: "Matching Game", desc: "Connect concepts", color: "bg-primary/10 text-primary", mode: "matching" },
+  { icon: Trophy, label: "Timed Challenge", desc: "Beat your best score", color: "bg-danger/10 text-danger", mode: "timed-challenge" },
 ];
 
 const durations = [15, 25, 45];
