@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { assignments, getDaysUntil, getPriorityColor, getStatusLabel } from "@/data/demo";
 import {
   ArrowLeft, ListChecks, HelpCircle, Lightbulb, FileEdit,
-  Sparkles, Clock, CheckCircle2,
+  Sparkles, Clock, CheckCircle2, Pencil, Bell,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { ProfessorHints } from "@/components/ProfessorHints";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { ProfessorHint } from "@/data/demo";
 
 const aiResponses: Record<string, { title: string; content: string }> = {
   steps: {
@@ -41,7 +45,10 @@ export default function AssignmentDetail() {
   const navigate = useNavigate();
   const [modalKey, setModalKey] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [reminderSet, setReminderSet] = useState(false);
   const a = assignments.find(as => as.id === assignmentId);
+  const [hints, setHints] = useState<ProfessorHint[]>(a?.professorHints || []);
 
   if (!a) {
     return (
@@ -56,6 +63,18 @@ export default function AssignmentDetail() {
   const days = getDaysUntil(a.dueDate);
   const modal = modalKey ? aiResponses[modalKey] : null;
 
+  const editFields: EditField[] = [
+    { key: "title", label: "Title", type: "text" },
+    { key: "dueDate", label: "Due Date", type: "date" },
+    { key: "estimatedTime", label: "Estimated Time", type: "text" },
+    { key: "instructions", label: "Instructions", type: "textarea" },
+    { key: "priority", label: "Priority", type: "select", options: [
+      { value: "high", label: "High" },
+      { value: "medium", label: "Medium" },
+      { value: "low", label: "Low" },
+    ]},
+  ];
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -66,6 +85,9 @@ export default function AssignmentDetail() {
           <h1 className="text-2xl font-display font-semibold text-foreground">{a.title}</h1>
           <p className="text-muted-foreground text-sm">{a.className}</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -106,9 +128,42 @@ export default function AssignmentDetail() {
                 ))}
               </div>
             </div>
+
+            {/* Reminder */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setReminderSet(!reminderSet)}>
+                <Bell className={`h-3.5 w-3.5 ${reminderSet ? "text-primary" : ""}`} />
+                {reminderSet ? "Reminder set ✓" : "Set reminder"}
+              </Button>
+              {!reminderSet && (
+                <Select onValueChange={() => setReminderSet(true)}>
+                  <SelectTrigger className="w-[130px] h-8 text-xs">
+                    <SelectValue placeholder="When?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="same-day">Same day</SelectItem>
+                    <SelectItem value="1-day">1 day before</SelectItem>
+                    <SelectItem value="3-days">3 days before</SelectItem>
+                    <SelectItem value="1-week">1 week before</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Professor Hints */}
+      <Card className="shadow-card">
+        <CardContent className="p-5">
+          <ProfessorHints
+            hints={hints}
+            onAdd={h => setHints(prev => [...prev, h])}
+            onDelete={id => setHints(prev => prev.filter(h => h.id !== id))}
+            onTogglePin={id => setHints(prev => prev.map(h => h.id === id ? { ...h, pinned: !h.pinned } : h))}
+          />
+        </CardContent>
+      </Card>
 
       {/* AI Actions */}
       <Card className="shadow-card">
@@ -146,6 +201,15 @@ export default function AssignmentDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditItemModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={`Edit ${a.title}`}
+        fields={editFields}
+        values={{ title: a.title, dueDate: a.dueDate, estimatedTime: a.estimatedTime, instructions: a.instructions, priority: a.priority }}
+        onSave={() => {}}
+      />
     </div>
   );
 }

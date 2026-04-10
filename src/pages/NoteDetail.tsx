@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { lectures } from "@/data/demo";
 import {
   ArrowLeft, Mic, Camera, FileText, FileUp,
-  Brain, Sparkles, FlaskConical,
+  Brain, Sparkles, FlaskConical, Pencil,
 } from "lucide-react";
+import { ProfessorHints } from "@/components/ProfessorHints";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import type { ProfessorHint } from "@/data/demo";
 
 const typeIcons = { recording: Mic, photo: Camera, manual: FileText, pdf: FileUp };
 const typeLabels = { recording: "Recording", photo: "Board Photo", manual: "Manual Notes", pdf: "PDF Upload" };
@@ -16,6 +20,8 @@ export default function NoteDetail() {
   const { noteId } = useParams();
   const navigate = useNavigate();
   const note = lectures.find(l => l.id === noteId);
+  const [hints, setHints] = useState<ProfessorHint[]>(note?.professorHints || []);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (!note) {
     return (
@@ -27,6 +33,12 @@ export default function NoteDetail() {
   }
 
   const Icon = typeIcons[note.type];
+
+  const editFields: EditField[] = [
+    { key: "title", label: "Title", type: "text" },
+    { key: "date", label: "Date", type: "text" },
+    { key: "className", label: "Class", type: "text" },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -41,6 +53,9 @@ export default function NoteDetail() {
         <Badge variant="secondary" className="flex items-center gap-1">
           <Icon className="h-3 w-3" /> {typeLabels[note.type]}
         </Badge>
+        <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Split view: Raw material + AI output */}
@@ -75,6 +90,18 @@ export default function NoteDetail() {
                   <Badge key={t} variant="secondary">{t}</Badge>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Professor Hints */}
+          <Card className="shadow-card">
+            <CardContent className="p-5">
+              <ProfessorHints
+                hints={hints}
+                onAdd={h => setHints(prev => [...prev, h])}
+                onDelete={id => setHints(prev => prev.filter(h => h.id !== id))}
+                onTogglePin={id => setHints(prev => prev.map(h => h.id === id ? { ...h, pinned: !h.pinned } : h))}
+              />
             </CardContent>
           </Card>
         </div>
@@ -145,6 +172,15 @@ export default function NoteDetail() {
           </div>
         </CardContent>
       </Card>
+
+      <EditItemModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={`Edit ${note.title}`}
+        fields={editFields}
+        values={{ title: note.title, date: note.date, className: note.className }}
+        onSave={() => {}}
+      />
     </div>
   );
 }

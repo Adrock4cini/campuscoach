@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { BookOpen, ClipboardList, GraduationCap, FileText, FileUp, Mic } from "lucide-react";
+import { BookOpen, ClipboardList, GraduationCap, FileText, FileUp, Mic, Calendar, MessageSquare } from "lucide-react";
 
 interface QuickAddModalProps {
   open: boolean;
@@ -13,9 +13,11 @@ const actions = [
   { label: "Add Class", icon: BookOpen, desc: "Set up a new class", route: "/classes" },
   { label: "Add Assignment", icon: ClipboardList, desc: "Track a new assignment", route: "/assignments" },
   { label: "Add Exam", icon: GraduationCap, desc: "Add an upcoming exam", route: "/exams" },
+  { label: "Add Event", icon: Calendar, desc: "Add to your calendar", route: "/calendar" },
   { label: "Add Note", icon: FileText, desc: "Create a note manually", route: "/notes" },
   { label: "Upload Syllabus", icon: FileUp, desc: "Upload & analyze a syllabus", route: "/classes" },
   { label: "Record Lecture", icon: Mic, desc: "Start a class recording", route: "/notes" },
+  { label: "Professor Hint", icon: MessageSquare, desc: "Save what the professor said", route: "/classes" },
 ];
 
 export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {

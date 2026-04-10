@@ -1,14 +1,23 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { exams, getDaysUntil, getReadinessColor, getReadinessLabel, getReadinessBg } from "@/data/demo";
-import { AlertTriangle, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, ArrowRight, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
 
 export default function ExamsPage() {
   const sorted = [...exams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const [editExam, setEditExam] = useState<typeof exams[0] | null>(null);
+
+  const editFields: EditField[] = [
+    { key: "title", label: "Exam Title", type: "text" },
+    { key: "date", label: "Exam Date", type: "date" },
+    { key: "className", label: "Class", type: "text" },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -31,17 +40,20 @@ export default function ExamsPage() {
             >
               <Card className={`shadow-card ${days <= 5 ? "border-danger/20" : ""}`}>
                 <CardContent className="p-5">
-                  <Link to={`/exams/${e.id}`} className="block">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-display font-semibold text-foreground text-lg hover:text-primary transition-colors">{e.title}</h3>
-                        <p className="text-sm text-muted-foreground">{e.className} · {days} days away</p>
-                      </div>
+                  <div className="flex items-start justify-between mb-3">
+                    <Link to={`/exams/${e.id}`} className="flex-1">
+                      <h3 className="font-display font-semibold text-foreground text-lg hover:text-primary transition-colors">{e.title}</h3>
+                      <p className="text-sm text-muted-foreground">{e.className} · {days} days away</p>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditExam(e)}>
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
                       <Badge variant="secondary" className={days <= 5 ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary"}>
                         {days <= 5 ? `${days} days!` : `${days} days`}
                       </Badge>
                     </div>
-                  </Link>
+                  </div>
 
                   <div className={`rounded-lg p-4 mb-4 ${getReadinessBg(e.readiness)}`}>
                     <div className="flex items-center justify-between mb-2">
@@ -50,7 +62,7 @@ export default function ExamsPage() {
                     </div>
                     <Progress value={e.readiness} className="h-3" />
                     <p className="text-sm text-muted-foreground mt-2">
-                      {getReadinessLabel(e.readiness)} · Estimated grade: <strong>{gradeEstimate}</strong>. 
+                      {getReadinessLabel(e.readiness)} · Estimated grade: <strong>{gradeEstimate}</strong>.
                       {e.readiness < 70 ? " But there's time to improve!" : " You're in good shape."}
                     </p>
                   </div>
@@ -97,6 +109,21 @@ export default function ExamsPage() {
           );
         })}
       </div>
+
+      <Button variant="outline" className="w-full border-dashed">
+        + Add Exam
+      </Button>
+
+      {editExam && (
+        <EditItemModal
+          open={!!editExam}
+          onOpenChange={(v) => { if (!v) setEditExam(null); }}
+          title={`Edit ${editExam.title}`}
+          fields={editFields}
+          values={{ title: editExam.title, date: editExam.date, className: editExam.className }}
+          onSave={() => setEditExam(null)}
+        />
+      )}
     </div>
   );
 }
