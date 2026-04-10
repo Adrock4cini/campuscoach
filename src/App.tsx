@@ -9,6 +9,7 @@ import MyClasses from "./pages/MyClasses";
 import ClassDetail from "./pages/ClassDetail";
 import CalendarPage from "./pages/CalendarPage";
 import StudyLab from "./pages/StudyLab";
+import StudySession from "./pages/StudySession";
 import FocusSprint from "./pages/FocusSprint";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AssignmentDetail from "./pages/AssignmentDetail";
