@@ -30,7 +30,7 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string | null>(preselectedClass);
-  const [modeModal, setModeModal] = useState<string | null>(null);
+  
 
   const handleStartSprint = () => {
     const classId = selectedClass || classes[0].id;
@@ -116,7 +116,7 @@ export default function StudyLab() {
             >
               <Card
                 className="shadow-card hover:shadow-elevated transition-all cursor-pointer group"
-                onClick={() => setModeModal(mode.label)}
+                onClick={() => navigate(`/study-lab/session?mode=${mode.mode}`)}
               >
                 <CardContent className="p-5">
                   <div className={`h-10 w-10 rounded-lg ${mode.color} flex items-center justify-center mb-3`}>
@@ -144,7 +144,7 @@ export default function StudyLab() {
           <div className="space-y-2">
             <div
               className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
-              onClick={() => navigate("/focus-sprint?classId=math150&duration=15")}
+              onClick={() => navigate("/study-lab/session?mode=flashcards")}
             >
               <div className="h-2 w-2 rounded-full bg-warning" />
               <div className="flex-1">
@@ -154,7 +154,7 @@ export default function StudyLab() {
             </div>
             <div
               className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer"
-              onClick={() => navigate("/focus-sprint?classId=psych101&duration=15")}
+              onClick={() => navigate("/study-lab/session?mode=multiple-choice")}
             >
               <div className="h-2 w-2 rounded-full bg-primary" />
               <div className="flex-1">
