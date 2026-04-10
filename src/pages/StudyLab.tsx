@@ -185,36 +185,6 @@ export default function StudyLab() {
         </CardContent>
       </Card>
 
-      {/* Study Mode Modal */}
-      <Dialog open={!!modeModal} onOpenChange={() => setModeModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">{modeModal}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Choose a class to start {modeModal?.toLowerCase()}:</p>
-            <div className="space-y-2">
-              {classes.map(c => (
-                <button
-                  key={c.id}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
-                  onClick={() => {
-                    setModeModal(null);
-                    navigate(`/focus-sprint?classId=${c.id}&duration=25`);
-                  }}
-                >
-                  <div className={`h-3 w-3 rounded-full ${c.color}`} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.currentTopic}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
