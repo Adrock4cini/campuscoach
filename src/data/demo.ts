@@ -11,7 +11,32 @@ export interface ClassInfo {
   readiness: number;
   suggestedAction: string;
   gradingWeights: { category: string; weight: number }[];
-  chapters: { number: number; title: string; status: 'completed' | 'in-progress' | 'not-started' }[];
+  chapters: Chapter[];
+}
+
+export interface Chapter {
+  number: number;
+  title: string;
+  status: 'completed' | 'in-progress' | 'not-started';
+  notes?: string;
+  professorHints?: ProfessorHint[];
+  uploadedImages?: string[];
+  extractedText?: string;
+  aiBreakdown?: {
+    bigIdea?: string;
+    keyTerms?: string[];
+    professorCares?: string;
+    confusing?: string;
+    practiceNext?: string;
+  };
+}
+
+export interface ProfessorHint {
+  id: string;
+  text: string;
+  tag: 'exam-hint' | 'assignment-note' | 'class-reminder' | 'general';
+  pinned?: boolean;
+  createdAt: string;
 }
 
 export interface Assignment {
@@ -24,6 +49,7 @@ export interface Assignment {
   estimatedTime: string;
   status: 'not-started' | 'started' | 'draft-done' | 'turned-in' | 'needs-clarification';
   instructions: string;
+  professorHints?: ProfessorHint[];
 }
 
 export interface Exam {
@@ -36,6 +62,7 @@ export interface Exam {
   topics: string[];
   strongAreas: string[];
   weakAreas: string[];
+  professorHints?: ProfessorHint[];
 }
 
 export interface WorkShift {
@@ -68,7 +95,10 @@ export interface Lecture {
   transcript?: string;
   keyPoints?: string[];
   concepts?: string[];
+  professorHints?: ProfessorHint[];
 }
+
+export type CalendarEventType = 'class' | 'work' | 'exam' | 'assignment' | 'study' | 'personal' | 'academic-deadline' | 'payment' | 'tutoring' | 'office-hours';
 
 export interface CalendarEvent {
   id: string;
@@ -76,12 +106,60 @@ export interface CalendarEvent {
   startHour: number;
   duration: number;
   label: string;
-  type: 'class' | 'work' | 'exam' | 'assignment' | 'study';
+  type: CalendarEventType;
   linkedId?: string;
   linkedRoute?: string;
+  date?: string; // ISO date for proper week tracking
+  description?: string;
+  editable?: boolean;
 }
 
+export interface AcademicDate {
+  id: string;
+  label: string;
+  date: string;
+  type: 'semester-start' | 'semester-end' | 'tuition' | 'registration' | 'drop-deadline' | 'withdrawal' | 'holiday' | 'advising' | 'tutoring' | 'office-hours' | 'custom';
+  description?: string;
+}
+
+export interface StudentProfile {
+  name: string;
+  school: string;
+  major: string;
+  year: string;
+  semesterStart: string;
+  semesterEnd: string;
+  defaultStudyLength: number;
+  reminderStyle: 'gentle' | 'standard' | 'high';
+  encouragementTone: 'warm' | 'direct' | 'playful';
+  focusSprintDefault: number;
+}
+
+export const studentProfile: StudentProfile = {
+  name: "Aspen",
+  school: "State University",
+  major: "Psychology",
+  year: "Sophomore",
+  semesterStart: "2026-01-12",
+  semesterEnd: "2026-05-08",
+  defaultStudyLength: 25,
+  reminderStyle: "gentle",
+  encouragementTone: "warm",
+  focusSprintDefault: 25,
+};
+
 export const studentName = "Aspen";
+
+export const academicDates: AcademicDate[] = [
+  { id: "ad1", label: "Semester Start", date: "2026-01-12", type: "semester-start" },
+  { id: "ad2", label: "Last Day to Add/Drop", date: "2026-01-26", type: "drop-deadline", description: "Last day to add or drop classes without a W" },
+  { id: "ad3", label: "Spring Break", date: "2026-03-09", type: "holiday", description: "March 9–13" },
+  { id: "ad4", label: "Tuition Due", date: "2026-04-15", type: "tuition", description: "Spring semester tuition payment deadline" },
+  { id: "ad5", label: "Withdrawal Deadline", date: "2026-04-20", type: "withdrawal", description: "Last day to withdraw with a W" },
+  { id: "ad6", label: "Advising Week", date: "2026-04-06", type: "advising", description: "Meet with advisor for fall registration" },
+  { id: "ad7", label: "Registration Opens", date: "2026-04-13", type: "registration", description: "Fall 2026 registration opens" },
+  { id: "ad8", label: "Semester End", date: "2026-05-08", type: "semester-end" },
+];
 
 export const classes: ClassInfo[] = [
   {
@@ -106,9 +184,9 @@ export const classes: ClassInfo[] = [
       { number: 1, title: "Foundations of Psychology", status: "completed" },
       { number: 2, title: "Research Methods", status: "completed" },
       { number: 3, title: "Biological Bases of Behavior", status: "completed" },
-      { number: 4, title: "Sensation & Perception", status: "completed" },
-      { number: 5, title: "States of Consciousness", status: "in-progress" },
-      { number: 6, title: "Memory & Learning", status: "not-started" },
+      { number: 4, title: "Sensation & Perception", status: "completed", notes: "Focus on signal detection theory", professorHints: [{ id: "ph1", text: "Professor said this will be on the exam — know the difference between sensation and perception", tag: "exam-hint", pinned: true, createdAt: "2026-03-20" }] },
+      { number: 5, title: "States of Consciousness", status: "in-progress", notes: "Currently reviewing sleep stages", professorHints: [{ id: "ph2", text: "Review slides 15-20 for sleep cycle details", tag: "class-reminder", createdAt: "2026-04-01" }] },
+      { number: 6, title: "Memory & Learning", status: "not-started", aiBreakdown: { bigIdea: "How we encode, store, and retrieve information", keyTerms: ["Encoding", "Short-term memory", "Long-term memory", "Retrieval cues", "Mnemonics"], professorCares: "Understanding the multi-store model and being able to apply encoding strategies", confusing: "The difference between recall and recognition; interference theory", practiceNext: "Practice identifying encoding types in everyday situations" } },
       { number: 7, title: "Cognition & Intelligence", status: "not-started" },
     ],
   },
@@ -134,7 +212,7 @@ export const classes: ClassInfo[] = [
       { number: 2, title: "Cell Membrane & Transport", status: "completed" },
       { number: 3, title: "Cellular Respiration", status: "completed" },
       { number: 4, title: "Photosynthesis", status: "completed" },
-      { number: 5, title: "Cell Division", status: "in-progress" },
+      { number: 5, title: "Cell Division", status: "in-progress", professorHints: [{ id: "ph3", text: "Know all phases of mitosis AND meiosis — he compares them on exams", tag: "exam-hint", pinned: true, createdAt: "2026-03-28" }] },
       { number: 6, title: "Genetics", status: "not-started" },
     ],
   },
@@ -159,7 +237,7 @@ export const classes: ClassInfo[] = [
     chapters: [
       { number: 1, title: "Rhetorical Analysis", status: "completed" },
       { number: 2, title: "Research Methods", status: "completed" },
-      { number: 3, title: "Argumentative Writing", status: "in-progress" },
+      { number: 3, title: "Argumentative Writing", status: "in-progress", professorHints: [{ id: "ph4", text: "Focus on essay structure — she values clear topic sentences", tag: "assignment-note", createdAt: "2026-03-30" }, { id: "ph5", text: "Citation style must be MLA. She docks points for APA.", tag: "class-reminder", pinned: true, createdAt: "2026-03-25" }] },
       { number: 4, title: "Synthesis Essays", status: "not-started" },
     ],
   },
@@ -184,8 +262,8 @@ export const classes: ClassInfo[] = [
     chapters: [
       { number: 1, title: "Functions & Graphs", status: "completed" },
       { number: 2, title: "Linear Functions", status: "completed" },
-      { number: 3, title: "Quadratic Functions", status: "completed" },
-      { number: 4, title: "Polynomial Functions", status: "in-progress" },
+      { number: 3, title: "Quadratic Functions", status: "completed", professorHints: [{ id: "ph6", text: "He hinted at quadratic formula problems on the midterm", tag: "exam-hint", pinned: true, createdAt: "2026-03-15" }] },
+      { number: 4, title: "Polynomial Functions", status: "in-progress", notes: "Need to catch up on homework", aiBreakdown: { bigIdea: "Understanding polynomial behavior through degree, zeros, and end behavior", keyTerms: ["Degree", "Leading coefficient", "Zeros", "Multiplicity", "End behavior", "Synthetic division"], professorCares: "Ability to graph polynomials by hand and find all real/complex roots", confusing: "Polynomial long division and synthetic division steps", practiceNext: "Work through factoring problems in section 4.3" } },
       { number: 5, title: "Rational Functions", status: "not-started" },
       { number: 6, title: "Exponential & Logarithmic", status: "not-started" },
     ],
@@ -203,6 +281,7 @@ export const assignments: Assignment[] = [
     estimatedTime: "3 hours",
     status: "started",
     instructions: "Write a 5-page argumentative essay on a social issue of your choice. Use at least 4 scholarly sources. MLA format.",
+    professorHints: [{ id: "aph1", text: "She said she'll accept late drafts for half credit if submitted within 24 hours", tag: "assignment-note", createdAt: "2026-04-02" }],
   },
   {
     id: "a2",
@@ -261,6 +340,7 @@ export const exams: Exam[] = [
     topics: ["Quadratic Functions", "Polynomial Functions", "Graphing", "Word Problems"],
     strongAreas: ["Quadratic formula", "Basic graphing"],
     weakAreas: ["Polynomial long division", "Complex roots", "Word problems"],
+    professorHints: [{ id: "eph1", text: "Dr. Patel said the exam will emphasize graphing and word problems", tag: "exam-hint", pinned: true, createdAt: "2026-04-01" }],
   },
   {
     id: "e2",
@@ -272,6 +352,7 @@ export const exams: Exam[] = [
     topics: ["Sensation & Perception", "Consciousness", "Memory & Learning"],
     strongAreas: ["Sensation basics", "Sleep stages"],
     weakAreas: ["Memory models", "Learning theories"],
+    professorHints: [{ id: "eph2", text: "Dr. Martinez mentioned there will be a lot of application questions — not just definitions", tag: "exam-hint", createdAt: "2026-04-03" }],
   },
   {
     id: "e3",
@@ -324,6 +405,7 @@ export const lectures: Lecture[] = [
       "Retrieval cues help access stored memories",
     ],
     concepts: ["Multi-store model", "Sensory memory", "Short-term memory", "Long-term memory", "Encoding types", "Retrieval cues", "Context-dependent memory"],
+    professorHints: [{ id: "lph1", text: "Dr. Martinez stressed the multi-store model will be on the exam", tag: "exam-hint", pinned: true, createdAt: "2026-04-02" }],
   },
   {
     id: "n2",
@@ -378,6 +460,43 @@ export const lectures: Lecture[] = [
   },
 ];
 
+// Generate calendar events with proper ISO dates for week navigation
+export function generateCalendarEvents(weekStart: Date): CalendarEvent[] {
+  const events: CalendarEvent[] = [];
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    const dayName = dayNames[d.getDay()];
+    const dateStr = d.toISOString().split("T")[0];
+
+    classes.forEach(c => {
+      if (c.days.includes(dayName)) {
+        const hour = parseInt(c.time);
+        const isPM = c.time.includes("PM") && hour !== 12;
+        const h = isPM ? hour + 12 : hour;
+        events.push({ id: `cal-${c.id}-${dateStr}`, day: dayName, startHour: h, duration: 1, label: c.name, type: "class", linkedId: c.id, linkedRoute: `/classes/${c.id}`, date: dateStr });
+      }
+    });
+
+    workShifts.forEach(s => {
+      if (s.day === dayName) {
+        const startH = parseInt(s.startTime);
+        const isPM = s.startTime.includes("PM") && startH !== 12;
+        const endH = parseInt(s.endTime);
+        const endPM = s.endTime.includes("PM") && endH !== 12;
+        const start = isPM ? startH + 12 : startH;
+        const end = endPM ? endH + 12 : endH;
+        events.push({ id: `cal-${s.id}-${dateStr}`, day: dayName, startHour: start, duration: end - start, label: "Work", type: "work", date: dateStr });
+      }
+    });
+  }
+
+  return events;
+}
+
+// Legacy static events (kept for backward compat)
 export const calendarEvents: CalendarEvent[] = (() => {
   const events: CalendarEvent[] = [];
   classes.forEach(c => {
@@ -442,3 +561,16 @@ export function getStatusLabel(status: Assignment['status']): string {
   };
   return labels[status] || status;
 }
+
+export const eventTypeColors: Record<string, string> = {
+  class: "bg-primary/15 text-primary border-primary/20",
+  work: "bg-muted text-muted-foreground border-border",
+  exam: "bg-danger/15 text-danger border-danger/20",
+  assignment: "bg-warning/15 text-warning border-warning/20",
+  study: "bg-success/15 text-success border-success/20",
+  personal: "bg-accent/15 text-accent border-accent/20",
+  "academic-deadline": "bg-primary/15 text-primary border-primary/20",
+  payment: "bg-warning/15 text-warning border-warning/20",
+  tutoring: "bg-success/15 text-success border-success/20",
+  "office-hours": "bg-primary/15 text-primary border-primary/20",
+};
