@@ -3,17 +3,18 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { 
-  assignments, getPriorityColor, getStatusLabel, getDaysUntil 
+import {
+  assignments, getPriorityColor, getStatusLabel, getDaysUntil
 } from "@/data/demo";
-import { ArrowUpDown, Lightbulb, ListChecks, HelpCircle, FileEdit, Sparkles } from "lucide-react";
+import { ArrowUpDown, Lightbulb, ListChecks, HelpCircle, FileEdit, Sparkles, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { EditItemModal, type EditField } from "@/components/EditItemModal";
 
 export default function AssignmentsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
   const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);
+  const [editAssignment, setEditAssignment] = useState<typeof assignments[0] | null>(null);
 
   const sorted = [...assignments].sort((a, b) => {
     if (sortBy === 'priority') {
@@ -22,6 +23,18 @@ export default function AssignmentsPage() {
     }
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
+
+  const editFields: EditField[] = [
+    { key: "title", label: "Title", type: "text" },
+    { key: "dueDate", label: "Due Date", type: "date" },
+    { key: "estimatedTime", label: "Time Estimate", type: "text" },
+    { key: "priority", label: "Priority", type: "select", options: [
+      { value: "high", label: "High" },
+      { value: "medium", label: "Medium" },
+      { value: "low", label: "Low" },
+    ]},
+    { key: "instructions", label: "Instructions", type: "textarea" },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -44,7 +57,7 @@ export default function AssignmentsPage() {
         {sorted.map((a, i) => {
           const days = getDaysUntil(a.dueDate);
           const urgency = days <= 1 ? "border-danger/30" : days <= 3 ? "border-warning/30" : "border-border";
-          
+
           return (
             <motion.div
               key={a.id}
@@ -54,26 +67,31 @@ export default function AssignmentsPage() {
             >
               <Card className={`shadow-card ${urgency}`}>
                 <CardContent className="p-5">
-                  <Link to={`/assignments/${a.id}`} className="block">
-                    <div className="flex flex-col md:flex-row md:items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-display font-semibold text-foreground hover:text-primary transition-colors">{a.title}</h3>
-                          <Badge variant="secondary" className={`text-xs ${getPriorityColor(a.priority)}`}>
-                            {a.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">{a.className}</p>
-                        <p className="text-sm text-foreground/80 mb-3">{a.instructions}</p>
-                        
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>⏱ {a.estimatedTime}</span>
-                          <span>📅 Due {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}</span>
-                          <Badge variant="outline" className="text-xs">{getStatusLabel(a.status)}</Badge>
+                  <div className="flex items-start gap-2">
+                    <Link to={`/assignments/${a.id}`} className="block flex-1">
+                      <div className="flex flex-col md:flex-row md:items-start gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 className="font-display font-semibold text-foreground hover:text-primary transition-colors">{a.title}</h3>
+                            <Badge variant="secondary" className={`text-xs ${getPriorityColor(a.priority)}`}>
+                              {a.priority}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">{a.className}</p>
+                          <p className="text-sm text-foreground/80 mb-3">{a.instructions}</p>
+
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>⏱ {a.estimatedTime}</span>
+                            <span>📅 Due {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}</span>
+                            <Badge variant="outline" className="text-xs">{getStatusLabel(a.status)}</Badge>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => setEditAssignment(a)}>
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
 
                   {/* AI Actions */}
                   <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-2">
@@ -124,6 +142,23 @@ export default function AssignmentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {editAssignment && (
+        <EditItemModal
+          open={!!editAssignment}
+          onOpenChange={(v) => { if (!v) setEditAssignment(null); }}
+          title={`Edit ${editAssignment.title}`}
+          fields={editFields}
+          values={{
+            title: editAssignment.title,
+            dueDate: editAssignment.dueDate,
+            estimatedTime: editAssignment.estimatedTime,
+            priority: editAssignment.priority,
+            instructions: editAssignment.instructions,
+          }}
+          onSave={() => setEditAssignment(null)}
+        />
+      )}
     </div>
   );
 }
