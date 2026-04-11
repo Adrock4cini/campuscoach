@@ -19,6 +19,8 @@ import NotesPage from "./pages/NotesPage";
 import NoteDetail from "./pages/NoteDetail";
 import ProgressPage from "./pages/ProgressPage";
 import SettingsPage from "./pages/SettingsPage";
+import ExamDebriefPage from "./pages/ExamDebriefPage";
+import CourseIntelligencePage from "./pages/CourseIntelligencePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +49,8 @@ const App = () => (
             <Route path="/notes/:noteId" element={<NoteDetail />} />
             <Route path="/progress" element={<ProgressPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/exam-debrief" element={<ExamDebriefPage />} />
+            <Route path="/course-intelligence" element={<CourseIntelligencePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>

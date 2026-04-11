@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { exams, getDaysUntil, getReadinessColor, getReadinessLabel, getReadinessBg } from "@/data/demo";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, XCircle, Brain, Target, Zap, Pencil,
+  ArrowLeft, ArrowRight, CheckCircle2, XCircle, Brain, Target, Zap, Pencil, FileText,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProfessorHints } from "@/components/ProfessorHints";
@@ -156,6 +156,9 @@ export default function ExamDetail() {
         </Button>
         <Button variant="outline" onClick={() => setActiveModal("flashcards")}>
           <Brain className="h-4 w-4 mr-1.5" /> Flashcards
+        </Button>
+        <Button variant="outline" onClick={() => navigate("/exam-debrief")}>
+          <FileText className="h-4 w-4 mr-1.5" /> Post-Exam Debrief
         </Button>
       </div>
 
