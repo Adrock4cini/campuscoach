@@ -9,6 +9,8 @@ import {
   GraduationCap,
   ClipboardList,
   Mic,
+  MessageSquare,
+  TrendingUp,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -31,6 +33,8 @@ const navItems = [
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
   { title: "Exams", url: "/exams", icon: GraduationCap },
   { title: "Notes & Recordings", url: "/notes", icon: Mic },
+  { title: "Exam Debrief", url: "/exam-debrief", icon: MessageSquare },
+  { title: "Course Intel", url: "/course-intelligence", icon: TrendingUp },
   { title: "Progress", url: "/progress", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
