@@ -16,6 +16,7 @@ import { ProfessorHints } from "@/components/ProfessorHints";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ProfessorHint } from "@/data/demo";
+import { getAssignmentStartSuggestion } from "@/data/courseIntelligence";
 
 const aiResponses: Record<string, { title: string; content: string }> = {
   steps: {
@@ -62,6 +63,7 @@ export default function AssignmentDetail() {
   const currentStatus = status || a.status;
   const days = getDaysUntil(a.dueDate);
   const modal = modalKey ? aiResponses[modalKey] : null;
+  const startSuggestion = getAssignmentStartSuggestion(a.id);
 
   const editFields: EditField[] = [
     { key: "title", label: "Title", type: "text" },
@@ -109,6 +111,14 @@ export default function AssignmentDetail() {
               <h3 className="font-semibold text-foreground text-sm mb-1">Instructions</h3>
               <p className="text-sm text-foreground/80">{a.instructions}</p>
             </div>
+
+            {startSuggestion && (
+              <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                <p className="text-xs font-medium text-primary">{startSuggestion.label}</p>
+                <p className="text-sm text-foreground mt-1">{startSuggestion.step}</p>
+                <p className="text-xs text-muted-foreground mt-1">{startSuggestion.supportingLine}</p>
+              </div>
+            )}
 
             {/* Status buttons */}
             <div>

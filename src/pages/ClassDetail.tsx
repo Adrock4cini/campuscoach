@@ -17,6 +17,7 @@ import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import type { ProfessorHint, Chapter } from "@/data/demo";
+import { getClassPulse, getPredictedTopics, getRecommendedStudyMode, getTopStudentInsights } from "@/data/courseIntelligence";
 
 export default function ClassDetail() {
   const { classId } = useParams();
@@ -40,6 +41,10 @@ export default function ClassDetail() {
   const classAssignments = assignments.filter(a => a.classId === c.id);
   const classExams = exams.filter(e => e.classId === c.id);
   const classLectures = lectures.filter(l => l.classId === c.id);
+  const classPulse = getClassPulse(c.id);
+  const predictedTopics = getPredictedTopics(c.id).slice(0, 3);
+  const recommendedStudyMode = getRecommendedStudyMode(c.id);
+  const topInsights = getTopStudentInsights(c.id).slice(0, 2);
 
   const editFields: EditField[] = [
     { key: "name", label: "Class Name", type: "text" },
@@ -96,20 +101,64 @@ export default function ClassDetail() {
         </Card>
       </motion.div>
 
-      {/* Suggested next step */}
+      {/* 1. What to Study */}
       <Card className="shadow-soft border-primary/20 bg-primary/5">
         <CardContent className="p-5">
-          <h3 className="font-display font-semibold text-foreground mb-1">💡 Suggested Next Step</h3>
-          <p className="text-sm text-muted-foreground mb-3">{c.suggestedAction}</p>
+          <p className="text-xs font-medium text-primary mb-1">1. 🎯 What to Study</p>
+          <h3 className="font-display font-semibold text-foreground mb-1">{predictedTopics[0]?.topic ?? c.currentTopic}</h3>
+          <p className="text-sm text-muted-foreground mb-1">{predictedTopics[0]?.probability ?? 78}% likely to matter next · {predictedTopics[0]?.reason ?? c.suggestedAction}</p>
+          <p className="text-xs text-muted-foreground mb-3">{classPulse?.classComparison}</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {predictedTopics.map((topic) => (
+              <Badge key={topic.topic} variant="outline" className="text-xs border-primary/20 text-primary">{topic.flags[0] ?? "🎯"} {topic.topic}</Badge>
+            ))}
+          </div>
           <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
             <FlaskConical className="h-4 w-4 mr-1.5" /> Start Studying
           </Button>
         </CardContent>
       </Card>
 
-      {/* Professor Hints */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium text-primary mb-1">2. 🧠 Study</p>
+            <h3 className="font-display font-semibold text-foreground">{recommendedStudyMode.label}</h3>
+            <p className="text-sm text-muted-foreground mt-1">Focused on what matters most.</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">{recommendedStudyMode.reason}</p>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => navigate(`/study-lab/session?mode=${recommendedStudyMode.mode}&classId=${c.id}&topic=${encodeURIComponent(predictedTopics[0]?.topic ?? "all")}`)}>
+                <ArrowRight className="h-4 w-4 mr-1.5" /> {recommendedStudyMode.cta}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/focus-sprint?classId=${c.id}&duration=25`)}>Focus Sprint</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium text-primary mb-1">4. 📊 Class Intelligence</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">🔥 Trending</span><span className="font-medium text-foreground">{classPulse?.trending.topic ?? c.currentTopic}</span></div>
+              <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">⭐ Most starred</span><span className="font-medium text-foreground">{classPulse?.mostStarred.topic ?? c.currentTopic}</span></div>
+              <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">⚠️ Most missed</span><span className="font-medium text-foreground">{classPulse?.mostStruggled.topic ?? c.currentTopic}</span></div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">{classPulse?.networkEffectLine}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 3. Notes & Insights */}
       <Card className="shadow-card">
         <CardContent className="p-5">
+          <div className="mb-4">
+            <p className="text-xs font-medium text-primary mb-1">3. 📝 Notes & Insights</p>
+            <div className="space-y-2">
+              {topInsights.map((insight) => (
+                <div key={insight} className="rounded-lg bg-muted/40 p-3 text-sm text-foreground/80">💡 {insight}</div>
+              ))}
+            </div>
+          </div>
           <ProfessorHints
             hints={classHints}
             onAdd={h => setClassHints(prev => [...prev, h])}

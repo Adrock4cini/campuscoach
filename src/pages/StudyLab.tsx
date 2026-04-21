@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
+import { getPredictedTopics, getRecommendedStudyMode, getRecommendedTopic } from "@/data/courseIntelligence";
 import { 
   Brain, Zap, Target, Gamepad2, Clock, 
   ArrowRight, Sparkles, Trophy 
@@ -29,10 +30,13 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string | null>(preselectedClass);
-  
+  const activeClassId = selectedClass || classes[0].id;
+  const recommendedMode = getRecommendedStudyMode(activeClassId);
+  const recommendedTopic = getRecommendedTopic(activeClassId);
+  const predictedTopics = getPredictedTopics(activeClassId).slice(0, 3);
 
   const handleStartSprint = () => {
-    const classId = selectedClass || classes[0].id;
+    const classId = activeClassId;
     navigate(`/focus-sprint?classId=${classId}&duration=${selectedDuration}`);
   };
 
@@ -102,9 +106,37 @@ export default function StudyLab() {
         </Card>
       </motion.div>
 
+      <Card className="shadow-soft border-primary/20 bg-primary/5">
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">🎯 Recommended for You</p>
+            <h2 className="font-display font-semibold text-xl text-foreground mt-1">{recommendedMode.label}</h2>
+            <p className="text-sm text-muted-foreground mt-1">Focused on what matters most: <span className="text-foreground font-medium">{recommendedTopic?.topic ?? "your weakest topic"}</span></p>
+            <p className="text-xs text-muted-foreground mt-1">{recommendedMode.reason}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {predictedTopics.map((topic) => (
+              <Badge key={topic.topic} variant="outline" className="text-xs border-primary/20 text-primary">
+                {topic.flags[0] ?? "🎯"} {topic.topic}
+              </Badge>
+            ))}
+          </div>
+
+          <Button
+            className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
+            onClick={() => navigate(`/study-lab/session?mode=${recommendedMode.mode}&classId=${activeClassId}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`)}
+          >
+            <ArrowRight className="h-4 w-4 mr-1.5" />
+            {recommendedMode.cta}
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Study Modes Grid */}
       <div>
-        <h2 className="text-lg font-display font-semibold text-foreground mb-4">Study Modes</h2>
+        <h2 className="text-lg font-display font-semibold text-foreground mb-1">Other ways to study</h2>
+        <p className="text-sm text-muted-foreground mb-4">One recommended next step first, then the rest if you want to switch.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {studyModes.map((mode, i) => (
             <motion.div
@@ -115,7 +147,7 @@ export default function StudyLab() {
             >
               <Card
                 className="shadow-card hover:shadow-elevated transition-all cursor-pointer group"
-                onClick={() => navigate(`/study-lab/session?mode=${mode.mode}`)}
+                onClick={() => navigate(`/study-lab/session?mode=${mode.mode}&classId=${activeClassId}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`)}
               >
                 <CardContent className="p-5">
                   <div className={`h-10 w-10 rounded-lg ${mode.color} flex items-center justify-center mb-3`}>
