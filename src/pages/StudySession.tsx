@@ -22,6 +22,8 @@ export default function StudySession() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialMode = (searchParams.get("mode") as StudyMode) || "flashcards";
+  const initialClassId = searchParams.get("classId") || undefined;
+  const initialTopic = searchParams.get("topic") || undefined;
 
   const [mode, setMode] = useState<StudyMode>(initialMode);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -145,6 +147,8 @@ export default function StudySession() {
           mode={mode}
           onStart={handleSetupStart}
           onBack={() => navigate("/study-lab")}
+          defaultClassId={initialClassId}
+          defaultTopic={initialTopic}
         />
       </div>
     );

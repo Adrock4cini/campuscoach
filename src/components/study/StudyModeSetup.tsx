@@ -20,11 +20,13 @@ interface Props {
   mode: StudyMode;
   onStart: (config: { classId: string; topic: string; difficulty: "easy" | "medium" | "hard" | "mixed"; count: number; duration?: number }) => void;
   onBack: () => void;
+  defaultClassId?: string;
+  defaultTopic?: string;
 }
 
-export default function StudyModeSetup({ mode, onStart, onBack }: Props) {
-  const [classId, setClassId] = useState<string>(classes[0].id);
-  const [topic, setTopic] = useState<string>("all");
+export default function StudyModeSetup({ mode, onStart, onBack, defaultClassId, defaultTopic }: Props) {
+  const [classId, setClassId] = useState<string>(defaultClassId || classes[0].id);
+  const [topic, setTopic] = useState<string>(defaultTopic || "all");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | "mixed">("mixed");
   const [count, setCount] = useState(10);
   const [duration, setDuration] = useState(60);
@@ -50,7 +52,7 @@ export default function StudyModeSetup({ mode, onStart, onBack }: Props) {
           <Icon className="h-7 w-7 text-primary" />
         </div>
         <h1 className="text-2xl font-display font-semibold text-foreground">{modeLabels[mode]}</h1>
-        <p className="text-muted-foreground text-sm mt-1">Set up your study session</p>
+        <p className="text-muted-foreground text-sm mt-1">Focused on what matters most</p>
       </div>
 
       <Card className="shadow-card">
