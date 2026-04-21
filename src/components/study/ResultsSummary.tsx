@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { classes } from "@/data/demo";
 import { modeLabels, StudyMode } from "@/data/questions";
 import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
 
 interface Props {
   classId: string;
@@ -29,6 +31,7 @@ export default function ResultsSummary({
   classId, topic, mode, correct, incorrect, skipped, elapsed,
   onRetryMissed, onReplay, onSwitchMode, onBackToLab,
 }: Props) {
+  const [confidence, setConfidence] = useState<string>("");
   const total = correct + incorrect + skipped;
   const score = total > 0 ? Math.round((correct / total) * 100) : 0;
   const cls = classes.find(c => c.id === classId);
@@ -80,6 +83,25 @@ export default function ResultsSummary({
         <CardContent className="p-4 text-center">
           <Sparkles className="h-5 w-5 text-primary mx-auto mb-2" />
           <p className="text-sm text-foreground">{encouragement}</p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card">
+        <CardContent className="p-4">
+          <p className="text-sm font-medium text-foreground mb-2">How confident are you now?</p>
+          <Select value={confidence} onValueChange={setConfidence}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Choose your confidence" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Still lost</SelectItem>
+              <SelectItem value="2">A little better</SelectItem>
+              <SelectItem value="3">Getting there</SelectItem>
+              <SelectItem value="4">Pretty solid</SelectItem>
+              <SelectItem value="5">Ready to use this</SelectItem>
+            </SelectContent>
+          </Select>
+          {confidence && <p className="text-xs text-muted-foreground mt-2">Saved to improve future recommendations.</p>}
         </CardContent>
       </Card>
 

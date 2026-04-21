@@ -13,7 +13,7 @@ import {
 import { classes } from "@/data/demo";
 import {
   textbooks, classTextbookMap, professors, classProfessorMap,
-  getCourseInsights, generateInsightSummary, examDebriefs,
+  getCourseInsights, generateInsightSummary, examDebriefs, getPredictedTopics, getClassPulse,
 } from "@/data/courseIntelligence";
 
 export default function CourseIntelligencePage() {
@@ -26,12 +26,14 @@ export default function CourseIntelligencePage() {
   const insights = getCourseInsights(selectedClassId);
   const summaries = generateInsightSummary(selectedClassId);
   const debriefCount = examDebriefs.filter(d => d.classId === selectedClassId).length;
+  const predictedTopics = getPredictedTopics(selectedClassId).slice(0, 3);
+  const classPulse = getClassPulse(selectedClassId);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-semibold text-foreground">Course Intelligence</h1>
-        <p className="text-muted-foreground text-sm mt-1">AI-powered patterns from textbooks, professors, and peer insights</p>
+        <p className="text-muted-foreground text-sm mt-1">Actionable guide from textbooks, professors, and peer insights</p>
       </div>
 
       {/* Class selector */}
@@ -83,6 +85,26 @@ export default function CourseIntelligencePage() {
                   </li>
                 ))}
               </ul>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-card">
+            <CardContent className="p-5">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
+                <Target className="h-4 w-4 text-primary" /> 🎯 If you only study 3 things, study this:
+              </h3>
+              <div className="space-y-2">
+                {predictedTopics.map((topic) => (
+                  <div key={topic.topic} className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{topic.topic}</p>
+                      <p className="text-xs text-muted-foreground">{topic.probability}% likely · {topic.reason}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs border-primary/20 text-primary">{topic.confidence}</Badge>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">{classPulse?.networkEffectLine}</p>
             </CardContent>
           </Card>
 

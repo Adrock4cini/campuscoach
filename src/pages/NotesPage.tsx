@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { lectures } from "@/data/demo";
 import { Mic, Camera, FileUp, FileText, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getTopicSignals, getTopStudentInsights } from "@/data/courseIntelligence";
 
 const typeIcons = { recording: Mic, photo: Camera, manual: FileText, pdf: FileUp };
 const typeLabels = { recording: "Recording", photo: "Board Photo", manual: "Manual Notes", pdf: "PDF Upload" };
 
 export default function NotesPage() {
+  const topInsights = getTopStudentInsights("psych101").slice(0, 2);
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
@@ -36,6 +38,17 @@ export default function NotesPage() {
             📢 <strong>Reminder:</strong> Always check your school and instructor's policies before recording lectures. 
             Some professors require permission first.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card border-primary/20 bg-primary/5">
+        <CardContent className="p-4">
+          <h3 className="font-display font-semibold text-foreground mb-2">💡 Top insights from students</h3>
+          <div className="space-y-2">
+            {topInsights.map((insight) => (
+              <p key={insight} className="text-sm text-foreground/80">{insight}</p>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -78,8 +91,11 @@ export default function NotesPage() {
 
                         <div className="flex items-center gap-2 flex-wrap">
                           {note.keyTopics.map(t => (
-                            <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                            <Badge key={t} variant="secondary" className="text-xs">⭐ {t}</Badge>
                           ))}
+                          {note.keyTopics.slice(0, 1).map(t => getTopicSignals(note.classId, t).slice(0, 2).map(signal => (
+                            <Badge key={`${note.id}-${t}-${signal}`} variant="outline" className="text-xs border-primary/20 text-primary">{signal}</Badge>
+                          )))}
                         </div>
                       </div>
                     </div>
