@@ -10,6 +10,7 @@ import { ArrowUpDown, Lightbulb, ListChecks, HelpCircle, FileEdit, Sparkles, Pen
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import { getAssignmentStartSuggestion } from "@/data/courseIntelligence";
 
 export default function AssignmentsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
@@ -57,6 +58,7 @@ export default function AssignmentsPage() {
         {sorted.map((a, i) => {
           const days = getDaysUntil(a.dueDate);
           const urgency = days <= 1 ? "border-danger/30" : days <= 3 ? "border-warning/30" : "border-border";
+          const startSuggestion = getAssignmentStartSuggestion(a.id);
 
           return (
             <motion.div
@@ -79,6 +81,13 @@ export default function AssignmentsPage() {
                           </div>
                           <p className="text-sm text-muted-foreground mb-2">{a.className}</p>
                           <p className="text-sm text-foreground/80 mb-3">{a.instructions}</p>
+                          {startSuggestion && (
+                            <div className="mb-3 rounded-lg bg-primary/5 border border-primary/10 p-3">
+                              <p className="text-xs font-medium text-primary">{startSuggestion.label}</p>
+                              <p className="text-sm text-foreground mt-1">{startSuggestion.step}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{startSuggestion.supportingLine}</p>
+                            </div>
+                          )}
 
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span>⏱ {a.estimatedTime}</span>
