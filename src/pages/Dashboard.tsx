@@ -8,6 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  getClassPulse,
+  getRecommendedTopic,
+} from "@/data/courseIntelligence";
 import { 
   studentName, classes, assignments, exams, workShifts, studyStreak,
   getDaysUntil, getReadinessColor, getReadinessBg, getReadinessLabel,
@@ -50,6 +54,15 @@ export default function Dashboard() {
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 3);
   const nextExam = [...exams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+  const priorityClassId = nextExam?.classId ?? classes[0]?.id;
+  const predictedTopic = priorityClassId ? getRecommendedTopic(priorityClassId) : null;
+  const classPulse = priorityClassId ? getClassPulse(priorityClassId) : null;
+  const readinessBreakdown = {
+    conceptsCovered: 61,
+    practiceAccuracy: 58,
+    confidence: classPulse?.averageConfidence ? Math.round(classPulse.averageConfidence * 20) : 46,
+    classComparison: classPulse?.classComparison ?? "You are close to your class average this week.",
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -73,7 +86,7 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* What should I do right now? */}
+      {/* Study this next */}
       <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
         <Card className="border-primary/20 bg-primary/5 shadow-soft">
           <CardContent className="p-5">
@@ -82,15 +95,16 @@ export default function Dashboard() {
                 <Zap className="h-5 w-5 text-primary-foreground" />
               </div>
               <div className="flex-1">
-                <h3 className="font-display font-semibold text-foreground text-lg">What should I do right now?</h3>
+                <h3 className="font-display font-semibold text-foreground text-lg">🎯 Study This Next (Based on Your Class)</h3>
+                <p className="text-foreground text-base font-medium mt-1">{predictedTopic?.topic ?? "Polynomial Roots"}</p>
                 <p className="text-muted-foreground text-sm mt-1">
-                  Your Algebra exam is in <strong>5 days</strong> and your readiness is at 34%. 
-                  A 25-minute practice session on polynomial functions would help a lot.
+                  {predictedTopic?.probability ?? 92}% likely on exam · {predictedTopic?.reason ?? "Most students struggled here"}
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">{predictedTopic?.supportingLine ?? "1,284 students focused on this"}</p>
                 <Button
                   size="sm"
                   className="mt-3 bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
-                  onClick={() => navigate("/focus-sprint?classId=math150&duration=25")}
+                  onClick={() => navigate(`/focus-sprint?classId=${priorityClassId}&duration=25`)}
                 >
                   <Timer className="h-4 w-4 mr-1.5" />
                   Start 25-min Focus Sprint
@@ -200,58 +214,83 @@ export default function Dashboard() {
 
         {/* Right column */}
         <div className="space-y-6">
-          {/* Exam Countdown */}
+          {/* Class Pulse */}
           {nextExam && (
             <motion.div {...fadeIn} transition={{ delay: 0.1 }}>
               <Card className="shadow-card border-danger/20">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle className="h-4 w-4 text-danger" />
-                    <span className="text-sm font-semibold text-danger">Next Exam</span>
+                    <span className="text-sm font-semibold text-danger">🔥 Class Pulse</span>
                   </div>
-                  <h4 className="font-display font-semibold text-foreground">{nextExam.title}</h4>
-                  <p className="text-sm text-muted-foreground mb-3">{nextExam.className} · {getDaysUntil(nextExam.date)} days away</p>
-                  <div className={`rounded-lg p-3 ${getReadinessBg(nextExam.readiness)}`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">Readiness</span>
-                      <span className={`text-sm font-bold ${getReadinessColor(nextExam.readiness)}`}>{nextExam.readiness}%</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">Most starred</span>
+                      <span className="text-sm font-medium text-foreground text-right">{classPulse?.mostStarred.topic ?? "Polynomial Roots"}</span>
                     </div>
-                    <Progress value={nextExam.readiness} className="h-2" />
-                    <p className="text-xs text-muted-foreground mt-1.5">{getReadinessLabel(nextExam.readiness)}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">Most struggled</span>
+                      <span className="text-sm font-medium text-foreground text-right">{classPulse?.mostStruggled.topic ?? "Word Problems"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">Trending now</span>
+                      <span className="text-sm font-medium text-foreground text-right">{classPulse?.trending.topic ?? "Graphing Polynomials"}</span>
+                    </div>
+                    <div className={`rounded-lg p-3 ${getReadinessBg(nextExam.readiness)}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">Average class confidence</span>
+                        <span className={`text-sm font-bold ${getReadinessColor(Math.round((classPulse?.averageConfidence ?? 2.1) * 20))}`}>{Math.round((classPulse?.averageConfidence ?? 2.1) * 20)}%</span>
+                      </div>
+                      <Progress value={Math.round((classPulse?.averageConfidence ?? 2.1) * 20)} className="h-2" />
+                    </div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     className="w-full mt-3"
-                    onClick={() => navigate(`/exams/${nextExam.id}`)}
+                    onClick={() => navigate(`/classes/${priorityClassId}`)}
                   >
                     <ArrowRight className="h-4 w-4 mr-1.5" />
-                    Start Studying
+                    See class guidance
                   </Button>
                 </CardContent>
               </Card>
             </motion.div>
           )}
 
-          {/* Class Readiness */}
+          {/* Readiness */}
           <motion.div {...fadeIn} transition={{ delay: 0.15 }}>
             <Card className="shadow-card">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-display">Readiness by Class</CardTitle>
+                <CardTitle className="text-lg font-display">Readiness</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {classes.map(c => (
-                  <Link key={c.id} to={`/classes/${c.id}`} className="block">
-                    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30 transition-colors">
-                      <div className={`h-3 w-3 rounded-full ${c.color}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
-                        <Progress value={c.readiness} className="h-1.5 mt-1" />
-                      </div>
-                      <span className={`text-sm font-bold ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
-                    </div>
-                  </Link>
-                ))}
+              <CardContent className="space-y-4">
+                <div className="rounded-lg bg-muted/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">Overall readiness</span>
+                    <span className={`text-lg font-bold ${getReadinessColor(nextExam?.readiness ?? 50)}`}>{nextExam?.readiness ?? 50}%</span>
+                  </div>
+                  <Progress value={nextExam?.readiness ?? 50} className="h-2 mt-2" />
+                  <p className="text-xs text-muted-foreground mt-2">{getReadinessLabel(nextExam?.readiness ?? 50)}</p>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Concepts Covered</span><span>{readinessBreakdown.conceptsCovered}%</span></div>
+                    <Progress value={readinessBreakdown.conceptsCovered} className="h-1.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Practice Accuracy</span><span>{readinessBreakdown.practiceAccuracy}%</span></div>
+                    <Progress value={readinessBreakdown.practiceAccuracy} className="h-1.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Confidence Level</span><span>{readinessBreakdown.confidence}%</span></div>
+                    <Progress value={readinessBreakdown.confidence} className="h-1.5" />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Class Comparison</p>
+                  <p className="text-sm font-medium text-foreground mt-1">{readinessBreakdown.classComparison}</p>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
