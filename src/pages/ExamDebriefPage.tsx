@@ -53,8 +53,10 @@ export default function ExamDebriefPage() {
   const [studyMore, setStudyMore] = useState("");
   const [surprises, setSurprises] = useState("");
   const [advice, setAdvice] = useState("");
-  const [allDebriefs, setAllDebriefs] = useState<ExamDebrief[]>(examDebriefs);
   const [insightsClassId, setInsightsClassId] = useState(classes[0]?.id || "");
+  const [submitting, setSubmitting] = useState(false);
+
+  const intel = useClassIntelligence(insightsClassId);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const classExams = exams.filter(e => e.classId === selectedClassId);
@@ -63,54 +65,50 @@ export default function ExamDebriefPage() {
     setFormatTags(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedClassId || !selectedExamId) {
       toast.error("Please select a class and exam");
       return;
     }
     const exam = exams.find(e => e.id === selectedExamId);
-    const cls = classes.find(c => c.id === selectedClassId);
-    const newDebrief: ExamDebrief = {
-      id: `deb-${Date.now()}`,
-      classId: selectedClassId,
-      professorId: "",
-      examId: selectedExamId,
-      examName: exam?.title || "",
-      className: cls?.name || "",
-      dateTaken: new Date().toISOString().split("T")[0],
-      chaptersCoversed: exam?.topics || [],
-      topicTags: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
+    setSubmitting(true);
+    const { error } = await supabase.from("exam_debriefs").insert({
+      user_id: getAnonUserId(),
+      class_id: selectedClassId,
+      exam_name: exam?.title || "Exam",
+      date_taken: new Date().toISOString().split("T")[0],
+      topics_mentioned: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
+      chapter_tags: exam?.topics ?? [],
+      format_tags: formatTags,
+      study_more_tags: studyMore.split(",").map(s => s.trim()).filter(Boolean),
       difficulty,
-      timePressure,
+      time_pressure: timePressure,
       confidence,
-      formatTags,
-      emphasizedTopics: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
-      studyMoreTopics: studyMore.split(",").map(s => s.trim()).filter(Boolean),
-      mostImportantChapters: [],
-      surprises,
-      adviceForNext: advice,
-      createdAt: new Date().toISOString(),
-    };
-    setAllDebriefs(prev => [...prev, newDebrief]);
+      surprises: surprises || null,
+      advice_notes: advice || null,
+    });
+    setSubmitting(false);
+    if (error) { toast.error("Couldn't submit — try again"); return; }
     toast.success("Debrief submitted! Your insights will help other students.");
     setTab("insights");
     setInsightsClassId(selectedClassId);
-    // Reset
-    setSelectedClassId("");
-    setSelectedExamId("");
-    setDifficulty(3);
-    setTimePressure(3);
-    setConfidence(3);
-    setFormatTags([]);
-    setEmphasizedTopics("");
-    setStudyMore("");
-    setSurprises("");
-    setAdvice("");
+    setSelectedClassId(""); setSelectedExamId(""); setDifficulty(3); setTimePressure(3); setConfidence(3);
+    setFormatTags([]); setEmphasizedTopics(""); setStudyMore(""); setSurprises(""); setAdvice("");
   };
 
-  const insights = getCourseInsights(insightsClassId);
-  const summaries = generateInsightSummary(insightsClassId);
-  const classDebriefs = allDebriefs.filter(d => d.classId === insightsClassId);
+  const summaries: string[] = [];
+  if (intel.topics[0]) summaries.push(`Most mentioned: ${intel.topics.slice(0, 3).map(t => t.topic_name).join(", ")}`);
+  if (intel.formatCounts[0]) summaries.push(`Exams lean toward ${intel.formatCounts[0].format.replace(/-/g, " ")} format`);
+  if (intel.studyMoreCounts[0]) summaries.push(`Students wished they'd reviewed "${intel.studyMoreCounts[0].topic}" more`);
+  if (intel.averageDifficulty >= 4) summaries.push("Recent exams are rated as difficult — plan extra time");
+  const classDebriefs = intel.debriefs;
+  const insights = intel.topics.length > 0 || classDebriefs.length > 0 ? {
+    topicEmphasis: intel.topics.map(t => ({ topic: t.topic_name, mentions: t.student_count })),
+    formatEmphasis: intel.formatCounts,
+    studyMorePatterns: intel.studyMoreCounts,
+    difficultyTrend: intel.averageDifficulty,
+    adviceTrends: intel.adviceTrends,
+  } : null;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
