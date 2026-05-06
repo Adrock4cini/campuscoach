@@ -338,6 +338,10 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
+          <motion.div {...fadeIn} transition={{ delay: 0.3 }}>
+            <ContributeHub defaultClassId={priorityClassId} />
+          </motion.div>
+
           {/* Celebrate */}
           <motion.div {...fadeIn} transition={{ delay: 0.25 }}>
             <Card className="shadow-card bg-success/5 border-success/20">
