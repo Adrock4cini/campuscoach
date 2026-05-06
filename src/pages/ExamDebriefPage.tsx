@@ -12,11 +12,10 @@ import {
   FileText, Send, TrendingUp, Users, AlertTriangle, BarChart3, MessageSquare, Sparkles, Shield
 } from "lucide-react";
 import { classes, exams } from "@/data/demo";
-import {
-  examDebriefs, getCourseInsights, generateInsightSummary,
-  type ExamDebrief, type ExamFormat
-} from "@/data/courseIntelligence";
+import { type ExamFormat } from "@/data/courseIntelligence";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useClassIntelligence, getAnonUserId } from "@/hooks/useClassIntelligence";
 
 const FORMAT_OPTIONS: { value: ExamFormat; label: string }[] = [
   { value: "multiple-choice", label: "Multiple Choice" },
