@@ -120,7 +120,7 @@ export default function ResultsSummary({
       <Card className="shadow-card">
         <CardContent className="p-4">
           <p className="text-sm font-medium text-foreground mb-2">How confident are you now?</p>
-          <Select value={confidence} onValueChange={setConfidence}>
+          <Select value={confidence} onValueChange={saveConfidence}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Choose your confidence" />
             </SelectTrigger>
@@ -132,7 +132,11 @@ export default function ResultsSummary({
               <SelectItem value="5">Ready to use this</SelectItem>
             </SelectContent>
           </Select>
-          {confidence && <p className="text-xs text-muted-foreground mt-2">Saved to improve future recommendations.</p>}
+          {contributed && (
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <Wifi className="h-3 w-3 text-primary" /> Your performance helps improve predictions for the whole class.
+            </p>
+          )}
         </CardContent>
       </Card>
 
