@@ -34,11 +34,40 @@ export default function ResultsSummary({
   onRetryMissed, onReplay, onSwitchMode, onBackToLab,
 }: Props) {
   const [confidence, setConfidence] = useState<string>("");
+  const [contributed, setContributed] = useState(false);
   const total = correct + incorrect + skipped;
   const score = total > 0 ? Math.round((correct / total) * 100) : 0;
   const cls = classes.find(c => c.id === classId);
   const readinessGain = Math.max(1, Math.round(score / 20));
   const newReadiness = Math.min(100, (cls?.readiness ?? 50) + readinessGain);
+
+  // Auto-contribute the session result to the crowdsourced layer once
+  useEffect(() => {
+    if (contributed || total === 0 || !classId || !topic || topic === "all") return;
+    contributeStudySignal({
+      classId,
+      topicId: topic,
+      topicName: topic,
+      starred: score < 60,
+      timeSpentMinutes: Math.max(1, Math.round(elapsed / 60)),
+      accuracy: score,
+      incorrectCount: incorrect,
+      sourceType: "study-session",
+      sourceId: mode,
+    }).then(({ error }) => { if (!error) setContributed(true); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveConfidence = async (val: string) => {
+    setConfidence(val);
+    if (!classId || !topic || topic === "all") return;
+    await contributeStudySignal({
+      classId, topicId: topic, topicName: topic,
+      confidence: Number(val), timeSpentMinutes: 0,
+      sourceType: "confidence-checkin",
+    });
+    toast.success("Saved — your class predictions just got sharper.");
+  };
 
   const encouragement = score >= 90
     ? "Outstanding! You really know this material. 🌟"
