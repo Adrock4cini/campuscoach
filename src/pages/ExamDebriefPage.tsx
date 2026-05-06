@@ -308,7 +308,7 @@ export default function ExamDebriefPage() {
                 <CardHeader><CardTitle className="text-base font-display">Difficulty & Time Pressure</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <RatingBar value={insights.difficultyTrend} label="Average Difficulty" color="" />
-                  <RatingBar value={Math.round(classDebriefs.reduce((s, d) => s + d.timePressure, 0) / Math.max(classDebriefs.length, 1) * 10) / 10} label="Average Time Pressure" color="" />
+                  <RatingBar value={Math.round(classDebriefs.reduce((s, d) => s + (d.time_pressure || 0), 0) / Math.max(classDebriefs.length, 1) * 10) / 10} label="Average Time Pressure" color="" />
                 </CardContent>
               </Card>
 
