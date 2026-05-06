@@ -12,6 +12,8 @@ import {
   getClassPulse,
   getRecommendedTopic,
 } from "@/data/courseIntelligence";
+import { useClassIntelligence } from "@/hooks/useClassIntelligence";
+import { ContributeHub } from "@/components/ContributeHub";
 import { 
   studentName, classes, assignments, exams, workShifts, studyStreak,
   getDaysUntil, getReadinessColor, getReadinessBg, getReadinessLabel,
@@ -55,7 +57,15 @@ export default function Dashboard() {
     .slice(0, 3);
   const nextExam = [...exams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
   const priorityClassId = nextExam?.classId ?? classes[0]?.id;
-  const predictedTopic = priorityClassId ? getRecommendedTopic(priorityClassId) : null;
+  const intel = useClassIntelligence(priorityClassId);
+  const liveTop = intel.topics[0];
+  const fallbackTopic = priorityClassId ? getRecommendedTopic(priorityClassId) : null;
+  const predictedTopic = liveTop ? {
+    topic: liveTop.topic_name,
+    probability: Math.round(liveTop.probability),
+    reason: liveTop.miss_rate > 30 ? "Most students struggled here" : "Most starred by your class",
+    supportingLine: `Based on ${liveTop.student_count} student${liveTop.student_count !== 1 ? "s" : ""}${liveTop.post_exam_mentions ? ` · ${liveTop.post_exam_mentions} debrief mention${liveTop.post_exam_mentions !== 1 ? "s" : ""}` : ""}`,
+  } : fallbackTopic;
   const classPulse = priorityClassId ? getClassPulse(priorityClassId) : null;
   const readinessBreakdown = {
     conceptsCovered: 61,
@@ -326,6 +336,10 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+          </motion.div>
+
+          <motion.div {...fadeIn} transition={{ delay: 0.3 }}>
+            <ContributeHub defaultClassId={priorityClassId} />
           </motion.div>
 
           {/* Celebrate */}

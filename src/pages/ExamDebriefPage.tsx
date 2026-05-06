@@ -12,11 +12,10 @@ import {
   FileText, Send, TrendingUp, Users, AlertTriangle, BarChart3, MessageSquare, Sparkles, Shield
 } from "lucide-react";
 import { classes, exams } from "@/data/demo";
-import {
-  examDebriefs, getCourseInsights, generateInsightSummary,
-  type ExamDebrief, type ExamFormat
-} from "@/data/courseIntelligence";
+import { type ExamFormat } from "@/data/courseIntelligence";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useClassIntelligence, getAnonUserId } from "@/hooks/useClassIntelligence";
 
 const FORMAT_OPTIONS: { value: ExamFormat; label: string }[] = [
   { value: "multiple-choice", label: "Multiple Choice" },
@@ -54,8 +53,10 @@ export default function ExamDebriefPage() {
   const [studyMore, setStudyMore] = useState("");
   const [surprises, setSurprises] = useState("");
   const [advice, setAdvice] = useState("");
-  const [allDebriefs, setAllDebriefs] = useState<ExamDebrief[]>(examDebriefs);
   const [insightsClassId, setInsightsClassId] = useState(classes[0]?.id || "");
+  const [submitting, setSubmitting] = useState(false);
+
+  const intel = useClassIntelligence(insightsClassId);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const classExams = exams.filter(e => e.classId === selectedClassId);
@@ -64,54 +65,50 @@ export default function ExamDebriefPage() {
     setFormatTags(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedClassId || !selectedExamId) {
       toast.error("Please select a class and exam");
       return;
     }
     const exam = exams.find(e => e.id === selectedExamId);
-    const cls = classes.find(c => c.id === selectedClassId);
-    const newDebrief: ExamDebrief = {
-      id: `deb-${Date.now()}`,
-      classId: selectedClassId,
-      professorId: "",
-      examId: selectedExamId,
-      examName: exam?.title || "",
-      className: cls?.name || "",
-      dateTaken: new Date().toISOString().split("T")[0],
-      chaptersCoversed: exam?.topics || [],
-      topicTags: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
+    setSubmitting(true);
+    const { error } = await supabase.from("exam_debriefs").insert({
+      user_id: getAnonUserId(),
+      class_id: selectedClassId,
+      exam_name: exam?.title || "Exam",
+      date_taken: new Date().toISOString().split("T")[0],
+      topics_mentioned: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
+      chapter_tags: exam?.topics ?? [],
+      format_tags: formatTags,
+      study_more_tags: studyMore.split(",").map(s => s.trim()).filter(Boolean),
       difficulty,
-      timePressure,
+      time_pressure: timePressure,
       confidence,
-      formatTags,
-      emphasizedTopics: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
-      studyMoreTopics: studyMore.split(",").map(s => s.trim()).filter(Boolean),
-      mostImportantChapters: [],
-      surprises,
-      adviceForNext: advice,
-      createdAt: new Date().toISOString(),
-    };
-    setAllDebriefs(prev => [...prev, newDebrief]);
+      surprises: surprises || null,
+      advice_notes: advice || null,
+    });
+    setSubmitting(false);
+    if (error) { toast.error("Couldn't submit — try again"); return; }
     toast.success("Debrief submitted! Your insights will help other students.");
     setTab("insights");
     setInsightsClassId(selectedClassId);
-    // Reset
-    setSelectedClassId("");
-    setSelectedExamId("");
-    setDifficulty(3);
-    setTimePressure(3);
-    setConfidence(3);
-    setFormatTags([]);
-    setEmphasizedTopics("");
-    setStudyMore("");
-    setSurprises("");
-    setAdvice("");
+    setSelectedClassId(""); setSelectedExamId(""); setDifficulty(3); setTimePressure(3); setConfidence(3);
+    setFormatTags([]); setEmphasizedTopics(""); setStudyMore(""); setSurprises(""); setAdvice("");
   };
 
-  const insights = getCourseInsights(insightsClassId);
-  const summaries = generateInsightSummary(insightsClassId);
-  const classDebriefs = allDebriefs.filter(d => d.classId === insightsClassId);
+  const summaries: string[] = [];
+  if (intel.topics[0]) summaries.push(`Most mentioned: ${intel.topics.slice(0, 3).map(t => t.topic_name).join(", ")}`);
+  if (intel.formatCounts[0]) summaries.push(`Exams lean toward ${intel.formatCounts[0].format.replace(/-/g, " ")} format`);
+  if (intel.studyMoreCounts[0]) summaries.push(`Students wished they'd reviewed "${intel.studyMoreCounts[0].topic}" more`);
+  if (intel.averageDifficulty >= 4) summaries.push("Recent exams are rated as difficult — plan extra time");
+  const classDebriefs = intel.debriefs;
+  const insights = intel.topics.length > 0 || classDebriefs.length > 0 ? {
+    topicEmphasis: intel.topics.map(t => ({ topic: t.topic_name, mentions: t.student_count })),
+    formatEmphasis: intel.formatCounts,
+    studyMorePatterns: intel.studyMoreCounts,
+    difficultyTrend: intel.averageDifficulty,
+    adviceTrends: intel.adviceTrends,
+  } : null;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -221,8 +218,8 @@ export default function ExamDebriefPage() {
                 <Textarea placeholder="Study tips, what to focus on..." value={advice} onChange={e => setAdvice(e.target.value)} className="min-h-[60px]" />
               </div>
 
-              <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit}>
-                <Send className="h-4 w-4 mr-1.5" /> Submit Debrief
+              <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit} disabled={submitting}>
+                <Send className="h-4 w-4 mr-1.5" /> {submitting ? "Submitting…" : "Submit Debrief"}
               </Button>
             </CardContent>
           </Card>
@@ -240,6 +237,10 @@ export default function ExamDebriefPage() {
               </SelectContent>
             </Select>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Based on <strong>{intel.totalContributors}</strong> student{intel.totalContributors !== 1 ? "s" : ""} · {intel.weeklyContributions} new this week
+          </p>
 
           {/* AI Summary */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -311,7 +312,7 @@ export default function ExamDebriefPage() {
                 <CardHeader><CardTitle className="text-base font-display">Difficulty & Time Pressure</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <RatingBar value={insights.difficultyTrend} label="Average Difficulty" color="" />
-                  <RatingBar value={Math.round(classDebriefs.reduce((s, d) => s + d.timePressure, 0) / Math.max(classDebriefs.length, 1) * 10) / 10} label="Average Time Pressure" color="" />
+                  <RatingBar value={Math.round(classDebriefs.reduce((s, d) => s + (d.time_pressure || 0), 0) / Math.max(classDebriefs.length, 1) * 10) / 10} label="Average Time Pressure" color="" />
                 </CardContent>
               </Card>
 

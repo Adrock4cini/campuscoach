@@ -3,9 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { classes } from "@/data/demo";
 import { modeLabels, StudyMode } from "@/data/questions";
-import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp, Wifi } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { contributeStudySignal } from "@/hooks/useClassIntelligence";
+import { toast } from "sonner";
 
 interface Props {
   classId: string;
@@ -32,11 +34,40 @@ export default function ResultsSummary({
   onRetryMissed, onReplay, onSwitchMode, onBackToLab,
 }: Props) {
   const [confidence, setConfidence] = useState<string>("");
+  const [contributed, setContributed] = useState(false);
   const total = correct + incorrect + skipped;
   const score = total > 0 ? Math.round((correct / total) * 100) : 0;
   const cls = classes.find(c => c.id === classId);
   const readinessGain = Math.max(1, Math.round(score / 20));
   const newReadiness = Math.min(100, (cls?.readiness ?? 50) + readinessGain);
+
+  // Auto-contribute the session result to the crowdsourced layer once
+  useEffect(() => {
+    if (contributed || total === 0 || !classId || !topic || topic === "all") return;
+    contributeStudySignal({
+      classId,
+      topicId: topic,
+      topicName: topic,
+      starred: score < 60,
+      timeSpentMinutes: Math.max(1, Math.round(elapsed / 60)),
+      accuracy: score,
+      incorrectCount: incorrect,
+      sourceType: "study-session",
+      sourceId: mode,
+    }).then(({ error }) => { if (!error) setContributed(true); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveConfidence = async (val: string) => {
+    setConfidence(val);
+    if (!classId || !topic || topic === "all") return;
+    await contributeStudySignal({
+      classId, topicId: topic, topicName: topic,
+      confidence: Number(val), timeSpentMinutes: 0,
+      sourceType: "confidence-checkin",
+    });
+    toast.success("Saved — your class predictions just got sharper.");
+  };
 
   const encouragement = score >= 90
     ? "Outstanding! You really know this material. 🌟"
@@ -89,7 +120,7 @@ export default function ResultsSummary({
       <Card className="shadow-card">
         <CardContent className="p-4">
           <p className="text-sm font-medium text-foreground mb-2">How confident are you now?</p>
-          <Select value={confidence} onValueChange={setConfidence}>
+          <Select value={confidence} onValueChange={saveConfidence}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Choose your confidence" />
             </SelectTrigger>
@@ -101,7 +132,11 @@ export default function ResultsSummary({
               <SelectItem value="5">Ready to use this</SelectItem>
             </SelectContent>
           </Select>
-          {confidence && <p className="text-xs text-muted-foreground mt-2">Saved to improve future recommendations.</p>}
+          {contributed && (
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <Wifi className="h-3 w-3 text-primary" /> Your performance helps improve predictions for the whole class.
+            </p>
+          )}
         </CardContent>
       </Card>
 
