@@ -3,9 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { classes } from "@/data/demo";
 import { modeLabels, StudyMode } from "@/data/questions";
-import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp, Wifi } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { contributeStudySignal } from "@/hooks/useClassIntelligence";
+import { toast } from "sonner";
 
 interface Props {
   classId: string;
