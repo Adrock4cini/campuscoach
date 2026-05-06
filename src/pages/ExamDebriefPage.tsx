@@ -218,8 +218,8 @@ export default function ExamDebriefPage() {
                 <Textarea placeholder="Study tips, what to focus on..." value={advice} onChange={e => setAdvice(e.target.value)} className="min-h-[60px]" />
               </div>
 
-              <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit}>
-                <Send className="h-4 w-4 mr-1.5" /> Submit Debrief
+              <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit} disabled={submitting}>
+                <Send className="h-4 w-4 mr-1.5" /> {submitting ? "Submitting…" : "Submit Debrief"}
               </Button>
             </CardContent>
           </Card>
