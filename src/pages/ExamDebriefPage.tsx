@@ -238,6 +238,10 @@ export default function ExamDebriefPage() {
             </Select>
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            Based on <strong>{intel.totalContributors}</strong> student{intel.totalContributors !== 1 ? "s" : ""} · {intel.weeklyContributions} new this week
+          </p>
+
           {/* AI Summary */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="shadow-card border-primary/20 bg-primary/5">
