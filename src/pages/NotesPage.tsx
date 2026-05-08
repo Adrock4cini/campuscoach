@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,12 +7,16 @@ import { lectures } from "@/data/demo";
 import { Mic, Camera, FileUp, FileText, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getTopicSignals, getTopStudentInsights } from "@/data/courseIntelligence";
+import { ClassTabs } from "@/components/ClassTabs";
 
 const typeIcons = { recording: Mic, photo: Camera, manual: FileText, pdf: FileUp };
 const typeLabels = { recording: "Recording", photo: "Board Photo", manual: "Manual Notes", pdf: "PDF Upload" };
 
 export default function NotesPage() {
-  const topInsights = getTopStudentInsights("psych101").slice(0, 2);
+  const [activeClass, setActiveClass] = useState<string | "all">("all");
+  const filteredLectures = activeClass === "all" ? lectures : lectures.filter(l => l.classId === activeClass);
+  const insightClass = activeClass === "all" ? "psych101" : activeClass;
+  const topInsights = getTopStudentInsights(insightClass).slice(0, 2);
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
