@@ -83,7 +83,7 @@ export function useClassIntelligence(classId: string | null | undefined): ClassI
   useEffect(() => {
     if (!classId) return;
     const channel = supabase
-      .channel(`ci-${classId}`)
+      .channel(`ci-${classId}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "topic_scores", filter: `class_id=eq.${classId}` }, () => load())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "exam_debriefs", filter: `class_id=eq.${classId}` }, () => load())
       .subscribe();
