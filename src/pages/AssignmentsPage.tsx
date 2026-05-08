@@ -11,13 +11,16 @@ import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { getAssignmentStartSuggestion } from "@/data/courseIntelligence";
+import { ClassTabs } from "@/components/ClassTabs";
 
 export default function AssignmentsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
   const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);
   const [editAssignment, setEditAssignment] = useState<typeof assignments[0] | null>(null);
+  const [activeClass, setActiveClass] = useState<string | "all">("all");
 
-  const sorted = [...assignments].sort((a, b) => {
+  const filtered = activeClass === "all" ? assignments : assignments.filter(a => a.classId === activeClass);
+  const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'priority') {
       const order = { high: 0, medium: 1, low: 2 };
       return order[a.priority] - order[b.priority];
@@ -42,7 +45,7 @@ export default function AssignmentsPage() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Assignments</h1>
-          <p className="text-muted-foreground mt-1">{assignments.filter(a => a.status !== 'turned-in').length} active assignments</p>
+          <p className="text-muted-foreground mt-1">{filtered.filter(a => a.status !== 'turned-in').length} active</p>
         </div>
         <Button
           variant="outline"
@@ -53,6 +56,8 @@ export default function AssignmentsPage() {
           Sort by {sortBy === 'date' ? 'priority' : 'due date'}
         </Button>
       </div>
+
+      <ClassTabs value={activeClass} onChange={setActiveClass} />
 
       <div className="space-y-4">
         {sorted.map((a, i) => {

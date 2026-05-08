@@ -8,9 +8,12 @@ import { exams, getDaysUntil, getReadinessColor, getReadinessLabel, getReadiness
 import { AlertTriangle, CheckCircle2, XCircle, ArrowRight, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
+import { ClassTabs } from "@/components/ClassTabs";
 
 export default function ExamsPage() {
-  const sorted = [...exams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const [activeClass, setActiveClass] = useState<string | "all">("all");
+  const filteredExams = activeClass === "all" ? exams : exams.filter(e => e.classId === activeClass);
+  const sorted = [...filteredExams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const [editExam, setEditExam] = useState<typeof exams[0] | null>(null);
 
   const editFields: EditField[] = [
@@ -25,6 +28,8 @@ export default function ExamsPage() {
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Exams</h1>
         <p className="text-muted-foreground mt-1">Know where you stand. No surprises.</p>
       </div>
+
+      <ClassTabs value={activeClass} onChange={setActiveClass} />
 
       <div className="space-y-5">
         {sorted.map((e, i) => {
