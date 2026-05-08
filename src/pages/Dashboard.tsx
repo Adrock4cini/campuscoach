@@ -168,6 +168,12 @@ export default function Dashboard() {
         </div>
       </motion.section>
 
+      {priorityClassId && (
+        <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
+          <LiveClassPulse classId={priorityClassId} />
+        </motion.div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}
         <div className="lg:col-span-2 space-y-6">
