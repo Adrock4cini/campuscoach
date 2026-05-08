@@ -37,6 +37,8 @@ export default function NotesPage() {
         </div>
       </div>
 
+      <ClassTabs value={activeClass} onChange={setActiveClass} />
+
       <Card className="shadow-soft bg-surface-warm border-border">
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
