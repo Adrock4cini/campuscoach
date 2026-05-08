@@ -76,11 +76,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/dashboard"}
-                      className="hover:bg-muted/50 transition-colors"
-                      activeClassName="bg-primary/10 text-primary font-medium"
+                      className="hover:bg-sidebar-accent/60 transition-all rounded-lg group"
+                      activeClassName="bg-gradient-to-r from-primary/15 to-accent/10 text-primary font-medium border border-primary/20 shadow-[0_0_24px_-12px_hsl(var(--primary)/0.6)]"
                     >
-                      <item.icon className="mr-2 h-4 w-4 flex-shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
+                      <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
+                      {!collapsed && <span className="tracking-tight">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
