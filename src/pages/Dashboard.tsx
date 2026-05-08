@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { 
-  BookOpen, Clock, AlertTriangle, TrendingUp, Zap, Flame, 
-  ArrowRight, CheckCircle2, Calendar, Briefcase, ChevronRight, Timer
+import {
+  BookOpen, Clock, AlertTriangle, TrendingUp, Zap, Flame,
+  ArrowRight, CheckCircle2, Calendar, Briefcase, ChevronRight, Timer, Sparkles
 } from "lucide-react";
+import { ReadinessRing } from "@/components/ReadinessRing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,55 +76,97 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Greeting */}
-      <motion.div {...fadeIn}>
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">
-              Good morning, {studentName} 👋
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Friday, April 4 · You've got this today.
-            </p>
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* ====================================================
+          HERO — Mission Control: readiness ring + Next Best Step
+          ==================================================== */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+        className="relative overflow-hidden rounded-3xl border border-border/60 glass-strong noise-overlay p-6 md:p-10"
+      >
+        {/* Ambient orbs inside hero */}
+        <div aria-hidden className="absolute -top-32 -right-24 h-[360px] w-[360px] rounded-full bg-primary/20 blur-[100px]" />
+        <div aria-hidden className="absolute -bottom-32 -left-24 h-[320px] w-[320px] rounded-full bg-accent/20 blur-[110px]" />
+
+        <div className="relative flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+          {/* Ring */}
+          <div className="flex-shrink-0">
+            <ReadinessRing
+              value={nextExam?.readiness ?? 50}
+              label={nextExam ? `Ready for ${classes.find(c => c.id === nextExam.classId)?.name?.split(" ")[0] ?? "exam"}` : "Readiness"}
+              sublabel={getReadinessLabel(nextExam?.readiness ?? 50)}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-accent/10 text-accent px-3 py-1.5 rounded-full">
-              <Flame className="h-4 w-4" />
-              <span className="text-sm font-semibold">{studyStreak}-day streak</span>
+
+          {/* Next best step */}
+          <div className="flex-1 min-w-0 text-center lg:text-left">
+            <div className="flex items-center gap-2 justify-center lg:justify-start mb-3">
+              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-primary/90">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+                Next best step
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70">· {studentName}</span>
+            </div>
+
+            <h1 className="text-3xl md:text-5xl font-display font-semibold leading-[1.05] tracking-tight">
+              <span className="text-foreground">Study </span>
+              <span className="text-gradient-aurora">{predictedTopic?.topic ?? "Polynomial Roots"}</span>
+            </h1>
+            <p className="mt-4 text-base md:text-lg text-foreground/70 max-w-xl mx-auto lg:mx-0">
+              {predictedTopic?.probability ?? 92}% likely on your next exam · {predictedTopic?.reason ?? "Most students struggled here"}.
+              A focused 25-min sprint could lift readiness by ~8%.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3 justify-center lg:justify-start">
+              <Button
+                size="lg"
+                className="relative h-12 px-7 rounded-full bg-gradient-calm border-0 text-primary-foreground font-medium hover:opacity-95 hover-lift glow-primary"
+                onClick={() => navigate(`/focus-sprint?classId=${priorityClassId}&duration=25`)}
+              >
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Start Next Best Step
+                <ArrowRight className="h-4 w-4 ml-1.5" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 px-5 rounded-full border-border/60 bg-background/30 backdrop-blur hover:bg-background/50"
+                onClick={() => navigate(`/study-lab?classId=${priorityClassId}`)}
+              >
+                <Timer className="h-4 w-4 mr-1.5" />
+                Open Study Lab
+              </Button>
+            </div>
+
+            {/* Momentum strip */}
+            <div className="mt-7 grid grid-cols-3 gap-3 max-w-md mx-auto lg:mx-0">
+              <div className="rounded-xl border border-border/50 bg-background/30 backdrop-blur px-3 py-2.5">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <Flame className="h-3 w-3 text-accent" /> Streak
+                </div>
+                <p className="text-lg font-display font-semibold text-foreground mt-0.5">{studyStreak}d</p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-background/30 backdrop-blur px-3 py-2.5">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TrendingUp className="h-3 w-3 text-primary" /> Momentum
+                </div>
+                <p className="text-lg font-display font-semibold text-foreground mt-0.5">+12%</p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-background/30 backdrop-blur px-3 py-2.5">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <Clock className="h-3 w-3 text-success" /> Next exam
+                </div>
+                <p className="text-lg font-display font-semibold text-foreground mt-0.5">{nextExam ? `${getDaysUntil(nextExam.date)}d` : "—"}</p>
+              </div>
             </div>
           </div>
         </div>
-      </motion.div>
-
-      {/* Study this next */}
-      <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
-        <Card className="border-primary/20 bg-primary/5 shadow-soft">
-          <CardContent className="p-5">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-gradient-calm flex items-center justify-center flex-shrink-0">
-                <Zap className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-display font-semibold text-foreground text-lg">🎯 Study This Next (Based on Your Class)</h3>
-                <p className="text-foreground text-base font-medium mt-1">{predictedTopic?.topic ?? "Polynomial Roots"}</p>
-                <p className="text-muted-foreground text-sm mt-1">
-                  {predictedTopic?.probability ?? 92}% likely on exam · {predictedTopic?.reason ?? "Most students struggled here"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">{predictedTopic?.supportingLine ?? "1,284 students focused on this"}</p>
-                <Button
-                  size="sm"
-                  className="mt-3 bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
-                  onClick={() => navigate(`/focus-sprint?classId=${priorityClassId}&duration=25`)}
-                >
-                  <Timer className="h-4 w-4 mr-1.5" />
-                  Start 25-min Focus Sprint
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      </motion.section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}
