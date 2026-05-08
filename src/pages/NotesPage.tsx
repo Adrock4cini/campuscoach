@@ -60,7 +60,7 @@ export default function NotesPage() {
       </Card>
 
       <div className="space-y-4">
-        {lectures.map((note, i) => {
+        {filteredLectures.map((note, i) => {
           const Icon = typeIcons[note.type];
           return (
             <motion.div
