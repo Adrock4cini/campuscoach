@@ -15,6 +15,7 @@ import {
 } from "@/data/courseIntelligence";
 import { useClassIntelligence } from "@/hooks/useClassIntelligence";
 import { ContributeHub } from "@/components/ContributeHub";
+import { LiveClassPulse } from "@/components/LiveClassPulse";
 import { 
   studentName, classes, assignments, exams, workShifts, studyStreak,
   getDaysUntil, getReadinessColor, getReadinessBg, getReadinessLabel,
