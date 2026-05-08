@@ -15,6 +15,7 @@ import {
 } from "@/data/courseIntelligence";
 import { useClassIntelligence } from "@/hooks/useClassIntelligence";
 import { ContributeHub } from "@/components/ContributeHub";
+import { LiveClassPulse } from "@/components/LiveClassPulse";
 import { 
   studentName, classes, assignments, exams, workShifts, studyStreak,
   getDaysUntil, getReadinessColor, getReadinessBg, getReadinessLabel,
@@ -167,6 +168,12 @@ export default function Dashboard() {
           </div>
         </div>
       </motion.section>
+
+      {priorityClassId && (
+        <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
+          <LiveClassPulse classId={priorityClassId} />
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}

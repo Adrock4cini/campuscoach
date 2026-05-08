@@ -197,25 +197,49 @@ export default function ExamDebriefPage() {
                 </div>
               </div>
 
-              {/* Topics */}
+              {/* Topics — chip-first, with suggestions from the chosen exam */}
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Which topics felt most emphasized?</label>
-                <Input placeholder="e.g. Memory models, Encoding types" value={emphasizedTopics} onChange={e => setEmphasizedTopics(e.target.value)} />
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Which topics felt most emphasized? (tap to add)</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {(exams.find(e => e.id === selectedExamId)?.topics ?? []).map(t => {
+                    const list = emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean);
+                    const active = list.includes(t);
+                    return (
+                      <Badge key={t} variant={active ? "default" : "outline"} className="cursor-pointer text-xs"
+                        onClick={() => setEmphasizedTopics(active ? list.filter(x => x !== t).join(", ") : [...list, t].join(", "))}>
+                        {t}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <Input placeholder="Or type your own, comma-separated" value={emphasizedTopics} onChange={e => setEmphasizedTopics(e.target.value)} />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">What do you wish you had studied more?</label>
-                <Input placeholder="e.g. Retrieval cues, Interference theory" value={studyMore} onChange={e => setStudyMore(e.target.value)} />
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">What do you wish you had studied more? (tap to add)</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {(exams.find(e => e.id === selectedExamId)?.weakAreas ?? []).map(t => {
+                    const list = studyMore.split(",").map(s => s.trim()).filter(Boolean);
+                    const active = list.includes(t);
+                    return (
+                      <Badge key={t} variant={active ? "default" : "outline"} className="cursor-pointer text-xs"
+                        onClick={() => setStudyMore(active ? list.filter(x => x !== t).join(", ") : [...list, t].join(", "))}>
+                        {t}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <Input placeholder="Or type your own" value={studyMore} onChange={e => setStudyMore(e.target.value)} />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">What surprised you?</label>
-                <Textarea placeholder="General impressions (no exact questions)" value={surprises} onChange={e => setSurprises(e.target.value)} className="min-h-[60px]" />
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Anything surprising? <span className="text-muted-foreground/60">(optional)</span></label>
+                <Textarea placeholder="General impressions only — no exact questions" value={surprises} onChange={e => setSurprises(e.target.value)} className="min-h-[52px]" />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Advice for the next student?</label>
-                <Textarea placeholder="Study tips, what to focus on..." value={advice} onChange={e => setAdvice(e.target.value)} className="min-h-[60px]" />
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Advice for the next student? <span className="text-muted-foreground/60">(optional)</span></label>
+                <Textarea placeholder="Quick tip for classmates" value={advice} onChange={e => setAdvice(e.target.value)} className="min-h-[52px]" />
               </div>
 
               <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit} disabled={submitting}>
