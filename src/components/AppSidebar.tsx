@@ -3,17 +3,16 @@ import {
   BookOpen,
   CalendarDays,
   FlaskConical,
-  FileText,
   BarChart3,
   Settings,
   GraduationCap,
-  ClipboardList,
   Mic,
   MessageSquare,
   TrendingUp,
   Sparkles,
   Award,
   Map,
+  User,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -27,6 +26,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { classes } from "@/data/demo";
 
 const groups = [
   {
@@ -34,8 +34,27 @@ const groups = [
     items: [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
       { title: "Your Week", url: "/your-week", icon: Sparkles },
+    ],
+  },
+  {
+    label: "Classes",
+    items: [
+      { title: "All Classes", url: "/classes", icon: BookOpen },
+      ...classes.map((c) => ({
+        title: c.name.split(" ").slice(0, 2).join(" "),
+        url: `/classes/${c.id}`,
+        icon: BookOpen,
+        dotColor: c.color,
+      })),
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
       { title: "Calendar", url: "/calendar", icon: CalendarDays },
-      { title: "Assignments", url: "/assignments", icon: ClipboardList },
+      { title: "Notes & Recordings", url: "/notes", icon: Mic },
+      { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
+      { title: "Assignments", url: "/assignments", icon: BookOpen },
       { title: "Exams", url: "/exams", icon: GraduationCap },
     ],
   },
@@ -47,24 +66,19 @@ const groups = [
     ],
   },
   {
-    label: "Library",
+    label: "Community",
     items: [
-      { title: "My Classes", url: "/classes", icon: BookOpen },
-      { title: "Notes & Recordings", url: "/notes", icon: Mic },
-      { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
-    ],
-  },
-  {
-    label: "Class Intelligence",
-    items: [
-      { title: "Class Intel", url: "/course-intelligence", icon: TrendingUp },
+      { title: "Class Intelligence", url: "/course-intelligence", icon: TrendingUp },
       { title: "Exam Debrief", url: "/exam-debrief", icon: MessageSquare },
       { title: "Progress", url: "/progress", icon: BarChart3 },
     ],
   },
   {
     label: "Account",
-    items: [{ title: "Settings", url: "/settings", icon: Settings }],
+    items: [
+      { title: "Settings", url: "/settings", icon: Settings },
+      { title: "Profile", url: "/settings", icon: User },
+    ],
   },
 ];
 
@@ -104,8 +118,8 @@ export function AppSidebar() {
             )}
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
+                {group.items.map((item: any) => (
+                  <SidebarMenuItem key={item.title + item.url}>
                     <SidebarMenuButton asChild>
                       <NavLink
                         to={item.url}
@@ -113,8 +127,12 @@ export function AppSidebar() {
                         className="hover:bg-sidebar-accent/60 transition-all rounded-lg group"
                         activeClassName="bg-gradient-to-r from-primary/15 to-accent/10 text-primary font-medium border border-primary/20 shadow-[0_0_24px_-12px_hsl(var(--primary)/0.6)]"
                       >
-                        <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
-                        {!collapsed && <span className="tracking-tight">{item.title}</span>}
+                        {item.dotColor ? (
+                          <span className={`mr-2 h-2.5 w-2.5 rounded-full flex-shrink-0 ${item.dotColor}`} />
+                        ) : (
+                          <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
+                        )}
+                        {!collapsed && <span className="tracking-tight truncate">{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
