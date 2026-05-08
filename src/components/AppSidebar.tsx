@@ -11,6 +11,9 @@ import {
   Mic,
   MessageSquare,
   TrendingUp,
+  Sparkles,
+  Award,
+  Map,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -30,9 +33,17 @@ const groups = [
     label: "Today",
     items: [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Your Week", url: "/your-week", icon: Sparkles },
       { title: "Calendar", url: "/calendar", icon: CalendarDays },
       { title: "Assignments", url: "/assignments", icon: ClipboardList },
       { title: "Exams", url: "/exams", icon: GraduationCap },
+    ],
+  },
+  {
+    label: "Journey",
+    items: [
+      { title: "Path to Graduation", url: "/path-to-graduation", icon: Map },
+      { title: "Scholarships", url: "/scholarships", icon: Award },
     ],
   },
   {

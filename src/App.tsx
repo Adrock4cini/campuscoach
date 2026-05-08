@@ -21,6 +21,9 @@ import ProgressPage from "./pages/ProgressPage";
 import SettingsPage from "./pages/SettingsPage";
 import ExamDebriefPage from "./pages/ExamDebriefPage";
 import CourseIntelligencePage from "./pages/CourseIntelligencePage";
+import PathToGraduation from "./pages/PathToGraduation";
+import ScholarshipsPage from "./pages/ScholarshipsPage";
+import YourWeekPage from "./pages/YourWeekPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +54,9 @@ const App = () => (
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/exam-debrief" element={<ExamDebriefPage />} />
             <Route path="/course-intelligence" element={<CourseIntelligencePage />} />
+            <Route path="/your-week" element={<YourWeekPage />} />
+            <Route path="/path-to-graduation" element={<PathToGraduation />} />
+            <Route path="/scholarships" element={<ScholarshipsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>
