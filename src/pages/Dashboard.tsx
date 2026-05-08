@@ -16,6 +16,7 @@ import {
 import { useClassIntelligence } from "@/hooks/useClassIntelligence";
 import { ContributeHub } from "@/components/ContributeHub";
 import { LiveClassPulse } from "@/components/LiveClassPulse";
+import { TodaysPriorities } from "@/components/TodaysPriorities";
 import { 
   studentName, classes, assignments, exams, workShifts, studyStreak,
   getDaysUntil, getReadinessColor, getReadinessBg, getReadinessLabel,
