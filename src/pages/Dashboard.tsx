@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getClassPulse } from "@/data/courseIntelligence";
 import { TodaysPriorities } from "@/components/TodaysPriorities";
+import { DashboardHero } from "@/components/DashboardHero";
 import {
   classes, assignments, exams,
   getDaysUntil, getReadinessColor, getPriorityColor
@@ -31,6 +32,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
+      {/* 0. Cinematic hero */}
+      <DashboardHero />
+
       {/* 1. Today's priorities (class-first) */}
       <TodaysPriorities />
 
