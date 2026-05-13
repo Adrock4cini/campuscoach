@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getClassPulse } from "@/data/courseIntelligence";
 import { TodaysPriorities } from "@/components/TodaysPriorities";
+import { DashboardHero } from "@/components/DashboardHero";
 import {
   classes, assignments, exams,
   getDaysUntil, getReadinessColor, getPriorityColor
