@@ -1,17 +1,16 @@
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ChevronRight, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { TodaysSnapshot } from "@/components/dashboard/TodaysSnapshot";
+import { ClassesGrid } from "@/components/dashboard/ClassesGrid";
+import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
 import { getClassPulse } from "@/data/courseIntelligence";
-import { TodaysPriorities } from "@/components/TodaysPriorities";
-import { DashboardHero } from "@/components/DashboardHero";
 import {
   classes, assignments, exams,
-  getDaysUntil, getReadinessColor, getPriorityColor
+  getDaysUntil, getPriorityColor,
 } from "@/data/demo";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const fadeIn = {
   initial: { opacity: 0, y: 10 },
@@ -20,46 +19,76 @@ const fadeIn = {
 };
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const upcoming = [
+    ...assignments
+      .filter((a) => a.status !== "turned-in")
+      .map((a) => ({
+        kind: "assignment" as const,
+        id: a.id,
+        title: a.title,
+        sub: a.className,
+        date: a.dueDate,
+        priority: a.priority,
+        to: `/assignments/${a.id}`,
+      })),
+    ...exams.map((e) => ({
+      kind: "exam" as const,
+      id: e.id,
+      title: e.title,
+      sub: e.className,
+      date: e.date,
+      priority: "high" as const,
+      to: `/exams/${e.id}`,
+    })),
+  ]
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 5);
 
-  const upcomingAssignments = [...assignments]
-    .filter(a => a.status !== 'turned-in')
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+  const pulses = classes
+    .map((c) => ({ c, pulse: getClassPulse(c.id) }))
+    .filter((x) => x.pulse)
     .slice(0, 3);
-  const nextExam = [...exams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-  const priorityClassId = nextExam?.classId ?? classes[0]?.id;
-  const classPulse = priorityClassId ? getClassPulse(priorityClassId) : null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
-      {/* 0. Cinematic hero */}
-      <DashboardHero />
+      {/* 1. Compact snapshot hero */}
+      <TodaysSnapshot />
 
-      {/* 1. Today's priorities (class-first) */}
-      <TodaysPriorities />
+      {/* 2. PRIMARY: Your classes */}
+      <ClassesGrid />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 2. Upcoming deadlines */}
-        <motion.div {...fadeIn} className="lg:col-span-2">
+      {/* 3. AI-generated plan */}
+      <TodaysPlan />
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* 4. Upcoming */}
+        <motion.div {...fadeIn} className="lg:col-span-3">
           <Card className="shadow-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-display">Upcoming</CardTitle>
-                <Link to="/assignments" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                  All <ChevronRight className="h-3 w-3" />
+                <Link to="/your-week" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  Week <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
             </CardHeader>
             <CardContent className="space-y-1">
-              {upcomingAssignments.map(a => {
-                const days = getDaysUntil(a.dueDate);
+              {upcoming.map((u) => {
+                const days = getDaysUntil(u.date);
                 return (
-                  <Link key={a.id} to={`/assignments/${a.id}`} className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-muted/30 transition-colors">
+                  <Link
+                    key={`${u.kind}-${u.id}`}
+                    to={u.to}
+                    className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-muted/30 transition-colors"
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${u.kind === "exam" ? "bg-danger" : "bg-primary"}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{a.title}</p>
-                      <p className="text-xs text-muted-foreground">{a.className}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{u.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {u.kind === "exam" ? "Exam · " : ""}{u.sub}
+                      </p>
                     </div>
-                    <Badge variant="secondary" className={`text-xs ${getPriorityColor(a.priority)}`}>
+                    <Badge variant="secondary" className={`text-xs ${getPriorityColor(u.priority)}`}>
                       {days <= 0 ? "Today" : days === 1 ? "Tomorrow" : `${days}d`}
                     </Badge>
                   </Link>
@@ -69,58 +98,32 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* 3. Readiness overview */}
-        <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
-          <Card className="shadow-card">
+        {/* 5. Class pulse summary */}
+        <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="lg:col-span-2">
+          <Card className="shadow-card h-full">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-display">Readiness</CardTitle>
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Class pulse
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2.5">
-              {classes.slice(0, 4).map(c => (
+            <CardContent className="space-y-3">
+              {pulses.map(({ c, pulse }) => (
                 <Link key={c.id} to={`/classes/${c.id}`} className="block group">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-foreground/80 truncate">{c.name}</span>
-                    <span className={`font-semibold ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={`h-1.5 w-1.5 rounded-full ${c.color}`} />
+                    <span className="text-muted-foreground truncate">{c.name}</span>
                   </div>
-                  <Progress value={c.readiness} className="h-1" />
+                  <p className="text-sm text-foreground mt-0.5 truncate group-hover:text-primary transition-colors">
+                    {pulse!.mostStruggled.studentCount} students focused on{" "}
+                    <span className="font-medium">{pulse!.mostStruggled.topic}</span>
+                  </p>
                 </Link>
               ))}
             </CardContent>
           </Card>
         </motion.div>
       </div>
-
-      {/* 4. Community insights */}
-      {classPulse && (
-        <motion.div {...fadeIn} transition={{ delay: 0.1 }}>
-          <Card className="shadow-card">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-display">From your class</CardTitle>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => navigate(`/classes/${priorityClassId}`)}>
-                  Open <ArrowRight className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">🔥 Most tested</p>
-                  <p className="text-sm font-medium text-foreground">{classPulse.mostStarred.topic}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">⚠️ Most missed</p>
-                  <p className="text-sm font-medium text-foreground">{classPulse.mostStruggled.topic}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">📈 Trending</p>
-                  <p className="text-sm font-medium text-foreground">{classPulse.trending.topic}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
     </div>
   );
 }
