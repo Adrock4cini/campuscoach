@@ -32,6 +32,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
+      {/* 0. Cinematic hero */}
+      <DashboardHero />
+
       {/* 1. Today's priorities (class-first) */}
       <TodaysPriorities />
 
