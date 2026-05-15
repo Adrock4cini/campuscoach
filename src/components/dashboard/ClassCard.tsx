@@ -100,13 +100,25 @@ export function ClassCard({ classId, index = 0 }: Props) {
               {c.name}
             </h3>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("rounded-full border-border/40 text-[11px] gap-1", tone.text)}
-          >
-            <status.Icon className="h-3 w-3" />
-            {status.label}
-          </Badge>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <Badge
+              variant="outline"
+              className={cn("rounded-full border-border/40 text-[11px] gap-1", tone.text)}
+            >
+              <status.Icon className="h-3 w-3" />
+              {status.label}
+            </Badge>
+            {pulse && (
+              <Badge
+                variant="outline"
+                className="rounded-full text-[10px] gap-1 badge-high-yield border-0"
+                title="Topic peers + professor emphasize most — predicted on the next test"
+              >
+                <Sparkles className="h-3 w-3" />
+                High-yield
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Readiness bar */}

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ChevronRight, Users, Flame } from "lucide-react";
+import { ChevronRight, Users, Flame, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TodaysSnapshot } from "@/components/dashboard/TodaysSnapshot";
@@ -53,10 +53,61 @@ export default function Dashboard() {
     .filter((x) => x.pulse)
     .slice(0, 3);
 
+  // High-yield: top peer-emphasized topic per class — what's most likely on the next test
+  const highYield = classes
+    .map((c) => ({ c, pulse: getClassPulse(c.id) }))
+    .filter((x) => x.pulse)
+    .map((x) => ({
+      classId: x.c.id,
+      className: x.c.name.split(" ").slice(0, 2).join(" "),
+      color: x.c.color,
+      topic: x.pulse!.mostStarred.topic,
+      students: x.pulse!.mostStarred.studentCount,
+    }))
+    .slice(0, 4);
+
   return (
     <div className="max-w-6xl mx-auto space-y-10">
       {/* Hero Snapshot */}
       <TodaysSnapshot />
+
+      {/* High-yield strip — one glance: "what's most likely on the test" */}
+      {highYield.length > 0 && (
+        <motion.section {...fadeIn} className="relative overflow-hidden rounded-2xl border border-warning/20 glass shadow-card">
+          <div aria-hidden className="absolute -top-16 -right-10 h-40 w-40 rounded-full bg-warning/10 blur-3xl pointer-events-none" />
+          <div className="relative p-4 md:p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-warning">
+                <Sparkles className="h-3 w-3" />
+                High-yield this week
+              </div>
+              <Link to="/course-intelligence" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                Why these <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {highYield.map((h) => (
+                <Link
+                  key={h.classId}
+                  to={`/study-lab?classId=${h.classId}&topic=${encodeURIComponent(h.topic)}`}
+                  className="group rounded-xl border border-border/40 bg-background/30 px-3 py-2.5 hover:border-warning/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className={`h-1.5 w-1.5 rounded-full ${h.color}`} />
+                    {h.className}
+                  </div>
+                  <p className="text-sm font-medium text-foreground mt-1 truncate group-hover:text-warning transition-colors">
+                    {h.topic}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 inline-flex items-center gap-1">
+                    <Users className="h-3 w-3" /> {h.students} peers studying
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+      )}
 
       {/* Classes Grid */}
       <ClassesGrid />
