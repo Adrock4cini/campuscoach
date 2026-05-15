@@ -161,26 +161,55 @@
   .font-display { font-family: var(--font-display); }
   .font-body    { font-family: var(--font-body); }
 
-  /* Glass surfaces — layered translucency */
+  /* Glass surfaces — heavier blur, soft inner glow */
   .glass {
-    background: linear-gradient(180deg, hsl(var(--glass) / 0.65), hsl(var(--glass) / 0.35));
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    border: 1px solid hsl(var(--glass-border) / 0.06);
-  }
-  .glass-strong {
-    background: linear-gradient(180deg, hsl(var(--glass) / 0.85), hsl(var(--glass) / 0.6));
+    background: linear-gradient(180deg, hsl(var(--glass) / 0.7), hsl(var(--glass) / 0.4));
     backdrop-filter: blur(28px) saturate(160%);
     -webkit-backdrop-filter: blur(28px) saturate(160%);
-    border: 1px solid hsl(var(--glass-border) / 0.08);
+    border: 1px solid hsl(var(--glass-border) / 0.07);
+    box-shadow: 0 1px 0 hsl(var(--glass-border) / 0.05) inset, 0 16px 48px -22px hsl(240 60% 1% / 0.7);
+  }
+  .glass-strong {
+    background: linear-gradient(180deg, hsl(var(--glass) / 0.9), hsl(var(--glass) / 0.65));
+    backdrop-filter: blur(36px) saturate(180%);
+    -webkit-backdrop-filter: blur(36px) saturate(180%);
+    border: 1px solid hsl(var(--glass-border) / 0.1);
   }
   .glass-hover {
     transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s ease, border-color 0.4s ease;
   }
   .glass-hover:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--primary) / 0.3);
-    box-shadow: 0 20px 60px -25px hsl(188 95% 30% / 0.5);
+    transform: translateY(-3px);
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 24px 70px -25px hsl(169 100% 40% / 0.55);
+  }
+
+  /* Chunky glowing CTA button */
+  .btn-glow {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(195 95% 58%));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 8px 32px -8px hsl(169 100% 48% / 0.55), 0 1px 0 hsl(0 0% 100% / 0.15) inset;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+  }
+  .btn-glow:hover { transform: translateY(-1px); box-shadow: 0 14px 44px -10px hsl(169 100% 48% / 0.7), 0 1px 0 hsl(0 0% 100% / 0.2) inset; filter: brightness(1.05); }
+  .btn-glow:active { transform: translateY(0); }
+
+  .btn-glow-magenta {
+    background: linear-gradient(135deg, hsl(var(--accent)), hsl(330 90% 65%));
+    color: hsl(var(--accent-foreground));
+    box-shadow: 0 8px 32px -8px hsl(290 95% 68% / 0.55), 0 1px 0 hsl(0 0% 100% / 0.15) inset;
+  }
+
+  /* Breathing glow — for important live elements */
+  .breathing-glow { animation: breathing 4s ease-in-out infinite; }
+  @keyframes breathing {
+    0%, 100% { filter: drop-shadow(0 0 12px hsl(var(--primary) / 0.4)); }
+    50%      { filter: drop-shadow(0 0 28px hsl(var(--primary) / 0.7)); }
+  }
+
+  /* Avatar ring glow */
+  .avatar-glow {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5), 0 0 32px hsl(169 100% 48% / 0.55);
   }
 
   /* Animated gradient ring (for readiness) */
