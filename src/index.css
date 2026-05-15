@@ -38,53 +38,55 @@
     --destructive: 0 75% 62%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 224 18% 18%;
-    --input: 224 18% 18%;
-    --ring: 188 95% 58%;
+    --border: 240 10% 16%;
+    --input: 240 10% 16%;
+    --ring: 169 100% 48%;
 
-    --radius: 1rem;
+    --radius: 1.25rem;
 
     /* Status tokens */
-    --success: 158 70% 52%;
-    --success-foreground: 224 30% 8%;
-    --warning: 38 95% 62%;
-    --warning-foreground: 30 50% 12%;
-    --danger: 350 85% 65%;
+    --success: 158 80% 52%;
+    --success-foreground: 240 20% 5%;
+    --warning: 38 100% 62%;
+    --warning-foreground: 30 50% 10%;
+    --danger: 350 90% 65%;
     --danger-foreground: 0 0% 100%;
 
     /* Layered surfaces */
-    --surface-warm: 264 30% 14%;
-    --surface-cool: 200 30% 12%;
-    --glass: 224 24% 12%;
+    --surface-warm: 290 30% 12%;
+    --surface-cool: 200 30% 10%;
+    --glass: 240 14% 9%;
     --glass-border: 220 30% 100%;
 
     /* Ambient gradients */
-    --gradient-calm: linear-gradient(135deg, hsl(188 95% 58%), hsl(220 95% 65%));
-    --gradient-warm: linear-gradient(135deg, hsl(264 90% 70%), hsl(320 85% 65%));
-    --gradient-hero: linear-gradient(135deg, hsl(188 95% 58% / 0.9), hsl(264 90% 70% / 0.9));
-    --gradient-aurora: radial-gradient(60% 80% at 20% 0%, hsl(264 90% 50% / 0.25), transparent 60%),
-                       radial-gradient(50% 70% at 90% 10%, hsl(188 95% 50% / 0.2), transparent 60%),
-                       radial-gradient(70% 60% at 50% 100%, hsl(220 95% 50% / 0.18), transparent 60%);
+    --gradient-calm: linear-gradient(135deg, hsl(169 100% 48%), hsl(195 95% 58%));
+    --gradient-warm: linear-gradient(135deg, hsl(290 95% 68%), hsl(330 90% 65%));
+    --gradient-hero: linear-gradient(135deg, hsl(169 100% 48% / 0.95), hsl(290 95% 68% / 0.9));
+    --gradient-aurora: radial-gradient(60% 80% at 15% 0%, hsl(290 95% 50% / 0.28), transparent 60%),
+                       radial-gradient(50% 70% at 90% 10%, hsl(169 100% 48% / 0.22), transparent 60%),
+                       radial-gradient(70% 60% at 50% 100%, hsl(330 90% 55% / 0.18), transparent 60%);
 
     /* Premium shadows + glow */
-    --shadow-soft: 0 1px 0 hsl(220 30% 100% / 0.04) inset, 0 8px 24px -12px hsl(224 50% 2% / 0.6);
-    --shadow-card: 0 1px 0 hsl(220 30% 100% / 0.04) inset, 0 12px 40px -16px hsl(224 60% 2% / 0.7);
-    --shadow-elevated: 0 1px 0 hsl(220 30% 100% / 0.06) inset, 0 30px 80px -30px hsl(188 95% 30% / 0.35);
-    --glow-primary: 0 0 60px hsl(188 95% 58% / 0.35);
-    --glow-accent: 0 0 60px hsl(264 90% 70% / 0.35);
+    --shadow-soft: 0 1px 0 hsl(220 30% 100% / 0.05) inset, 0 8px 24px -12px hsl(240 50% 1% / 0.7);
+    --shadow-card: 0 1px 0 hsl(220 30% 100% / 0.06) inset, 0 16px 48px -18px hsl(240 60% 1% / 0.8);
+    --shadow-elevated: 0 1px 0 hsl(220 30% 100% / 0.08) inset, 0 30px 80px -30px hsl(169 100% 40% / 0.4);
+    --shadow-elegant: 0 1px 0 hsl(220 30% 100% / 0.06) inset, 0 24px 60px -24px hsl(240 60% 1% / 0.8);
+    --glow-primary: 0 0 60px hsl(169 100% 48% / 0.45);
+    --glow-accent: 0 0 60px hsl(290 95% 68% / 0.45);
+    --glow-magenta: 0 0 50px hsl(330 90% 60% / 0.4);
 
     --font-display: 'Fraunces', Georgia, serif;
     --font-body: 'DM Sans', system-ui, sans-serif;
 
-    /* Sidebar — slightly deeper than canvas */
-    --sidebar-background: 224 30% 6%;
-    --sidebar-foreground: 220 20% 80%;
-    --sidebar-primary: 188 95% 58%;
-    --sidebar-primary-foreground: 224 30% 8%;
-    --sidebar-accent: 224 22% 12%;
-    --sidebar-accent-foreground: 220 25% 96%;
-    --sidebar-border: 224 18% 14%;
-    --sidebar-ring: 188 95% 58%;
+    /* Sidebar */
+    --sidebar-background: 240 12% 4%;
+    --sidebar-foreground: 220 15% 78%;
+    --sidebar-primary: 169 100% 48%;
+    --sidebar-primary-foreground: 240 20% 5%;
+    --sidebar-accent: 240 10% 10%;
+    --sidebar-accent-foreground: 220 20% 97%;
+    --sidebar-border: 240 10% 12%;
+    --sidebar-ring: 169 100% 48%;
   }
 }
 
