@@ -17,6 +17,7 @@ import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
  */
 export default function Dashboard() {
   const priorities = useClassPriorities();
+  const insight = useCampusBrainInsight();
   const ordered = useMemo(
     () =>
       priorities
@@ -28,7 +29,9 @@ export default function Dashboard() {
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
       <MorningBrief />
+      <CampusBrainInsightCard insight={insight} />
       <TodaysFocus />
+
 
       <motion.div
         initial={{ opacity: 0 }}
