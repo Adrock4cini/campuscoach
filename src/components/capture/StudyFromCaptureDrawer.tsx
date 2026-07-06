@@ -44,6 +44,7 @@ interface Props {
   item: MemoryItem | null;
   classId: string;
   className?: string;
+  initialMode?: StudyMode;
 }
 
 type Stage = "preview" | "running" | "done";
