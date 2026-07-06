@@ -183,14 +183,17 @@ export function StudyFromCaptureDrawer({
         {stage === "done" && (
           <DoneStage
             session={session}
+            classId={classId}
             correct={correct}
             answered={answered}
+            change={change}
             onRestart={() => {
               setStage("preview");
               setStep(0);
               setRevealed(false);
               setCorrect(0);
               setAnswered(0);
+              setChange(null);
             }}
             onGoLab={() => {
               onOpenChange(false);
