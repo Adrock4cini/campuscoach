@@ -37,6 +37,10 @@ import type {
   Momentum,
   StudentModel,
 } from "./types";
+import {
+  getEffectiveReadiness,
+  getMomentumBoost,
+} from "./readinessEngine";
 
 /* ------------------------------------------------------------------ */
 /* Momentum                                                            */
@@ -69,7 +73,8 @@ export function computeMomentum(): Momentum {
     30 +
     Math.min(studyStreak, 10) * 4 + // up to +40 for a 10-day streak
     Math.min(last3.length, 6) * 4 + // up to +24 for consistent recent days
-    (avgScore - 50) * 0.3; // quality nudge, ±15
+    (avgScore - 50) * 0.3 + // quality nudge, ±15
+    getMomentumBoost(); // recent completions in this session
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   const trend: Momentum["trend"] =
@@ -105,10 +110,11 @@ function classState(classId: string): ClassBrainState {
   const classSessions = studySessions.filter((s) => s.classId === classId);
   const contribution = Math.min(20, classSessions.length * 4);
 
+  const effective = getEffectiveReadiness(classId, cls.readiness);
   return {
     classId,
-    readiness: cls.readiness,
-    estimatedGrade: estimateExamGrade(cls.readiness),
+    readiness: effective,
+    estimatedGrade: estimateExamGrade(effective),
     momentumContribution: contribution,
     fadingConcepts: fading,
     likelyExamTopics: predicted,
@@ -119,7 +125,8 @@ export function getStudentModel(): StudentModel {
   const momentum = computeMomentum();
   const coach = getCoachBrief();
   const avgReadiness =
-    classes.reduce((s, c) => s + c.readiness, 0) / classes.length;
+    classes.reduce((s, c) => s + getEffectiveReadiness(c.id, c.readiness), 0) /
+    classes.length;
 
   const totalMinutes = studySessions.reduce((s, x) => s + x.duration, 0);
   const avgSession = totalMinutes / Math.max(1, studySessions.length);
