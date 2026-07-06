@@ -24,7 +24,15 @@ import CourseIntelligencePage from "./pages/CourseIntelligencePage";
 import PathToGraduation from "./pages/PathToGraduation";
 import ScholarshipsPage from "./pages/ScholarshipsPage";
 import YourWeekPage from "./pages/YourWeekPage";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import { isOnboarded, isDemoMode } from "@/lib/onboarding/store";
+import { Navigate as RRNavigate } from "react-router-dom";
+
+function RootGate() {
+  if (!isOnboarded() && !isDemoMode()) return <RRNavigate to="/onboarding" replace />;
+  return <RRNavigate to="/dashboard" replace />;
+}
 
 const queryClient = new QueryClient();
 
