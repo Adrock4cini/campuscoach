@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
+import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { classes } from "@/data/demo";
