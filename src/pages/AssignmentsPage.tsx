@@ -12,21 +12,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { getAssignmentStartSuggestion } from "@/data/courseIntelligence";
 import { ClassTabs } from "@/components/ClassTabs";
+import { useAssignmentPriorities } from "@/lib/intelligence";
 
 export default function AssignmentsPage() {
-  const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
+  const [sortBy, setSortBy] = useState<'smart' | 'date'>('smart');
   const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);
   const [editAssignment, setEditAssignment] = useState<typeof assignments[0] | null>(null);
   const [activeClass, setActiveClass] = useState<string | "all">("all");
 
+  // Engine-ranked list: which assignment should the student start next?
+  const engineOrder = useAssignmentPriorities();
+  const rankIndex = new Map(engineOrder.map((p, i) => [p.assignmentId, i]));
+
   const filtered = activeClass === "all" ? assignments : assignments.filter(a => a.classId === activeClass);
   const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'priority') {
-      const order = { high: 0, medium: 1, low: 2 };
-      return order[a.priority] - order[b.priority];
+    if (sortBy === 'smart') {
+      const ra = rankIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const rb = rankIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return ra - rb;
     }
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
+
 
   const editFields: EditField[] = [
     { key: "title", label: "Title", type: "text" },
