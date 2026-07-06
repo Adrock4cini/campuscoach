@@ -62,7 +62,10 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <FocusModeProvider>
-      <LayoutShell>{children}</LayoutShell>
+      <CaptureProvider>
+        <LayoutShell>{children}</LayoutShell>
+      </CaptureProvider>
     </FocusModeProvider>
   );
 }
+
