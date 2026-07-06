@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
-import { getRecommendedStudyMode, getRecommendedTopic } from "@/data/courseIntelligence";
+import { useStudyFormatRecommendation } from "@/lib/intelligence";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
@@ -30,14 +30,17 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || classes[0].id);
-  const recommendedMode = getRecommendedStudyMode(selectedClass);
-  const recommendedTopic = getRecommendedTopic(selectedClass);
+  // Study-format recommendation comes from the Intelligence Engine,
+  // which also picks the topic to attack based on peer signal.
+  const recommendation = useStudyFormatRecommendation(selectedClass);
+  const recommendedTopic = recommendation.topic;
 
   const startRecommended = () =>
-    navigate(`/study-lab/session?mode=${recommendedMode.mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${recommendation.mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
 
   const startSecondary = (mode: StudyMode) =>
-    navigate(`/study-lab/session?mode=${mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
+
 
   return (
     <div className="max-w-3xl mx-auto space-y-10">
