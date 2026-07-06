@@ -9,6 +9,7 @@ import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader
 import { Link } from "react-router-dom";
 
 export default function MyClasses() {
+  const { classes } = useMyClasses();
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
