@@ -123,7 +123,21 @@ export async function commitCapture(
 
   saveStore([result, ...loadStore()]);
 
-  // Feed the Student Model / Campus Brain. Best-effort — never block UI.
+  // Mirror to Supabase — non-blocking, gracefully falls back to the
+  // local store if the write fails. Import kept lazy so the module
+  // stays testable without the Supabase client in scope.
+  void (async () => {
+    try {
+      const { persistCaptureResult } = await import(
+        "@/lib/supabase/capturePersistence"
+      );
+      await persistCaptureResult(result);
+    } catch {
+      /* offline / not configured — local store is source of truth */
+    }
+  })();
+
+  // Feed the topic-level signal used by the aggregate intelligence.
   try {
     await contributeStudySignal({
       classId: context.classId,
@@ -140,3 +154,4 @@ export async function commitCapture(
 
   return result;
 }
+
