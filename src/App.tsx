@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,7 +24,15 @@ import CourseIntelligencePage from "./pages/CourseIntelligencePage";
 import PathToGraduation from "./pages/PathToGraduation";
 import ScholarshipsPage from "./pages/ScholarshipsPage";
 import YourWeekPage from "./pages/YourWeekPage";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import { isOnboarded, isDemoMode } from "@/lib/onboarding/store";
+import { Navigate as RRNavigate } from "react-router-dom";
+
+function RootGate() {
+  if (!isOnboarded() && !isDemoMode()) return <RRNavigate to="/onboarding" replace />;
+  return <RRNavigate to="/dashboard" replace />;
+}
 
 const queryClient = new QueryClient();
 
@@ -36,7 +44,8 @@ const App = () => (
       <BrowserRouter>
         <AppLayout>
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<RootGate />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/classes" element={<MyClasses />} />
             <Route path="/classes/:classId" element={<ClassDetail />} />

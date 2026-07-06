@@ -4,9 +4,11 @@ import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
+import { RealClassCard } from "@/components/dashboard/RealClassCard";
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
-import { classes } from "@/data/demo";
+import { classes as demoClasses } from "@/data/demo";
 import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 
 
 /**
@@ -19,13 +21,13 @@ import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
 export default function Dashboard() {
   const priorities = useClassPriorities();
   const insight = useCampusBrainInsight();
-  const ordered = useMemo(
-    () =>
-      priorities
-        .map((p) => classes.find((c) => c.id === p.classId)!)
-        .filter(Boolean),
-    [priorities]
-  );
+  const { classes: myClasses, isReal } = useMyClasses();
+  const ordered = useMemo(() => {
+    if (isReal) return myClasses;
+    return priorities
+      .map((p) => demoClasses.find((c) => c.id === p.classId)!)
+      .filter(Boolean);
+  }, [priorities, myClasses, isReal]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
@@ -49,9 +51,13 @@ export default function Dashboard() {
       </motion.div>
 
       <div className="space-y-3 md:space-y-4">
-        {ordered.map((c, i) => (
-          <ClassCommandCard key={c.id} classId={c.id} index={i} />
-        ))}
+        {ordered.map((c, i) =>
+          isReal ? (
+            <RealClassCard key={c.id} c={c} index={i} />
+          ) : (
+            <ClassCommandCard key={c.id} classId={c.id} index={i} />
+          )
+        )}
       </div>
     </div>
   );
