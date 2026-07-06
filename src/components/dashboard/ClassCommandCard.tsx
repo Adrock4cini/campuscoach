@@ -143,7 +143,13 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
               transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
+              {brainInsight && (
+                <div className="mt-4">
+                  <CampusBrainInsightCard insight={brainInsight} compact />
+                </div>
+              )}
               <div className="mt-4 pt-4 border-t border-border/30 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+
                 {nextAssign && (
                   <Detail
                     Icon={ClipboardList}
