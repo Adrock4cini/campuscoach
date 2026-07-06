@@ -3,37 +3,25 @@ import { motion } from "framer-motion";
 import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
-import { classes, exams, assignments, getDaysUntil } from "@/data/demo";
+import { classes } from "@/data/demo";
+import { useClassPriorities } from "@/lib/intelligence";
 
 /**
  * Dashboard — Class Command Center.
- * Optimized for a 15-second glance between classes:
- * 1. One "Today's Focus" card up top.
- * 2. Vertically stacked, expandable Class Command Cards.
- * No paragraphs, no filler — icons and color coding do the talking.
+ *
+ * Class order comes from the central Intelligence Engine
+ * (`useClassPriorities`) so every screen agrees on which class
+ * deserves attention first. No urgency math lives here.
  */
 export default function Dashboard() {
-  // Order classes by attention score so the most urgent is first.
-  const ordered = useMemo(() => {
-    return [...classes]
-      .map((c) => {
-        const exam = exams
-          .filter((e) => e.classId === c.id)
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-        const assign = assignments
-          .filter((a) => a.classId === c.id && a.status !== "turned-in")
-          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
-        const examDays = exam ? getDaysUntil(exam.date) : 99;
-        const assignDays = assign ? getDaysUntil(assign.dueDate) : 99;
-        const score =
-          (100 - c.readiness) +
-          (examDays <= 7 ? (8 - examDays) * 10 : 0) +
-          (assignDays <= 3 ? (4 - assignDays) * 8 : 0);
-        return { c, score };
-      })
-      .sort((a, b) => b.score - a.score)
-      .map((x) => x.c);
-  }, []);
+  const priorities = useClassPriorities();
+  const ordered = useMemo(
+    () =>
+      priorities
+        .map((p) => classes.find((c) => c.id === p.classId)!)
+        .filter(Boolean),
+    [priorities]
+  );
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">

@@ -1,37 +1,22 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Flame, ArrowRight, Target } from "lucide-react";
-import { classes, exams, assignments, getDaysUntil } from "@/data/demo";
+import { classes } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
+import { useTopFocus } from "@/lib/intelligence";
 import { cn } from "@/lib/utils";
 
 /**
  * Compact "Today's Focus" — one class that needs the most attention.
- * Replaces the large hero. Designed to be readable in <5 seconds.
+ * The choice comes from the Intelligence Engine (`useTopFocus`) so
+ * this component stays presentational only.
  */
 export function TodaysFocus() {
   const navigate = useNavigate();
+  const top = useTopFocus();
+  const c = classes.find((cls) => cls.id === top.classId);
+  if (!c) return null;
 
-  // Attention score: low readiness + imminent exam/assignment
-  const focus = [...classes]
-    .map((c) => {
-      const exam = exams
-        .filter((e) => e.classId === c.id)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-      const assign = assignments
-        .filter((a) => a.classId === c.id && a.status !== "turned-in")
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
-      const examDays = exam ? getDaysUntil(exam.date) : 99;
-      const assignDays = assign ? getDaysUntil(assign.dueDate) : 99;
-      const score =
-        (100 - c.readiness) +
-        (examDays <= 7 ? (8 - examDays) * 10 : 0) +
-        (assignDays <= 3 ? (4 - assignDays) * 8 : 0);
-      return { c, examDays, assignDays, score };
-    })
-    .sort((a, b) => b.score - a.score)[0];
-
-  const { c } = focus;
   const pulse = getClassPulse(c.id);
   const topic = pulse?.mostStruggled.topic ?? c.currentTopic;
 
@@ -60,15 +45,15 @@ export function TodaysFocus() {
             {c.name}
           </h1>
           <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {c.readiness}% ready · {topic}
+            {top.nextAction.rationale} · {topic}
           </p>
         </div>
 
         <button
-          onClick={() => navigate(`/focus-sprint?classId=${c.id}&duration=15`)}
+          onClick={() => navigate(top.nextAction.to)}
           className="btn-glow h-11 px-5 rounded-2xl text-sm font-medium inline-flex items-center gap-1.5 shrink-0"
         >
-          Start 15m
+          {top.nextAction.label}
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>

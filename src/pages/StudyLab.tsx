@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
-import { getRecommendedStudyMode, getRecommendedTopic } from "@/data/courseIntelligence";
+import { useStudyFormatRecommendation } from "@/lib/intelligence";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
@@ -30,14 +30,17 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || classes[0].id);
-  const recommendedMode = getRecommendedStudyMode(selectedClass);
-  const recommendedTopic = getRecommendedTopic(selectedClass);
+  // Study-format recommendation comes from the Intelligence Engine,
+  // which also picks the topic to attack based on peer signal.
+  const recommendation = useStudyFormatRecommendation(selectedClass);
+  const recommendedTopic = recommendation.topic;
 
   const startRecommended = () =>
-    navigate(`/study-lab/session?mode=${recommendedMode.mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${recommendation.mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
 
   const startSecondary = (mode: StudyMode) =>
-    navigate(`/study-lab/session?mode=${mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic?.topic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
+
 
   return (
     <div className="max-w-3xl mx-auto space-y-10">
@@ -76,11 +79,12 @@ export default function StudyLab() {
             </Badge>
             <div className="space-y-1.5">
               <h2 className="text-3xl md:text-4xl font-display font-semibold text-foreground">
-                {recommendedMode.label}
+                {recommendation.label}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {recommendedTopic?.topic ?? "Recommended topic"} · ~8 min
+                {recommendedTopic ?? "Recommended topic"} · ~{recommendation.suggestedMinutes} min
               </p>
+
             </div>
             <Button
               size="lg"
@@ -99,7 +103,7 @@ export default function StudyLab() {
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Or try</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {secondaryModes
-            .filter(m => m.mode !== recommendedMode.mode)
+            .filter(m => m.mode !== recommendation.mode)
             .map(mode => (
               <button
                 key={mode.mode}

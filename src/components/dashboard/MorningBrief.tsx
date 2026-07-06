@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { BookOpen, ClipboardList, Brain, Clock, Hand } from "lucide-react";
 import { classes, exams, assignments, getDaysUntil, studentName } from "@/data/demo";
+import { useCoachBrief } from "@/lib/intelligence";
 
 function timeOfDayGreeting() {
   const h = new Date().getHours();
@@ -9,16 +10,13 @@ function timeOfDayGreeting() {
   return "Good evening";
 }
 
-function getStatusMessage(readinessAvg: number, overdueAssignments: number) {
-  if (overdueAssignments > 0) return "Let's catch up today.";
-  if (readinessAvg >= 75) return "You're ahead this week.";
-  if (readinessAvg >= 55) return "You're on track.";
-  return "One focused session will get you back on track.";
-}
-
 export function MorningBrief() {
   const greeting = timeOfDayGreeting();
   const classCount = classes.length;
+
+  // Status + recommended minutes come from the central Intelligence
+  // Engine so the dashboard stays in sync with every other surface.
+  const brief = useCoachBrief();
 
   const assignmentsDueThisWeek = assignments.filter(
     (a) => a.status !== "turned-in" && getDaysUntil(a.dueDate) <= 7,
@@ -28,24 +26,15 @@ export function MorningBrief() {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
   const examDays = soonestExam ? getDaysUntil(soonestExam.date) : null;
 
-  const recommended = classes.reduce((sum, c) => {
-    if (c.readiness < 60) return sum + 15;
-    if (c.readiness < 75) return sum + 10;
-    return sum + 5;
-  }, 0);
-
-  const avgReadiness = Math.round(classes.reduce((s, c) => s + c.readiness, 0) / classes.length);
-  const overdueAssignments = assignments.filter((a) => getDaysUntil(a.dueDate) < 0 && a.status !== "turned-in").length;
-  const status = getStatusMessage(avgReadiness, overdueAssignments);
-
   const stats = [
     { icon: BookOpen, label: `${classCount} class${classCount === 1 ? "" : "es"}`, tone: "primary" as const },
     { icon: ClipboardList, label: `${assignmentsDueThisWeek} assignment${assignmentsDueThisWeek === 1 ? "" : "s"} due this week`, tone: "warning" as const },
     ...(examDays !== null && examDays >= 0
       ? [{ icon: Brain, label: `1 exam in ${examDays} day${examDays === 1 ? "" : "s"}`, tone: "danger" as const }]
       : []),
-    { icon: Clock, label: `AI recommends ${recommended} min today`, tone: "accent" as const },
+    { icon: Clock, label: `AI recommends ${brief.recommendedMinutesToday} min today`, tone: "accent" as const },
   ];
+
 
   const toneBorder: Record<string, string> = {
     primary: "border-primary/25",
@@ -99,8 +88,9 @@ export function MorningBrief() {
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Hand className="h-3.5 w-3.5 text-primary" />
-          <span>{status}</span>
+          <span>{brief.status}</span>
         </div>
+
       </div>
     </motion.section>
   );

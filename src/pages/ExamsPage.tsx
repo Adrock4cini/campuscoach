@@ -9,6 +9,8 @@ import { AlertTriangle, CheckCircle2, XCircle, ArrowRight, Pencil } from "lucide
 import { Link } from "react-router-dom";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { ClassTabs } from "@/components/ClassTabs";
+import { estimateExamGrade } from "@/lib/intelligence";
+
 
 export default function ExamsPage() {
   const [activeClass, setActiveClass] = useState<string | "all">("all");
@@ -34,7 +36,8 @@ export default function ExamsPage() {
       <div className="space-y-5">
         {sorted.map((e, i) => {
           const days = getDaysUntil(e.date);
-          const gradeEstimate = e.readiness >= 80 ? "A-/B+" : e.readiness >= 65 ? "B/B-" : e.readiness >= 45 ? "C+/B-" : "C/C-";
+          const gradeEstimate = estimateExamGrade(e.readiness);
+
 
           return (
             <motion.div
