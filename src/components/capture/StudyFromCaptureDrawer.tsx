@@ -440,21 +440,26 @@ function RunningStage({
 
 function DoneStage({
   session,
+  classId,
   correct,
   answered,
+  change,
   onRestart,
   onGoLab,
   onClose,
 }: {
   session: StudySession;
+  classId: string;
   correct: number;
   answered: number;
+  change: ReadinessChange | null;
   onRestart: () => void;
   onGoLab: () => void;
   onClose: () => void;
 }) {
   const accuracy =
     answered > 0 ? Math.round((correct / answered) * 100) : undefined;
+  const nba = getNextBestActionForClass(classId);
 
   return (
     <div className="mt-6 space-y-5">
@@ -471,14 +476,54 @@ function DoneStage({
         </p>
       </div>
 
+      {/* Momentum + Readiness deltas */}
+      {change && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-primary font-medium">
+              Momentum
+            </p>
+            <p className="font-display text-lg text-foreground">
+              +{change.momentumDelta}
+            </p>
+          </div>
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-primary font-medium">
+              {change.className} readiness
+            </p>
+            <p className="font-display text-lg text-foreground">
+              {change.baseReadiness}%{" "}
+              <span className="text-muted-foreground">→</span>{" "}
+              {change.newReadiness}%
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <div className="flex items-center gap-2 mb-1 text-primary text-xs font-medium">
-          <Brain className="h-3.5 w-3.5" /> Campus Brain updated
+          <Brain className="h-3.5 w-3.5" /> Campus Brain updated today's plan
         </div>
         <p className="text-sm text-foreground">
-          Momentum bumped for {session.topic}. Come back tomorrow for one more
-          quick pass to lock this in.
+          {change?.reason ??
+            `Momentum bumped for ${session.topic}. Come back tomorrow for one more quick pass to lock this in.`}
+          {change && (
+            <>
+              {" "}
+              Estimated grade tracking{" "}
+              <span className="font-medium">{change.gradeAfter}</span>
+              {change.gradeBefore !== change.gradeAfter && (
+                <> (up from {change.gradeBefore})</>
+              )}
+              .
+            </>
+          )}
         </p>
+        {nba?.nextAction && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Next best action: {nba.nextAction.label.toLowerCase()}.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
