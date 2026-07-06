@@ -32,6 +32,8 @@ export default function Dashboard() {
       <MorningBrief />
       <CampusBrainInsightCard insight={insight} />
       <TodaysFocus />
+      <TodaysPlan />
+
 
 
       <motion.div
