@@ -113,7 +113,7 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
           </button>
         </div>
 
-        {/* AI recommended action + Continue */}
+        {/* ONE primary action — the engine's next-best step for this class */}
         <div className="mt-4 flex items-center gap-2">
           <div className="flex-1 min-w-0 rounded-2xl border border-primary/25 bg-primary/5 px-3.5 py-2.5 flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary shrink-0" />
@@ -128,14 +128,7 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
           </button>
         </div>
 
-        {/* Secondary icon actions */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <IconAction Icon={Mic}    label="Record"  onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
-          <IconAction Icon={Camera} label="Scan"    onClick={() => navigate(`/classes/${c.id}?action=scan`)} />
-          <IconAction Icon={Sparkles} label="Ask AI" onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
-        </div>
-
-        {/* Expanded detail */}
+        {/* Level 2+: everything else lives behind the chevron */}
         <AnimatePresence>
           {open && (
             <motion.div
@@ -180,14 +173,22 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
                 />
               </div>
 
+              {/* Secondary tools — icons only, no primary emphasis */}
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <IconAction Icon={Mic}      label="Record"  onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
+                <IconAction Icon={Camera}   label="Scan"    onClick={() => navigate(`/classes/${c.id}?action=scan`)} />
+                <IconAction Icon={Sparkles} label="Ask AI"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
+              </div>
+
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <MiniLink Icon={FileText}   label="Notes"       onClick={() => navigate(`/notes?classId=${c.id}`)} />
+                <MiniLink Icon={FileText}      label="Notes"       onClick={() => navigate(`/notes?classId=${c.id}`)} />
                 <MiniLink Icon={ClipboardList} label="Assignments" onClick={() => navigate(`/assignments?classId=${c.id}`)} />
-                <MiniLink Icon={BookOpen}   label="Class home"  onClick={() => navigate(`/classes/${c.id}`)} />
+                <MiniLink Icon={BookOpen}      label="Class home"  onClick={() => navigate(`/classes/${c.id}`)} />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
       </div>
     </motion.div>
   );
