@@ -164,6 +164,10 @@ export function ClassCard({ classId, index = 0 }: Props) {
           </div>
         )}
 
+        {/* Aggregate Campus Brain strip — anonymous, thresholded */}
+        <ClassBrainAggregateStrip classId={c.id} className="mt-3" limit={2} />
+
+
         {/* Chunky action buttons — 2x2 grid */}
         <div className="mt-5 grid grid-cols-2 gap-2.5">
           {quickActions.map((a) => (
