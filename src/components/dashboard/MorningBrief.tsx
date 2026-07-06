@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { BookOpen, ClipboardList, Brain, Clock, Hand } from "lucide-react";
+import { BookOpen, ClipboardList, Brain, Clock, Hand, Flame, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { classes, exams, assignments, getDaysUntil, studentName } from "@/data/demo";
-import { useCoachBrief } from "@/lib/intelligence";
+import { useCoachBrief, useMomentum } from "@/lib/intelligence";
+import { cn } from "@/lib/utils";
 
 function timeOfDayGreeting() {
   const h = new Date().getHours();
@@ -14,9 +15,8 @@ export function MorningBrief() {
   const greeting = timeOfDayGreeting();
   const classCount = classes.length;
 
-  // Status + recommended minutes come from the central Intelligence
-  // Engine so the dashboard stays in sync with every other surface.
   const brief = useCoachBrief();
+  const momentum = useMomentum();
 
   const assignmentsDueThisWeek = assignments.filter(
     (a) => a.status !== "turned-in" && getDaysUntil(a.dueDate) <= 7,
@@ -32,8 +32,9 @@ export function MorningBrief() {
     ...(examDays !== null && examDays >= 0
       ? [{ icon: Brain, label: `1 exam in ${examDays} day${examDays === 1 ? "" : "s"}`, tone: "danger" as const }]
       : []),
-    { icon: Clock, label: `AI recommends ${brief.recommendedMinutesToday} min today`, tone: "accent" as const },
+    { icon: Clock, label: `Campus Brain recommends ${brief.recommendedMinutesToday} min today`, tone: "accent" as const },
   ];
+
 
 
   const toneBorder: Record<string, string> = {
