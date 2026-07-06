@@ -110,10 +110,11 @@ function classState(classId: string): ClassBrainState {
   const classSessions = studySessions.filter((s) => s.classId === classId);
   const contribution = Math.min(20, classSessions.length * 4);
 
+  const effective = getEffectiveReadiness(classId, cls.readiness);
   return {
     classId,
-    readiness: cls.readiness,
-    estimatedGrade: estimateExamGrade(cls.readiness),
+    readiness: effective,
+    estimatedGrade: estimateExamGrade(effective),
     momentumContribution: contribution,
     fadingConcepts: fading,
     likelyExamTopics: predicted,
