@@ -14,6 +14,285 @@ export type Database = {
   }
   public: {
     Tables: {
+      campus_brain_signals: {
+        Row: {
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          id: string
+          payload: Json
+          recorded_at: string
+          source_id: string | null
+          source_type: string
+          topic: string | null
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          recorded_at?: string
+          source_id?: string | null
+          source_type: string
+          topic?: string | null
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          recorded_at?: string
+          source_id?: string | null
+          source_type?: string
+          topic?: string | null
+          user_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_brain_signals_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      captures: {
+        Row: {
+          captured_on: string
+          chapter: string | null
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          flashcards_ready: boolean
+          id: string
+          kind: string
+          local_id: string | null
+          meta: Json
+          processing_status: string
+          raw_text: string | null
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          captured_on?: string
+          chapter?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          flashcards_ready?: boolean
+          id?: string
+          kind: string
+          local_id?: string | null
+          meta?: Json
+          processing_status?: string
+          raw_text?: string | null
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          captured_on?: string
+          chapter?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          flashcards_ready?: boolean
+          id?: string
+          kind?: string
+          local_id?: string | null
+          meta?: Json
+          processing_status?: string
+          raw_text?: string | null
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captures_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classes: {
+        Row: {
+          client_class_id: string | null
+          color: string | null
+          course_instance_id: string | null
+          created_at: string
+          current_topic: string | null
+          id: string
+          location: string | null
+          meta: Json
+          name: string
+          professor: string | null
+          readiness: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_class_id?: string | null
+          color?: string | null
+          course_instance_id?: string | null
+          created_at?: string
+          current_topic?: string | null
+          id?: string
+          location?: string | null
+          meta?: Json
+          name: string
+          professor?: string | null
+          readiness?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_class_id?: string | null
+          color?: string | null
+          course_instance_id?: string | null
+          created_at?: string
+          current_topic?: string | null
+          id?: string
+          location?: string | null
+          meta?: Json
+          name?: string
+          professor?: string | null
+          readiness?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classes_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_instances: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          professor_id: string | null
+          professor_name: string | null
+          term: string | null
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          professor_id?: string | null
+          professor_name?: string | null
+          term?: string | null
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          professor_id?: string | null
+          professor_name?: string | null
+          term?: string | null
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instances_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          code: string | null
+          created_at: string
+          department: string | null
+          id: string
+          name: string
+          school_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          name: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          name?: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrollments: {
+        Row: {
+          class_id: string | null
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exam_debriefs: {
         Row: {
           advice_notes: string | null
@@ -76,6 +355,376 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      flashcards: {
+        Row: {
+          back: string
+          capture_id: string | null
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          due_at: string | null
+          ease: number
+          front: string
+          id: string
+          interval_days: number
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          back: string
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          ease?: number
+          front: string
+          id?: string
+          interval_days?: number
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          back?: string
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          ease?: number
+          front?: string
+          id?: string
+          interval_days?: number
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcards_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flashcards_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      materials: {
+        Row: {
+          capture_id: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          kind: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string | null
+          user_id: string
+        }
+        Insert: {
+          capture_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          kind: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          user_id: string
+        }
+        Update: {
+          capture_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          kind?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materials_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processed_content: {
+        Row: {
+          capture_id: string | null
+          created_at: string
+          id: string
+          key_concepts: string[]
+          model: string | null
+          ocr_text: string | null
+          outline: Json | null
+          summary: string | null
+          transcript: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id?: string | null
+          created_at?: string
+          id?: string
+          key_concepts?: string[]
+          model?: string | null
+          ocr_text?: string | null
+          outline?: Json | null
+          summary?: string | null
+          transcript?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string | null
+          created_at?: string
+          id?: string
+          key_concepts?: string[]
+          model?: string | null
+          ocr_text?: string | null
+          outline?: Json | null
+          summary?: string | null
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processed_content_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          default_study_length: number | null
+          display_name: string | null
+          encouragement_tone: string | null
+          id: string
+          major: string | null
+          school_id: string | null
+          updated_at: string
+          user_id: string
+          year: string | null
+        }
+        Insert: {
+          created_at?: string
+          default_study_length?: number | null
+          display_name?: string | null
+          encouragement_tone?: string | null
+          id?: string
+          major?: string | null
+          school_id?: string | null
+          updated_at?: string
+          user_id: string
+          year?: string | null
+        }
+        Update: {
+          created_at?: string
+          default_study_length?: number | null
+          display_name?: string | null
+          encouragement_tone?: string | null
+          id?: string
+          major?: string | null
+          school_id?: string | null
+          updated_at?: string
+          user_id?: string
+          year?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          capture_id: string | null
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          id: string
+          questions: Json
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          id?: string
+          questions?: Json
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          id?: string
+          questions?: Json
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      readiness_scores: {
+        Row: {
+          class_id: string | null
+          client_class_id: string | null
+          computed_at: string
+          created_at: string
+          id: string
+          momentum: number | null
+          readiness: number
+          user_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          client_class_id?: string | null
+          computed_at?: string
+          created_at?: string
+          id?: string
+          momentum?: number | null
+          readiness: number
+          user_id: string
+        }
+        Update: {
+          class_id?: string | null
+          client_class_id?: string | null
+          computed_at?: string
+          created_at?: string
+          id?: string
+          momentum?: number | null
+          readiness?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "readiness_scores_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schools: {
+        Row: {
+          created_at: string
+          domain: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      study_sessions: {
+        Row: {
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          duration_minutes: number
+          ended_at: string | null
+          id: string
+          mode: string | null
+          score: number | null
+          started_at: string
+          topic: string | null
+          user_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          duration_minutes?: number
+          ended_at?: string | null
+          id?: string
+          mode?: string | null
+          score?: number | null
+          started_at?: string
+          topic?: string | null
+          user_id: string
+        }
+        Update: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          duration_minutes?: number
+          ended_at?: string | null
+          id?: string
+          mode?: string | null
+          score?: number | null
+          started_at?: string
+          topic?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       topic_scores: {
         Row: {
