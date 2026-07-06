@@ -1,6 +1,6 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { assignments, exams } from "@/data/demo";
+import { assignments, exams } from "../../../data/demo";
 
 /**
  * list_upcoming_deadlines — Assignments + exams due within the next N days.

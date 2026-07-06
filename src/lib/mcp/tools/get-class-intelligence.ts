@@ -1,7 +1,7 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { classes } from "@/data/demo";
+import { classes } from "../../../data/demo";
 
 /**
  * get_class_intelligence — Peer-aggregated topic scores for a class.

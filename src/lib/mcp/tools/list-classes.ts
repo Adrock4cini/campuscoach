@@ -1,6 +1,6 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { classes } from "@/data/demo";
+import { classes } from "../../../data/demo";
 
 /**
  * list_classes — Return an overview of the student's classes with readiness.
