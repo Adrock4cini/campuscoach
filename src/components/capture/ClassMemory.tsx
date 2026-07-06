@@ -46,6 +46,8 @@ import {
 import { listCaptures, CAPTURE_LABELS } from "@/lib/capture/processor";
 import type { CaptureKind, CaptureResult } from "@/lib/capture/types";
 import { CaptureDetailDrawer, type MemoryItem } from "./CaptureDetailDrawer";
+import { StudyFromCaptureDrawer } from "./StudyFromCaptureDrawer";
+import type { StudyMode } from "@/lib/study/studyFromCapture";
 
 interface Props {
   classId: string;
@@ -109,7 +111,16 @@ export function ClassMemory({ classId, className }: Props) {
   const [items, setItems] = useState<MemoryItem[]>(() => fromLocal(classId));
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
+  const [studyMode, setStudyMode] = useState<StudyMode | undefined>();
+  const [studyOpen, setStudyOpen] = useState(false);
   const navigate = useNavigate();
+
+  const openStudy = (item: MemoryItem, mode?: StudyMode) => {
+    setStudyItem(item);
+    setStudyMode(mode);
+    setStudyOpen(true);
+  };
 
   const refresh = useMemo(
     () => async () => {
@@ -163,21 +174,9 @@ export function ClassMemory({ classId, className }: Props) {
                 key={`${item.source}-${item.id}`}
                 item={item}
                 onOpen={() => openDetail(item)}
-                onStudy={() =>
-                  navigate(
-                    `/study-lab?classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
-                onFlashcards={() =>
-                  navigate(
-                    `/study-lab/session?mode=flashcards&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
-                onQuiz={() =>
-                  navigate(
-                    `/study-lab/session?mode=quiz&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
+                onStudy={() => openStudy(item)}
+                onFlashcards={() => openStudy(item, "flashcards")}
+                onQuiz={() => openStudy(item, "quiz")}
               />
             ))}
           </div>
@@ -190,6 +189,19 @@ export function ClassMemory({ classId, className }: Props) {
         item={selected}
         classId={classId}
         className={className}
+        onStudy={(mode) => {
+          setDrawerOpen(false);
+          if (selected) openStudy(selected, mode);
+        }}
+      />
+
+      <StudyFromCaptureDrawer
+        open={studyOpen}
+        onOpenChange={setStudyOpen}
+        item={studyItem}
+        classId={classId}
+        className={className}
+        initialMode={studyMode}
       />
     </Card>
   );
