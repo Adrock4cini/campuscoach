@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
 import { classes, exams, assignments, getDaysUntil } from "@/data/demo";
@@ -36,6 +37,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
+      <MorningBrief />
       <TodaysFocus />
 
       <motion.div
