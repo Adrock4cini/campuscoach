@@ -46,6 +46,8 @@ import {
 import { listCaptures, CAPTURE_LABELS } from "@/lib/capture/processor";
 import type { CaptureKind, CaptureResult } from "@/lib/capture/types";
 import { CaptureDetailDrawer, type MemoryItem } from "./CaptureDetailDrawer";
+import { StudyFromCaptureDrawer } from "./StudyFromCaptureDrawer";
+import type { StudyMode } from "@/lib/study/studyFromCapture";
 
 interface Props {
   classId: string;
