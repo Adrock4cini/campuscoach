@@ -127,9 +127,11 @@ export function CaptureDetailDrawer({
               <Button
                 className="justify-between bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
                 onClick={() =>
-                  navigate(
-                    `/study-lab?classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
+                  onStudy
+                    ? onStudy()
+                    : navigate(
+                        `/study-lab?classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
+                      )
                 }
               >
                 <span className="flex items-center gap-2">
@@ -141,9 +143,11 @@ export function CaptureDetailDrawer({
                 variant="outline"
                 className="justify-between"
                 onClick={() =>
-                  navigate(
-                    `/study-lab/session?mode=flashcards&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
+                  onStudy
+                    ? onStudy("flashcards")
+                    : navigate(
+                        `/study-lab/session?mode=flashcards&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
+                      )
                 }
               >
                 Generate flashcards <ArrowRight className="h-4 w-4" />
@@ -152,9 +156,11 @@ export function CaptureDetailDrawer({
                 variant="outline"
                 className="justify-between"
                 onClick={() =>
-                  navigate(
-                    `/study-lab/session?mode=quiz&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
+                  onStudy
+                    ? onStudy("quiz")
+                    : navigate(
+                        `/study-lab/session?mode=quiz&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
+                      )
                 }
               >
                 Generate quiz <ArrowRight className="h-4 w-4" />
