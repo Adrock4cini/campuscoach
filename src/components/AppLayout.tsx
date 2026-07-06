@@ -3,6 +3,8 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { CaptureButton } from "@/components/CaptureButton";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
+import { CaptureProvider } from "@/contexts/CaptureContext";
+
 import { FocusModeToggle } from "@/components/FocusModeToggle";
 import { CommandPalette, useCommandPalette } from "@/components/CommandPalette";
 import { Search } from "lucide-react";
@@ -62,7 +64,10 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <FocusModeProvider>
-      <LayoutShell>{children}</LayoutShell>
+      <CaptureProvider>
+        <LayoutShell>{children}</LayoutShell>
+      </CaptureProvider>
     </FocusModeProvider>
   );
 }
+
