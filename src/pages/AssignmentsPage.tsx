@@ -57,10 +57,11 @@ export default function AssignmentsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setSortBy(sortBy === 'date' ? 'priority' : 'date')}
+          onClick={() => setSortBy(sortBy === 'smart' ? 'date' : 'smart')}
         >
           <ArrowUpDown className="h-4 w-4 mr-1.5" />
-          Sort by {sortBy === 'date' ? 'priority' : 'due date'}
+          Sort by {sortBy === 'smart' ? 'due date' : 'AI priority'}
+
         </Button>
       </div>
 
