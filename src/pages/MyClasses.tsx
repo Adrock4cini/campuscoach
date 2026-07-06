@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { classes as demoClasses, getDaysUntil, getReadinessColor, getReadinessLabel } from "@/data/demo";
+import { getDaysUntil, getReadinessColor, getReadinessLabel } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
