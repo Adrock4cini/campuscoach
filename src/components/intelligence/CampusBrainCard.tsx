@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Brain, ArrowRight, Eye, Sparkles, Lightbulb, Radar } from "lucide-react";
 import type { CampusBrainInsight } from "@/lib/intelligence";
 import { cn } from "@/lib/utils";
+import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
+import { classes } from "@/data/demo";
 
 const kindMap = {
   noticed:   { verb: "noticed",   Icon: Eye,       tone: "text-primary"  },
@@ -64,6 +66,23 @@ export function CampusBrainInsightCard({ insight, compact, className }: Props) {
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
+
+          {!compact && insight.classId && (() => {
+            const cls = classes.find((c) => c.id === insight.classId);
+            if (!cls) return null;
+            return (
+              <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">
+                  More classmates = smarter insights.
+                </p>
+                <InviteClassmatesButton
+                  classId={cls.id}
+                  className={cls.name}
+                  variant="inline"
+                />
+              </div>
+            );
+          })()}
         </div>
       </div>
     </motion.div>

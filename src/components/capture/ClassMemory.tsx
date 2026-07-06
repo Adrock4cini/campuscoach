@@ -49,6 +49,7 @@ import { CaptureDetailDrawer, type MemoryItem } from "./CaptureDetailDrawer";
 import { StudyFromCaptureDrawer } from "./StudyFromCaptureDrawer";
 import type { StudyMode } from "@/lib/study/studyFromCapture";
 import { ClassBrainAggregateStrip } from "@/components/intelligence/ClassBrainAggregateStrip";
+import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 
 interface Props {
   classId: string;
@@ -162,6 +163,14 @@ export function ClassMemory({ classId, className }: Props) {
           </Badge>
         </div>
         <ClassBrainAggregateStrip classId={classId} className="mb-3" />
+        {className && (
+          <InviteClassmatesButton
+            classId={classId}
+            className={className}
+            wrapperClassName="mb-3"
+          />
+        )}
+
 
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
