@@ -70,6 +70,7 @@ export function StudyFromCaptureDrawer({
   const [revealed, setRevealed] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [answered, setAnswered] = useState(0);
+  const [change, setChange] = useState<ReadinessChange | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
