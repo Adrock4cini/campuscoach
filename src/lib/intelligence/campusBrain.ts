@@ -37,6 +37,10 @@ import type {
   Momentum,
   StudentModel,
 } from "./types";
+import {
+  getEffectiveReadiness,
+  getMomentumBoost,
+} from "./readinessEngine";
 
 /* ------------------------------------------------------------------ */
 /* Momentum                                                            */
