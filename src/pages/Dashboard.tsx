@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
 import { classes, exams, assignments, getDaysUntil } from "@/data/demo";
