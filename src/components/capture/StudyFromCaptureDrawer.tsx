@@ -84,6 +84,7 @@ export function StudyFromCaptureDrawer({
       setRevealed(false);
       setCorrect(0);
       setAnswered(0);
+      setChange(null);
     }
   }, [open, initialMode]);
 
