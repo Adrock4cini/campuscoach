@@ -88,8 +88,9 @@ export function MorningBrief() {
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Hand className="h-3.5 w-3.5 text-primary" />
-          <span>{status}</span>
+          <span>{brief.status}</span>
         </div>
+
       </div>
     </motion.section>
   );
