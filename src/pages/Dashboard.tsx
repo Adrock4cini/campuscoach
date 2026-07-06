@@ -3,8 +3,10 @@ import { motion } from "framer-motion";
 import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
+import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { classes } from "@/data/demo";
-import { useClassPriorities } from "@/lib/intelligence";
+import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
+
 
 /**
  * Dashboard — Class Command Center.
