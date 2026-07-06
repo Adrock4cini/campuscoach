@@ -108,16 +108,33 @@ export function StudyFromCaptureDrawer({
 
   const finish = () => {
     setStage("done");
-    // Feed the Student Model with a lightweight study signal.
+    const accuracy =
+      answered > 0 ? Math.round((correct / answered) * 100) : undefined;
+
+    // Feed the Student Model with a lightweight topic-level signal.
     void contributeStudySignal({
       classId,
       topicId: session.topic,
       topicName: session.topic,
       timeSpentMinutes: session.estimatedMinutes,
-      accuracy: answered > 0 ? Math.round((correct / answered) * 100) : undefined,
+      accuracy,
       sourceType: `study-from-capture:${session.mode}`,
       sourceId: item.id,
     }).catch(() => undefined);
+
+    // Update Momentum + Readiness + write session/brain rows + broadcast.
+    void updateReadinessAfterStudy({
+      classId,
+      mode: session.mode,
+      topic: session.topic,
+      durationMinutes: session.estimatedMinutes,
+      accuracy,
+      completed: true,
+      captureId: item.id,
+      targetedWeakConcept: item.keyConcepts.length > 0,
+    })
+      .then(setChange)
+      .catch(() => undefined);
   };
 
   return (
