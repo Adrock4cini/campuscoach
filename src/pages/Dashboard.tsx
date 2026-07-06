@@ -5,8 +5,9 @@ import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
-import { classes } from "@/data/demo";
+import { classes as demoClasses } from "@/data/demo";
 import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 
 
 /**
