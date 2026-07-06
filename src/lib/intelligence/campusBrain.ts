@@ -125,7 +125,8 @@ export function getStudentModel(): StudentModel {
   const momentum = computeMomentum();
   const coach = getCoachBrief();
   const avgReadiness =
-    classes.reduce((s, c) => s + c.readiness, 0) / classes.length;
+    classes.reduce((s, c) => s + getEffectiveReadiness(c.id, c.readiness), 0) /
+    classes.length;
 
   const totalMinutes = studySessions.reduce((s, x) => s + x.duration, 0);
   const avgSession = totalMinutes / Math.max(1, studySessions.length);
