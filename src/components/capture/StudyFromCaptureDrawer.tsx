@@ -122,6 +122,27 @@ export function StudyFromCaptureDrawer({
       sourceId: item.id,
     }).catch(() => undefined);
 
+    // Aggregate-safe mirror for shared Campus Brain intelligence.
+    void (async () => {
+      try {
+        const {
+          extractAggregateSignalFromStudySession,
+          updateCampusBrainAggregate,
+        } = await import("@/lib/intelligence/aggregateSignals");
+        await updateCampusBrainAggregate(
+          extractAggregateSignalFromStudySession({
+            clientClassId: classId,
+            topic: session.topic,
+            mode: session.mode,
+            accuracy,
+            durationMinutes: session.estimatedMinutes,
+          }),
+        );
+      } catch {
+        /* offline — safe to skip */
+      }
+    })();
+
     // Update Momentum + Readiness + write session/brain rows + broadcast.
     void updateReadinessAfterStudy({
       classId,

@@ -147,6 +147,21 @@ export async function commitCapture(
     }
   })();
 
+  // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
+  void (async () => {
+    try {
+      const {
+        extractAggregateSignalFromCapture,
+        updateCampusBrainAggregate,
+      } = await import("@/lib/intelligence/aggregateSignals");
+      await updateCampusBrainAggregate(
+        extractAggregateSignalFromCapture(result),
+      );
+    } catch {
+      /* offline — aggregate layer will backfill later */
+    }
+  })();
+
   // Feed the topic-level signal used by the aggregate intelligence.
   try {
     await contributeStudySignal({
