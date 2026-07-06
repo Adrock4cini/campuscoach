@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "campus-companion-mcp",
+      "version": "0.1.0",
+      "title": "Campus Companion"
+    },
+    "tools": [
+      {
+        "name": "list_classes",
+        "title": "List classes",
+        "description": "List the student's current classes with professor, meeting time, current topic, next exam date, and readiness score.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_upcoming_deadlines",
+        "title": "List upcoming deadlines",
+        "description": "List upcoming assignments and exams within the given number of days (default 14). Includes class name, due date, priority, and readiness.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "days": {
+              "description": "Look-ahead window in days. Defaults to 14.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_class_intelligence",
+        "title": "Get class intelligence",
+        "description": "Return peer-aggregated 'high-yield' topics for a class: probability of appearing on the next exam, confidence band, and student engagement. Use `list_classes` to discover valid classId values.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "classId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Class id, e.g. 'psych101'."
+            },
+            "limit": {
+              "description": "Max topics to return. Default 10.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "required": [
+            "classId"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
