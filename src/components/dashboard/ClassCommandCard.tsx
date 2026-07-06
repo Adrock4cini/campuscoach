@@ -35,6 +35,8 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
     .filter((a) => a.classId === c.id && a.status !== "turned-in")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
   const pulse = getClassPulse(c.id);
+  const brainInsight = useClassCampusBrainInsight(c.id);
+
 
   const examDays = exam ? getDaysUntil(exam.date) : null;
   const assignDays = nextAssign ? getDaysUntil(nextAssign.dueDate) : null;
