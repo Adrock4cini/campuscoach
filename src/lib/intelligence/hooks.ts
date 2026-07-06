@@ -20,6 +20,14 @@ import {
   getTopFocusClass,
 } from "./engine";
 
+import {
+  computeMomentum,
+  getAssignmentCampusBrainInsight,
+  getClassCampusBrainInsight,
+  getStudentModel,
+  getTopCampusBrainInsight,
+} from "./campusBrain";
+
 export const useClassPriorities = () =>
   useMemo(() => getClassPriorities(), []);
 
@@ -44,3 +52,19 @@ export const useSameProfessorSignal = (classId: string) =>
   useMemo(() => getSameProfessorSignal(classId), [classId]);
 
 export const useCoachBrief = () => useMemo(() => getCoachBrief(), []);
+
+/* ---------- Campus Brain ---------- */
+
+export const useStudentModel = () => useMemo(() => getStudentModel(), []);
+
+export const useMomentum = () => useMemo(() => computeMomentum(), []);
+
+export const useCampusBrainInsight = () =>
+  useMemo(() => getTopCampusBrainInsight(), []);
+
+export const useClassCampusBrainInsight = (classId: string) =>
+  useMemo(() => getClassCampusBrainInsight(classId), [classId]);
+
+export const useAssignmentCampusBrainInsight = (id: string) =>
+  useMemo(() => getAssignmentCampusBrainInsight(id), [id]);
+
