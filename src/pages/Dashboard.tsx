@@ -20,13 +20,13 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 export default function Dashboard() {
   const priorities = useClassPriorities();
   const insight = useCampusBrainInsight();
-  const ordered = useMemo(
-    () =>
-      priorities
-        .map((p) => classes.find((c) => c.id === p.classId)!)
-        .filter(Boolean),
-    [priorities]
-  );
+  const { classes: myClasses, isReal } = useMyClasses();
+  const ordered = useMemo(() => {
+    if (isReal) return myClasses;
+    return priorities
+      .map((p) => demoClasses.find((c) => c.id === p.classId)!)
+      .filter(Boolean);
+  }, [priorities, myClasses, isReal]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
