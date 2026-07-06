@@ -55,9 +55,12 @@ export function StudyFromCaptureDrawer({
   item,
   classId,
   className,
+  initialMode,
 }: Props) {
   const [stage, setStage] = useState<Stage>("preview");
-  const [modeOverride, setModeOverride] = useState<StudyMode | undefined>();
+  const [modeOverride, setModeOverride] = useState<StudyMode | undefined>(
+    initialMode,
+  );
   const [step, setStep] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [correct, setCorrect] = useState(0);
@@ -65,7 +68,9 @@ export function StudyFromCaptureDrawer({
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setModeOverride(initialMode);
+    } else {
       // reset when closed
       setStage("preview");
       setModeOverride(undefined);
@@ -74,7 +79,7 @@ export function StudyFromCaptureDrawer({
       setCorrect(0);
       setAnswered(0);
     }
-  }, [open]);
+  }, [open, initialMode]);
 
   const session: StudySession | null = useMemo(
     () => (item ? buildStudySessionFromCapture(item, classId, modeOverride) : null),
