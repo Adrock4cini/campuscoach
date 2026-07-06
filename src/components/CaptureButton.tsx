@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { detectCurrentClass } from "@/lib/autoClass";
 import { useCapture } from "@/contexts/CaptureContext";
