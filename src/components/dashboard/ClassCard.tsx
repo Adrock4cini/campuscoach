@@ -13,6 +13,7 @@ import {
 } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
 import { ClassBrainAggregateStrip } from "@/components/intelligence/ClassBrainAggregateStrip";
+import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 import { cn } from "@/lib/utils";
 
 type Status = { tone: "high" | "medium" | "low"; label: string; Icon: typeof AlertTriangle };
@@ -229,6 +230,7 @@ export function ClassCard({ classId, index = 0 }: Props) {
                     </Button>
                   ))}
                 </div>
+                <InviteClassmatesButton classId={c.id} className={c.name} />
               </div>
             </motion.div>
           )}
