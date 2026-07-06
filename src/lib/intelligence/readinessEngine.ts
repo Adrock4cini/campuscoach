@@ -203,16 +203,14 @@ export async function updateReadinessAfterStudy(
       await supabase.from("study_sessions").insert({
         user_id: userId,
         client_class_id: outcome.classId,
-        session_type: String(outcome.mode),
+        mode: String(outcome.mode),
         topic: outcome.topic,
         duration_minutes: outcome.durationMinutes,
-        accuracy: outcome.accuracy ?? null,
-        completed: outcome.completed ?? true,
-        source_capture_id: outcome.captureId ?? null,
-        meta: {
-          readinessDelta,
-          momentumDelta,
-        } as never,
+        score: outcome.accuracy ?? null,
+        started_at: new Date(
+          Date.now() - outcome.durationMinutes * 60 * 1000,
+        ).toISOString(),
+        ended_at: new Date().toISOString(),
       } as never);
     } catch {
       /* offline / column mismatch — overlay is source of truth */
