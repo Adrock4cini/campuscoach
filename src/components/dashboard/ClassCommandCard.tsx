@@ -9,7 +9,10 @@ import {
   classes, exams, assignments, getDaysUntil, getReadinessColor, type ClassInfo,
 } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
+import { useClassCampusBrainInsight } from "@/lib/intelligence";
+import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { cn } from "@/lib/utils";
+
 
 interface Props { classId: string; index?: number; }
 
@@ -32,6 +35,8 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
     .filter((a) => a.classId === c.id && a.status !== "turned-in")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
   const pulse = getClassPulse(c.id);
+  const brainInsight = useClassCampusBrainInsight(c.id);
+
 
   const examDays = exam ? getDaysUntil(exam.date) : null;
   const assignDays = nextAssign ? getDaysUntil(nextAssign.dueDate) : null;
@@ -138,7 +143,13 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
               transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
+              {brainInsight && (
+                <div className="mt-4">
+                  <CampusBrainInsightCard insight={brainInsight} compact />
+                </div>
+              )}
               <div className="mt-4 pt-4 border-t border-border/30 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+
                 {nextAssign && (
                   <Detail
                     Icon={ClipboardList}
@@ -177,7 +188,7 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <IconAction Icon={Mic}      label="Record"  onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
                 <IconAction Icon={Camera}   label="Scan"    onClick={() => navigate(`/classes/${c.id}?action=scan`)} />
-                <IconAction Icon={Sparkles} label="Ask AI"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
+                <IconAction Icon={Sparkles} label="Campus Brain"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">

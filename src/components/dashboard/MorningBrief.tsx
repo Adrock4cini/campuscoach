@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { BookOpen, ClipboardList, Brain, Clock, Hand } from "lucide-react";
+import { BookOpen, ClipboardList, Brain, Clock, Hand, Flame, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { classes, exams, assignments, getDaysUntil, studentName } from "@/data/demo";
-import { useCoachBrief } from "@/lib/intelligence";
+import { useCoachBrief, useMomentum } from "@/lib/intelligence";
+import { cn } from "@/lib/utils";
 
 function timeOfDayGreeting() {
   const h = new Date().getHours();
@@ -14,9 +15,8 @@ export function MorningBrief() {
   const greeting = timeOfDayGreeting();
   const classCount = classes.length;
 
-  // Status + recommended minutes come from the central Intelligence
-  // Engine so the dashboard stays in sync with every other surface.
   const brief = useCoachBrief();
+  const momentum = useMomentum();
 
   const assignmentsDueThisWeek = assignments.filter(
     (a) => a.status !== "turned-in" && getDaysUntil(a.dueDate) <= 7,
@@ -32,8 +32,9 @@ export function MorningBrief() {
     ...(examDays !== null && examDays >= 0
       ? [{ icon: Brain, label: `1 exam in ${examDays} day${examDays === 1 ? "" : "s"}`, tone: "danger" as const }]
       : []),
-    { icon: Clock, label: `AI recommends ${brief.recommendedMinutesToday} min today`, tone: "accent" as const },
+    { icon: Clock, label: `Campus Brain recommends ${brief.recommendedMinutesToday} min today`, tone: "accent" as const },
   ];
+
 
 
   const toneBorder: Record<string, string> = {
@@ -72,6 +73,7 @@ export function MorningBrief() {
           <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground truncate">
             {greeting}, {studentName} <span className="ml-0.5">👋</span>
           </h2>
+          <MomentumBadge score={momentum.score} trend={momentum.trend} streak={momentum.streak} />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -95,3 +97,28 @@ export function MorningBrief() {
     </motion.section>
   );
 }
+
+function MomentumBadge({ score, trend, streak }: { score: number; trend: "rising" | "steady" | "cooling"; streak: number }) {
+  const TrendIcon = trend === "rising" ? TrendingUp : trend === "cooling" ? TrendingDown : Minus;
+  const tone =
+    score >= 70 ? "text-success border-success/30 bg-success/10" :
+    score >= 45 ? "text-warning border-warning/30 bg-warning/10" :
+                  "text-danger border-danger/30 bg-danger/10";
+  return (
+    <div
+      className={cn("shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border backdrop-blur", tone)}
+      title="Momentum — updates daily from your consistency, streak, and study quality"
+    >
+      <TrendIcon className="h-3.5 w-3.5" />
+      <div className="flex items-baseline gap-1 leading-none">
+        <span className="text-sm font-semibold">{score}</span>
+        <span className="text-[9px] uppercase tracking-[0.18em] opacity-80">momentum</span>
+      </div>
+      <div className="flex items-center gap-0.5 text-[10px] opacity-90">
+        <Flame className="h-3 w-3" />
+        {streak}
+      </div>
+    </div>
+  );
+}
+
