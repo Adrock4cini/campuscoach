@@ -177,7 +177,7 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <IconAction Icon={Mic}      label="Record"  onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
                 <IconAction Icon={Camera}   label="Scan"    onClick={() => navigate(`/classes/${c.id}?action=scan`)} />
-                <IconAction Icon={Sparkles} label="Ask AI"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
+                <IconAction Icon={Sparkles} label="Campus Brain"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">
