@@ -169,6 +169,9 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
+      {/* Class Memory */}
+      <ClassMemory classId={c.id} className={c.name} />
+
       {/* Chapter Progress */}
       <Card className="shadow-card">
         <CardHeader><CardTitle className="text-lg font-display">Chapter Progress</CardTitle></CardHeader>
