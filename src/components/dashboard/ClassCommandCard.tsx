@@ -9,7 +9,10 @@ import {
   classes, exams, assignments, getDaysUntil, getReadinessColor, type ClassInfo,
 } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
+import { useClassCampusBrainInsight } from "@/lib/intelligence";
+import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { cn } from "@/lib/utils";
+
 
 interface Props { classId: string; index?: number; }
 
