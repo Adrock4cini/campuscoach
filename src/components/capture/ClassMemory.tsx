@@ -111,7 +111,16 @@ export function ClassMemory({ classId, className }: Props) {
   const [items, setItems] = useState<MemoryItem[]>(() => fromLocal(classId));
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
+  const [studyMode, setStudyMode] = useState<StudyMode | undefined>();
+  const [studyOpen, setStudyOpen] = useState(false);
   const navigate = useNavigate();
+
+  const openStudy = (item: MemoryItem, mode?: StudyMode) => {
+    setStudyItem(item);
+    setStudyMode(mode);
+    setStudyOpen(true);
+  };
 
   const refresh = useMemo(
     () => async () => {
