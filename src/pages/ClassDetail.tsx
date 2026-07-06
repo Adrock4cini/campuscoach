@@ -18,6 +18,7 @@ import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import type { ProfessorHint, Chapter } from "@/data/demo";
 import { getClassPulse, getPredictedTopics, getRecommendedStudyMode, getTopStudentInsights } from "@/data/courseIntelligence";
+import { ClassMemory } from "@/components/capture/ClassMemory";
 
 export default function ClassDetail() {
   const { classId } = useParams();
@@ -167,6 +168,9 @@ export default function ClassDetail() {
           />
         </CardContent>
       </Card>
+
+      {/* Class Memory */}
+      <ClassMemory classId={c.id} className={c.name} />
 
       {/* Chapter Progress */}
       <Card className="shadow-card">

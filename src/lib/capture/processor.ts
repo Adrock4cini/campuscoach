@@ -123,6 +123,16 @@ export async function commitCapture(
 
   saveStore([result, ...loadStore()]);
 
+  // Notify any listening surface (e.g. Class Memory) so newly captured
+  // items can appear without a full refresh.
+  try {
+    window.dispatchEvent(
+      new CustomEvent("capture:committed", { detail: result }),
+    );
+  } catch {
+    /* non-browser env */
+  }
+
   // Mirror to Supabase — non-blocking, gracefully falls back to the
   // local store if the write fails. Import kept lazy so the module
   // stays testable without the Supabase client in scope.
