@@ -73,7 +73,8 @@ export function computeMomentum(): Momentum {
     30 +
     Math.min(studyStreak, 10) * 4 + // up to +40 for a 10-day streak
     Math.min(last3.length, 6) * 4 + // up to +24 for consistent recent days
-    (avgScore - 50) * 0.3; // quality nudge, ±15
+    (avgScore - 50) * 0.3 + // quality nudge, ±15
+    getMomentumBoost(); // recent completions in this session
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   const trend: Momentum["trend"] =
