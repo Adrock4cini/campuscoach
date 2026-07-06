@@ -174,21 +174,9 @@ export function ClassMemory({ classId, className }: Props) {
                 key={`${item.source}-${item.id}`}
                 item={item}
                 onOpen={() => openDetail(item)}
-                onStudy={() =>
-                  navigate(
-                    `/study-lab?classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
-                onFlashcards={() =>
-                  navigate(
-                    `/study-lab/session?mode=flashcards&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
-                onQuiz={() =>
-                  navigate(
-                    `/study-lab/session?mode=quiz&classId=${classId}&topic=${encodeURIComponent(item.topic)}`,
-                  )
-                }
+                onStudy={() => openStudy(item)}
+                onFlashcards={() => openStudy(item, "flashcards")}
+                onQuiz={() => openStudy(item, "quiz")}
               />
             ))}
           </div>
@@ -201,6 +189,19 @@ export function ClassMemory({ classId, className }: Props) {
         item={selected}
         classId={classId}
         className={className}
+        onStudy={(mode) => {
+          setDrawerOpen(false);
+          if (selected) openStudy(selected, mode);
+        }}
+      />
+
+      <StudyFromCaptureDrawer
+        open={studyOpen}
+        onOpenChange={setStudyOpen}
+        item={studyItem}
+        classId={classId}
+        className={className}
+        initialMode={studyMode}
       />
     </Card>
   );
