@@ -1,193 +1,59 @@
+import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { ChevronRight, Users, Flame, Sparkles } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TodaysSnapshot } from "@/components/dashboard/TodaysSnapshot";
-import { ClassesGrid } from "@/components/dashboard/ClassesGrid";
-import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
-import { getClassPulse } from "@/data/courseIntelligence";
-import {
-  classes, assignments, exams,
-  getDaysUntil, getPriorityColor,
-} from "@/data/demo";
-import { Link } from "react-router-dom";
+import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
+import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
+import { classes, exams, assignments, getDaysUntil } from "@/data/demo";
 
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, ease: "easeOut" as const },
-};
-
-const stagger = {
-  animate: { transition: { staggerChildren: 0.08 } },
-};
-
+/**
+ * Dashboard — Class Command Center.
+ * Optimized for a 15-second glance between classes:
+ * 1. One "Today's Focus" card up top.
+ * 2. Vertically stacked, expandable Class Command Cards.
+ * No paragraphs, no filler — icons and color coding do the talking.
+ */
 export default function Dashboard() {
-  const upcoming = [
-    ...assignments
-      .filter((a) => a.status !== "turned-in")
-      .map((a) => ({
-        kind: "assignment" as const,
-        id: a.id,
-        title: a.title,
-        sub: a.className,
-        date: a.dueDate,
-        priority: a.priority,
-        to: `/assignments/${a.id}`,
-      })),
-    ...exams.map((e) => ({
-      kind: "exam" as const,
-      id: e.id,
-      title: e.title,
-      sub: e.className,
-      date: e.date,
-      priority: "high" as const,
-      to: `/exams/${e.id}`,
-    })),
-  ]
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 5);
-
-  const pulses = classes
-    .map((c) => ({ c, pulse: getClassPulse(c.id) }))
-    .filter((x) => x.pulse)
-    .slice(0, 3);
-
-  // High-yield: top peer-emphasized topic per class — what's most likely on the next test
-  const highYield = classes
-    .map((c) => ({ c, pulse: getClassPulse(c.id) }))
-    .filter((x) => x.pulse)
-    .map((x) => ({
-      classId: x.c.id,
-      className: x.c.name.split(" ").slice(0, 2).join(" "),
-      color: x.c.color,
-      topic: x.pulse!.mostStarred.topic,
-      students: x.pulse!.mostStarred.studentCount,
-    }))
-    .slice(0, 4);
+  // Order classes by attention score so the most urgent is first.
+  const ordered = useMemo(() => {
+    return [...classes]
+      .map((c) => {
+        const exam = exams
+          .filter((e) => e.classId === c.id)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const assign = assignments
+          .filter((a) => a.classId === c.id && a.status !== "turned-in")
+          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+        const examDays = exam ? getDaysUntil(exam.date) : 99;
+        const assignDays = assign ? getDaysUntil(assign.dueDate) : 99;
+        const score =
+          (100 - c.readiness) +
+          (examDays <= 7 ? (8 - examDays) * 10 : 0) +
+          (assignDays <= 3 ? (4 - assignDays) * 8 : 0);
+        return { c, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.c);
+  }, []);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10">
-      {/* Hero Snapshot */}
-      <TodaysSnapshot />
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
+      <TodaysFocus />
 
-      {/* High-yield strip — one glance: "what's most likely on the test" */}
-      {highYield.length > 0 && (
-        <motion.section {...fadeIn} className="relative overflow-hidden rounded-2xl border border-warning/20 glass shadow-card">
-          <div aria-hidden className="absolute -top-16 -right-10 h-40 w-40 rounded-full bg-warning/10 blur-3xl pointer-events-none" />
-          <div className="relative p-4 md:p-5">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-warning">
-                <Sparkles className="h-3 w-3" />
-                High-yield this week
-              </div>
-              <Link to="/course-intelligence" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                Why these <ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              {highYield.map((h) => (
-                <Link
-                  key={h.classId}
-                  to={`/study-lab?classId=${h.classId}&topic=${encodeURIComponent(h.topic)}`}
-                  className="group rounded-xl border border-border/40 bg-background/30 px-3 py-2.5 hover:border-warning/40 transition-colors"
-                >
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className={`h-1.5 w-1.5 rounded-full ${h.color}`} />
-                    {h.className}
-                  </div>
-                  <p className="text-sm font-medium text-foreground mt-1 truncate group-hover:text-warning transition-colors">
-                    {h.topic}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 inline-flex items-center gap-1">
-                    <Users className="h-3 w-3" /> {h.students} peers studying
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </motion.section>
-      )}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="flex items-center justify-between px-1"
+      >
+        <h2 className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+          Your classes
+        </h2>
+        <span className="text-[11px] text-muted-foreground">{ordered.length}</span>
+      </motion.div>
 
-      {/* Classes Grid */}
-      <ClassesGrid />
-
-      {/* AI Plan */}
-      <TodaysPlan />
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Fire This Week */}
-        <motion.div {...fadeIn} className="lg:col-span-3">
-          <Card className="shadow-card relative overflow-hidden">
-            <div aria-hidden className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-            <CardHeader className="pb-3 relative">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-display flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-primary" />
-                  Fire This Week
-                </CardTitle>
-                <Link to="/your-week" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                  Full week <ChevronRight className="h-3 w-3" />
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-1 relative">
-              <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-1">
-                {upcoming.map((u) => {
-                  const days = getDaysUntil(u.date);
-                  return (
-                    <motion.div key={`${u.kind}-${u.id}`} variants={fadeIn}>
-                      <Link
-                        to={u.to}
-                        className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-muted/30 transition-colors group"
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${u.kind === "exam" ? "bg-danger" : "bg-primary"}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                            {u.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {u.kind === "exam" ? "Exam · " : ""}{u.sub}
-                          </p>
-                        </div>
-                        <Badge variant="secondary" className={`text-[10px] uppercase tracking-wider ${getPriorityColor(u.priority)}`}>
-                          {days <= 0 ? "Now" : days === 1 ? "Tomorrow" : `${days}d`}
-                        </Badge>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Campus Pulse */}
-        <motion.div {...fadeIn} transition={{ duration: 0.4, delay: 0.05, ease: "easeOut" }} className="lg:col-span-2">
-          <Card className="shadow-card h-full relative overflow-hidden">
-            <div aria-hidden className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
-            <CardHeader className="pb-3 relative">
-              <CardTitle className="text-base font-display flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Campus Pulse
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 relative">
-              {pulses.map(({ c, pulse }) => (
-                <Link key={c.id} to={`/classes/${c.id}`} className="block group">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={`h-1.5 w-1.5 rounded-full ${c.color}`} />
-                    <span className="text-muted-foreground truncate">{c.name}</span>
-                  </div>
-                  <p className="text-sm text-foreground mt-0.5 truncate group-hover:text-primary transition-colors">
-                    {pulse!.mostStruggled.studentCount} students deep in{" "}
-                    <span className="font-medium">"{pulse!.mostStruggled.topic}"</span>
-                  </p>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
+      <div className="space-y-3 md:space-y-4">
+        {ordered.map((c, i) => (
+          <ClassCommandCard key={c.id} classId={c.id} index={i} />
+        ))}
       </div>
     </div>
   );
