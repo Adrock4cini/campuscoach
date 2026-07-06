@@ -12,6 +12,7 @@ import {
   classes, exams, assignments, getDaysUntil, getReadinessColor, type ClassInfo,
 } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
+import { ClassBrainAggregateStrip } from "@/components/intelligence/ClassBrainAggregateStrip";
 import { cn } from "@/lib/utils";
 
 type Status = { tone: "high" | "medium" | "low"; label: string; Icon: typeof AlertTriangle };
