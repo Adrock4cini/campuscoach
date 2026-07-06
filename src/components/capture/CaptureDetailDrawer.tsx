@@ -40,6 +40,8 @@ interface Props {
   item: MemoryItem | null;
   classId: string;
   className?: string;
+  /** Open the Study From Capture drawer instead of navigating away. */
+  onStudy?: (mode?: "flashcards" | "quiz" | "practice" | "explain") => void;
 }
 
 export function CaptureDetailDrawer({
@@ -48,6 +50,7 @@ export function CaptureDetailDrawer({
   item,
   classId,
   className,
+  onStudy,
 }: Props) {
   const navigate = useNavigate();
   if (!item) return null;
