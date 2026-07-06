@@ -4,6 +4,7 @@ import { MorningBrief } from "@/components/dashboard/MorningBrief";
 import { TodaysFocus } from "@/components/dashboard/TodaysFocus";
 import { TodaysPlan } from "@/components/dashboard/TodaysPlan";
 import { ClassCommandCard } from "@/components/dashboard/ClassCommandCard";
+import { RealClassCard } from "@/components/dashboard/RealClassCard";
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { classes as demoClasses } from "@/data/demo";
 import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
@@ -50,9 +51,13 @@ export default function Dashboard() {
       </motion.div>
 
       <div className="space-y-3 md:space-y-4">
-        {ordered.map((c, i) => (
-          <ClassCommandCard key={c.id} classId={c.id} index={i} />
-        ))}
+        {ordered.map((c, i) =>
+          isReal ? (
+            <RealClassCard key={c.id} c={c} index={i} />
+          ) : (
+            <ClassCommandCard key={c.id} classId={c.id} index={i} />
+          )
+        )}
       </div>
     </div>
   );
