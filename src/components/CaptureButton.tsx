@@ -44,6 +44,3 @@ export function CaptureButton() {
     </div>
   );
 }
-
-// Keep imports even if unused, to avoid dead-import churn if we re-enable them later.
-void X;
