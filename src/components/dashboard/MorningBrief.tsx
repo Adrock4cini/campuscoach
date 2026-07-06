@@ -122,4 +122,3 @@ function MomentumBadge({ score, trend, streak }: { score: number; trend: "rising
   );
 }
 
-}
