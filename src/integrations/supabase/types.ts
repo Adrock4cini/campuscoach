@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       campus_brain_signals: {
         Row: {
+          anonymized: boolean
           class_id: string | null
           client_class_id: string | null
           created_at: string
@@ -26,9 +27,11 @@ export type Database = {
           source_type: string
           topic: string | null
           user_id: string
+          visibility: string
           weight: number
         }
         Insert: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           created_at?: string
@@ -39,9 +42,11 @@ export type Database = {
           source_type: string
           topic?: string | null
           user_id: string
+          visibility?: string
           weight?: number
         }
         Update: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           created_at?: string
@@ -52,6 +57,7 @@ export type Database = {
           source_type?: string
           topic?: string | null
           user_id?: string
+          visibility?: string
           weight?: number
         }
         Relationships: [
@@ -66,6 +72,7 @@ export type Database = {
       }
       captures: {
         Row: {
+          anonymized: boolean
           captured_on: string
           chapter: string | null
           class_id: string | null
@@ -81,8 +88,10 @@ export type Database = {
           topic: string | null
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           captured_on?: string
           chapter?: string | null
           class_id?: string | null
@@ -98,8 +107,10 @@ export type Database = {
           topic?: string | null
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           captured_on?: string
           chapter?: string | null
           class_id?: string | null
@@ -115,6 +126,7 @@ export type Database = {
           topic?: string | null
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -296,6 +308,7 @@ export type Database = {
       exam_debriefs: {
         Row: {
           advice_notes: string | null
+          anonymized: boolean
           chapter_tags: string[]
           class_id: string
           confidence: number
@@ -313,9 +326,11 @@ export type Database = {
           topics_mentioned: string[]
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
           advice_notes?: string | null
+          anonymized?: boolean
           chapter_tags?: string[]
           class_id: string
           confidence: number
@@ -333,9 +348,11 @@ export type Database = {
           topics_mentioned?: string[]
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
           advice_notes?: string | null
+          anonymized?: boolean
           chapter_tags?: string[]
           class_id?: string
           confidence?: number
@@ -353,11 +370,13 @@ export type Database = {
           topics_mentioned?: string[]
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: []
       }
       flashcards: {
         Row: {
+          anonymized: boolean
           back: string
           capture_id: string | null
           class_id: string | null
@@ -371,8 +390,10 @@ export type Database = {
           topic: string | null
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           back: string
           capture_id?: string | null
           class_id?: string | null
@@ -386,8 +407,10 @@ export type Database = {
           topic?: string | null
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           back?: string
           capture_id?: string | null
           class_id?: string | null
@@ -401,6 +424,7 @@ export type Database = {
           topic?: string | null
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -421,6 +445,7 @@ export type Database = {
       }
       materials: {
         Row: {
+          anonymized: boolean
           capture_id: string | null
           created_at: string
           duration_seconds: number | null
@@ -430,8 +455,10 @@ export type Database = {
           size_bytes: number | null
           storage_path: string | null
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           capture_id?: string | null
           created_at?: string
           duration_seconds?: number | null
@@ -441,8 +468,10 @@ export type Database = {
           size_bytes?: number | null
           storage_path?: string | null
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           capture_id?: string | null
           created_at?: string
           duration_seconds?: number | null
@@ -452,6 +481,7 @@ export type Database = {
           size_bytes?: number | null
           storage_path?: string | null
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -465,6 +495,7 @@ export type Database = {
       }
       processed_content: {
         Row: {
+          anonymized: boolean
           capture_id: string | null
           created_at: string
           id: string
@@ -476,8 +507,10 @@ export type Database = {
           transcript: string | null
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           capture_id?: string | null
           created_at?: string
           id?: string
@@ -489,8 +522,10 @@ export type Database = {
           transcript?: string | null
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           capture_id?: string | null
           created_at?: string
           id?: string
@@ -502,6 +537,7 @@ export type Database = {
           transcript?: string | null
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -562,6 +598,7 @@ export type Database = {
       }
       quizzes: {
         Row: {
+          anonymized: boolean
           capture_id: string | null
           class_id: string | null
           client_class_id: string | null
@@ -571,8 +608,10 @@ export type Database = {
           title: string | null
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           capture_id?: string | null
           class_id?: string | null
           client_class_id?: string | null
@@ -582,8 +621,10 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           capture_id?: string | null
           class_id?: string | null
           client_class_id?: string | null
@@ -593,6 +634,7 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -613,6 +655,7 @@ export type Database = {
       }
       readiness_scores: {
         Row: {
+          anonymized: boolean
           class_id: string | null
           client_class_id: string | null
           computed_at: string
@@ -621,8 +664,10 @@ export type Database = {
           momentum: number | null
           readiness: number
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           computed_at?: string
@@ -631,8 +676,10 @@ export type Database = {
           momentum?: number | null
           readiness: number
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           computed_at?: string
@@ -641,6 +688,7 @@ export type Database = {
           momentum?: number | null
           readiness?: number
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -678,6 +726,7 @@ export type Database = {
       }
       study_sessions: {
         Row: {
+          anonymized: boolean
           class_id: string | null
           client_class_id: string | null
           created_at: string
@@ -689,8 +738,10 @@ export type Database = {
           started_at: string
           topic: string | null
           user_id: string
+          visibility: string
         }
         Insert: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           created_at?: string
@@ -702,8 +753,10 @@ export type Database = {
           started_at?: string
           topic?: string | null
           user_id: string
+          visibility?: string
         }
         Update: {
+          anonymized?: boolean
           class_id?: string | null
           client_class_id?: string | null
           created_at?: string
@@ -715,6 +768,7 @@ export type Database = {
           started_at?: string
           topic?: string | null
           user_id?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -786,6 +840,7 @@ export type Database = {
       topic_signals: {
         Row: {
           accuracy: number | null
+          anonymized: boolean
           class_id: string
           confidence: number | null
           created_at: string
@@ -800,9 +855,11 @@ export type Database = {
           topic_name: string
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
           accuracy?: number | null
+          anonymized?: boolean
           class_id: string
           confidence?: number | null
           created_at?: string
@@ -817,9 +874,11 @@ export type Database = {
           topic_name: string
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
           accuracy?: number | null
+          anonymized?: boolean
           class_id?: string
           confidence?: number | null
           created_at?: string
@@ -834,14 +893,36 @@ export type Database = {
           topic_name?: string
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      campus_brain_aggregate: {
+        Row: {
+          average_weight: number | null
+          class_id: string | null
+          client_class_id: string | null
+          day: string | null
+          signal_count: number | null
+          source_type: string | null
+          student_count: number | null
+          topic: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_brain_signals_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      owns_row: { Args: { _user_id: string }; Returns: boolean }
       recompute_topic_scores: {
         Args: { _class_id?: string }
         Returns: undefined
