@@ -108,3 +108,88 @@ export interface PeerStruggle {
   /** Human line ("62% of peers flagged this last week"). */
   line: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Campus Brain — internal student model + surfaced insights          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Momentum — a fast-moving companion to readiness. Reflects
+ * consistency, streak, and recent study quality. Celebrated because
+ * it improves before readiness does.
+ */
+export interface Momentum {
+  /** 0-100 momentum score for today. */
+  score: number;
+  /** "rising" | "steady" | "cooling" — direction vs. yesterday. */
+  trend: "rising" | "steady" | "cooling";
+  /** Consecutive-day study streak. */
+  streak: number;
+  /** Human-readable one-liner Campus Brain can display. */
+  line: string;
+}
+
+/**
+ * Per-class internal state Campus Brain tracks. Not shown directly;
+ * consumed via recommendations.
+ */
+export interface ClassBrainState {
+  classId: string;
+  readiness: number;
+  estimatedGrade: string;
+  momentumContribution: number;
+  /** Concepts most likely to be forgotten if untouched. */
+  fadingConcepts: string[];
+  /** Concepts most likely to appear on the next exam. */
+  likelyExamTopics: string[];
+}
+
+/**
+ * The Student Model — the Campus Brain's continuously-updating view
+ * of the student. Pages should not read this directly; they should
+ * consume insights and recommendations derived from it.
+ */
+export interface StudentModel {
+  academicReadiness: number;
+  momentum: Momentum;
+  learningPreferences: {
+    preferredMode: string;
+    preferredSessionMinutes: number;
+    tone: string;
+  };
+  studyHabits: {
+    weeklyMinutes: number;
+    averageSessionMinutes: number;
+    consistentDays: number;
+  };
+  classes: ClassBrainState[];
+  /** Anonymous peer signal Campus Brain is drawing from. */
+  campusSignal: {
+    contributingStudents: number;
+    lastUpdatedLabel: string;
+  };
+  bestNextAction: NextAction;
+}
+
+/**
+ * A single insight from Campus Brain — the ONLY shape pages should
+ * render. Keeps voice ("Campus Brain noticed…") consistent.
+ */
+export type CampusBrainInsightKind =
+  | "noticed"
+  | "predicts"
+  | "recommends"
+  | "learned";
+
+export interface CampusBrainInsight {
+  kind: CampusBrainInsightKind;
+  /** The sentence after "Campus Brain <kind>…" (no leading capital). */
+  body: string;
+  /** Optional class scope. */
+  classId?: string;
+  /** Optional CTA the UI can render alongside the insight. */
+  action?: NextAction;
+  /** 0-100 confidence for internal sorting. */
+  confidence?: number;
+}
+
