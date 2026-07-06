@@ -79,11 +79,12 @@ export default function StudyLab() {
             </Badge>
             <div className="space-y-1.5">
               <h2 className="text-3xl md:text-4xl font-display font-semibold text-foreground">
-                {recommendedMode.label}
+                {recommendation.label}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {recommendedTopic?.topic ?? "Recommended topic"} · ~8 min
+                {recommendedTopic ?? "Recommended topic"} · ~{recommendation.suggestedMinutes} min
               </p>
+
             </div>
             <Button
               size="lg"
@@ -102,7 +103,7 @@ export default function StudyLab() {
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Or try</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {secondaryModes
-            .filter(m => m.mode !== recommendedMode.mode)
+            .filter(m => m.mode !== recommendation.mode)
             .map(mode => (
               <button
                 key={mode.mode}
