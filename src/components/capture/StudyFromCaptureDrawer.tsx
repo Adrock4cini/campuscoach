@@ -37,6 +37,11 @@ import {
 } from "@/lib/study/studyFromCapture";
 import type { MemoryItem } from "@/components/capture/CaptureDetailDrawer";
 import { contributeStudySignal } from "@/hooks/useClassIntelligence";
+import {
+  updateReadinessAfterStudy,
+  type ReadinessChange,
+} from "@/lib/intelligence/readinessEngine";
+import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
 
 interface Props {
   open: boolean;
