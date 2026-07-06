@@ -304,7 +304,7 @@ export function getStudyFormatRecommendation(
   // Session length preference from the student profile — respects ADHD-friendly
   // defaults instead of forcing a 45-minute block on everyone.
   const suggestedMinutes =
-    studentProfile.sessionLengthMinutes ?? (cls && cls.readiness < 50 ? 15 : 25);
+    cls && cls.readiness < 50 ? 15 : studentProfile.defaultStudyLength ?? 25;
 
   if (!cls || !topic) {
     return {
