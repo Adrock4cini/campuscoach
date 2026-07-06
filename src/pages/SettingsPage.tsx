@@ -307,6 +307,45 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Setup */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-lg font-display flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" /> Setup
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Redo onboarding to update your classes, professors, and schedule.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem("cc_onboarded_real_v1");
+                localStorage.removeItem("cc_demo_mode_v1");
+                window.location.href = "/onboarding";
+              }}
+            >
+              Redo setup
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                localStorage.setItem("cc_demo_mode_v1", "1");
+                localStorage.removeItem("cc_onboarded_real_v1");
+                toast.success("Switched to demo mode");
+                window.location.href = "/dashboard";
+              }}
+            >
+              Use demo mode
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
