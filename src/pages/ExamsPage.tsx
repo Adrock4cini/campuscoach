@@ -76,6 +76,7 @@ export default function ExamsPage() {
           const days = getDaysUntil(e.date);
           const gradeEstimate = estimateExamGrade(e.readiness);
           const rec = getStudyFormatRecommendation(e.classId);
+          const engine = engineByClass.get(e.classId);
           const isOpen = openId === e.id;
           const cls = classes.find((c) => c.id === e.classId);
           const daysChipTone =
