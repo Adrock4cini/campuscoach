@@ -8,12 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Plus, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, Sparkles, CalendarDays, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/lib/onboarding/types";
 import { saveOnboarding, markDemoMode } from "@/lib/onboarding/store";
+import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
+import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
+import { DayPicker } from "@/components/onboarding/DayPicker";
+import { TimePicker } from "@/components/onboarding/TimePicker";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const STEPS = [
   "You",
@@ -108,15 +111,19 @@ export default function Onboarding() {
                 className="mt-4"
               >
                 {step === 0 && (
-                  <StepShell title="What's your name?" hint="First name is fine.">
-                    <Input
-                      autoFocus
-                      value={data.name}
-                      onChange={(e) => update({ name: e.target.value })}
-                      placeholder="Alex"
-                    />
+                  <StepShell title="What's your name?" hint="First name is fine. Have a syllabus? Upload it and we'll fill in everything below.">
+                    <div className="space-y-3">
+                      <Input
+                        autoFocus
+                        value={data.name}
+                        onChange={(e) => update({ name: e.target.value })}
+                        placeholder="Alex"
+                      />
+                      <SyllabusImport data={data} onMerge={update} />
+                    </div>
                   </StepShell>
                 )}
+
                 {step === 1 && (
                   <StepShell title="Where do you go to school?">
                     <Input
