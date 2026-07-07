@@ -46,6 +46,31 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
   const userId = getAnonUserId();
   localStorage.setItem(CACHE_KEY, JSON.stringify(data));
 
+  // school (dedupe by lowercase name)
+  let schoolId: string | null = null;
+  const schoolName = data.school.trim();
+  if (schoolName) {
+    try {
+      const { data: found } = await supabase
+        .from("schools")
+        .select("id")
+        .ilike("name", schoolName)
+        .maybeSingle();
+      if (found?.id) {
+        schoolId = found.id;
+      } else {
+        const { data: created } = await supabase
+          .from("schools")
+          .insert({ name: schoolName })
+          .select("id")
+          .single();
+        schoolId = created?.id ?? null;
+      }
+    } catch (e) {
+      console.warn("[onboarding] school upsert failed", e);
+    }
+  }
+
   // profile
   try {
     await supabase.from("profiles").upsert(
@@ -80,8 +105,14 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
             meta: {
               days: c.days,
               time: c.time || null,
+              endTime: c.endTime || null,
+              code: c.code || null,
               textbook: c.textbook || null,
+              examDates: c.examDates ?? [],
+              assignments: c.assignments ?? [],
               term: data.term,
+              school: schoolName || null,
+              schoolId,
               work_schedule: data.workSchedule || null,
               reminder_style: data.reminderStyle,
               study_goal: data.studyGoal,
@@ -108,6 +139,7 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
   localStorage.setItem(ONBOARDED_KEY, "1");
   localStorage.removeItem(DEMO_MODE_KEY);
 }
+
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
