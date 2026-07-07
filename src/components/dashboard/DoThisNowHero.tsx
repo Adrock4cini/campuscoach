@@ -181,7 +181,7 @@ export function DoThisNowHero() {
                       Verify after
                     </p>
                     <p className="text-xs text-foreground/80 mt-0.5">
-                      {rec.verification.description}
+                      {rec.verification.note}
                     </p>
                   </div>
                 </div>
