@@ -70,6 +70,7 @@ export function TodaysPlan() {
   }, []);
 
   useEffect(() => {
+    refresh();
     const events = [
       "intelligence:updated",
       "capture:committed",
