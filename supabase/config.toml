@@ -1,1 +1,4 @@
 project_id = "norsaaoyppctrvxxgjtg"
+
+[functions.parse-syllabus]
+verify_jwt = false
