@@ -302,7 +302,7 @@ function buildConceptUnderstanding(
       mastery = Math.max(0, mastery - 8);
       evidence.push({
         source: "peer-signal",
-        note: `Peers most struggle here (${pulse.mostStruggled.percent ?? "?"}%)`,
+        note: `Peers most struggle here (${pulse.mostStruggled.probability ?? "?"}%)`,
         strength: 0.5,
         ref: topic,
       });
