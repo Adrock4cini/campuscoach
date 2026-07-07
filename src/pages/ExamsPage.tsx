@@ -142,8 +142,8 @@ export default function ExamsPage() {
                     <div className="flex-1 min-w-0 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2 flex items-center gap-2">
                       <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span className="text-xs text-foreground truncate">
-                        {rec.label}
-                        {rec.topic ? ` · ${rec.topic}` : ""}
+                        {engine ? engine.rec.label : rec.label}
+                        {!engine && rec.topic ? ` · ${rec.topic}` : ""}
                       </span>
                     </div>
                     <Button
@@ -151,7 +151,9 @@ export default function ExamsPage() {
                       className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-95 h-auto px-4 shrink-0"
                       onClick={() =>
                         navigate(
-                          `/study-lab/session?mode=${rec.mode}&classId=${e.classId}&topic=${encodeURIComponent(rec.topic ?? "all")}`,
+                          engine
+                            ? engine.rec.route
+                            : `/study-lab/session?mode=${rec.mode}&classId=${e.classId}&topic=${encodeURIComponent(rec.topic ?? "all")}`,
                         )
                       }
                     >
@@ -180,6 +182,13 @@ export default function ExamsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+                  {engine && (
+                    <RecommendationChips
+                      recommendation={engine.rec}
+                      isTop={engine.isTop}
+                      className="mt-2"
+                    />
+                  )}
 
                   {/* Level 2 — reveal on tap */}
                   <AnimatePresence>
