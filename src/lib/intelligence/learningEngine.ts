@@ -39,9 +39,10 @@ import {
   getClassPulse,
   getPredictedTopics,
   getRecommendedTopic,
-  type ClassPulse,
-  type PredictedTopic,
 } from "@/data/courseIntelligence";
+
+type ClassPulse = NonNullable<ReturnType<typeof getClassPulse>>;
+type PredictedTopic = ReturnType<typeof getPredictedTopics>[number];
 import { computeMomentum } from "./campusBrain";
 import {
   estimateExamGrade,
