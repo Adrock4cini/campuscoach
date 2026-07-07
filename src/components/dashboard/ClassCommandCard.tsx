@@ -10,7 +10,12 @@ import {
 } from "@/data/demo";
 import { getClassPulse } from "@/data/courseIntelligence";
 import { useClassCampusBrainInsight } from "@/lib/intelligence";
+import {
+  getClassLearningSnapshot,
+  getTopLearningRecommendation,
+} from "@/lib/intelligence/learningEngine";
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
 
 
@@ -56,9 +61,19 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
     success: "shadow-[0_0_40px_-22px_hsl(var(--success)/0.5)]",
   }[tone];
 
-  const aiAction = pulse
-    ? `Drill "${pulse.mostStruggled.topic}"`
-    : `Review ${c.currentTopic}`;
+  // Engine-driven primary action (falls back to pulse/current topic).
+  const snapshot = getClassLearningSnapshot(c.id);
+  const rec = snapshot?.recommendation;
+  const topRec = (() => {
+    try { return getTopLearningRecommendation(); } catch { return null; }
+  })();
+  const isTop = !!rec && !!topRec && rec.id === topRec.id;
+  const aiAction = rec
+    ? rec.label
+    : pulse
+      ? `Drill "${pulse.mostStruggled.topic}"`
+      : `Review ${c.currentTopic}`;
+  const primaryRoute = rec?.route ?? `/focus-sprint?classId=${c.id}&duration=25`;
 
   const dayLabel = (d: number | null) =>
     d === null ? "—" : d <= 0 ? "Today" : d === 1 ? "1d" : `${d}d`;
@@ -125,13 +140,20 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
             <span className="text-sm text-foreground truncate">{aiAction}</span>
           </div>
           <button
-            onClick={() => navigate(`/focus-sprint?classId=${c.id}&duration=25`)}
+            onClick={() => navigate(primaryRoute)}
             className="btn-glow h-11 px-5 rounded-2xl text-sm font-medium inline-flex items-center gap-1.5 shrink-0"
           >
             <Play className="h-4 w-4" />
             Continue
           </button>
         </div>
+        {rec && (
+          <RecommendationChips
+            recommendation={rec}
+            isTop={isTop}
+            className="mt-2"
+          />
+        )}
 
         {/* Level 2+: everything else lives behind the chevron */}
         <AnimatePresence>

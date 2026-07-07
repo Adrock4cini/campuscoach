@@ -42,6 +42,8 @@ import {
   type ReadinessChange,
 } from "@/lib/intelligence/readinessEngine";
 import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
+import { getClassLearningSnapshot, getTopLearningRecommendation } from "@/lib/intelligence/learningEngine";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 
 interface Props {
   open: boolean;
@@ -178,6 +180,7 @@ export function StudyFromCaptureDrawer({
         {stage === "preview" && (
           <PreviewStage
             session={session}
+            classId={classId}
             onStart={() => setStage("running")}
             onChangeMode={(m) => setModeOverride(m)}
           />
@@ -236,14 +239,26 @@ export function StudyFromCaptureDrawer({
 
 function PreviewStage({
   session,
+  classId,
   onStart,
   onChangeMode,
 }: {
   session: StudySession;
+  classId: string;
   onStart: () => void;
   onChangeMode: (m: StudyMode) => void;
 }) {
   const modes: StudyMode[] = ["flashcards", "quiz", "practice", "explain"];
+  const engineRec = (() => {
+    try {
+      const snap = getClassLearningSnapshot(classId);
+      const top = getTopLearningRecommendation();
+      if (!snap) return null;
+      return { rec: snap.recommendation, isTop: snap.recommendation.id === top?.id };
+    } catch {
+      return null;
+    }
+  })();
   return (
     <div className="mt-6 space-y-5">
       {/* Campus Brain pick */}
@@ -255,6 +270,13 @@ function PreviewStage({
           {STUDY_MODE_LABEL[session.mode]}
         </p>
         <p className="text-xs text-muted-foreground mt-1">{session.reason}</p>
+        {engineRec && (
+          <RecommendationChips
+            recommendation={engineRec.rec}
+            isTop={engineRec.isTop}
+            className="mt-2"
+          />
+        )}
       </div>
 
       {/* Summary */}

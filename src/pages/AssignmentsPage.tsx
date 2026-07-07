@@ -18,6 +18,11 @@ import {
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { ClassTabs } from "@/components/ClassTabs";
 import { useAssignmentPriorities } from "@/lib/intelligence";
+import {
+  buildLearningState,
+  type LearningRecommendation,
+} from "@/lib/intelligence/learningEngine";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,6 +43,22 @@ export default function AssignmentsPage() {
   const engineOrder = useAssignmentPriorities();
   const rankIndex = new Map(engineOrder.map((p, i) => [p.assignmentId, i]));
   const priorityById = new Map(engineOrder.map((p) => [p.assignmentId, p]));
+
+  // Pull class-level recommendations so every assignment card can show
+  // the same engine-derived chips (min · +gain · verification).
+  const engineByClass = (() => {
+    try {
+      const state = buildLearningState();
+      const map = new Map<string, { rec: LearningRecommendation; isTop: boolean }>();
+      const topId = state.recommendations[0]?.id ?? null;
+      state.classes.forEach((s) =>
+        map.set(s.classId, { rec: s.recommendation, isTop: s.recommendation.id === topId }),
+      );
+      return map;
+    } catch {
+      return new Map<string, { rec: LearningRecommendation; isTop: boolean }>();
+    }
+  })();
 
   const filtered = activeClass === "all" ? assignments : assignments.filter(a => a.classId === activeClass);
   const sorted = [...filtered].sort((a, b) => {
@@ -193,6 +214,17 @@ export default function AssignmentsPage() {
                       </DropdownMenu>
                     </div>
                   )}
+
+                  {(() => {
+                    const engine = engineByClass.get(a.classId);
+                    return engine ? (
+                      <RecommendationChips
+                        recommendation={engine.rec}
+                        isTop={engine.isTop}
+                        className="mt-2"
+                      />
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
             </motion.div>
