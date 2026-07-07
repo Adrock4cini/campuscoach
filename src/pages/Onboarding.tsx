@@ -125,15 +125,14 @@ export default function Onboarding() {
                 )}
 
                 {step === 1 && (
-                  <StepShell title="Where do you go to school?">
-                    <Input
-                      autoFocus
+                  <StepShell title="Where do you go to school?" hint="We'll recognize your school if others already added it.">
+                    <SchoolCombobox
                       value={data.school}
-                      onChange={(e) => update({ school: e.target.value })}
-                      placeholder="State University"
+                      onChange={(v) => update({ school: v })}
                     />
                   </StepShell>
                 )}
+
                 {step === 2 && (
                   <StepShell title="Which term is this?">
                     <Input
@@ -200,36 +199,15 @@ export default function Onboarding() {
                                 onChange={(e) => updateClass(realIdx, { professor: e.target.value })}
                                 placeholder="Professor (optional)"
                               />
-                              <div className="flex flex-wrap gap-1.5">
-                                {DAYS.map((d) => {
-                                  const active = c.days.includes(d);
-                                  return (
-                                    <button
-                                      key={d}
-                                      type="button"
-                                      onClick={() =>
-                                        updateClass(realIdx, {
-                                          days: active
-                                            ? c.days.filter((x) => x !== d)
-                                            : [...c.days, d],
-                                        })
-                                      }
-                                      className={`text-xs px-2 py-1 rounded-md border transition-colors ${
-                                        active
-                                          ? "bg-primary text-primary-foreground border-primary"
-                                          : "bg-background border-border hover:border-primary/50"
-                                      }`}
-                                    >
-                                      {d}
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                              <DayPicker
+                                value={c.days}
+                                onChange={(days) => updateClass(realIdx, { days })}
+                              />
                               <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                  value={c.time || ""}
-                                  onChange={(e) => updateClass(realIdx, { time: e.target.value })}
-                                  placeholder="Time (10:00 AM)"
+                                <TimePicker
+                                  value={c.time}
+                                  onChange={(v) => updateClass(realIdx, { time: v })}
+                                  placeholder="Start time"
                                 />
                                 <Input
                                   value={c.textbook || ""}
@@ -237,6 +215,23 @@ export default function Onboarding() {
                                   placeholder="Textbook (optional)"
                                 />
                               </div>
+                              {((c.examDates?.length ?? 0) > 0 || (c.assignments?.length ?? 0) > 0) && (
+                                <div className="pt-1 flex flex-wrap gap-1.5">
+                                  {c.examDates?.map((e, ei) => (
+                                    <Badge key={`e${ei}`} variant="secondary" className="text-[10px] font-normal">
+                                      <CalendarDays className="h-3 w-3 mr-1" />
+                                      {e.label}: {e.date}
+                                    </Badge>
+                                  ))}
+                                  {c.assignments?.map((a, ai) => (
+                                    <Badge key={`a${ai}`} variant="outline" className="text-[10px] font-normal">
+                                      <FileText className="h-3 w-3 mr-1" />
+                                      {a.label}: {a.dueDate}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+
                             </div>
                           );
                         })}
