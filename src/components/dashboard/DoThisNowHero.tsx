@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck } from "lucide-react";
+import { Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck, ChevronDown, CheckCircle2 } from "lucide-react";
 import { classes, getReadinessColor } from "@/data/demo";
 import {
   buildLearningState,
