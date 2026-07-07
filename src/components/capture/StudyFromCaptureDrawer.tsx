@@ -42,6 +42,8 @@ import {
   type ReadinessChange,
 } from "@/lib/intelligence/readinessEngine";
 import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
+import { getClassLearningSnapshot, getTopLearningRecommendation } from "@/lib/intelligence/learningEngine";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 
 interface Props {
   open: boolean;
