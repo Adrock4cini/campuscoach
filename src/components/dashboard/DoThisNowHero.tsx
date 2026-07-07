@@ -36,6 +36,7 @@ interface State {
 export function DoThisNowHero() {
   const navigate = useNavigate();
   const [state, setState] = useState<State | null>(null);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
