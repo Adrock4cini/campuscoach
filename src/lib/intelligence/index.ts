@@ -10,3 +10,4 @@ export * from "./types";
 export * from "./engine";
 export * from "./hooks";
 export * from "./campusBrain";
+export * from "./learningEngine";
