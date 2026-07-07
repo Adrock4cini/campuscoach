@@ -19,6 +19,7 @@ export function TodaysChecklist() {
   const navigate = useNavigate();
   const [plan, setPlan] = useState<TodayPlan>(() => generateTodayPlan());
   const [checking, setChecking] = useState<string | null>(null);
+  const [burst, setBurst] = useState<{ id: string; gain: number } | null>(null);
 
   const refresh = useCallback(() => setPlan(generateTodayPlan()), []);
   useEffect(() => {
@@ -34,11 +35,13 @@ export function TodaysChecklist() {
   const handleCheck = (e: React.MouseEvent, item: TodayPlanItem) => {
     e.stopPropagation();
     setChecking(item.id);
+    setBurst({ id: item.id, gain: item.expectedReadinessGain });
     setTimeout(() => {
       const next = refreshTodayPlanAfterAction(item.id);
       setPlan(next);
       setChecking(null);
-    }, 220);
+    }, 260);
+    setTimeout(() => setBurst(null), 1100);
   };
 
   if (plan.items.length === 0) return null;
