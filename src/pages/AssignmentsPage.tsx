@@ -214,6 +214,21 @@ export default function AssignmentsPage() {
                       </DropdownMenu>
                     </div>
                   )}
+
+                  {(() => {
+                    const engine = engineByClass.get(a.classId);
+                    return engine ? (
+                      <RecommendationChips
+                        recommendation={engine.rec}
+                        isTop={engine.isTop}
+                        className="mt-2"
+                      />
+                    ) : null;
+                  })()}
+                  {/* legacy closing tag preserved below */}
+                  {false && (
+                    <div />
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
