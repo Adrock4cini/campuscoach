@@ -18,6 +18,11 @@ import {
   estimateExamGrade,
   getStudyFormatRecommendation,
 } from "@/lib/intelligence";
+import {
+  buildLearningState,
+  type LearningRecommendation,
+} from "@/lib/intelligence/learningEngine";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,6 +41,20 @@ export default function ExamsPage() {
   const filteredExams = activeClass === "all" ? exams : exams.filter(e => e.classId === activeClass);
   const sorted = [...filteredExams].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const [editExam, setEditExam] = useState<typeof exams[0] | null>(null);
+
+  const engineByClass = (() => {
+    try {
+      const state = buildLearningState();
+      const map = new Map<string, { rec: LearningRecommendation; isTop: boolean }>();
+      const topId = state.recommendations[0]?.id ?? null;
+      state.classes.forEach((s) =>
+        map.set(s.classId, { rec: s.recommendation, isTop: s.recommendation.id === topId }),
+      );
+      return map;
+    } catch {
+      return new Map<string, { rec: LearningRecommendation; isTop: boolean }>();
+    }
+  })();
 
   const editFields: EditField[] = [
     { key: "title", label: "Exam Title", type: "text" },
