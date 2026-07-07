@@ -20,6 +20,11 @@ import {
   type TodayPlanItem,
   type TodayPlanSource,
 } from "@/lib/intelligence/todayPlanEngine";
+import {
+  buildLearningState,
+  type LearningRecommendation,
+} from "@/lib/intelligence/learningEngine";
+import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 
 const SOURCE_ICON: Record<TodayPlanSource, typeof Zap> = {
   exam: Zap,
@@ -46,9 +51,22 @@ const SOURCE_TONE: Record<TodayPlanSource, string> = {
 export function TodaysPlan() {
   const navigate = useNavigate();
   const [plan, setPlan] = useState<TodayPlan>(() => generateTodayPlan());
+  const [engineByClass, setEngineByClass] = useState<Map<string, LearningRecommendation>>(
+    () => new Map(),
+  );
+  const [topRecId, setTopRecId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setPlan(generateTodayPlan());
+    try {
+      const state = buildLearningState();
+      const map = new Map<string, LearningRecommendation>();
+      state.classes.forEach((s) => map.set(s.classId, s.recommendation));
+      setEngineByClass(map);
+      setTopRecId(state.recommendations[0]?.id ?? null);
+    } catch {
+      /* engine failure — keep plan-only rendering */
+    }
   }, []);
 
   useEffect(() => {
