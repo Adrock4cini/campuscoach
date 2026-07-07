@@ -1,15 +1,32 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck, ChevronDown, CheckCircle2 } from "lucide-react";
+import {
+  Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck, ChevronDown, CheckCircle2,
+  Camera, ClipboardList, CalendarClock, BookOpen, Gauge, Flame, Users, GraduationCap, FileText,
+} from "lucide-react";
 import { classes, getReadinessColor } from "@/data/demo";
 import {
   buildLearningState,
   type ClassLearningSnapshot,
   type LearningRecommendation,
   type ActivityKind,
+  type EvidenceSource,
 } from "@/lib/intelligence/learningEngine";
 import { cn } from "@/lib/utils";
+
+const EVIDENCE_ICON: Record<EvidenceSource, typeof Camera> = {
+  capture: Camera,
+  assignment: ClipboardList,
+  exam: CalendarClock,
+  "study-session": BookOpen,
+  readiness: Gauge,
+  momentum: Flame,
+  "class-signal": Users,
+  "professor-emphasis": GraduationCap,
+  "peer-signal": Users,
+  syllabus: FileText,
+};
 
 const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   flashcards: "Flashcards",
