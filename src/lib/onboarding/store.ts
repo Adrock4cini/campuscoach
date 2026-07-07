@@ -116,7 +116,8 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
               work_schedule: data.workSchedule || null,
               reminder_style: data.reminderStyle,
               study_goal: data.studyGoal,
-            },
+            } as never),
+
           },
           { onConflict: "client_class_id" }
         )
