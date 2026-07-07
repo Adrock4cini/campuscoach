@@ -119,12 +119,13 @@ export function ClassQuickCard({ classId, index = 0 }: Props) {
               transition={{ duration: 0.22 }}
               className="overflow-hidden"
             >
-              <div className="mt-3 pt-3 border-t border-border/30 grid grid-cols-5 gap-2">
-                <Action Icon={Mic}      label="Record"    onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
-                <Action Icon={Camera}   label="Whiteboard" onClick={() => navigate(`/classes/${c.id}?action=scan-whiteboard`)} />
-                <Action Icon={BookOpen} label="Textbook"  onClick={() => navigate(`/classes/${c.id}?action=scan-textbook`)} />
-                <Action Icon={FileText} label="Notes"     onClick={() => navigate(`/notes?classId=${c.id}`)} />
-                <Action Icon={Sparkles} label="Ask Brain" onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
+              <div className="mt-3 pt-3 border-t border-border/30 grid grid-cols-3 gap-2">
+                <Action Icon={Mic}         label="Record"     onClick={() => navigate(`/notes?classId=${c.id}&action=record`)} />
+                <Action Icon={Camera}      label="Whiteboard" onClick={() => navigate(`/classes/${c.id}?action=scan-whiteboard`)} />
+                <Action Icon={BookOpen}    label="Textbook"   onClick={() => navigate(`/classes/${c.id}?action=scan-textbook`)} />
+                <Action Icon={StickyNote}  label="Quick note" onClick={() => navigate(`/notes?classId=${c.id}&action=quick-note`)} />
+                <Action Icon={Lightbulb}   label="Prof hint"  onClick={() => navigate(`/classes/${c.id}?tab=hints&action=add-hint`)} />
+                <Action Icon={Sparkles}    label="Ask Brain"  onClick={() => navigate(`/study-lab?classId=${c.id}`)} />
               </div>
             </motion.div>
           )}
