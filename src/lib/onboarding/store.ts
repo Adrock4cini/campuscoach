@@ -102,7 +102,7 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
             location: c.location || null,
             color: "bg-primary",
             current_topic: null,
-            meta: {
+            meta: ({
               days: c.days,
               time: c.time || null,
               endTime: c.endTime || null,
