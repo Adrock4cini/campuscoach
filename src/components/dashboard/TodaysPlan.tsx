@@ -110,6 +110,8 @@ export function TodaysPlan() {
         <AnimatePresence initial={false}>
           {plan.items.map((it, i) => {
             const Icon = SOURCE_ICON[it.source];
+            const rec = engineByClass.get(it.classId);
+            const isTop = !!rec && rec.id === topRecId;
             return (
               <motion.li
                 key={it.id}
@@ -151,6 +153,14 @@ export function TodaysPlan() {
                         {it.minutes}m
                       </span>
                     </div>
+                    {rec && (
+                      <RecommendationChips
+                        recommendation={rec}
+                        isTop={isTop}
+                        compact
+                        className="mt-1"
+                      />
+                    )}
                   </div>
 
                   <button
