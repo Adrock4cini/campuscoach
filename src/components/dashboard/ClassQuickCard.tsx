@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight, Mic, Camera, BookOpen, FileText, Sparkles,
+  ArrowRight, Mic, Camera, BookOpen, StickyNote, Lightbulb, Sparkles,
   CalendarClock, ClipboardList, ChevronDown, Zap,
 } from "lucide-react";
 import { classes, exams, assignments, getDaysUntil, type ClassInfo } from "@/data/demo";
