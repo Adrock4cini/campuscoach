@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Check, Circle } from "lucide-react";
+import { Check, Circle, Sparkles } from "lucide-react";
 import {
   generateTodayPlan,
   refreshTodayPlanAfterAction,
