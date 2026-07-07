@@ -125,14 +125,70 @@ export function DoThisNowHero() {
           />
         </div>
 
-        {/* Single CTA */}
-        <button
-          onClick={() => navigate(rec.route)}
-          className="mt-6 w-full md:w-auto h-14 md:min-w-[240px] px-8 rounded-2xl bg-gradient-calm text-primary-foreground text-base font-semibold inline-flex items-center justify-center gap-2 shadow-elegant hover:opacity-95 transition-opacity"
-        >
-          <Play className="h-5 w-5" />
-          Start now
-        </button>
+        {/* One-sentence rationale */}
+        {rec.rationale && (
+          <p className="mt-5 text-sm text-foreground/75 leading-relaxed">
+            {rec.rationale}
+          </p>
+        )}
+
+        {/* Single CTA + Why */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => navigate(rec.route)}
+            className="h-14 md:min-w-[240px] px-8 rounded-2xl bg-gradient-calm text-primary-foreground text-base font-semibold inline-flex items-center justify-center gap-2 shadow-elegant hover:opacity-95 transition-opacity flex-1 md:flex-initial"
+          >
+            <Play className="h-5 w-5" />
+            Start now
+          </button>
+          <button
+            onClick={() => setWhyOpen((v) => !v)}
+            className="h-11 px-4 rounded-xl border border-border/50 bg-background/40 backdrop-blur text-xs font-medium text-foreground/80 hover:text-foreground hover:border-border inline-flex items-center gap-1.5 transition-colors"
+            aria-expanded={whyOpen}
+          >
+            Why?
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", whyOpen && "rotate-180")} />
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {whyOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 rounded-2xl border border-border/40 bg-background/30 backdrop-blur p-4 space-y-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
+                    Evidence
+                  </p>
+                  <ul className="space-y-1.5">
+                    {rec.evidence.slice(0, 4).map((ev, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
+                        <span className="mt-1 h-1 w-1 rounded-full bg-primary shrink-0" />
+                        <span>{ev.note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex items-start gap-2 pt-2 border-t border-border/30">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                      Verify after
+                    </p>
+                    <p className="text-xs text-foreground/80 mt-0.5">
+                      {rec.verification.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.section>
   );
