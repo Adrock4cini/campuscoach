@@ -225,10 +225,6 @@ export default function AssignmentsPage() {
                       />
                     ) : null;
                   })()}
-                  {/* legacy closing tag preserved below */}
-                  {false && (
-                    <div />
-                  )}
                 </CardContent>
               </Card>
             </motion.div>
