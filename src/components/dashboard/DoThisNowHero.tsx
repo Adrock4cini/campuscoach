@@ -1,15 +1,32 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck, ChevronDown, CheckCircle2 } from "lucide-react";
+import {
+  Play, Zap, Timer, TrendingUp, Sparkles, ShieldCheck, ChevronDown, CheckCircle2,
+  Camera, ClipboardList, CalendarClock, BookOpen, Gauge, Flame, Users, GraduationCap, FileText,
+} from "lucide-react";
 import { classes, getReadinessColor } from "@/data/demo";
 import {
   buildLearningState,
   type ClassLearningSnapshot,
   type LearningRecommendation,
   type ActivityKind,
+  type EvidenceSource,
 } from "@/lib/intelligence/learningEngine";
 import { cn } from "@/lib/utils";
+
+const EVIDENCE_ICON: Record<EvidenceSource, typeof Camera> = {
+  capture: Camera,
+  assignment: ClipboardList,
+  exam: CalendarClock,
+  "study-session": BookOpen,
+  readiness: Gauge,
+  momentum: Flame,
+  "class-signal": Users,
+  "professor-emphasis": GraduationCap,
+  "peer-signal": Users,
+  syllabus: FileText,
+};
 
 const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   flashcards: "Flashcards",
@@ -160,27 +177,53 @@ export function DoThisNowHero() {
               transition={{ duration: 0.22 }}
               className="overflow-hidden"
             >
-              <div className="mt-4 rounded-2xl border border-border/40 bg-background/30 backdrop-blur p-4 space-y-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
-                    Evidence
-                  </p>
-                  <ul className="space-y-1.5">
-                    {rec.evidence.slice(0, 4).map((ev, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
-                        <span className="mt-1 h-1 w-1 rounded-full bg-primary shrink-0" />
-                        <span>{ev.note}</span>
-                      </li>
-                    ))}
-                  </ul>
+              <div className="mt-4 rounded-2xl border border-border/40 bg-background/30 backdrop-blur p-4">
+                {/* Confidence bar */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    <ShieldCheck className="h-3 w-3 text-accent" />
+                    Confidence
+                  </div>
+                  <span className="text-xs font-semibold text-foreground tabular-nums">{confidence}%</span>
                 </div>
-                <div className="flex items-start gap-2 pt-2 border-t border-border/30">
+                <div className="h-1 rounded-full bg-border/40 overflow-hidden mb-4">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${confidence}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className="h-full bg-gradient-calm rounded-full"
+                  />
+                </div>
+
+                {/* Evidence bullets */}
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                  Evidence · {rec.evidence.length}
+                </p>
+                <ul className="space-y-1.5 mb-4">
+                  {rec.evidence.slice(0, 4).map((ev, i) => {
+                    const Icon = EVIDENCE_ICON[ev.source] ?? Sparkles;
+                    return (
+                      <li key={i} className="flex items-start gap-2.5 text-xs text-foreground/85">
+                        <span className="mt-0.5 h-5 w-5 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                          <Icon className="h-3 w-3 text-primary" />
+                        </span>
+                        <span className="flex-1 leading-snug">{ev.note}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 mt-0.5">
+                          {Math.round(ev.strength * 100)}%
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {/* Verification */}
+                <div className="flex items-start gap-2 pt-3 border-t border-border/30">
                   <CheckCircle2 className="h-3.5 w-3.5 text-success mt-0.5 shrink-0" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                       Verify after
                     </p>
-                    <p className="text-xs text-foreground/80 mt-0.5">
+                    <p className="text-xs text-foreground/85 mt-0.5 leading-snug">
                       {rec.verification.note}
                     </p>
                   </div>
