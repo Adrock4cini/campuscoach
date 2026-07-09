@@ -271,7 +271,7 @@ export async function persistCaptureResult(
           body: {
             captureId,
             clientClassId: result.context.classId,
-            className: result.context.className ?? null,
+            className: null,
             topic: result.context.topic ?? null,
             kind: result.kind,
             rawText,
