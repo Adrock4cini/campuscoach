@@ -50,13 +50,15 @@ export function TopStrip() {
 
       </div>
 
-      <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
-        <Flame className="h-3.5 w-3.5" />
-        {momentum.streak}
-        <span className="mx-1 opacity-40">·</span>
-        <TrendIcon className="h-3.5 w-3.5" />
-        {momentum.score}
-      </div>
+      {(!user || isDemoMode) && (
+        <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
+          <Flame className="h-3.5 w-3.5" />
+          {momentum.streak}
+          <span className="mx-1 opacity-40">·</span>
+          <TrendIcon className="h-3.5 w-3.5" />
+          {momentum.score}
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         {isDemoMode && (
