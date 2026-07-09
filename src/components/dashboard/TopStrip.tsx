@@ -22,11 +22,18 @@ function greetingWord() {
 export function TopStrip() {
   const momentum = useMomentum();
   const { setOpen } = useCommandPalette();
-  const { isDemoMode, user, profile } = useAuth();
+  const { isDemoMode, user, profile, mode } = useAuth();
 
-  const name = user
-    ? (profile?.display_name?.split(" ")[0] || user.email?.split("@")[0] || "there")
-    : studentName;
+  // Single source of truth: mode drives every demo-vs-real decision on this widget.
+  const realMode = mode === "real";
+  const showDemoBits = mode === "demo";
+
+  const name = realMode
+    ? (profile?.display_name?.split(" ")[0] || user?.email?.split("@")[0] || "there")
+    : mode === "loading"
+      ? ""
+      : studentName;
+
 
   const TrendIcon =
     momentum.trend === "rising" ? TrendingUp :
