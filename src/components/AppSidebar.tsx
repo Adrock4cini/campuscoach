@@ -108,6 +108,7 @@ export function AppSidebar() {
   const { classes: myClasses, isReal } = useMyClasses();
   // Real (signed-in) mode → real classes only, never demo classes.
   // Demo/anonymous → demo classes so the demo tour still works.
+  const realMode = !!user && !isDemoMode;
   const classList = user || isReal ? myClasses : demoClasses;
   const groups = buildGroups(classList);
 
