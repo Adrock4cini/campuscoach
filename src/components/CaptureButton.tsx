@@ -15,7 +15,7 @@ import type { CaptureKind } from "@/lib/capture/types";
 export function CaptureButton() {
   const [now, setNow] = useState(() => new Date());
   const { open } = useCapture();
-  const { user, isDemoMode } = useAuth();
+  const { mode } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,8 +23,10 @@ export function CaptureButton() {
     return () => clearInterval(t);
   }, []);
 
-  const realMode = !!user && !isDemoMode;
-  const detected = realMode ? null : detectCurrentClass(now);
+  // Only surface the demo "Class Now" pill in demo mode. Real users and
+  // the loading window see the plain capture button.
+  const detected = mode === "demo" ? detectCurrentClass(now) : null;
+
 
   const quick = (kind: CaptureKind) => open(kind);
 
