@@ -33,25 +33,46 @@ const AuthCtx = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [isDemoMode, setDemo] = useState<boolean>(
     typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
   );
 
+  const checkOnboarded = async (userId: string | undefined | null) => {
+    if (!userId) {
+      setOnboarded(null);
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("onboarded_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+      setOnboarded(!!data?.onboarded_at);
+    } catch {
+      setOnboarded(false);
+    }
+  };
+
   useEffect(() => {
-    // Register the listener FIRST (per Supabase best practice) so we never
-    // miss the initial SIGNED_IN event.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       setAuthUserId(s?.user?.id ?? null);
       if (s) {
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
+        // Defer Supabase reads out of the listener callback.
+        setTimeout(() => checkOnboarded(s.user.id), 0);
+      } else {
+        setOnboarded(null);
       }
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthUserId(data.session?.user?.id ?? null);
       setLoading(false);
+      if (data.session?.user?.id) checkOnboarded(data.session.user.id);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -61,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      onboarded,
       isDemoMode,
       enableDemoMode: () => {
         localStorage.setItem(DEMO_KEY, "1");
@@ -69,9 +91,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut: async () => {
         await supabase.auth.signOut();
         setAuthUserId(null);
+        setOnboarded(null);
       },
+      refreshOnboarded: () => checkOnboarded(session?.user?.id),
     }),
-    [session, loading, isDemoMode]
+    [session, loading, isDemoMode, onboarded]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
