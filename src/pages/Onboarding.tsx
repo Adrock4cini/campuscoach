@@ -293,20 +293,15 @@ export default function Onboarding() {
               <Button variant="ghost" size="sm" onClick={back} disabled={step === 0}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
               </Button>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={useDemo}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Skip · use demo
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-gradient-calm border-0 text-primary-foreground"
-                  onClick={next}
-                  disabled={!canNext || saving}
-                >
-                  {step === STEPS.length - 1 ? (saving ? "Setting up…" : "Finish") : "Next"}
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                className="bg-gradient-calm border-0 text-primary-foreground"
+                onClick={next}
+                disabled={!canNext || saving}
+              >
+                {step === STEPS.length - 1 ? (saving ? "Setting up…" : "Finish") : "Next"}
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
             </div>
           </CardContent>
         </Card>
