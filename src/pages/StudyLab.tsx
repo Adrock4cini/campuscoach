@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
 import { useStudyFormatRecommendation } from "@/lib/intelligence";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealStudySet } from "@/components/study/RealStudySet";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
