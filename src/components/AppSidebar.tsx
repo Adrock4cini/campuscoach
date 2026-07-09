@@ -32,59 +32,61 @@ import {
 } from "@/components/ui/sidebar";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 
-const groups = [
-  {
-    label: "Today",
-    items: [
-      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-      { title: "Your Week", url: "/your-week", icon: Sparkles },
-    ],
-  },
-  {
-    label: "Classes",
-    items: [
-      { title: "All Classes", url: "/classes", icon: BookOpen },
-      ...classes.map((c) => ({
-        title: c.name.split(" ").slice(0, 2).join(" "),
-        url: `/classes/${c.id}`,
-        icon: BookOpen,
-        dotColor: c.color,
-      })),
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { title: "Calendar", url: "/calendar", icon: CalendarDays },
-      { title: "Notes & Recordings", url: "/notes", icon: Mic },
-      { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
-      { title: "Assignments", url: "/assignments", icon: BookOpen },
-      { title: "Exams", url: "/exams", icon: GraduationCap },
-    ],
-  },
-  {
-    label: "Journey",
-    items: [
-      { title: "Path to Graduation", url: "/path-to-graduation", icon: Map },
-      { title: "Scholarships", url: "/scholarships", icon: Award },
-    ],
-  },
-  {
-    label: "Community",
-    items: [
-      { title: "Class Intelligence", url: "/course-intelligence", icon: TrendingUp },
-      { title: "Exam Debrief", url: "/exam-debrief", icon: MessageSquare },
-      { title: "Progress", url: "/progress", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
-      { title: "Settings", url: "/settings", icon: Settings },
-      { title: "Profile", url: "/settings", icon: User },
-    ],
-  },
-];
+function buildGroups(classList: { id: string; name: string; color: string }[]) {
+  return [
+    {
+      label: "Today",
+      items: [
+        { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+        { title: "Your Week", url: "/your-week", icon: Sparkles },
+      ],
+    },
+    {
+      label: "Classes",
+      items: [
+        { title: "All Classes", url: "/classes", icon: BookOpen },
+        ...classList.map((c) => ({
+          title: c.name.split(" ").slice(0, 2).join(" "),
+          url: `/classes/${c.id}`,
+          icon: BookOpen,
+          dotColor: c.color,
+        })),
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { title: "Calendar", url: "/calendar", icon: CalendarDays },
+        { title: "Notes & Recordings", url: "/notes", icon: Mic },
+        { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
+        { title: "Assignments", url: "/assignments", icon: BookOpen },
+        { title: "Exams", url: "/exams", icon: GraduationCap },
+      ],
+    },
+    {
+      label: "Journey",
+      items: [
+        { title: "Path to Graduation", url: "/path-to-graduation", icon: Map },
+        { title: "Scholarships", url: "/scholarships", icon: Award },
+      ],
+    },
+    {
+      label: "Community",
+      items: [
+        { title: "Class Intelligence", url: "/course-intelligence", icon: TrendingUp },
+        { title: "Exam Debrief", url: "/exam-debrief", icon: MessageSquare },
+        { title: "Progress", url: "/progress", icon: BarChart3 },
+      ],
+    },
+    {
+      label: "Account",
+      items: [
+        { title: "Settings", url: "/settings", icon: Settings },
+        { title: "Profile", url: "/settings", icon: User },
+      ],
+    },
+  ];
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
