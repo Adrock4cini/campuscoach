@@ -108,14 +108,7 @@ export default function Dashboard() {
             <aside className="space-y-4 lg:sticky lg:top-4 self-start">
               {!realMode && <TodaysChecklist />}
               {!realMode && <BrainOneLiner insight={insight} />}
-              {realMode && (
-                <div className="rounded-2xl border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">Next up</p>
-                  <p className="text-xs">
-                    Use Quick Capture on any class page to record a lecture, scan the board, or drop a note. Campus Brain will build Today's Plan from your real captures.
-                  </p>
-                </div>
-              )}
+              {realMode && <RealTodaysPlan />}
             </aside>
           </div>
 
