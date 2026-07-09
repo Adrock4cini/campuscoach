@@ -340,13 +340,14 @@ function ProcessingTimeline({ stepIndex }: { stepIndex: number }) {
 }
 
 function DoneSummary({
-  result, onClose, onOpenClass,
+  result, onClose, onOpenClass, className,
 }: {
   result: CaptureResult;
   onClose: () => void;
   onOpenClass: () => void;
+  className?: string;
 }) {
-  const cls = classes.find((c) => c.id === result.context.classId);
+  const cls = { name: className || demoClasses.find((c) => c.id === result.context.classId)?.name || "your class" };
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-success/25 bg-success/5 p-4 flex items-start gap-3">
