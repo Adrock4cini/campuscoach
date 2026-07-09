@@ -103,6 +103,8 @@ export default function ClassDetail() {
           </CardContent>
         </Card>
 
+        <RealClassAssignmentsExams classId={c.id} />
+
         <ClassMemory classId={c.id} className={c.name} />
       </div>
     );
