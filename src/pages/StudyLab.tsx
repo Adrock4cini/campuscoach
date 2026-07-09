@@ -74,6 +74,11 @@ export default function StudyLab() {
         ))}
       </div>
 
+      {/* Real users: concept-backed study set (flashcards / MCQ). */}
+      {isRealUser && <RealStudySet classId={selectedClass} />}
+
+
+
       {/* HERO: single recommended action */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="shadow-elevated border-primary/30 overflow-hidden">
