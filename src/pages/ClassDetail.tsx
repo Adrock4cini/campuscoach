@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, Mic, FlaskConical, Pencil,
+  CheckCircle2, Circle, Loader2, Mic, FlaskConical, Pencil, Plus,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -20,11 +20,21 @@ import type { ProfessorHint, Chapter } from "@/data/demo";
 import { getClassPulse, getPredictedTopics, getRecommendedStudyMode, getTopStudentInsights } from "@/data/courseIntelligence";
 import { ClassMemory } from "@/components/capture/ClassMemory";
 import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
+import { useCapture } from "@/contexts/CaptureContext";
 
 export default function ClassDetail() {
   const { classId } = useParams();
   const navigate = useNavigate();
-  const c = classes.find(cl => cl.id === classId);
+  const { user, isDemoMode } = useAuth();
+  const { classes: myClasses } = useMyClasses();
+  const { open: openCapture } = useCapture();
+  const realMode = !!user && !isDemoMode;
+
+  const realClass = realMode ? myClasses.find((cl) => cl.id === classId) : null;
+  const demoClass = !realMode ? classes.find((cl) => cl.id === classId) : null;
+  const c = realClass || demoClass;
 
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -39,6 +49,65 @@ export default function ClassDetail() {
       </div>
     );
   }
+
+  // Real classes render a simplified view — no demo assignments/exams/chapter data.
+  if (realClass) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/classes")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground truncate">{c.name}</h1>
+            {c.currentTopic && (
+              <p className="text-muted-foreground text-sm">Current topic: {c.currentTopic}</p>
+            )}
+          </div>
+        </div>
+
+        <Card className="shadow-card">
+          <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+            {c.professor && c.professor !== "TBD" && (
+              <div className="flex items-center gap-2"><User className="h-4 w-4" /> {c.professor}</div>
+            )}
+            {c.days.length > 0 && (
+              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {c.days.join("/")}{c.time ? ` · ${c.time}` : ""}</div>
+            )}
+            {c.location && (
+              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {c.location}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card border-primary/20 bg-primary/5">
+          <CardContent className="p-5 space-y-3">
+            <div>
+              <p className="text-xs font-medium text-primary mb-1">🎯 Start capturing</p>
+              <h3 className="font-display font-semibold text-foreground">Bring this class into Campus Brain</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Record a lecture, scan the board, or drop a quick note. Everything you capture appears in Class Memory below and powers your readiness.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture()}>
+                <Plus className="h-4 w-4 mr-1" /> Quick Capture
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openCapture("record-lecture")}>
+                <Mic className="h-4 w-4 mr-1" /> Record lecture
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
+                <FlaskConical className="h-4 w-4 mr-1" /> Study Lab
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ClassMemory classId={c.id} className={c.name} />
+      </div>
+    );
+  }
+
 
   const classAssignments = assignments.filter(a => a.classId === c.id);
   const classExams = exams.filter(e => e.classId === c.id);

@@ -5,9 +5,11 @@ import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
   X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Calendar,
 } from "lucide-react";
-import { classes } from "@/data/demo";
+import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
   CAPTURE_LABELS,
   PROCESSING_STEPS,
@@ -45,12 +47,21 @@ const MENU: {
 
 export function CaptureFlow({ open, initialKind, onClose }: Props) {
   const navigate = useNavigate();
+  const { user, isDemoMode } = useAuth();
+  const { classes: myClasses } = useMyClasses();
+  const realMode = !!user && !isDemoMode;
+  const classes = realMode ? myClasses : demoClasses;
+
   const [stage, setStage] = useState<Stage>("menu");
   const [kind, setKind] = useState<CaptureKind | null>(null);
-  const detected = useMemo(() => detectCurrentClass(new Date()), [open]);
+  // Auto-class detection is demo-schedule-based, so skip it for real users.
+  const detected = useMemo(
+    () => (realMode ? null : detectCurrentClass(new Date())),
+    [open, realMode],
+  );
 
   const [ctx, setCtx] = useState<CaptureContext>(() => ({
-    classId: detected?.id ?? classes[0].id,
+    classId: detected?.id ?? classes[0]?.id ?? "",
     date: new Date().toISOString().slice(0, 10),
     topic: detected?.currentTopic ?? "",
     text: "",
@@ -67,7 +78,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
     setStepIndex(0);
     setResult(null);
     setCtx({
-      classId: detected?.id ?? classes[0].id,
+      classId: detected?.id ?? classes[0]?.id ?? "",
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
@@ -269,6 +280,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
               {stage === "done" && result && (
                 <DoneSummary
                   result={result}
+                  className={classes.find((c) => c.id === result.context.classId)?.name}
                   onClose={onClose}
                   onOpenClass={() => {
                     onClose();
@@ -329,13 +341,14 @@ function ProcessingTimeline({ stepIndex }: { stepIndex: number }) {
 }
 
 function DoneSummary({
-  result, onClose, onOpenClass,
+  result, onClose, onOpenClass, className,
 }: {
   result: CaptureResult;
   onClose: () => void;
   onOpenClass: () => void;
+  className?: string;
 }) {
-  const cls = classes.find((c) => c.id === result.context.classId);
+  const cls = { name: className || demoClasses.find((c) => c.id === result.context.classId)?.name || "your class" };
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-success/25 bg-success/5 p-4 flex items-start gap-3">
