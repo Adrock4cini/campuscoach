@@ -45,23 +45,29 @@ export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }
           <h3 className="font-display text-lg font-semibold text-foreground truncate leading-tight">
             {c.name}
           </h3>
-          {meta[0] && (
-            <p className="mt-0.5 text-[12px] text-muted-foreground truncate flex items-center gap-1.5">
-              <meta[0].Icon className="h-3 w-3 shrink-0" />
-              {meta[0].text}
-            </p>
-          )}
+          {meta[0] && (() => {
+            const First = meta[0].Icon;
+            return (
+              <p className="mt-0.5 text-[12px] text-muted-foreground truncate flex items-center gap-1.5">
+                <First className="h-3 w-3 shrink-0" />
+                {meta[0].text}
+              </p>
+            );
+          })()}
         </div>
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
       </button>
 
       {meta.length > 1 && (
         <div className="px-5 md:px-6 -mt-2 pb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          {meta.slice(1).map((m, i) => (
-            <span key={i} className="inline-flex items-center gap-1">
-              <m.Icon className="h-3 w-3" /> {m.text}
-            </span>
-          ))}
+          {meta.slice(1).map((m, i) => {
+            const MIcon = m.Icon;
+            return (
+              <span key={i} className="inline-flex items-center gap-1">
+                <MIcon className="h-3 w-3" /> {m.text}
+              </span>
+            );
+          })}
         </div>
       )}
 
