@@ -31,7 +31,24 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import { RealComingSoon } from "@/components/real/RealComingSoon";
 
+
+function DemoOnly({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <RealComingSoon title={title} description={description}>
+      {children}
+    </RealComingSoon>
+  );
+}
 
 function RootGate() {
   const { user, isDemoMode, loading, onboarded } = useAuth();
