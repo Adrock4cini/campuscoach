@@ -24,17 +24,17 @@ import {
 } from "@/lib/intelligence/learningEngine";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealExamsView } from "@/components/real/RealExamsView";
 
 /**
- * ExamsPage — Progressive Intelligence surface.
- * One question per card: "What should I study next?"
- *
- * Level 1 (glance): title · days chip · readiness ring · grade estimate
- * Level 1 CTA:      the engine's single recommended study action
- * Level 2 (expand): strong / weak areas as chips
- * More menu:        Practice Test, Flashcards, Full detail
+ * ExamsPage — signed-in students see their real exams; demo/anon users see
+ * the intelligence-rich demo view.
  */
 export default function ExamsPage() {
+  const { user, isDemoMode } = useAuth();
+  if (user && !isDemoMode) return <RealExamsView />;
+
   const navigate = useNavigate();
   const [activeClass, setActiveClass] = useState<string | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
