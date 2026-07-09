@@ -109,7 +109,7 @@ export default function MyClasses() {
         ))}
       </div>
 
-      <Button variant="outline" className="w-full border-dashed">
+      <Button variant="outline" className="w-full border-dashed" onClick={() => navigate("/onboarding")}>
         + Add a New Class
       </Button>
     </div>
