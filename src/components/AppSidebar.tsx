@@ -93,6 +93,12 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { user, isDemoMode, signOut } = useAuth();
   const nav = useNavigate();
+  const { classes: myClasses, isReal } = useMyClasses();
+  // Real (signed-in) mode → real classes only, never demo classes.
+  // Demo/anonymous → demo classes so the demo tour still works.
+  const classList = isReal || user ? myClasses : (require("@/data/demo").classes as typeof myClasses);
+  const groups = buildGroups(classList);
+
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
