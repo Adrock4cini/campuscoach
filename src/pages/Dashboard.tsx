@@ -69,8 +69,8 @@ export default function Dashboard() {
         </motion.section>
       ) : (
         <>
-          {/* Do This Now — only when we have data to reason over */}
-          {(!realMode || ordered.length > 0) && <DoThisNowHero />}
+          {/* Do This Now — demo-derived, hidden for real users */}
+          {!realMode && <DoThisNowHero />}
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] gap-5">
             <motion.section
@@ -92,11 +92,29 @@ export default function Dashboard() {
                   )
                 )}
               </div>
+              {realMode && (
+                <div className="pt-2">
+                  <Link
+                    to="/onboarding"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  >
+                    <Plus className="h-3 w-3" /> Add another class
+                  </Link>
+                </div>
+              )}
             </motion.section>
 
             <aside className="space-y-4 lg:sticky lg:top-4 self-start">
-              {(!realMode || ordered.length > 0) && <TodaysChecklist />}
-              {(!realMode || ordered.length > 0) && <BrainOneLiner insight={insight} />}
+              {!realMode && <TodaysChecklist />}
+              {!realMode && <BrainOneLiner insight={insight} />}
+              {realMode && (
+                <div className="rounded-2xl border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">Next up</p>
+                  <p className="text-xs">
+                    Use Quick Capture on any class page to record a lecture, scan the board, or drop a note. Campus Brain will build Today's Plan from your real captures.
+                  </p>
+                </div>
+              )}
             </aside>
           </div>
 
