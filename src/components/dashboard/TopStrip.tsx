@@ -22,6 +22,8 @@ function greetingWord() {
 export function TopStrip() {
   const momentum = useMomentum();
   const { setOpen } = useCommandPalette();
+  const { isDemoMode } = useAuth();
+
   const TrendIcon =
     momentum.trend === "rising" ? TrendingUp :
     momentum.trend === "cooling" ? TrendingDown : Minus;
