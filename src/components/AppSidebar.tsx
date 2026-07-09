@@ -103,14 +103,16 @@ function buildGroups(classList: { id: string; name: string; color: string }[]) {
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const { user, isDemoMode, signOut } = useAuth();
+  const { user, isDemoMode, signOut, mode } = useAuth();
   const nav = useNavigate();
-  const { classes: myClasses, isReal } = useMyClasses();
-  // Real (signed-in) mode → real classes only, never demo classes.
-  // Demo/anonymous → demo classes so the demo tour still works.
-  const realMode = !!user && !isDemoMode;
-  const classList = user || isReal ? myClasses : demoClasses;
+  const { classes: myClasses } = useMyClasses();
+  // Single source of truth: mode drives which class list we show.
+  // "real" → user's Supabase classes only (empty if none yet).
+  // "demo" or "loading" → demo tour classes.
+  const realMode = mode === "real";
+  const classList = realMode ? myClasses : demoClasses;
   const groups = buildGroups(classList);
+
 
 
 

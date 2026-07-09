@@ -22,11 +22,18 @@ function greetingWord() {
 export function TopStrip() {
   const momentum = useMomentum();
   const { setOpen } = useCommandPalette();
-  const { isDemoMode, user, profile } = useAuth();
+  const { isDemoMode, user, profile, mode } = useAuth();
 
-  const name = user
-    ? (profile?.display_name?.split(" ")[0] || user.email?.split("@")[0] || "there")
-    : studentName;
+  // Single source of truth: mode drives every demo-vs-real decision on this widget.
+  const realMode = mode === "real";
+  const showDemoBits = mode === "demo";
+
+  const name = realMode
+    ? (profile?.display_name?.split(" ")[0] || user?.email?.split("@")[0] || "there")
+    : mode === "loading"
+      ? ""
+      : studentName;
+
 
   const TrendIcon =
     momentum.trend === "rising" ? TrendingUp :
@@ -46,11 +53,12 @@ export function TopStrip() {
         <h1 className="font-display text-lg md:text-xl font-semibold text-foreground leading-tight truncate">
           {greetingWord()}, {name}
         </h1>
-        <p className="text-[11px] text-muted-foreground truncate">{user && !isDemoMode ? "Welcome back" : momentum.line}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{realMode ? "Welcome back" : mode === "loading" ? "" : momentum.line}</p>
 
       </div>
 
-      {(!user || isDemoMode) && (
+      {showDemoBits && (
+
         <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
           <Flame className="h-3.5 w-3.5" />
           {momentum.streak}

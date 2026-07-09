@@ -19,6 +19,14 @@ const DEMO_KEY = "cc_demo_mode_v1";
 
 type Profile = { display_name: string | null; onboarded_at: string | null } | null;
 
+/**
+ * `mode` is the SINGLE source of truth for demo-vs-real rendering.
+ *   - "real": authenticated user, NOT in explicit demo mode → real data only.
+ *   - "demo": explicit opt-in demo (or anon user viewing the demo tour).
+ *   - "loading": auth state still resolving — render neutral empty UI, never demo.
+ */
+type DataMode = "real" | "demo" | "loading";
+
 type AuthState = {
   session: Session | null;
   user: User | null;
@@ -26,10 +34,12 @@ type AuthState = {
   onboarded: boolean | null; // null = still loading
   isDemoMode: boolean;
   profile: Profile;
+  mode: DataMode;
   enableDemoMode: () => void;
   signOut: () => Promise<void>;
   refreshOnboarded: () => Promise<void>;
 };
+
 
 const AuthCtx = createContext<AuthState | null>(null);
 
@@ -84,6 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const mode: DataMode = loading
+    ? "loading"
+    : session?.user
+      ? (isDemoMode ? "demo" : "real")
+      : (isDemoMode ? "demo" : "demo"); // anon = demo tour
+
   const value = useMemo<AuthState>(
     () => ({
       session,
@@ -92,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboarded,
       isDemoMode,
       profile,
+      mode,
+
       enableDemoMode: () => {
         localStorage.setItem(DEMO_KEY, "1");
         setDemo(true);
@@ -104,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       refreshOnboarded: () => loadProfile(session?.user?.id),
     }),
-    [session, loading, isDemoMode, onboarded, profile]
+    [session, loading, isDemoMode, onboarded, profile, mode]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
