@@ -67,7 +67,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, isDemoMode]);
 
   return state;
 }
