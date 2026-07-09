@@ -77,8 +77,13 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
       {
         user_id: userId,
         display_name: data.name || null,
+        learner_type: data.learnerType || null,
+        term: data.term || null,
+        school_id: schoolId,
+        work_schedule: data.workSchedule || null,
         encouragement_tone: "warm",
         default_study_length: 25,
+        onboarded_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
     );
