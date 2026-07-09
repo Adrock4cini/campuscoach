@@ -13,7 +13,9 @@ import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Sparkles, ListChecks } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play } from "lucide-react";
+import { RealStudyRunner } from "@/components/study/RealStudyRunner";
+import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
 import type {
   FlashcardsPayload,
