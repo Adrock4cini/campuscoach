@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.owns_row(uuid) TO anon, authenticated;

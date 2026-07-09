@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { Camera, Sparkles, Users, TrendingUp, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,6 +54,10 @@ export function OnboardingDialog() {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-md p-0 overflow-hidden border-border/60">
+        <VisuallyHidden>
+          <DialogTitle>{s.title}</DialogTitle>
+          <DialogDescription>{s.body}</DialogDescription>
+        </VisuallyHidden>
         <div className={`p-6 bg-gradient-to-br ${s.tint}`}>
           <div className="h-14 w-14 rounded-2xl bg-background/40 backdrop-blur flex items-center justify-center mb-4">
             <Icon className="h-7 w-7 text-foreground" />
