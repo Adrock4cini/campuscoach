@@ -621,6 +621,54 @@ export type Database = {
           },
         ]
       }
+      learning_artifacts: {
+        Row: {
+          capture_id: string | null
+          class_id: string | null
+          concept_ids: string[]
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["artifact_kind"]
+          model: string | null
+          payload: Json
+          prompt_version: string
+          stale: boolean
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id?: string | null
+          class_id?: string | null
+          concept_ids?: string[]
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["artifact_kind"]
+          model?: string | null
+          payload?: Json
+          prompt_version?: string
+          stale?: boolean
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string | null
+          class_id?: string | null
+          concept_ids?: string[]
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["artifact_kind"]
+          model?: string | null
+          payload?: Json
+          prompt_version?: string
+          stale?: boolean
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       materials: {
         Row: {
           anonymized: boolean
@@ -1179,7 +1227,17 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      artifact_kind:
+        | "flashcards"
+        | "multiple_choice"
+        | "fill_blank"
+        | "matching"
+        | "practice"
+        | "study_guide"
+        | "cheat_sheet"
+        | "eli5"
+        | "eli_professor"
+        | "mnemonic"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1306,6 +1364,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      artifact_kind: [
+        "flashcards",
+        "multiple_choice",
+        "fill_blank",
+        "matching",
+        "practice",
+        "study_guide",
+        "cheat_sheet",
+        "eli5",
+        "eli_professor",
+        "mnemonic",
+      ],
+    },
   },
 } as const
