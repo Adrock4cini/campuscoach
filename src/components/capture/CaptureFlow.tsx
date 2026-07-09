@@ -280,6 +280,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
               {stage === "done" && result && (
                 <DoneSummary
                   result={result}
+                  className={classes.find((c) => c.id === result.context.classId)?.name}
                   onClose={onClose}
                   onOpenClass={() => {
                     onClose();
