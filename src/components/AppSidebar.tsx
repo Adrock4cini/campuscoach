@@ -161,7 +161,16 @@ export function AppSidebar() {
                         ) : (
                           <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
                         )}
-                        {!collapsed && <span className="tracking-tight truncate">{item.title}</span>}
+                        {!collapsed && (
+                          <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
+                            <span className="truncate">{item.title}</span>
+                            {realMode && COMING_SOON_FOR_REAL.has(item.url) && (
+                              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
+                                Soon
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
