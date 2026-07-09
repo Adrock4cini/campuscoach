@@ -31,7 +31,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
-import { isOnboarded } from "@/lib/onboarding/store";
+
 
 function RootGate() {
   const { user, isDemoMode, loading, onboarded } = useAuth();
