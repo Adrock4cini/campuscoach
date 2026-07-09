@@ -1,16 +1,17 @@
 /**
  * RealCoachHero — the Dashboard's tutor voice for real users.
  *
- * Renders the top-ranked recommendation from `useCoachRecommendations`.
- * Shows one sentence (`why`) but preserves the structured `evidence`
- * array in a small chip row so the student can see WHY without
- * a redesigned drawer.
+ * Presentation refresh (UX polish sprint):
+ *  - One dominant CTA card that reads as a single tappable surface on mobile.
+ *  - Secondary recommendations become large, tappable rows below.
+ *  - Evidence stays in the data model but is condensed visually to reduce
+ *    competing chips near the primary action.
  *
- * No new UI system — reuses existing tokens/components.
+ * No functional changes.
  */
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Camera, BookOpen, Repeat } from "lucide-react";
+import { Sparkles, ArrowRight, Camera, BookOpen, Repeat, ChevronRight } from "lucide-react";
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
 import type { CoachActionKind } from "@/lib/coach/recommend";
 
@@ -42,87 +43,106 @@ export function RealCoachHero() {
       : `/study-lab?classId=${encodeURIComponent(top.classId)}`;
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-[28px] border border-primary/30 glass shadow-elegant p-6 md:p-7"
-    >
-      <div className="flex items-start gap-4">
-        <div className="h-11 w-11 rounded-2xl bg-gradient-calm flex items-center justify-center flex-shrink-0">
-          <Icon className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-primary/90 mb-1">
-            <Sparkles className="h-3 w-3" /> Coach · next {top.minutes} min
+    <div className="space-y-3">
+      {/* Primary — one big tappable card */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+      >
+        <Link
+          to={href}
+          className="group relative block overflow-hidden rounded-[28px] border border-primary/30 glass shadow-elegant p-6 md:p-7 active:scale-[0.995] transition-transform"
+        >
+          <div className="absolute inset-0 pointer-events-none opacity-70">
+            <div className="absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/20 blur-[100px]" />
+            <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-accent/15 blur-[100px]" />
           </div>
-          <h2 className="font-display text-xl md:text-2xl font-semibold tracking-tight text-foreground">
-            {top.className}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{top.why}</p>
 
-          {top.evidence.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {top.evidence.slice(0, 4).map((e, i) => (
-                <span
-                  key={`${e.type}-${i}`}
-                  title={`weight ${(e.weight * 100).toFixed(0)}%`}
-                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-muted-foreground bg-background/40"
-                >
-                  <span className="uppercase tracking-wider text-[9px] text-foreground/60">
-                    {e.type}
+          <div className="relative flex items-start gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-calm flex items-center justify-center flex-shrink-0 shadow-elegant">
+              <Icon className="h-5 w-5 text-primary-foreground" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.22em] text-primary/90 mb-1">
+                <Sparkles className="h-3 w-3" /> Coach · next {top.minutes} min
+              </div>
+              <h2 className="font-display text-xl md:text-2xl font-semibold tracking-tight text-foreground leading-tight">
+                {top.className}
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+                {top.why}
+              </p>
+
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 h-10 px-5 rounded-2xl bg-gradient-calm text-primary-foreground text-sm font-semibold shadow-elegant group-hover:opacity-95">
+                  {ACTION_VERB[top.action]}
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+                {top.impact.readinessDelta > 0 && (
+                  <span className="inline-flex items-center text-[11px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">
+                    +{top.impact.readinessDelta}% readiness
                   </span>
-                  <span className="text-foreground/80">{e.label}</span>
-                </span>
-              ))}
-              {top.impact.readinessDelta > 0 && (
-                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  +{top.impact.readinessDelta}% readiness
-                </span>
+                )}
+              </div>
+
+              {top.evidence.length > 0 && (
+                <p className="mt-3 text-[11px] text-muted-foreground/80 truncate">
+                  {top.evidence
+                    .slice(0, 3)
+                    .map((e) => e.label)
+                    .join(" · ")}
+                </p>
               )}
             </div>
-          )}
-
-          <div className="mt-4">
-            <Link
-              to={href}
-              className="inline-flex items-center gap-1.5 h-10 px-5 rounded-2xl bg-gradient-calm text-primary-foreground text-sm font-semibold shadow-elegant hover:opacity-95"
-            >
-              {ACTION_VERB[top.action]}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
           </div>
-        </div>
-      </div>
+        </Link>
+      </motion.div>
 
+      {/* Secondary — large tappable rows */}
       {recommendations.length > 1 && (
-        <div className="mt-5 pt-4 border-t border-border/40">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+        <div className="space-y-1.5">
+          <p className="px-1 text-[11px] uppercase tracking-wider text-muted-foreground">
             Then
           </p>
           <ul className="space-y-1.5">
             {recommendations.slice(1, 4).map((r) => {
               const RIcon = ACTION_ICON[r.action];
+              const rhref =
+                r.action === "capture"
+                  ? `/class/${r.classId}`
+                  : `/study-lab?classId=${encodeURIComponent(r.classId)}`;
               return (
-                <li
-                  key={r.id}
-                  className="flex items-center gap-2 rounded-xl border border-border/30 hover:border-border/70 bg-background/30 px-3 py-2 text-sm"
-                >
-                  <RIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="flex-1 truncate text-foreground">
-                    <span className="text-muted-foreground">{r.className} · </span>
-                    {r.why}
-                  </span>
-                  {r.impact.readinessDelta > 0 && (
-                    <span className="text-[11px] tabular-nums text-primary">
-                      +{r.impact.readinessDelta}%
+                <li key={r.id}>
+                  <Link
+                    to={rhref}
+                    className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/50 hover:bg-card/70 hover:border-border/70 px-4 py-3 min-h-[64px] transition-colors active:scale-[0.995]"
+                  >
+                    <span className="h-9 w-9 rounded-xl bg-background/60 flex items-center justify-center shrink-0">
+                      <RIcon className="h-4 w-4 text-muted-foreground" />
                     </span>
-                  )}
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[11px] text-muted-foreground truncate">
+                        {r.className}
+                      </span>
+                      <span className="block text-sm text-foreground truncate">
+                        {r.why}
+                      </span>
+                    </span>
+                    {r.impact.readinessDelta > 0 && (
+                      <span className="text-[11px] tabular-nums text-primary shrink-0">
+                        +{r.impact.readinessDelta}%
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </Link>
                 </li>
               );
             })}
           </ul>
         </div>
       )}
-    </motion.section>
+    </div>
   );
 }
