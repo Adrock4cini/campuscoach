@@ -63,7 +63,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       return;
     }
     setState({
-      artifact: (data as LearningArtifact<K> | null) ?? null,
+      artifact: (data as unknown as LearningArtifact<K> | null) ?? null,
       loading: false,
       generating: false,
       error: null,
