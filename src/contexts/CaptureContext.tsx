@@ -29,13 +29,6 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
 
 export function useCapture() {
   const v = useContext(Ctx);
-  if (!v) {
-    // Provider not mounted (e.g. transient HMR, or component rendered outside
-    // AppLayout). Fall back to a no-op so we don't crash the whole tree.
-    if (typeof window !== "undefined") {
-      console.warn("useCapture used outside <CaptureProvider> — returning no-op");
-    }
-    return { open: () => {}, close: () => {} } satisfies CaptureContextValue;
-  }
+  if (!v) throw new Error("useCapture must be used inside <CaptureProvider>");
   return v;
 }
