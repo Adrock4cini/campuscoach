@@ -22,7 +22,11 @@ function greetingWord() {
 export function TopStrip() {
   const momentum = useMomentum();
   const { setOpen } = useCommandPalette();
-  const { isDemoMode } = useAuth();
+  const { isDemoMode, user, profile } = useAuth();
+
+  const name = user
+    ? (profile?.display_name?.split(" ")[0] || user.email?.split("@")[0] || "there")
+    : studentName;
 
   const TrendIcon =
     momentum.trend === "rising" ? TrendingUp :
