@@ -13,6 +13,7 @@ import { classes as demoClasses } from "@/data/demo";
 import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
+import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 
 /**
  * Dashboard — the intelligent home screen.
