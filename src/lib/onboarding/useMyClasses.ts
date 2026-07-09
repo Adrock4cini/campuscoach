@@ -13,18 +13,21 @@ import { classes as demoClasses, type ClassInfo } from "@/data/demo";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading: boolean } {
-  const { user } = useAuth();
-  const [state, setState] = useState<{ classes: ClassInfo[]; isReal: boolean; loading: boolean }>({
-    classes: demoClasses,
-    isReal: false,
-    loading: !!user,
-  });
+  const { user, isDemoMode } = useAuth();
+  const realMode = !!user && !isDemoMode;
+  const [state, setState] = useState<{ classes: ClassInfo[]; isReal: boolean; loading: boolean }>(() => ({
+    // Signed-in real users NEVER see demo classes — start empty while loading.
+    classes: realMode ? [] : demoClasses,
+    isReal: realMode,
+    loading: realMode,
+  }));
 
   useEffect(() => {
-    if (!user) {
+    if (!user || isDemoMode) {
       setState({ classes: demoClasses, isReal: false, loading: false });
       return;
     }
+
     let cancelled = false;
     (async () => {
       try {
