@@ -28,6 +28,8 @@ const durations = [15, 25, 45];
 export default function StudyLab() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { mode: authMode } = useAuth();
+  const isRealUser = authMode === "real";
 
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
