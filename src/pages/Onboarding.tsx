@@ -119,6 +119,21 @@ export default function Onboarding() {
                         onChange={(e) => update({ name: e.target.value })}
                         placeholder="Alex"
                       />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">I'm a…</Label>
+                        <Select
+                          value={data.learnerType}
+                          onValueChange={(v: any) => update({ learnerType: v })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="high_school">High school student</SelectItem>
+                            <SelectItem value="college">College student</SelectItem>
+                            <SelectItem value="certification">Certification / bootcamp</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <SyllabusImport data={data} onMerge={update} />
                     </div>
                   </StepShell>
