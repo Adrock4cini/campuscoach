@@ -94,23 +94,24 @@ const App = () => (
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
-                    <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-                    <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
+                    <Route path="/calendar" element={<Protected><DemoOnly title="Calendar — coming soon" description="Your real calendar view is on the way. We'll pull in your classes, assignments, and exams automatically."><CalendarPage /></DemoOnly></Protected>} />
+                    <Route path="/study-lab" element={<Protected><DemoOnly title="Study Lab — coming soon" description="Personalized study sessions from your real class captures are being wired up."><StudyLab /></DemoOnly></Protected>} />
                     <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
                     <Route path="/focus-sprint" element={<Protected><FocusSprint /></Protected>} />
                     <Route path="/assignments" element={<Protected><AssignmentsPage /></Protected>} />
-                    <Route path="/assignments/:assignmentId" element={<Protected><AssignmentDetail /></Protected>} />
+                    <Route path="/assignments/:assignmentId" element={<Protected><DemoOnly title="Assignment details — coming soon" description="Detailed assignment views for your real assignments are on the way. For now, manage them from the Assignments list."><AssignmentDetail /></DemoOnly></Protected>} />
                     <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
-                    <Route path="/exams/:examId" element={<Protected><ExamDetail /></Protected>} />
-                    <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
-                    <Route path="/notes/:noteId" element={<Protected><NoteDetail /></Protected>} />
-                    <Route path="/progress" element={<Protected><ProgressPage /></Protected>} />
+                    <Route path="/exams/:examId" element={<Protected><DemoOnly title="Exam details — coming soon" description="Detailed exam readiness views for your real exams are on the way. For now, manage them from the Exams list."><ExamDetail /></DemoOnly></Protected>} />
+                    <Route path="/notes" element={<Protected><DemoOnly title="Notes & Recordings — coming soon" description="Your real capture library is being wired up here."><NotesPage /></DemoOnly></Protected>} />
+                    <Route path="/notes/:noteId" element={<Protected><DemoOnly title="Note details — coming soon" description="Detailed views for your real captures are on the way."><NoteDetail /></DemoOnly></Protected>} />
+                    <Route path="/progress" element={<Protected><DemoOnly title="Progress — coming soon" description="Your real study progress and streaks will show up here soon."><ProgressPage /></DemoOnly></Protected>} />
                     <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
                     <Route path="/exam-debrief" element={<Protected><ExamDebriefPage /></Protected>} />
-                    <Route path="/course-intelligence" element={<Protected><CourseIntelligencePage /></Protected>} />
-                    <Route path="/your-week" element={<Protected><YourWeekPage /></Protected>} />
-                    <Route path="/path-to-graduation" element={<Protected><PathToGraduation /></Protected>} />
-                    <Route path="/scholarships" element={<Protected><ScholarshipsPage /></Protected>} />
+                    <Route path="/course-intelligence" element={<Protected><DemoOnly title="Class Intelligence — coming soon" description="Peer-driven class intelligence for your real classes is not ready yet."><CourseIntelligencePage /></DemoOnly></Protected>} />
+                    <Route path="/your-week" element={<Protected><DemoOnly title="Your Week — coming soon" description="A week-at-a-glance built from your real schedule is on the way."><YourWeekPage /></DemoOnly></Protected>} />
+                    <Route path="/path-to-graduation" element={<Protected><DemoOnly title="Path to Graduation — coming soon" description="Long-term degree planning for your real record isn't ready yet."><PathToGraduation /></DemoOnly></Protected>} />
+                    <Route path="/scholarships" element={<Protected><DemoOnly title="Scholarships — coming soon" description="Personalized scholarship matches for your real profile aren't ready yet."><ScholarshipsPage /></DemoOnly></Protected>} />
+
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </AppLayout>
