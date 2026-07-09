@@ -44,9 +44,10 @@ export function TopStrip() {
     >
       <div className="min-w-0">
         <h1 className="font-display text-lg md:text-xl font-semibold text-foreground leading-tight truncate">
-          {greetingWord()}, {studentName}
+          {greetingWord()}, {name}
         </h1>
-        <p className="text-[11px] text-muted-foreground truncate">{momentum.line}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{user && !isDemoMode ? "Welcome back" : momentum.line}</p>
+
       </div>
 
       <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
