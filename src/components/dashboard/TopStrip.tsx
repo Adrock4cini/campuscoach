@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
-import { Flame, TrendingUp, TrendingDown, Minus, Search, Bell } from "lucide-react";
+import { Flame, TrendingUp, TrendingDown, Minus, Search, Bell, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { studentName } from "@/data/demo";
 import { useMomentum } from "@/lib/intelligence";
 import { useCommandPalette } from "@/components/CommandPalette";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 function greetingWord() {
