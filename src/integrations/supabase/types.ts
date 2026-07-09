@@ -556,10 +556,14 @@ export type Database = {
           display_name: string | null
           encouragement_tone: string | null
           id: string
+          learner_type: string | null
           major: string | null
+          onboarded_at: string | null
           school_id: string | null
+          term: string | null
           updated_at: string
           user_id: string
+          work_schedule: string | null
           year: string | null
         }
         Insert: {
@@ -568,10 +572,14 @@ export type Database = {
           display_name?: string | null
           encouragement_tone?: string | null
           id?: string
+          learner_type?: string | null
           major?: string | null
+          onboarded_at?: string | null
           school_id?: string | null
+          term?: string | null
           updated_at?: string
           user_id: string
+          work_schedule?: string | null
           year?: string | null
         }
         Update: {
@@ -580,10 +588,14 @@ export type Database = {
           display_name?: string | null
           encouragement_tone?: string | null
           id?: string
+          learner_type?: string | null
           major?: string | null
+          onboarded_at?: string | null
           school_id?: string | null
+          term?: string | null
           updated_at?: string
           user_id?: string
+          work_schedule?: string | null
           year?: string | null
         }
         Relationships: [
