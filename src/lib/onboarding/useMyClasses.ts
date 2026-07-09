@@ -1,39 +1,43 @@
 /**
  * useMyClasses — returns the current student's classes in the
- * `ClassInfo` shape the app already uses. Falls back to demo data
- * when the student hasn't onboarded or Supabase is unreachable.
+ * `ClassInfo` shape the app already uses.
+ *
+ * Behavior:
+ *   - Signed-in user: reads from Supabase (RLS scoped to `auth.uid()`).
+ *     Reloads on auth state change.
+ *   - Signed-out / demo mode: returns demo classes.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getAnonUserId } from "@/hooks/useClassIntelligence";
 import { classes as demoClasses, type ClassInfo } from "@/data/demo";
-import { isOnboarded } from "./store";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading: boolean } {
+  const { user } = useAuth();
   const [state, setState] = useState<{ classes: ClassInfo[]; isReal: boolean; loading: boolean }>({
     classes: demoClasses,
     isReal: false,
-    loading: isOnboarded(),
+    loading: !!user,
   });
 
   useEffect(() => {
-    if (!isOnboarded()) {
+    if (!user) {
       setState({ classes: demoClasses, isReal: false, loading: false });
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const userId = getAnonUserId();
         const { data, error } = await supabase
           .from("classes")
           .select("id, client_class_id, name, professor, location, color, current_topic, readiness, meta")
-          .eq("user_id", userId)
+          .eq("user_id", user.id)
           .order("created_at", { ascending: true });
         if (error) throw error;
         if (cancelled) return;
         if (!data || data.length === 0) {
-          setState({ classes: demoClasses, isReal: false, loading: false });
+          // Real signed-in user with no classes yet — return empty (real mode).
+          setState({ classes: [], isReal: true, loading: false });
           return;
         }
         const mapped: ClassInfo[] = data.map((row: any, i: number) => ({
@@ -60,7 +64,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   return state;
 }

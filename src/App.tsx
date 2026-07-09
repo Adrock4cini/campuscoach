@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import MyClasses from "./pages/MyClasses";
 import ClassDetail from "./pages/ClassDetail";
@@ -25,13 +26,28 @@ import PathToGraduation from "./pages/PathToGraduation";
 import ScholarshipsPage from "./pages/ScholarshipsPage";
 import YourWeekPage from "./pages/YourWeekPage";
 import Onboarding from "./pages/Onboarding";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
-import { isOnboarded, isDemoMode } from "@/lib/onboarding/store";
-import { Navigate as RRNavigate } from "react-router-dom";
+
 
 function RootGate() {
-  if (!isOnboarded() && !isDemoMode()) return <RRNavigate to="/onboarding" replace />;
-  return <RRNavigate to="/dashboard" replace />;
+  const { user, isDemoMode, loading, onboarded } = useAuth();
+  if (loading) return null;
+  if (!user && !isDemoMode) return <Navigate to="/login" replace />;
+  if (user && onboarded === null) return null; // still checking profile
+  if (user && !onboarded) return <Navigate to="/onboarding" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
+function Protected({ children }: { children: React.ReactNode }) {
+  const { user, isDemoMode, loading } = useAuth();
+  const loc = useLocation();
+  if (loading) return null;
+  if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: loc.pathname }} />;
+  return <>{children}</>;
 }
 
 const queryClient = new QueryClient();
@@ -42,33 +58,49 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppLayout>
+        <AuthProvider>
           <Routes>
-            <Route path="/" element={<RootGate />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/classes" element={<MyClasses />} />
-            <Route path="/classes/:classId" element={<ClassDetail />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/study-lab" element={<StudyLab />} />
-            <Route path="/study-lab/session" element={<StudySession />} />
-            <Route path="/focus-sprint" element={<FocusSprint />} />
-            <Route path="/assignments" element={<AssignmentsPage />} />
-            <Route path="/assignments/:assignmentId" element={<AssignmentDetail />} />
-            <Route path="/exams" element={<ExamsPage />} />
-            <Route path="/exams/:examId" element={<ExamDetail />} />
-            <Route path="/notes" element={<NotesPage />} />
-            <Route path="/notes/:noteId" element={<NoteDetail />} />
-            <Route path="/progress" element={<ProgressPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/exam-debrief" element={<ExamDebriefPage />} />
-            <Route path="/course-intelligence" element={<CourseIntelligencePage />} />
-            <Route path="/your-week" element={<YourWeekPage />} />
-            <Route path="/path-to-graduation" element={<PathToGraduation />} />
-            <Route path="/scholarships" element={<ScholarshipsPage />} />
-            <Route path="*" element={<NotFound />} />
+            {/* Public auth routes — no AppLayout */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* Everything else lives inside the app shell */}
+            <Route
+              path="*"
+              element={
+                <AppLayout>
+                  <Routes>
+                    <Route path="/" element={<RootGate />} />
+                    <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+                    <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                    <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
+                    <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
+                    <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
+                    <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
+                    <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
+                    <Route path="/focus-sprint" element={<Protected><FocusSprint /></Protected>} />
+                    <Route path="/assignments" element={<Protected><AssignmentsPage /></Protected>} />
+                    <Route path="/assignments/:assignmentId" element={<Protected><AssignmentDetail /></Protected>} />
+                    <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
+                    <Route path="/exams/:examId" element={<Protected><ExamDetail /></Protected>} />
+                    <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
+                    <Route path="/notes/:noteId" element={<Protected><NoteDetail /></Protected>} />
+                    <Route path="/progress" element={<Protected><ProgressPage /></Protected>} />
+                    <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+                    <Route path="/exam-debrief" element={<Protected><ExamDebriefPage /></Protected>} />
+                    <Route path="/course-intelligence" element={<Protected><CourseIntelligencePage /></Protected>} />
+                    <Route path="/your-week" element={<Protected><YourWeekPage /></Protected>} />
+                    <Route path="/path-to-graduation" element={<Protected><PathToGraduation /></Protected>} />
+                    <Route path="/scholarships" element={<Protected><ScholarshipsPage /></Protected>} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AppLayout>
+              }
+            />
           </Routes>
-        </AppLayout>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

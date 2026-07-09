@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Plus, Trash2, Sparkles, CalendarDays, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, CalendarDays, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/lib/onboarding/types";
-import { saveOnboarding, markDemoMode } from "@/lib/onboarding/store";
+import { saveOnboarding } from "@/lib/onboarding/store";
+import { useAuth } from "@/contexts/AuthContext";
 import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
@@ -31,6 +32,7 @@ const STEPS = [
 
 export default function Onboarding() {
   const nav = useNavigate();
+  const { refreshOnboarded } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(emptyOnboarding);
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,7 @@ export default function Onboarding() {
         classes: data.classes.filter((c) => c.name.trim()),
       });
       toast.success("You're set up!", { description: "Welcome to Campus Coach." });
+      await refreshOnboarded();
       nav("/dashboard", { replace: true });
     } catch (e) {
       toast.error("Couldn't finish setup", { description: "Please try again." });
@@ -68,11 +71,8 @@ export default function Onboarding() {
     }
   };
 
-  const useDemo = () => {
-    markDemoMode();
-    toast("Using demo mode", { description: "You can set up your real classes anytime in Settings." });
-    nav("/dashboard", { replace: true });
-  };
+  // Demo mode is entered from the login screen; onboarding is only reached
+  // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
   const next = () => (step < STEPS.length - 1 ? setStep(step + 1) : finish());
   const back = () => setStep((s) => Math.max(0, s - 1));
@@ -119,6 +119,21 @@ export default function Onboarding() {
                         onChange={(e) => update({ name: e.target.value })}
                         placeholder="Alex"
                       />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">I'm a…</Label>
+                        <Select
+                          value={data.learnerType}
+                          onValueChange={(v: any) => update({ learnerType: v })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="high_school">High school student</SelectItem>
+                            <SelectItem value="college">College student</SelectItem>
+                            <SelectItem value="certification">Certification / bootcamp</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <SyllabusImport data={data} onMerge={update} />
                     </div>
                   </StepShell>
@@ -281,20 +296,15 @@ export default function Onboarding() {
               <Button variant="ghost" size="sm" onClick={back} disabled={step === 0}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
               </Button>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={useDemo}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Skip · use demo
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-gradient-calm border-0 text-primary-foreground"
-                  onClick={next}
-                  disabled={!canNext || saving}
-                >
-                  {step === STEPS.length - 1 ? (saving ? "Setting up…" : "Finish") : "Next"}
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                className="bg-gradient-calm border-0 text-primary-foreground"
+                onClick={next}
+                disabled={!canNext || saving}
+              >
+                {step === STEPS.length - 1 ? (saving ? "Setting up…" : "Finish") : "Next"}
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
             </div>
           </CardContent>
         </Card>

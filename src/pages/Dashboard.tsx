@@ -41,7 +41,7 @@ export default function Dashboard() {
       <TopStrip />
 
       {/* Row 2 — Do This Now hero */}
-      {!isReal && <DoThisNowHero />}
+      <DoThisNowHero />
 
       {/* Row 3 — Your Classes (left) + Today's Plan (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] gap-5">
@@ -56,26 +56,30 @@ export default function Dashboard() {
             <span className="text-[11px] text-muted-foreground">{ordered.length}</span>
           </div>
           <div className="space-y-2">
-            {ordered.map((c, i) =>
-              isReal ? (
-                <RealClassCard key={c.id} c={c} index={i} />
-              ) : (
-                <ClassQuickCard key={c.id} classId={c.id} index={i} />
+            {ordered.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">
+                No classes yet — add one from Settings to get started.
+              </p>
+            ) : (
+              ordered.map((c, i) =>
+                isReal ? (
+                  <RealClassCard key={c.id} c={c} index={i} />
+                ) : (
+                  <ClassQuickCard key={c.id} classId={c.id} index={i} />
+                )
               )
             )}
           </div>
         </motion.section>
 
-        {!isReal && (
-          <aside className="space-y-4 lg:sticky lg:top-4 self-start">
-            <TodaysChecklist />
-            <BrainOneLiner insight={insight} />
-          </aside>
-        )}
+        <aside className="space-y-4 lg:sticky lg:top-4 self-start">
+          <TodaysChecklist />
+          <BrainOneLiner insight={insight} />
+        </aside>
       </div>
 
       {/* Row 5 — habit bar */}
-      {!isReal && <BottomBar />}
+      <BottomBar />
     </div>
   );
 }
