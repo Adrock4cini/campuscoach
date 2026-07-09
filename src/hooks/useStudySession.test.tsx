@@ -17,8 +17,9 @@ const q = (id: string): StudyQuestion => ({
   topic: "Memory Models",
   type: "true-false",
   difficulty: "easy",
-  question: `Q ${id}`,
+  prompt: `Q ${id}`,
   answer: "true",
+  explanation: "",
 });
 
 describe("study session journey", () => {
