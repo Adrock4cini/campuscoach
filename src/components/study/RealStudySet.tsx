@@ -105,7 +105,7 @@ export function RealStudySet({ classId }: Props) {
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
             variant={artifact ? "outline" : "default"}
@@ -129,8 +129,23 @@ export function RealStudySet({ classId }: Props) {
               </>
             )}
           </Button>
+          {artifact && count > 0 && (
+            <Button size="sm" onClick={() => setStudying(true)} disabled={generating}>
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              Study now
+            </Button>
+          )}
         </div>
       </CardContent>
+
+      {artifact && studying && (
+        <RealStudyRunner
+          open={studying}
+          onOpenChange={setStudying}
+          artifact={artifact as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice">}
+          onCompleted={() => { reload(); }}
+        />
+      )}
     </Card>
   );
 }
