@@ -17,12 +17,15 @@ import { setAuthUserId } from "@/hooks/useClassIntelligence";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
+type Profile = { display_name: string | null; onboarded_at: string | null } | null;
+
 type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
   onboarded: boolean | null; // null = still loading
   isDemoMode: boolean;
+  profile: Profile;
   enableDemoMode: () => void;
   signOut: () => Promise<void>;
   refreshOnboarded: () => Promise<void>;
