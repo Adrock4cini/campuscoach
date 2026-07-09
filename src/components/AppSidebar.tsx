@@ -89,10 +89,13 @@ const groups = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { user, isDemoMode, signOut } = useAuth();
+  const nav = useNavigate();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarContent className="pt-4">
+
         <div className={`px-4 pb-4 ${collapsed ? "px-2" : ""}`}>
           {collapsed ? (
             <div className="flex items-center justify-center">
