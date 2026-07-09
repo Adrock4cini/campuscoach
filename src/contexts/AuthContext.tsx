@@ -19,6 +19,14 @@ const DEMO_KEY = "cc_demo_mode_v1";
 
 type Profile = { display_name: string | null; onboarded_at: string | null } | null;
 
+/**
+ * `mode` is the SINGLE source of truth for demo-vs-real rendering.
+ *   - "real": authenticated user, NOT in explicit demo mode → real data only.
+ *   - "demo": explicit opt-in demo (or anon user viewing the demo tour).
+ *   - "loading": auth state still resolving — render neutral empty UI, never demo.
+ */
+type DataMode = "real" | "demo" | "loading";
+
 type AuthState = {
   session: Session | null;
   user: User | null;
@@ -26,10 +34,12 @@ type AuthState = {
   onboarded: boolean | null; // null = still loading
   isDemoMode: boolean;
   profile: Profile;
+  mode: DataMode;
   enableDemoMode: () => void;
   signOut: () => Promise<void>;
   refreshOnboarded: () => Promise<void>;
 };
+
 
 const AuthCtx = createContext<AuthState | null>(null);
 
