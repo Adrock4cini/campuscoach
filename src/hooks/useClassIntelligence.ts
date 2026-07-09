@@ -149,8 +149,15 @@ export async function contributeStudySignal(input: {
   });
 }
 
-// Persist an anonymous device-level identifier so this user's signals coalesce
+// Returns the current user's id. Prefers the authenticated Supabase session
+// (kept in sync via `setAuthUserId` from AuthContext); falls back to a stable
+// per-browser anonymous uuid for demo mode / signed-out users.
+let cachedAuthUserId: string | null = null;
+export function setAuthUserId(id: string | null) {
+  cachedAuthUserId = id;
+}
 function getAnonUserId(): string {
+  if (cachedAuthUserId) return cachedAuthUserId;
   const KEY = "cc_anon_user_id";
   let id = localStorage.getItem(KEY);
   if (!id) {
