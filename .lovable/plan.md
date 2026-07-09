@@ -1,147 +1,157 @@
-# Real Student Auth + Multi-User Data — Plan
 
-Goal: make Campus Companion safe for real beta students. Add real auth, onboarding that creates real classes, wire captures to the backend, and unhide the intelligence surfaces for signed-in users. Demo mode stays as a fallback for signed-out visitors.
+# Campus Companion — Intelligence Pipeline
 
-No redesign, no new features beyond the auth/onboarding path required to reach the existing dashboard as a real user.
+Goal: every capture, session, assignment, and exam permanently improves per-student memory + recommendations. Nothing is lost on logout.
 
----
-
-## 1. Auth UI (email + Google, dark premium look)
-
-New files:
-- `src/pages/Login.tsx` — email/password + "Continue with Google" + "Forgot password" link + "Create account" link. Uses the managed helper for Google.
-- `src/pages/Signup.tsx` — email/password (with `emailRedirectTo: window.location.origin`) + Google, links to Login.
-- `src/pages/ForgotPassword.tsx` — `resetPasswordForEmail` with `redirectTo: origin + "/reset-password"`.
-- `src/pages/ResetPassword.tsx` — public route, reads `type=recovery` hash, `supabase.auth.updateUser({ password })`.
-- `src/contexts/AuthContext.tsx` — one place that owns `session`, `user`, `signOut`, plus `isDemoMode` (unauthenticated visitor). Registers `onAuthStateChange` and stores session synchronously; `getUser()` used for trust checks.
-
-Router:
-- Add `/login`, `/signup`, `/forgot-password`, `/reset-password`.
-- Replace `RootGate` with an auth-aware gate:
-  - has session AND `profiles.onboarded_at IS NULL` → `/onboarding`
-  - has session AND onboarded → `/dashboard`
-  - no session AND demo not accepted → `/login` (with "Continue as demo" button that sets `isDemoMode`)
-  - no session AND demo accepted → `/dashboard` in demo mode
-- Add a `Logout` item to `AppSidebar` / settings.
-
-Providers:
-- Wrap `App` with `AuthProvider` at the top of the tree.
-- Enable `password_hibp_enabled`; leave email confirmation on.
-- Configure Google via `configure_social_auth` so both defaults ship (email + Google).
-
-Constraint: email confirmation stays ON. Users must click the confirmation link before they land on onboarding.
+Legend for **Status**: 🟢 Real (Supabase-backed, survives logout) · 🟡 Mock (local/simulated) · 🔴 Missing.
 
 ---
 
-## 2. Onboarding (post-signup, ≤5 min)
+## Stage 1 — Account + Class Setup
 
-Reuse the existing `Onboarding` page and its store, but on completion write to Supabase instead of localStorage-only.
-
-Steps (keep it short):
-1. Name + learner type (`high_school | college | certification | other`) + term/semester string.
-2. School (existing `SchoolCombobox`) — reuses `schools` table so students naturally join the same network.
-3. Add classes — for each: title, professor/teacher, schedule (existing `DayPicker` + `TimePicker`), optional textbook.
-4. Optional work schedule (single free-text block for now — keep simple).
-5. Finish → seed `profiles`, `classes`, `enrollments`, and mark `profiles.onboarded_at = now()`.
-
-Existing `SyllabusImport` stays available as a shortcut on the "Add classes" step.
-
-Skipping onboarding is not allowed on the authenticated path.
-
----
-
-## 3. Real user data — schema changes
-
-Migration adds the missing columns needed to make onboarding round-trip. Everything else already exists.
-
-`profiles` — add:
-- `full_name text`
-- `learner_type text` check in ('high_school','college','certification','other')
-- `term text`
-- `school_id uuid references public.schools(id)`
-- `work_schedule text`
-- `onboarded_at timestamptz`
-
-`classes` — confirm and add if missing:
-- `professor text`, `textbook text`, `schedule jsonb` (`[{ day, start, end, location? }]`)
-
-RLS: keep existing per-user policies. Add self-insert/self-update on `profiles` if not already present. `schools` stays readable to `authenticated` for the combobox.
-
-`user_roles` is out of scope; not needed for beta.
+| Field | Value |
+|---|---|
+| INPUT | Signup form; class rows (name, code, professor, schedule) |
+| OUTPUT | `auth.users` row, `profiles` row, `classes` rows scoped to `auth.uid()` |
+| Tables | `auth.users`, `profiles`, `classes` |
+| Functions | `owns_row()`; RLS on `classes` |
+| Hooks | `useAuth`, `useMyClasses` |
+| Components | `Signup`, `Onboarding`, `MyClasses` |
+| Edge fns | — |
+| AI prompt | — |
+| Failure cases | duplicate class code; unauthenticated insert |
+| **Status** | 🟢 Real |
 
 ---
 
-## 4. Dashboard — real users get the full experience
+## Stage 2 — Syllabus Upload → Structured Classes/Exams/Assignments
 
-Currently `Dashboard.tsx` hides `DoThisNowHero`, `TodaysChecklist`, `BrainOneLiner`, `BottomBar` when `isReal` is true.
-
-Change:
-- Feed real classes into the same intelligence hooks (`useClassPriorities`, `useCampusBrainInsight`) so those surfaces have data.
-- Remove the `!isReal &&` guards. Both branches render the same 5-row layout.
-- `ClassQuickCard` vs `RealClassCard`: keep the split for now (real cards use live data), but present them identically in the "Your classes" column.
-- When intelligence hooks have zero data (brand-new account, no captures yet), the components already have empty states — verify each renders a "Nothing yet — capture a lecture to get started" state instead of a blank card.
-
----
-
-## 5. Quick Capture — Supabase-first when signed in
-
-Change `src/lib/capture/processor.ts::commitCapture`:
-- If a Supabase session exists: `await persistCaptureResult(...)` synchronously (currently fire-and-forget). If it succeeds, that's the source of truth. If it fails, fall back to localStorage and surface a toast "Saved locally — will sync when you're back online" (best-effort, not blocking).
-- If no session (demo): keep the existing localStorage path unchanged.
-
-Change `listCaptures` → make it async and route through a new `getCapturesForClass(userId, classId)` that reads from Supabase for authenticated users, localStorage otherwise. Class Memory (`src/components/capture/ClassMemory.tsx`) becomes an async data source — use React Query so loading/empty/error states are trivial.
-
-`campus_brain_signals` writes: the aggregate signal path already handles RLS failures gracefully. Confirm it inserts `user_id = auth.uid()` (RLS requires it).
+| Field | Value |
+|---|---|
+| INPUT | PDF/image via `SyllabusImport` |
+| OUTPUT | Parsed JSON: classes, examDates, assignments |
+| Tables | Should insert into `classes`, `exams`, `assignments` |
+| Edge fns | `parse-syllabus` (Gemini 2.5 flash, JSON mode) |
+| Hooks | `parseSyllabus.ts` |
+| Failure cases | non-PDF/image mime; hallucinated dates; user not authed |
+| **Status** | 🟡 Parser is 🟢 real; **persistence of parsed exams/assignments back to Supabase is 🔴 missing** — output currently only hydrates local onboarding store |
 
 ---
 
-## 6. Demo mode preserved
+## Stage 3 — Capture (lecture / board / textbook / file / note / hint / ask)
 
-- `AuthContext` exposes `isDemoMode` (no session + user accepted the demo prompt).
-- Add a persistent "Demo mode" chip to `TopStrip` when true, with a "Create account" button linking to `/signup`.
-- All existing demo data flows (`data/demo.ts`, localStorage) keep working unchanged for demo users.
-- The dashboard shell is identical for demo and real — only the data source differs.
-
----
-
-## 7. Security
-
-- All new tables/columns keep RLS scoped to `auth.uid()`.
-- `owns_row` grants stay as they are.
-- No new anon SELECT policies. Community intelligence still flows through the existing aggregate tables (`topic_scores`, etc.), which are the aggregate-only surface.
-- No secrets change.
-
----
-
-## 8. Acceptance tests
-
-Add Vitest specs alongside existing tests:
-- `src/pages/__tests__/auth-journey.test.tsx` — renders Login, submits form, mocks `supabase.auth.signInWithPassword`, asserts navigation.
-- `src/lib/capture/processor.auth.test.ts` — signed-in user: `commitCapture` calls `persistCaptureResult` and returns the same result on Supabase failure (fallback).
-- Extend `useStudySession.test.tsx` — already covers score tally; add one case that verifies `endSession` sets `endTime` (proxy for "readiness/momentum updates" — the hook feeds those aggregates).
-
-Plus a manual QA checklist in `docs/qa-checklist.md` covering the ten journeys the user listed (sign up → dashboard on another device).
+| Field | Value |
+|---|---|
+| INPUT | audio blob, image, file, or text + `{classId, topic}` |
+| OUTPUT | `captures` row + `processed_content` (concepts, summary) + optional `materials` row |
+| Tables | `captures`, `materials`, `processed_content` |
+| Functions | `commitCapture()` in `src/lib/capture/processor.ts` |
+| Hooks | `CaptureContext`, `useCapture` |
+| Components | `CaptureButton`, `CaptureFlow`, `ClassMemory` |
+| Edge fns | 🔴 none — no STT, no OCR, no LLM concept extraction |
+| AI prompt | 🔴 missing — needs "Extract key concepts, definitions, examples, professor-emphasis flags" prompt |
+| Failure cases | file too large; STT/OCR failure; class not owned by user |
+| **Status** | 🟡 Row persistence 🟢; **concept extraction is simulated** (`simulateConcepts`, `simulateSummary`); no upload to storage; flashcard/quiz counts are fake |
 
 ---
 
-## Execution order
+## Stage 4 — Concept Store / Class Memory
 
-1. Migration (profiles/classes columns).
-2. `AuthContext` + `configure_social_auth` (Google) + `configure_auth` (HIBP on).
-3. Auth pages + reset flow + router gate + logout in sidebar.
-4. Onboarding rewrite → writes to Supabase, marks `onboarded_at`.
-5. Dashboard: unhide surfaces for real users, verify empty states.
-6. Capture: Supabase-first `commitCapture` + async `listCaptures` + Class Memory read path.
-7. Tests + QA checklist.
-8. Full typecheck + tests + Playwright sweep of the auth routes.
+| Field | Value |
+|---|---|
+| INPUT | extracted concepts from Stage 3 |
+| OUTPUT | topic rows keyed by `(class_id, topic_key)` with embeddings for retrieval |
+| Tables | `topic_signals` (🟢 exists), `topic_scores` (🟢 exists, recomputed by `recompute_topic_scores`), **🔴 no `concepts` table with embeddings**, **🔴 no per-user concept mastery table** |
+| Functions | `contributeStudySignal()`, `recompute_topic_scores()` |
+| Hooks | `useClassIntelligence` |
+| Edge fns | 🔴 no embedding writer |
+| AI prompt | 🔴 embedding call missing |
+| **Status** | 🟡 Aggregate signals are 🟢 real; **per-student concept memory with embeddings for RAG is 🔴 missing** |
 
 ---
 
-## Open questions before I start
+## Stage 5 — Readiness / Momentum / Exam Prediction
 
-1. **Email confirmation** — keep the standard "click the link in your email" flow (safer, default), or auto-confirm for the beta to remove friction? Default: keep on.
-2. **Learner types** — the four listed are fine? Any missing (grad, bootcamp, self-study)?
-3. **Onboarding — mandatory vs skippable?** Assumption: mandatory for authenticated users. Signed-in users cannot reach `/dashboard` until onboarding is complete.
-4. **Work schedule** — free-text block (fast) or full time-picker rows like classes (slower, richer)? Default: free-text for beta.
+| Field | Value |
+|---|---|
+| INPUT | study_sessions, captures, topic_scores, exam dates |
+| OUTPUT | readiness % per class, momentum trend, per-exam predicted score |
+| Tables | `readiness_scores` (🟢 exists but not written), `study_sessions` (🟢), `exams` (🟢) |
+| Functions | `readinessEngine.ts`, `learningEngine.ts`, `todayPlanEngine.ts` |
+| Hooks | `useLearningState` |
+| **Status** | 🟡 Engines run **entirely off `@/data/demo`** classes for signed-in users too (see `todayPlanEngine`, `learningEngine`). They do not read `assignments`, `exams`, `captures`, or `topic_scores` from Supabase. **`readiness_scores` is never populated.** |
 
-If any of these are wrong, tell me which; otherwise I'll build on the defaults.
+---
+
+## Stage 6 — Study Artifact Generation (flashcards / quiz / study guide)
+
+| Field | Value |
+|---|---|
+| INPUT | capture concepts + class topic scores |
+| OUTPUT | `flashcards`, `quizzes` rows |
+| Tables | `flashcards` (🟢 schema), `quizzes` (🟢 schema) |
+| Edge fns | 🔴 no `generate-flashcards`, no `generate-quiz`, no `generate-study-guide` |
+| AI prompt | 🔴 missing |
+| **Status** | 🔴 Missing — `flashcardCount: 6` in `processor.ts` is a literal constant. |
+
+---
+
+## Stage 7 — Study Session → Results → Readiness Update
+
+| Field | Value |
+|---|---|
+| INPUT | user answers per card/question |
+| OUTPUT | `study_sessions` row, per-topic accuracy update in `topic_signals`, readiness delta |
+| Tables | `study_sessions`, `topic_signals`, `readiness_scores` |
+| Hooks | `useStudySession` |
+| **Status** | 🟡 `useStudySession` runs locally on demo data. `study_sessions` insert exists in `readinessEngine.ts` but is not wired to real sessions. **No writeback to `topic_signals` with accuracy from real sessions.** |
+
+---
+
+## Stage 8 — Dashboard Recommendations (feedback loop)
+
+| Field | Value |
+|---|---|
+| INPUT | topic_scores + readiness + upcoming exams/assignments |
+| OUTPUT | Today's Plan, ClassCards, BrainOneLiner |
+| Components | `TodaysPlan`, `RealTodaysPlan`, `DoThisNowHero` |
+| **Status** | 🟡 `RealTodaysPlan` reads real assignments/exams (🟢). `TodaysPlan` + engine layer still on demo. Recommendations do not change based on real study performance. |
+
+---
+
+## Stage 9 — Persistence Across Logout
+
+| **Status** | 🟡 `captures`, `classes`, `assignments`, `exams`, `topic_signals` survive. **Concepts, per-user mastery, real study results, readiness — do not (never written or written from demo).** |
+
+---
+
+## Missing pieces, ranked by impact
+
+1. **🔴 Real AI concept extraction from captures** (`extract-concepts` edge fn + prompt + write to `processed_content` + new `concepts` table with pgvector embeddings). Without this, nothing downstream is real.
+2. **🔴 Per-user concept mastery table** (`user_concept_mastery`: user_id, class_id, concept_id, strength 0–1, last_seen, next_review). This is the memory system.
+3. **🔴 Real readiness writer** — replace demo reads in `readinessEngine`/`learningEngine` with Supabase queries over `assignments`, `exams`, `study_sessions`, `user_concept_mastery`; upsert `readiness_scores`.
+4. **🔴 `generate-flashcards` + `generate-quiz` edge fns** driven by top-weakness concepts, persisting to `flashcards` / `quizzes`.
+5. **🔴 Real StudySession wiring** — `useStudySession` reads generated flashcards/quizzes, writes `study_sessions` row + per-concept accuracy back into `user_concept_mastery` and `topic_signals`.
+6. **🔴 Syllabus → exams/assignments persistence** — after `parse-syllabus`, insert rows for the authed user.
+7. **🔴 Storage uploads for audio/image** + STT (`transcribe` edge fn using Gemini audio) / OCR (Gemini vision) feeding Stage 3's raw_text.
+8. **🔴 Real Today's Plan / Dashboard** — swap `TodaysPlan` to consume real engine output; hide legacy demo variant for signed-in users.
+9. **🟡 → 🟢 Momentum + exam prediction** derived from `user_concept_mastery` history (cheap once #2 exists).
+10. **Nice-to-have:** RAG "Ask Campus Brain" using concept embeddings.
+
+---
+
+## Proposed build order (each shippable in isolation)
+
+- **Sprint A — Memory foundation:** migration for `concepts` (vector 1536) + `user_concept_mastery`; edge fn `extract-concepts` (Gemini 2.5 flash JSON) + embeddings via `openai/text-embedding-3-small`; wire `commitCapture` to call it and persist. Replaces `simulateConcepts`.
+- **Sprint B — Study artifacts:** `generate-flashcards`, `generate-quiz` edge fns; persist to existing tables; StudyLab reads real rows.
+- **Sprint C — Feedback loop:** `useStudySession` writes results → `user_concept_mastery` deltas → recompute readiness → `readiness_scores` upsert.
+- **Sprint D — Dashboard truth:** real `TodaysPlanEngine` reading Supabase; retire demo path for authed users.
+- **Sprint E — Ingest polish:** storage upload + STT/OCR edge fns; syllabus persistence.
+
+---
+
+## Confirm before I build
+
+1. OK to add two new tables: `concepts` (with `vector(1536)` + pgvector) and `user_concept_mastery`?
+2. OK to use `google/gemini-2.5-flash` for extraction + `openai/text-embedding-3-small` for embeddings via Lovable AI Gateway (no user keys needed)?
+3. Start with **Sprint A** this turn, then continue sequentially — or a different order?

@@ -250,6 +250,75 @@ export type Database = {
           },
         ]
       }
+      concepts: {
+        Row: {
+          capture_id: string | null
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          definition: string | null
+          embedding: string | null
+          examples: string[]
+          id: string
+          meta: Json
+          name: string
+          professor_emphasis: boolean
+          slug: string
+          source_kind: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          definition?: string | null
+          embedding?: string | null
+          examples?: string[]
+          id?: string
+          meta?: Json
+          name: string
+          professor_emphasis?: boolean
+          slug: string
+          source_kind?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string | null
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          definition?: string | null
+          embedding?: string | null
+          examples?: string[]
+          id?: string
+          meta?: Json
+          name?: string
+          professor_emphasis?: boolean
+          slug?: string
+          source_kind?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concepts_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concepts_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_instances: {
         Row: {
           course_id: string | null
@@ -1017,6 +1086,66 @@ export type Database = {
           visibility?: string
         }
         Relationships: []
+      }
+      user_concept_mastery: {
+        Row: {
+          attempts: number
+          class_id: string | null
+          concept_id: string
+          correct: number
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          next_review_at: string | null
+          streak: number
+          strength: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          class_id?: string | null
+          concept_id: string
+          correct?: number
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          next_review_at?: string | null
+          streak?: number
+          strength?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          class_id?: string | null
+          concept_id?: string
+          correct?: number
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          next_review_at?: string | null
+          streak?: number
+          strength?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_concept_mastery_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_concept_mastery_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
