@@ -148,6 +148,28 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+        <div className="mt-auto p-2 border-t border-border/60">
+          {user ? (
+            <button
+              onClick={async () => {
+                await signOut();
+                nav("/login", { replace: true });
+              }}
+              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="truncate">Sign out</span>}
+            </button>
+          ) : isDemoMode ? (
+            <button
+              onClick={() => nav("/login")}
+              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-primary hover:bg-sidebar-accent/60 transition-colors"
+            >
+              <LogIn className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="truncate">Sign in · demo mode</span>}
+            </button>
+          ) : null}
+        </div>
       </SidebarContent>
     </Sidebar>
   );
