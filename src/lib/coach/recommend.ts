@@ -236,6 +236,15 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
         weight: clamp(1 - assign.days / 7, 0, 1),
       });
     }
+    if (evidence.length === 0) {
+      // Guarantee: every recommendation has at least one evidence chip.
+      const avg = mastery.reduce((s, m) => s + m.strength, 0) / mastery.length;
+      evidence.push({
+        type: "trend",
+        label: `Class average strength ${Math.round(avg * 100)}%`,
+        weight: Number(avg.toFixed(2)),
+      });
+    }
     evidence.sort((a, b) => b.weight - a.weight);
 
     const why = buildWhy({ action, exam, weakCount: weak.length, overdueCount: overdue.length, readinessDelta, className: c.name });
