@@ -13,7 +13,11 @@ import {
   Award,
   Map,
   User,
+  LogOut,
+  LogIn,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
