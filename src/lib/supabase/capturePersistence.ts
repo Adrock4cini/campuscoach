@@ -246,7 +246,7 @@ export async function getRecentCaptures(
 export async function persistCaptureResult(
   result: CaptureResult
 ): Promise<string | null> {
-  return saveCapture({
+  const captureId = await saveCapture({
     localId: result.id,
     kind: result.kind,
     clientClassId: result.context.classId,
@@ -259,4 +259,32 @@ export async function persistCaptureResult(
     summary: result.summary,
     meta: { flashcardCount: result.flashcardCount },
   });
+
+  // Real AI concept extraction — only when we have textual source content and
+  // an authenticated session. Silently skipped for anon/demo users.
+  const rawText = (result.context.text ?? "").trim();
+  if (captureId && rawText.length > 0) {
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess?.session?.access_token) {
+        await supabase.functions.invoke("extract-concepts", {
+          body: {
+            captureId,
+            clientClassId: result.context.classId,
+            className: result.context.className ?? null,
+            topic: result.context.topic ?? null,
+            kind: result.kind,
+            rawText,
+          },
+        });
+        try {
+          window.dispatchEvent(new CustomEvent("concepts:extracted", { detail: { captureId } }));
+        } catch { /* non-browser */ }
+      }
+    } catch (err) {
+      warn("persistCaptureResult.extract", err);
+    }
+  }
+
+  return captureId;
 }
