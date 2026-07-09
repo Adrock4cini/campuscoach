@@ -68,11 +68,8 @@ export default function Onboarding() {
     }
   };
 
-  const useDemo = () => {
-    markDemoMode();
-    toast("Using demo mode", { description: "You can set up your real classes anytime in Settings." });
-    nav("/dashboard", { replace: true });
-  };
+  // Demo mode is entered from the login screen; onboarding is only reached
+  // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
   const next = () => (step < STEPS.length - 1 ? setStep(step + 1) : finish());
   const back = () => setStep((s) => Math.max(0, s - 1));
