@@ -3,18 +3,19 @@ import { Plus, Mic, Camera, StickyNote } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { detectCurrentClass } from "@/lib/autoClass";
 import { useCapture } from "@/contexts/CaptureContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import type { CaptureKind } from "@/lib/capture/types";
 
 /**
- * Floating + capture button, with a persistent "Class Now" pill docked
- * directly above it. When a class is happening now, the pill exposes
- * one-tap Record / Scan / Notes shortcuts so students can capture the
- * moment they sit down.
+ * Floating + capture button. The "Class Now" pill is driven by the demo
+ * schedule, so it is shown ONLY in demo/anonymous mode. Authenticated
+ * users see the plain capture button until we wire a real schedule.
  */
 export function CaptureButton() {
   const [now, setNow] = useState(() => new Date());
   const { open } = useCapture();
+  const { user, isDemoMode } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,7 +23,8 @@ export function CaptureButton() {
     return () => clearInterval(t);
   }, []);
 
-  const detected = detectCurrentClass(now);
+  const realMode = !!user && !isDemoMode;
+  const detected = realMode ? null : detectCurrentClass(now);
 
   const quick = (kind: CaptureKind) => open(kind);
 

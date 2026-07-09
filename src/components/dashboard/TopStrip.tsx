@@ -22,7 +22,11 @@ function greetingWord() {
 export function TopStrip() {
   const momentum = useMomentum();
   const { setOpen } = useCommandPalette();
-  const { isDemoMode } = useAuth();
+  const { isDemoMode, user, profile } = useAuth();
+
+  const name = user
+    ? (profile?.display_name?.split(" ")[0] || user.email?.split("@")[0] || "there")
+    : studentName;
 
   const TrendIcon =
     momentum.trend === "rising" ? TrendingUp :
@@ -40,18 +44,21 @@ export function TopStrip() {
     >
       <div className="min-w-0">
         <h1 className="font-display text-lg md:text-xl font-semibold text-foreground leading-tight truncate">
-          {greetingWord()}, {studentName}
+          {greetingWord()}, {name}
         </h1>
-        <p className="text-[11px] text-muted-foreground truncate">{momentum.line}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{user && !isDemoMode ? "Welcome back" : momentum.line}</p>
+
       </div>
 
-      <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
-        <Flame className="h-3.5 w-3.5" />
-        {momentum.streak}
-        <span className="mx-1 opacity-40">·</span>
-        <TrendIcon className="h-3.5 w-3.5" />
-        {momentum.score}
-      </div>
+      {(!user || isDemoMode) && (
+        <div className={cn("hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/40 backdrop-blur px-2.5 py-1 text-xs font-medium tabular-nums", tone)}>
+          <Flame className="h-3.5 w-3.5" />
+          {momentum.streak}
+          <span className="mx-1 opacity-40">·</span>
+          <TrendIcon className="h-3.5 w-3.5" />
+          {momentum.score}
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         {isDemoMode && (
