@@ -24,6 +24,8 @@ import {
 } from "@/lib/intelligence/learningEngine";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealAssignmentsView } from "@/components/real/RealAssignmentsView";
 
 /**
  * AssignmentsPage — Progressive Intelligence surface.
@@ -34,6 +36,9 @@ import { cn } from "@/lib/utils";
  * Secondary tools:  behind a "More" dropdown (steps, expected, outline, quiz…)
  */
 export default function AssignmentsPage() {
+  const { user, isDemoMode } = useAuth();
+  if (user && !isDemoMode) return <RealAssignmentsView />;
+
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState<"smart" | "date">("smart");
   const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);

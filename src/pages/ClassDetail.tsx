@@ -23,6 +23,7 @@ import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButt
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
+import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
 
 export default function ClassDetail() {
   const { classId } = useParams();
@@ -102,6 +103,8 @@ export default function ClassDetail() {
             </div>
           </CardContent>
         </Card>
+
+        <RealClassAssignmentsExams classId={c.id} />
 
         <ClassMemory classId={c.id} className={c.name} />
       </div>

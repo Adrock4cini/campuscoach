@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignments: {
+        Row: {
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          due_date: string | null
+          estimated_minutes: number
+          id: string
+          meta: Json
+          notes: string | null
+          priority: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          estimated_minutes?: number
+          id?: string
+          meta?: Json
+          notes?: string | null
+          priority?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          estimated_minutes?: number
+          id?: string
+          meta?: Json
+          notes?: string | null
+          priority?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_brain_signals: {
         Row: {
           anonymized: boolean
@@ -373,6 +429,59 @@ export type Database = {
           visibility?: string
         }
         Relationships: []
+      }
+      exams: {
+        Row: {
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          exam_date: string | null
+          id: string
+          meta: Json
+          notes: string | null
+          readiness: number
+          title: string
+          topics: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          exam_date?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          readiness?: number
+          title: string
+          topics?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          class_id?: string | null
+          client_class_id?: string | null
+          created_at?: string
+          exam_date?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          readiness?: number
+          title?: string
+          topics?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exams_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       flashcards: {
         Row: {
