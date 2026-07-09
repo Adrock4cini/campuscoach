@@ -21,9 +21,11 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  onboarded: boolean | null; // null = still loading
   isDemoMode: boolean;
   enableDemoMode: () => void;
   signOut: () => Promise<void>;
+  refreshOnboarded: () => Promise<void>;
 };
 
 const AuthCtx = createContext<AuthState | null>(null);
