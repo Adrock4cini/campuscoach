@@ -90,7 +90,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         setState((s) => ({ ...s, generating: false, error: error.message }));
         return null;
       }
-      const artifact = (data as { artifact: LearningArtifact<K> } | null)?.artifact ?? null;
+      const artifact = ((data as { artifact: unknown } | null)?.artifact ?? null) as LearningArtifact<K> | null;
       setState({ artifact, loading: false, generating: false, error: null });
       return artifact;
     },
