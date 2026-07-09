@@ -94,6 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const mode: DataMode = loading
+    ? "loading"
+    : session?.user
+      ? (isDemoMode ? "demo" : "real")
+      : (isDemoMode ? "demo" : "demo"); // anon = demo tour
+
   const value = useMemo<AuthState>(
     () => ({
       session,
@@ -102,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboarded,
       isDemoMode,
       profile,
+      mode,
+
       enableDemoMode: () => {
         localStorage.setItem(DEMO_KEY, "1");
         setDemo(true);
