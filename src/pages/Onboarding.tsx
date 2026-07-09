@@ -62,6 +62,7 @@ export default function Onboarding() {
         classes: data.classes.filter((c) => c.name.trim()),
       });
       toast.success("You're set up!", { description: "Welcome to Campus Coach." });
+      await refreshOnboarded();
       nav("/dashboard", { replace: true });
     } catch (e) {
       toast.error("Couldn't finish setup", { description: "Please try again." });
