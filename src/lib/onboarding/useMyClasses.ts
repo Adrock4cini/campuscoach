@@ -57,8 +57,8 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
         }));
         setState({ classes: mapped, isReal: true, loading: false });
       } catch (e) {
-        console.warn("[useMyClasses] falling back to demo", e);
-        if (!cancelled) setState({ classes: demoClasses, isReal: false, loading: false });
+        console.warn("[useMyClasses] load failed; showing empty real state (no demo fallback for signed-in users)", e);
+        if (!cancelled) setState({ classes: [], isReal: true, loading: false });
       }
     })();
     return () => {

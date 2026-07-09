@@ -5,11 +5,39 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { getDaysUntil, getReadinessColor, getReadinessLabel } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
-import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function MyClasses() {
-  const { classes } = useMyClasses();
+  const { classes, isReal, loading } = useMyClasses();
+  const { user, isDemoMode } = useAuth();
+  const realMode = !!user && !isDemoMode;
+  const navigate = useNavigate();
+
+  if (realMode && !loading && classes.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto pt-8">
+        <Card className="shadow-card border-dashed">
+          <CardContent className="p-10 text-center space-y-4">
+            <div className="mx-auto h-12 w-12 rounded-full bg-gradient-calm flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-display font-semibold text-foreground">Set up your semester</h1>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Add your real classes to unlock captures, assignments, exams, and study sessions built from your actual coursework.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Button onClick={() => navigate("/onboarding")}>Add your first class</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
@@ -81,7 +109,7 @@ export default function MyClasses() {
         ))}
       </div>
 
-      <Button variant="outline" className="w-full border-dashed">
+      <Button variant="outline" className="w-full border-dashed" onClick={() => navigate("/onboarding")}>
         + Add a New Class
       </Button>
     </div>

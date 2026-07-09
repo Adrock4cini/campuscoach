@@ -33,6 +33,17 @@ import {
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { classes as demoClasses } from "@/data/demo";
 
+const COMING_SOON_FOR_REAL = new Set<string>([
+  "/your-week",
+  "/calendar",
+  "/notes",
+  "/study-lab",
+  "/path-to-graduation",
+  "/scholarships",
+  "/course-intelligence",
+  "/progress",
+]);
+
 function buildGroups(classList: { id: string; name: string; color: string }[]) {
   return [
     {
@@ -97,6 +108,7 @@ export function AppSidebar() {
   const { classes: myClasses, isReal } = useMyClasses();
   // Real (signed-in) mode → real classes only, never demo classes.
   // Demo/anonymous → demo classes so the demo tour still works.
+  const realMode = !!user && !isDemoMode;
   const classList = user || isReal ? myClasses : demoClasses;
   const groups = buildGroups(classList);
 
@@ -149,7 +161,16 @@ export function AppSidebar() {
                         ) : (
                           <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
                         )}
-                        {!collapsed && <span className="tracking-tight truncate">{item.title}</span>}
+                        {!collapsed && (
+                          <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
+                            <span className="truncate">{item.title}</span>
+                            {realMode && COMING_SOON_FOR_REAL.has(item.url) && (
+                              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
+                                Soon
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
