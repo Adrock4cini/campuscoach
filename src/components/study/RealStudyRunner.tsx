@@ -82,6 +82,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     }
     setDone(true);
     const r = data as { readiness?: number };
+    // Nudge the Dashboard coach to re-rank now that mastery has changed.
+    window.dispatchEvent(new CustomEvent("coach:refresh"));
     onCompleted?.({ readiness: r?.readiness ?? 0, correct: finalCorrect, total });
   };
 
