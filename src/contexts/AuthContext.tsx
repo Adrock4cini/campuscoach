@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       refreshOnboarded: () => loadProfile(session?.user?.id),
     }),
-    [session, loading, isDemoMode, onboarded, profile]
+    [session, loading, isDemoMode, onboarded, profile, mode]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
