@@ -5,9 +5,11 @@ import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
   X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Calendar,
 } from "lucide-react";
-import { classes } from "@/data/demo";
+import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
   CAPTURE_LABELS,
   PROCESSING_STEPS,
