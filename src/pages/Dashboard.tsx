@@ -72,8 +72,8 @@ export default function Dashboard() {
         </motion.section>
       ) : (
         <>
-          {/* Do This Now — demo-derived, hidden for real users */}
-          {!realMode && <DoThisNowHero />}
+          {/* Demo-derived widgets: ONLY when explicitly in demo mode. Never during auth loading. */}
+          {demoMode && <DoThisNowHero />}
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] gap-5">
             <motion.section
@@ -90,9 +90,9 @@ export default function Dashboard() {
                 {ordered.map((c, i) =>
                   realMode ? (
                     <RealClassCard key={c.id} c={c} index={i} />
-                  ) : (
+                  ) : demoMode ? (
                     <ClassQuickCard key={c.id} classId={c.id} index={i} />
-                  )
+                  ) : null
                 )}
               </div>
               {realMode && (
@@ -108,13 +108,14 @@ export default function Dashboard() {
             </motion.section>
 
             <aside className="space-y-4 lg:sticky lg:top-4 self-start">
-              {!realMode && <TodaysChecklist />}
-              {!realMode && <BrainOneLiner insight={insight} />}
+              {demoMode && <TodaysChecklist />}
+              {demoMode && <BrainOneLiner insight={insight} />}
               {realMode && <RealTodaysPlan />}
             </aside>
           </div>
 
-          {!realMode && <BottomBar />}
+          {demoMode && <BottomBar />}
+
         </>
       )}
     </div>
