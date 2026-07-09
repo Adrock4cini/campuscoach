@@ -37,23 +37,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [profile, setProfile] = useState<Profile>(null);
   const [isDemoMode, setDemo] = useState<boolean>(
     typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
   );
 
-  const checkOnboarded = async (userId: string | undefined | null) => {
+  const loadProfile = async (userId: string | undefined | null) => {
     if (!userId) {
       setOnboarded(null);
+      setProfile(null);
       return;
     }
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("onboarded_at")
+        .select("display_name, onboarded_at")
         .eq("user_id", userId)
         .maybeSingle();
+      setProfile(data ?? null);
       setOnboarded(!!data?.onboarded_at);
     } catch {
+      setProfile(null);
       setOnboarded(false);
     }
   };
@@ -65,17 +69,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (s) {
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
-        // Defer Supabase reads out of the listener callback.
-        setTimeout(() => checkOnboarded(s.user.id), 0);
+        setTimeout(() => loadProfile(s.user.id), 0);
       } else {
         setOnboarded(null);
+        setProfile(null);
       }
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthUserId(data.session?.user?.id ?? null);
       setLoading(false);
-      if (data.session?.user?.id) checkOnboarded(data.session.user.id);
+      if (data.session?.user?.id) loadProfile(data.session.user.id);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -87,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       onboarded,
       isDemoMode,
+      profile,
       enableDemoMode: () => {
         localStorage.setItem(DEMO_KEY, "1");
         setDemo(true);
@@ -95,10 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.auth.signOut();
         setAuthUserId(null);
         setOnboarded(null);
+        setProfile(null);
       },
-      refreshOnboarded: () => checkOnboarded(session?.user?.id),
+      refreshOnboarded: () => loadProfile(session?.user?.id),
     }),
-    [session, loading, isDemoMode, onboarded]
+    [session, loading, isDemoMode, onboarded, profile]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
