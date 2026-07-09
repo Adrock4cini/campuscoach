@@ -21,8 +21,11 @@ export interface OnboardingClass {
   assignments?: OnboardingAssignment[];
 }
 
+export type LearnerType = "high_school" | "college" | "certification" | "other";
+
 export interface OnboardingData {
   name: string;
+  learnerType: LearnerType;
   school: string;
   term: string;                // "Spring 2026"
   classes: OnboardingClass[];
@@ -33,6 +36,7 @@ export interface OnboardingData {
 
 export const emptyOnboarding: OnboardingData = {
   name: "",
+  learnerType: "college",
   school: "",
   term: "",
   classes: [{ name: "", professor: "", days: [], time: "" }],
