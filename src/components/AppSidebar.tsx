@@ -30,7 +30,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { classes } from "@/data/demo";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 
 const groups = [
   {
