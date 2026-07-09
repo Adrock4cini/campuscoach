@@ -3,7 +3,7 @@
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
-import { defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
 
 // src/lib/mcp/tools/list-classes.ts
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
@@ -373,11 +373,16 @@ var get_class_intelligence_default = defineTool3({
 });
 
 // src/lib/mcp/index.ts
+var projectRef = "norsaaoyppctrvxxgjtg";
 var mcp_default = defineMcp({
   name: "campus-companion-mcp",
   title: "Campus Companion",
   version: "0.1.0",
   instructions: "Tools for Campus Companion, an AI academic OS for college students (ADHD-friendly). Use `list_classes` to discover the student's current classes and readiness. Use `list_upcoming_deadlines` for assignments and exams coming due. Use `get_class_intelligence` for peer-aggregated high-yield topics on a specific class. All tools are read-only.",
+  auth: auth.oauth.issuer({
+    issuer: `https://${projectRef}.supabase.co/auth/v1`,
+    acceptedAudiences: "authenticated"
+  }),
   tools: [list_classes_default, list_upcoming_default, get_class_intelligence_default]
 });
 
