@@ -31,6 +31,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
+import { classes as demoClasses } from "@/data/demo";
 
 function buildGroups(classList: { id: string; name: string; color: string }[]) {
   return [
