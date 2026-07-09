@@ -23,13 +23,15 @@ import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
  * Demo Mode has been explicitly enabled.
  */
 export default function Dashboard() {
-  const { user, isDemoMode } = useAuth();
+  const { mode } = useAuth();
   const priorities = useClassPriorities();
   const insight = useCampusBrainInsight();
-  const { classes: myClasses, isReal, loading } = useMyClasses();
+  const { classes: myClasses, loading } = useMyClasses();
 
-  // Real mode = authenticated user and NOT explicit demo mode.
-  const realMode = !!user && !isDemoMode;
+  // Single source of truth: `mode` decides demo-vs-real for EVERY widget below.
+  const realMode = mode === "real";
+  const demoMode = mode === "demo";
+
 
   const ordered = useMemo(() => {
     if (realMode) return myClasses;
