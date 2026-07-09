@@ -33,6 +33,17 @@ import {
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { classes as demoClasses } from "@/data/demo";
 
+const COMING_SOON_FOR_REAL = new Set<string>([
+  "/your-week",
+  "/calendar",
+  "/notes",
+  "/study-lab",
+  "/path-to-graduation",
+  "/scholarships",
+  "/course-intelligence",
+  "/progress",
+]);
+
 function buildGroups(classList: { id: string; name: string; color: string }[]) {
   return [
     {
