@@ -35,8 +35,9 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 
 export function RealStudySet({ classId }: Props) {
   const [kind, setKind] = useState<Kind>("flashcards");
+  const [studying, setStudying] = useState(false);
   const scope = useMemo(() => ({ classId }), [classId]);
-  const { artifact, loading, generating, error, generate } =
+  const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
   const count = artifact
