@@ -34,10 +34,11 @@ import NotFound from "./pages/NotFound";
 import { isOnboarded } from "@/lib/onboarding/store";
 
 function RootGate() {
-  const { user, isDemoMode, loading } = useAuth();
+  const { user, isDemoMode, loading, onboarded } = useAuth();
   if (loading) return null;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
-  if (user && !isOnboarded()) return <Navigate to="/onboarding" replace />;
+  if (user && onboarded === null) return null; // still checking profile
+  if (user && !onboarded) return <Navigate to="/onboarding" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
