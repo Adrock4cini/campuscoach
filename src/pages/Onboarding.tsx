@@ -12,6 +12,7 @@ import { ArrowLeft, ArrowRight, Plus, Trash2, CalendarDays, FileText } from "luc
 import { toast } from "sonner";
 import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/lib/onboarding/types";
 import { saveOnboarding } from "@/lib/onboarding/store";
+import { useAuth } from "@/contexts/AuthContext";
 import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
