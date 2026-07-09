@@ -54,6 +54,16 @@ export function TopStrip() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        {isDemoMode && (
+          <Link
+            to="/signup"
+            className="hidden sm:inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 text-primary px-2.5 py-1 text-[11px] font-medium hover:bg-primary/20 transition-colors"
+          >
+            <Sparkles className="h-3 w-3" />
+            Demo · Create account
+          </Link>
+        )}
+
         <button
           onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/40 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
