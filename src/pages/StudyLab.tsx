@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
 import { useStudyFormatRecommendation } from "@/lib/intelligence";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealStudySet } from "@/components/study/RealStudySet";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
@@ -26,6 +28,8 @@ const durations = [15, 25, 45];
 export default function StudyLab() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { mode: authMode } = useAuth();
+  const isRealUser = authMode === "real";
 
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
@@ -69,6 +73,11 @@ export default function StudyLab() {
           </button>
         ))}
       </div>
+
+      {/* Real users: concept-backed study set (flashcards / MCQ). */}
+      {isRealUser && <RealStudySet classId={selectedClass} />}
+
+
 
       {/* HERO: single recommended action */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
