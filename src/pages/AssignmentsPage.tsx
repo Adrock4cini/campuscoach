@@ -24,6 +24,8 @@ import {
 } from "@/lib/intelligence/learningEngine";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealAssignmentsView } from "@/components/real/RealAssignmentsView";
 
 /**
  * AssignmentsPage — Progressive Intelligence surface.
