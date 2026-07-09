@@ -47,12 +47,21 @@ const MENU: {
 
 export function CaptureFlow({ open, initialKind, onClose }: Props) {
   const navigate = useNavigate();
+  const { user, isDemoMode } = useAuth();
+  const { classes: myClasses } = useMyClasses();
+  const realMode = !!user && !isDemoMode;
+  const classes = realMode ? myClasses : demoClasses;
+
   const [stage, setStage] = useState<Stage>("menu");
   const [kind, setKind] = useState<CaptureKind | null>(null);
-  const detected = useMemo(() => detectCurrentClass(new Date()), [open]);
+  // Auto-class detection is demo-schedule-based, so skip it for real users.
+  const detected = useMemo(
+    () => (realMode ? null : detectCurrentClass(new Date())),
+    [open, realMode],
+  );
 
   const [ctx, setCtx] = useState<CaptureContext>(() => ({
-    classId: detected?.id ?? classes[0].id,
+    classId: detected?.id ?? classes[0]?.id ?? "",
     date: new Date().toISOString().slice(0, 10),
     topic: detected?.currentTopic ?? "",
     text: "",
@@ -69,7 +78,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
     setStepIndex(0);
     setResult(null);
     setCtx({
-      classId: detected?.id ?? classes[0].id,
+      classId: detected?.id ?? classes[0]?.id ?? "",
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
