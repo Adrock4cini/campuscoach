@@ -14,6 +14,7 @@ import { useCampusBrainInsight, useClassPriorities } from "@/lib/intelligence";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
+import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
 
 /**
  * Dashboard — the intelligent home screen.
@@ -72,6 +73,8 @@ export default function Dashboard() {
         </motion.section>
       ) : (
         <>
+          {/* Coach: for real users, the tutor voice comes from ranked concept memory. */}
+          {realMode && <RealCoachHero />}
           {/* Demo-derived widgets: ONLY when explicitly in demo mode. Never during auth loading. */}
           {demoMode && <DoThisNowHero />}
 
