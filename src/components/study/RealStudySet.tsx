@@ -13,7 +13,9 @@ import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Sparkles, ListChecks } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play } from "lucide-react";
+import { RealStudyRunner } from "@/components/study/RealStudyRunner";
+import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
 import type {
   FlashcardsPayload,
@@ -33,8 +35,9 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 
 export function RealStudySet({ classId }: Props) {
   const [kind, setKind] = useState<Kind>("flashcards");
+  const [studying, setStudying] = useState(false);
   const scope = useMemo(() => ({ classId }), [classId]);
-  const { artifact, loading, generating, error, generate } =
+  const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
   const count = artifact
@@ -102,7 +105,7 @@ export function RealStudySet({ classId }: Props) {
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
             variant={artifact ? "outline" : "default"}
@@ -126,8 +129,23 @@ export function RealStudySet({ classId }: Props) {
               </>
             )}
           </Button>
+          {artifact && count > 0 && (
+            <Button size="sm" onClick={() => setStudying(true)} disabled={generating}>
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              Study now
+            </Button>
+          )}
         </div>
       </CardContent>
+
+      {artifact && studying && (
+        <RealStudyRunner
+          open={studying}
+          onOpenChange={setStudying}
+          artifact={artifact as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice">}
+          onCompleted={() => { reload(); }}
+        />
+      )}
     </Card>
   );
 }
