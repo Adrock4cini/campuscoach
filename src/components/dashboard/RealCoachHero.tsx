@@ -9,10 +9,13 @@
  *
  * No functional changes.
  */
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Camera, BookOpen, Repeat, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, ArrowRight, Camera, BookOpen, Repeat, ChevronRight, Info, Brain, Loader2 } from "lucide-react";
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
+import { useCoachFunction } from "@/lib/coachFunctions/useCoachFunction";
+import type { WhatAmIForgettingPayload } from "@/lib/coachFunctions/functions/whatAmIForgetting";
 import type { CoachActionKind } from "@/lib/coach/recommend";
 
 const ACTION_ICON: Record<CoachActionKind, React.ElementType> = {
