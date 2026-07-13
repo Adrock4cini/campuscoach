@@ -34,6 +34,8 @@ const ACTION_VERB: Record<CoachActionKind, string> = {
 
 export function RealCoachHero() {
   const { recommendations, loading } = useCoachRecommendations();
+  const [showWhy, setShowWhy] = useState(false);
+  const forgetting = useCoachFunction<{ limit?: number }, WhatAmIForgettingPayload>("what_am_i_forgetting");
 
   if (loading) return null;
   const top = recommendations[0];
