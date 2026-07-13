@@ -12,43 +12,33 @@ import type { CoachFunctionContext } from "./types";
 type Row = Record<string, unknown>;
 
 function fakeSupabase(tables: Record<string, Row[]>) {
-  const filters: { table: string; predicates: Array<(r: Row) => boolean> } = {
-    table: "",
-    predicates: [],
-  };
-  const builder: {
-    from: (t: string) => typeof builder;
-    select: (_c?: string) => typeof builder;
-    eq: (k: string, v: unknown) => typeof builder;
-    overlaps: (k: string, v: unknown[]) => typeof builder;
-    order: () => typeof builder;
-    limit: () => typeof builder;
-    maybeSingle: () => Promise<{ data: Row | null; error: null }>;
-    then: (fn: (r: { data: Row[]; error: null }) => unknown) => Promise<unknown>;
-  } = {
-    from(t) { filters.table = t; filters.predicates = []; return this; },
-    select() { return this; },
-    eq(k, v) { filters.predicates.push((r) => r[k] === v); return this; },
-    overlaps(k, v) {
-      filters.predicates.push((r) => {
-        const arr = (r[k] as unknown[]) ?? [];
-        return arr.some((x) => (v as unknown[]).includes(x));
-      });
-      return this;
-    },
-    order() { return this; },
-    limit() { return this; },
-    async maybeSingle() {
-      const rows = (tables[filters.table] ?? []).filter((r) => filters.predicates.every((p) => p(r)));
-      return { data: rows[0] ?? null, error: null };
-    },
-    then(fn) {
-      const rows = (tables[filters.table] ?? []).filter((r) => filters.predicates.every((p) => p(r)));
-      return Promise.resolve(fn({ data: rows, error: null }));
-    },
-  };
+  function makeBuilder(table: string) {
+    const predicates: Array<(r: Row) => boolean> = [];
+    const b = {
+      select(_c?: string) { return b; },
+      eq(k: string, v: unknown) { predicates.push((r) => r[k] === v); return b; },
+      overlaps(k: string, v: unknown[]) {
+        predicates.push((r) => {
+          const arr = (r[k] as unknown[]) ?? [];
+          return arr.some((x) => v.includes(x));
+        });
+        return b;
+      },
+      order() { return b; },
+      limit() { return b; },
+      async maybeSingle() {
+        const rows = (tables[table] ?? []).filter((r) => predicates.every((p) => p(r)));
+        return { data: rows[0] ?? null, error: null };
+      },
+      then<T>(fn: (r: { data: Row[]; error: null }) => T) {
+        const rows = (tables[table] ?? []).filter((r) => predicates.every((p) => p(r)));
+        return Promise.resolve(fn({ data: rows, error: null }));
+      },
+    };
+    return b;
+  }
   return {
-    from: (t: string) => builder.from(t),
+    from: (t: string) => makeBuilder(t),
     functions: { invoke: vi.fn(async () => ({ data: null, error: null })) },
   } as unknown as CoachFunctionContext["supabase"];
 }
