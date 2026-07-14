@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { coachFunctionRegistry } from "./registry";
+import { loadClasses } from "./dataLoaders";
 import type { CoachFunctionContext } from "./types";
 
 type Row = Record<string, unknown>;
@@ -66,6 +67,22 @@ describe("coach function registry", () => {
       ctx(fakeSupabase({})),
     );
     expect(r.status).toBe("error");
+  });
+});
+
+describe("coach data loaders", () => {
+  it("joins the latest persisted readiness by client class id", async () => {
+    const supabase = fakeSupabase({
+      classes: [{ user_id: "u1", client_class_id: "psych", name: "Psych" }],
+      readiness_scores: [
+        { user_id: "u1", client_class_id: "psych", readiness: 42, computed_at: "2026-07-12T12:00:00Z" },
+        { user_id: "u1", client_class_id: "psych", readiness: 68, computed_at: "2026-07-13T12:00:00Z" },
+      ],
+    });
+
+    const classes = await loadClasses(ctx(supabase));
+
+    expect(classes).toEqual([{ id: "psych", name: "Psych", readiness: 68 }]);
   });
 });
 

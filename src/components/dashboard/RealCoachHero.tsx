@@ -44,7 +44,7 @@ export function RealCoachHero() {
   const Icon = ACTION_ICON[top.action];
   const href =
     top.action === "capture"
-      ? `/class/${top.classId}`
+      ? `/classes/${top.classId}`
       : `/study-lab?classId=${encodeURIComponent(top.classId)}`;
 
   return (
@@ -174,7 +174,7 @@ export function RealCoachHero() {
               const RIcon = ACTION_ICON[r.action];
               const rhref =
                 r.action === "capture"
-                  ? `/class/${r.classId}`
+                  ? `/classes/${r.classId}`
                   : `/study-lab?classId=${encodeURIComponent(r.classId)}`;
               return (
                 <li key={r.id}>

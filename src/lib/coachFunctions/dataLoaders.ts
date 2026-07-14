@@ -53,11 +53,12 @@ export async function loadClasses(ctx: CoachFunctionContext): Promise<LoadedClas
 
   const { data: readiness } = await ctx.supabase
     .from("readiness_scores")
-    .select("class_id, score")
-    .eq("user_id", ctx.userId);
+    .select("client_class_id, readiness, computed_at")
+    .eq("user_id", ctx.userId)
+    .order("computed_at", { ascending: true });
   const readinessMap = new Map<string, number>();
-  for (const r of (readiness ?? []) as { class_id: string; score: number }[]) {
-    readinessMap.set(r.class_id, Number(r.score));
+  for (const r of (readiness ?? []) as { client_class_id: string | null; readiness: number }[]) {
+    if (r.client_class_id) readinessMap.set(r.client_class_id, Number(r.readiness));
   }
   return classes.map((c) => ({ ...c, readiness: readinessMap.get(c.id) ?? null }));
 }
