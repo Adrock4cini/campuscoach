@@ -48,7 +48,7 @@ const MENU: {
 export function CaptureFlow({ open, initialKind, onClose }: Props) {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
-  const { classes: myClasses } = useMyClasses();
+  const { classes: myClasses, loading: classesLoading } = useMyClasses();
   const realMode = !!user && !isDemoMode;
   const classes = realMode ? myClasses : demoClasses;
 
@@ -56,7 +56,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
   const [kind, setKind] = useState<CaptureKind | null>(null);
   // Auto-class detection is demo-schedule-based, so skip it for real users.
   const detected = useMemo(
-    () => (realMode ? null : detectCurrentClass(new Date())),
+    () => (!open || realMode ? null : detectCurrentClass(new Date())),
     [open, realMode],
   );
 
@@ -78,12 +78,19 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
     setStepIndex(0);
     setResult(null);
     setCtx({
-      classId: detected?.id ?? classes[0]?.id ?? "",
+      classId: detected?.id ?? "",
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
     });
   }, [open, initialKind, detected]);
+
+  // Real classes arrive asynchronously. Select the first one without
+  // resetting anything the student may already have typed into the form.
+  useEffect(() => {
+    if (!open || ctx.classId || !classes[0]?.id) return;
+    setCtx((current) => ({ ...current, classId: classes[0].id }));
+  }, [open, ctx.classId, classes]);
 
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
 
@@ -111,6 +118,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
 
   const canContinue =
     !!kind &&
+    !classesLoading &&
     !!ctx.classId &&
     !!ctx.date &&
     (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0);
@@ -201,15 +209,32 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
               {stage === "context" && meta && (
                 <div className="space-y-3">
                   <Field label="Class">
-                    <select
-                      value={ctx.classId}
-                      onChange={(e) => setCtx((c) => ({ ...c, classId: e.target.value }))}
-                      className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
-                    >
-                      {classes.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                    {classesLoading ? (
+                      <div className="h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-muted-foreground flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Loading your classes…
+                      </div>
+                    ) : classes.length === 0 ? (
+                      <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                        <p className="text-sm text-foreground">Add a class before saving a professor hint.</p>
+                        <button
+                          type="button"
+                          onClick={() => { onClose(); navigate("/onboarding"); }}
+                          className="mt-2 text-xs font-medium text-primary"
+                        >
+                          Set up classes →
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value={ctx.classId}
+                        onChange={(e) => setCtx((c) => ({ ...c, classId: e.target.value }))}
+                        className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                      >
+                        {classes.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </Field>
 
                   <div className="grid grid-cols-2 gap-3">
