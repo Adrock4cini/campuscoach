@@ -17,7 +17,15 @@ import { setAuthUserId } from "@/hooks/useClassIntelligence";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
-type Profile = { display_name: string | null; onboarded_at: string | null } | null;
+type Profile = {
+  display_name: string | null;
+  onboarded_at: string | null;
+  learner_type: string | null;
+  term: string | null;
+  school_id: string | null;
+  work_schedule: string | null;
+  schools: { name: string } | null;
+} | null;
 
 /**
  * `mode` is the SINGLE source of truth for demo-vs-real rendering.
@@ -59,16 +67,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name, onboarded_at")
-        .eq("user_id", userId)
-        .maybeSingle();
-      setProfile(data ?? null);
-      setOnboarded(!!data?.onboarded_at);
-    } catch {
+      const [profileResult, classResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("display_name, onboarded_at, learner_type, term, school_id, work_schedule, schools(name)")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("classes")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId),
+      ]);
+      if (classResult.error) throw classResult.error;
+      if (profileResult.error) {
+        console.warn("[auth] profile load failed", profileResult.error);
+        setProfile(null);
+        // A successful class lookup is still enough to keep an established
+        // student out of onboarding. Otherwise stay neutral instead of
+        // incorrectly restarting setup because of a temporary profile error.
+        setOnboarded((classResult.count ?? 0) > 0 ? true : null);
+        return;
+      }
+
+      const nextProfile = profileResult.data as Profile;
+      setProfile(nextProfile ?? null);
+      // Accounts created before `onboarded_at` was introduced may already have
+      // real classes. Treat that durable data as proof setup was completed.
+      setOnboarded(!!nextProfile?.onboarded_at || (classResult.count ?? 0) > 0);
+    } catch (error) {
+      console.warn("[auth] setup status load failed", error);
       setProfile(null);
-      setOnboarded(false);
+      setOnboarded(null);
     }
   };
 

@@ -8,6 +8,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAnonUserId } from "@/hooks/useClassIntelligence";
 import type { OnboardingData } from "./types";
+import { canonicalizeSchoolName } from "./options";
 
 const ONBOARDED_KEY = "cc_onboarded_real_v1";
 const DEMO_MODE_KEY = "cc_demo_mode_v1";
@@ -48,57 +49,52 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
 
   // school (dedupe by lowercase name)
   let schoolId: string | null = null;
-  const schoolName = data.school.trim();
+  const schoolName = canonicalizeSchoolName(data.school);
   if (schoolName) {
-    try {
-      const { data: found } = await supabase
+    const { data: found, error: schoolLookupError } = await supabase
+      .from("schools")
+      .select("id")
+      .ilike("name", schoolName)
+      .limit(1)
+      .maybeSingle();
+    if (schoolLookupError) throw schoolLookupError;
+    if (found?.id) {
+      schoolId = found.id;
+    } else {
+      const { data: created, error: schoolCreateError } = await supabase
         .from("schools")
+        .insert({ name: schoolName })
         .select("id")
-        .ilike("name", schoolName)
-        .maybeSingle();
-      if (found?.id) {
-        schoolId = found.id;
-      } else {
-        const { data: created } = await supabase
-          .from("schools")
-          .insert({ name: schoolName })
-          .select("id")
-          .single();
-        schoolId = created?.id ?? null;
-      }
-    } catch (e) {
-      console.warn("[onboarding] school upsert failed", e);
+        .single();
+      if (schoolCreateError) throw schoolCreateError;
+      schoolId = created?.id ?? null;
     }
   }
 
-  // profile
-  try {
-    await supabase.from("profiles").upsert(
-      {
-        user_id: userId,
-        display_name: data.name || null,
-        learner_type: data.learnerType || null,
-        term: data.term || null,
-        school_id: schoolId,
-        work_schedule: data.workSchedule || null,
-        encouragement_tone: "warm",
-        default_study_length: 25,
-        onboarded_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-  } catch (e) {
-    console.warn("[onboarding] profile upsert failed", e);
-  }
+  // Save profile details first, but do not mark onboarding complete until every
+  // class and enrollment has been written successfully.
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    {
+      user_id: userId,
+      display_name: data.name || null,
+      learner_type: data.learnerType || null,
+      term: data.term || null,
+      school_id: schoolId,
+      work_schedule: data.workSchedule || null,
+      encouragement_tone: "warm",
+      default_study_length: 25,
+    },
+    { onConflict: "user_id" }
+  );
+  if (profileError) throw profileError;
 
   // classes + enrollments
   for (const c of data.classes) {
     if (!c.name.trim()) continue;
     const clientClassId = `u-${userId.slice(0, 8)}-${slugify(c.name)}`;
-    try {
-      const { data: inserted, error } = await supabase
-        .from("classes")
-        .upsert(
+    const { data: inserted, error } = await supabase
+      .from("classes")
+      .upsert(
           {
             user_id: userId,
             client_class_id: clientClassId,
@@ -125,22 +121,26 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
 
           },
           { onConflict: "client_class_id" }
-        )
-        .select("id")
-        .single();
-      if (error) throw error;
-      if (inserted?.id) {
-        await supabase
-          .from("enrollments")
-          .upsert(
-            { user_id: userId, class_id: inserted.id, role: "student" },
-            { onConflict: "user_id,class_id" }
-          );
-      }
-    } catch (e) {
-      console.warn("[onboarding] class upsert failed", c.name, e);
+      )
+      .select("id")
+      .single();
+    if (error) throw error;
+    if (inserted?.id) {
+      const { error: enrollmentError } = await supabase
+        .from("enrollments")
+        .upsert(
+          { user_id: userId, class_id: inserted.id, role: "student" },
+          { onConflict: "user_id,class_id" }
+        );
+      if (enrollmentError) throw enrollmentError;
     }
   }
+
+  const { error: completionError } = await supabase
+    .from("profiles")
+    .update({ onboarded_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  if (completionError) throw completionError;
 
   localStorage.setItem(ONBOARDED_KEY, "1");
   localStorage.removeItem(DEMO_MODE_KEY);

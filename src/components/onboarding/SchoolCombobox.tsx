@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { canonicalizeSchoolName } from "@/lib/onboarding/options";
 
 interface SchoolRow {
   id: string;
@@ -57,9 +58,16 @@ export function SchoolCombobox({
     };
   }, [query]);
 
-  const showCreate =
-    query.trim().length > 1 &&
-    !rows.some((r) => r.name.toLowerCase() === query.trim().toLowerCase());
+  const canonicalQuery = canonicalizeSchoolName(query);
+  const aliasMatch = canonicalQuery !== query.trim()
+    ? { id: `alias-${canonicalQuery}`, name: canonicalQuery }
+    : null;
+  const visibleRows = aliasMatch && !rows.some((r) => r.name.toLowerCase() === aliasMatch.name.toLowerCase())
+    ? [aliasMatch, ...rows]
+    : rows;
+  const officialNameCandidate = query.trim().length > 3 &&
+    /\b(university|college|institute|school)\b/i.test(query) &&
+    !visibleRows.some((r) => r.name.toLowerCase() === canonicalQuery.toLowerCase());
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -87,9 +95,9 @@ export function SchoolCombobox({
             <CommandEmpty>
               {loading ? "Searching…" : "No schools found."}
             </CommandEmpty>
-            {rows.length > 0 && (
+            {visibleRows.length > 0 && (
               <CommandGroup heading="Schools">
-                {rows.map((r) => (
+                {visibleRows.map((r) => (
                   <CommandItem
                     key={r.id}
                     value={r.name}
@@ -109,20 +117,25 @@ export function SchoolCombobox({
                 ))}
               </CommandGroup>
             )}
-            {showCreate && (
-              <CommandGroup heading="Add new">
+            {officialNameCandidate && (
+              <CommandGroup heading="Official name">
                 <CommandItem
                   value={`__create__${query}`}
                   onSelect={() => {
-                    onChange(query.trim());
+                    onChange(canonicalQuery);
                     setOpen(false);
                   }}
                 >
                   <span className="text-sm">
-                    Use “<span className="font-medium">{query.trim()}</span>”
+                    Use official name “<span className="font-medium">{canonicalQuery}</span>”
                   </span>
                 </CommandItem>
               </CommandGroup>
+            )}
+            {!loading && query.trim().length > 0 && visibleRows.length === 0 && !officialNameCandidate && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                Choose a school above, or type its full official name (for example, “Utah State University”).
+              </div>
             )}
           </CommandList>
         </Command>

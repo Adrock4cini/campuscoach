@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, ArrowRight, Plus, Trash2, CalendarDays, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/lib/onboarding/types";
-import { saveOnboarding } from "@/lib/onboarding/store";
+import { loadCachedOnboarding, saveOnboarding } from "@/lib/onboarding/store";
+import { academicTermOptions } from "@/lib/onboarding/options";
 import { useAuth } from "@/contexts/AuthContext";
 import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
@@ -32,10 +33,39 @@ const STEPS = [
 
 export default function Onboarding() {
   const nav = useNavigate();
-  const { refreshOnboarded } = useAuth();
+  const { refreshOnboarded, profile, user } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(emptyOnboarding);
   const [saving, setSaving] = useState(false);
+  const initialized = useRef(false);
+  const termOptions = useMemo(() => academicTermOptions(), []);
+
+  useEffect(() => {
+    if (!user || initialized.current) return;
+    initialized.current = true;
+    const cached = loadCachedOnboarding();
+    const metadataName = typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name.split(" ")[0]
+      : "";
+    const name = profile?.display_name || metadataName || cached?.name || "";
+    const school = profile?.schools?.name || cached?.school || "";
+    const term = profile?.term || cached?.term || "";
+
+    setData({
+      ...emptyOnboarding,
+      ...cached,
+      name,
+      school,
+      term,
+      learnerType: (profile?.learner_type as OnboardingData["learnerType"]) || cached?.learnerType || "college",
+      workSchedule: profile?.work_schedule || cached?.workSchedule || "",
+    });
+
+    // Do not ask returning students to re-enter information already stored.
+    if (name && school && term) setStep(3);
+    else if (name && school) setStep(2);
+    else if (name) setStep(1);
+  }, [profile, user]);
 
   const update = (patch: Partial<OnboardingData>) => setData((d) => ({ ...d, ...patch }));
   const updateClass = (i: number, patch: Partial<OnboardingClass>) =>
@@ -65,7 +95,8 @@ export default function Onboarding() {
       await refreshOnboarded();
       nav("/dashboard", { replace: true });
     } catch (e) {
-      toast.error("Couldn't finish setup", { description: "Please try again." });
+      const message = e instanceof Error ? e.message : "Please try again.";
+      toast.error("Couldn't finish setup", { description: message });
     } finally {
       setSaving(false);
     }
@@ -123,7 +154,7 @@ export default function Onboarding() {
                         <Label className="text-xs text-muted-foreground">I'm a…</Label>
                         <Select
                           value={data.learnerType}
-                          onValueChange={(v: any) => update({ learnerType: v })}
+                          onValueChange={(v) => update({ learnerType: v as OnboardingData["learnerType"] })}
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -149,29 +180,31 @@ export default function Onboarding() {
                 )}
 
                 {step === 2 && (
-                  <StepShell title="Which term is this?">
-                    <Input
-                      autoFocus
-                      value={data.term}
-                      onChange={(e) => update({ term: e.target.value })}
-                      placeholder="Spring 2026"
-                    />
+                  <StepShell title="Which term is this?" hint="Choose one standard term so classes stay organized.">
+                    <Select value={data.term} onValueChange={(term) => update({ term })}>
+                      <SelectTrigger autoFocus>
+                        <SelectValue placeholder="Choose your term" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[...new Set(data.term && !termOptions.includes(data.term) ? [data.term, ...termOptions] : termOptions)].map((term) => (
+                          <SelectItem key={term} value={term}>{term}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </StepShell>
                 )}
                 {step === 3 && (
-                  <StepShell title="Add your classes" hint="Just the names for now — you can add details next.">
-                    <div className="space-y-2">
+                  <StepShell title="Add your classes" hint="Start with the class name. Course code and professor are optional.">
+                    <div className="space-y-3">
                       {data.classes.map((c, i) => (
-                        <div key={i} className="flex gap-2">
-                          <Input
-                            value={c.name}
-                            onChange={(e) => updateClass(i, { name: e.target.value })}
-                            placeholder={`Class ${i + 1}`}
-                          />
-                          {data.classes.length > 1 && (
+                        <div key={i} className="rounded-xl border border-border/60 bg-background/20 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Class {i + 1}</Label>
+                            {data.classes.length > 1 && (
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label={`Remove class ${i + 1}`}
                               onClick={() =>
                                 setData((d) => ({
                                   ...d,
@@ -182,11 +215,30 @@ export default function Onboarding() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
+                          </div>
+                          <Input
+                            value={c.name}
+                            onChange={(e) => updateClass(i, { name: e.target.value })}
+                            placeholder="Class name, e.g. Biology II"
+                            autoFocus={i === 0}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              value={c.code || ""}
+                              onChange={(e) => updateClass(i, { code: e.target.value })}
+                              placeholder="Course code"
+                            />
+                            <Input
+                              value={c.professor || ""}
+                              onChange={(e) => updateClass(i, { professor: e.target.value })}
+                              placeholder="Professor"
+                            />
+                          </div>
                         </div>
                       ))}
                       <Button
                         variant="outline"
-                        size="sm"
+                        className="w-full border-dashed"
                         onClick={() =>
                           setData((d) => ({
                             ...d,
@@ -194,7 +246,7 @@ export default function Onboarding() {
                           }))
                         }
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Add class
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add another class
                       </Button>
                     </div>
                   </StepShell>
@@ -267,7 +319,7 @@ export default function Onboarding() {
                   <StepShell title="How should we remind you?">
                     <Select
                       value={data.reminderStyle}
-                      onValueChange={(v: any) => update({ reminderStyle: v })}
+                      onValueChange={(v) => update({ reminderStyle: v as OnboardingData["reminderStyle"] })}
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
