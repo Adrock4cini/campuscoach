@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
   // fall back to the user's weakest-mastery concepts in the class.
   let conceptQuery = supabase
     .from("concepts")
-    .select("id, name, definition, examples, professor_emphasis, class_id, capture_id")
+    .select("id, name, definition, examples, professor_emphasis, class_id, client_class_id, capture_id")
     .eq("user_id", userId)
     .limit(MAX_CONCEPTS);
 
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
   } else if (body.captureId) {
     conceptQuery = conceptQuery.eq("capture_id", body.captureId);
   } else if (body.classId) {
-    conceptQuery = conceptQuery.eq("class_id", body.classId);
+    conceptQuery = conceptQuery.eq("client_class_id", body.classId);
   }
 
   const { data: concepts, error: cErr } = await conceptQuery;
