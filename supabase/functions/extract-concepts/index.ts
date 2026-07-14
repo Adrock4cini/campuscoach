@@ -72,6 +72,24 @@ Deno.serve(async (req) => {
   const rawText = (body.rawText ?? "").trim();
   if (!rawText) return json({ error: "rawText required" }, 400);
 
+  // Resolve the student's stable client class id to the real classes.id UUID.
+  // Both identifiers travel through the pipeline: the client id drives routes,
+  // while the UUID anchors mastery/readiness foreign keys.
+  let resolvedClassId = body.classId ?? null;
+  let resolvedClientClassId = body.clientClassId ?? null;
+  if (body.clientClassId) {
+    const { data: ownedClass, error: classErr } = await supabase
+      .from("classes")
+      .select("id, client_class_id")
+      .eq("user_id", userId)
+      .eq("client_class_id", body.clientClassId)
+      .maybeSingle();
+    if (classErr) return json({ error: "class lookup failed", details: classErr.message }, 500);
+    if (!ownedClass) return json({ error: "class not found" }, 404);
+    resolvedClassId = ownedClass.id;
+    resolvedClientClassId = ownedClass.client_class_id;
+  }
+
   const userPrompt = [
     body.className ? `Class: ${body.className}` : null,
     body.topic ? `Topic: ${body.topic}` : null,
@@ -114,7 +132,7 @@ Deno.serve(async (req) => {
     });
     if (emRes.ok) {
       const em = await emRes.json();
-      embeddings = (em?.data ?? []).map((d: any) => d.embedding as number[]);
+      embeddings = (em?.data ?? []).map((d: { embedding: number[] }) => d.embedding);
     }
   }
 
@@ -122,8 +140,8 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const conceptRows = concepts.map((c, i) => ({
     user_id: userId,
-    class_id: body.classId ?? null,
-    client_class_id: body.clientClassId ?? null,
+    class_id: resolvedClassId,
+    client_class_id: resolvedClientClassId,
     capture_id: body.captureId ?? null,
     name: c.name,
     slug: slugify(c.name),
@@ -141,10 +159,10 @@ Deno.serve(async (req) => {
       .insert(conceptRows)
       .select("id, class_id");
     if (insErr) return json({ error: "concepts insert failed", details: insErr.message }, 500);
-    insertedIds = (inserted ?? []).map((r: any) => r.id);
+    insertedIds = (inserted ?? []).map((r: { id: string }) => r.id);
 
     // seed mastery at strength 0.15 (exposed, not yet learned)
-    const masteryRows = (inserted ?? []).map((r: any) => ({
+    const masteryRows = (inserted ?? []).map((r: { id: string; class_id: string | null }) => ({
       user_id: userId,
       concept_id: r.id,
       class_id: r.class_id,
@@ -173,7 +191,12 @@ Deno.serve(async (req) => {
     });
     await supabase
       .from("captures")
-      .update({ processing_status: "ready", flashcards_ready: false })
+      .update({
+        processing_status: "ready",
+        flashcards_ready: false,
+        class_id: resolvedClassId,
+        client_class_id: resolvedClientClassId,
+      })
       .eq("id", body.captureId)
       .eq("user_id", userId);
   }
