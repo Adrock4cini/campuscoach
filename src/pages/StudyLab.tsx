@@ -4,11 +4,11 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { classes } from "@/data/demo";
 import { StudyMode } from "@/data/questions";
 import { useStudyFormatRecommendation } from "@/lib/intelligence";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealStudySet } from "@/components/study/RealStudySet";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
@@ -30,20 +30,22 @@ export default function StudyLab() {
   const navigate = useNavigate();
   const { mode: authMode } = useAuth();
   const isRealUser = authMode === "real";
+  const { classes: availableClasses, loading: classesLoading } = useMyClasses();
 
   const preselectedClass = searchParams.get("classId");
   const [selectedDuration, setSelectedDuration] = useState(25);
-  const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || classes[0].id);
+  const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || "");
+  const effectiveClass = selectedClass || availableClasses[0]?.id || "";
   // Study-format recommendation comes from the Intelligence Engine,
   // which also picks the topic to attack based on peer signal.
-  const recommendation = useStudyFormatRecommendation(selectedClass);
+  const recommendation = useStudyFormatRecommendation(effectiveClass);
   const recommendedTopic = recommendation.topic;
 
   const startRecommended = () =>
-    navigate(`/study-lab/session?mode=${recommendation.mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${recommendation.mode}&classId=${effectiveClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
 
   const startSecondary = (mode: StudyMode) =>
-    navigate(`/study-lab/session?mode=${mode}&classId=${selectedClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
+    navigate(`/study-lab/session?mode=${mode}&classId=${effectiveClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
 
 
   return (
@@ -59,12 +61,12 @@ export default function StudyLab() {
 
       {/* Class chips */}
       <div className="flex flex-wrap gap-2">
-        {classes.map(c => (
+        {availableClasses.map(c => (
           <button
             key={c.id}
             onClick={() => setSelectedClass(c.id)}
             className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-              selectedClass === c.id
+              effectiveClass === c.id
                 ? "border-primary/60 bg-primary/10 text-foreground"
                 : "border-border/40 text-muted-foreground hover:text-foreground"
             }`}
@@ -75,12 +77,23 @@ export default function StudyLab() {
       </div>
 
       {/* Real users: concept-backed study set (flashcards / MCQ). */}
-      {isRealUser && <RealStudySet classId={selectedClass} />}
+      {isRealUser && classesLoading && (
+        <p className="text-sm text-muted-foreground">Loading your classes…</p>
+      )}
+      {isRealUser && !classesLoading && !effectiveClass && (
+        <Card className="border-dashed border-border/50">
+          <CardContent className="p-6 text-center">
+            <p className="text-sm text-foreground">Add a class before starting a study session.</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/classes")}>Go to classes</Button>
+          </CardContent>
+        </Card>
+      )}
+      {isRealUser && effectiveClass && <RealStudySet classId={effectiveClass} />}
 
 
 
       {/* HERO: single recommended action */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+      {!isRealUser && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="shadow-elevated border-primary/30 overflow-hidden">
           <CardContent className="p-8 text-center space-y-5">
             <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase tracking-wider">
@@ -105,10 +118,10 @@ export default function StudyLab() {
             </Button>
           </CardContent>
         </Card>
-      </motion.div>
+      </motion.div>}
 
       {/* Secondary modes */}
-      <div>
+      {!isRealUser && <div>
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Or try</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {secondaryModes
@@ -124,10 +137,10 @@ export default function StudyLab() {
               </button>
             ))}
         </div>
-      </div>
+      </div>}
 
       {/* Focus sprint — minimal */}
-      <div className="rounded-2xl border border-border/40 p-5">
+      {!isRealUser && <div className="rounded-2xl border border-border/40 p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <Clock className="h-4 w-4 text-primary" />
@@ -149,13 +162,13 @@ export default function StudyLab() {
               size="sm"
               variant="ghost"
               className="h-7 text-xs ml-1"
-              onClick={() => navigate(`/focus-sprint?classId=${selectedClass}&duration=${selectedDuration}`)}
+              onClick={() => navigate(`/focus-sprint?classId=${effectiveClass}&duration=${selectedDuration}`)}
             >
               Start <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
