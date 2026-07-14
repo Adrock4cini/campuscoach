@@ -35,7 +35,7 @@ interface Body {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v1";
+const PROMPT_VERSION = "v2-concept-attribution";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -44,9 +44,10 @@ const PROMPTS: Partial<Record<ArtifactKind, {
 }>> = {
   flashcards: {
     system: `You author study flashcards for a college student, grounded ONLY in the concepts provided.
-Return ONLY JSON matching: { "cards": [ { "front": string, "back": string } ] }
+Return ONLY JSON matching: { "cards": [ { "front": string, "back": string, "conceptId": string } ] }
 Rules:
 - One card per concept unless a concept clearly needs two.
+- conceptId MUST exactly match the ID supplied for the concept used by that card.
 - "front" is a short question or cue. "back" is 1-2 sentences, plain language.
 - Never invent facts not present in the concept's definition/examples.
 - No prose outside JSON.`,
@@ -59,10 +60,12 @@ Return ONLY JSON matching:
   "prompt": string,
   "choices": string[],      // exactly 4
   "answerIndex": number,    // 0-3
-  "rationale": string       // 1 sentence, why the answer is right
+  "rationale": string,      // 1 sentence, why the answer is right
+  "conceptId": string       // exact supplied concept ID tested
 } ] }
 Rules:
 - One question per concept. Exactly 4 choices. Exactly one correct.
+- conceptId MUST exactly match the ID supplied for the concept being tested.
 - Distractors must be plausible and drawn from adjacent ideas in the provided concepts — never invent unrelated facts.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,
@@ -125,7 +128,8 @@ Deno.serve(async (req) => {
 
   const count = Math.min(body.count ?? concepts.length, concepts.length, MAX_CONCEPTS);
   const conceptBlock = concepts.map((c, i) =>
-    `Concept ${i + 1}: ${c.name}
+    `Concept ${i + 1} ID: ${c.id}
+Name: ${c.name}
 Definition: ${c.definition ?? "(none)"}
 Examples: ${(c.examples ?? []).join(" | ") || "(none)"}
 Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
@@ -160,6 +164,19 @@ Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
   let payload: unknown = {};
   try { payload = JSON.parse(gw?.choices?.[0]?.message?.content ?? "{}"); } catch {
     return json({ error: "model returned non-JSON" }, 502);
+  }
+
+  // Reject untraceable output. Every study item must point back to a
+  // permanent Concept so a student's answer updates only that memory.
+  const allowedConceptIds = new Set(concepts.map((c) => c.id));
+  const generatedItems = body.kind === "flashcards"
+    ? (payload as { cards?: Array<{ conceptId?: string }> }).cards
+    : (payload as { questions?: Array<{ conceptId?: string }> }).questions;
+  if (!Array.isArray(generatedItems) || generatedItems.length === 0) {
+    return json({ error: "model returned an empty or invalid artifact" }, 502);
+  }
+  if (generatedItems.some((item) => !item.conceptId || !allowedConceptIds.has(item.conceptId))) {
+    return json({ error: "model returned an artifact without valid concept attribution" }, 502);
   }
 
   // 3. Optional regenerate: mark prior rows stale for same (kind, capture_id or conceptIds).
