@@ -32,6 +32,11 @@ interface Props {
   onCompleted?: (result: { readiness: number; correct: number; total: number }) => void;
 }
 
+interface AnswerResult {
+  conceptId: string;
+  correct: boolean;
+}
+
 export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: Props) {
   const items = useMemo(() => {
     if (artifact.kind === "flashcards") {
@@ -48,15 +53,30 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [startedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
 
   const total = items.length;
   const isLast = idx >= total - 1;
 
   const record = async (wasCorrect: boolean) => {
+    const item = items[idx] as { conceptId?: string };
+    // v2 artifacts carry explicit attribution. This positional fallback
+    // keeps existing v1 artifacts useful when they have one item per concept.
+    const conceptId = item.conceptId
+      ?? (items.length === artifact.concept_ids.length ? artifact.concept_ids[idx] : undefined)
+      ?? (artifact.concept_ids.length === 1 ? artifact.concept_ids[0] : undefined);
+    const nextResults = conceptId
+      ? [...answerResults, { conceptId, correct: wasCorrect }]
+      : answerResults;
+    setAnswerResults(nextResults);
     if (wasCorrect) setCorrect((c) => c + 1);
     else setIncorrect((c) => c + 1);
     if (isLast) {
-      await finish(wasCorrect ? correct + 1 : correct, wasCorrect ? incorrect : incorrect + 1);
+      await finish(
+        wasCorrect ? correct + 1 : correct,
+        wasCorrect ? incorrect : incorrect + 1,
+        nextResults,
+      );
     } else {
       setIdx((i) => i + 1);
       setFlipped(false);
@@ -64,7 +84,11 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     }
   };
 
-  const finish = async (finalCorrect: number, _finalIncorrect: number) => {
+  const finish = async (
+    finalCorrect: number,
+    _finalIncorrect: number,
+    results: AnswerResult[],
+  ) => {
     setSubmitting(true);
     const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     const { data, error } = await supabase.functions.invoke("record-study-result", {
@@ -73,6 +97,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
         correct: finalCorrect,
         total,
         durationSeconds,
+        perConcept: summarizeByConcept(results),
       },
     });
     setSubmitting(false);
@@ -90,6 +115,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const reset = () => {
     setIdx(0); setCorrect(0); setIncorrect(0);
     setFlipped(false); setPicked(null); setDone(false);
+    setAnswerResults([]);
   };
 
   if (!items.length) return null;
@@ -218,4 +244,18 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       </DialogContent>
     </Dialog>
   );
+}
+
+function summarizeByConcept(results: AnswerResult[]) {
+  const byConcept = new Map<string, { correct: number; total: number }>();
+  for (const result of results) {
+    const current = byConcept.get(result.conceptId) ?? { correct: 0, total: 0 };
+    current.total += 1;
+    if (result.correct) current.correct += 1;
+    byConcept.set(result.conceptId, current);
+  }
+  return [...byConcept].map(([conceptId, score]) => ({
+    conceptId,
+    correct: score.correct / score.total >= 0.5,
+  }));
 }
