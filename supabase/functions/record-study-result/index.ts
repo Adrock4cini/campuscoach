@@ -58,6 +58,10 @@ Deno.serve(async (req) => {
   if (!body.artifactId || typeof body.total !== "number" || typeof body.correct !== "number") {
     return json({ error: "artifactId, correct, total required" }, 400);
   }
+  if (!Number.isInteger(body.total) || !Number.isInteger(body.correct)
+      || body.total <= 0 || body.correct < 0 || body.correct > body.total) {
+    return json({ error: "correct and total must be valid whole-number results" }, 400);
+  }
 
   // 1. Load artifact (RLS enforces ownership).
   const { data: artifact, error: aErr } = await supabase
@@ -107,11 +111,17 @@ Deno.serve(async (req) => {
   // 4. Update user_concept_mastery per concept.
   // Per-concept results if provided; otherwise apply overall pass/fail to each.
   const perMap = new Map<string, boolean>();
+  const overallCorrect = body.correct / body.total >= 0.5;
   if (body.perConcept?.length) {
-    for (const p of body.perConcept) perMap.set(p.conceptId, !!p.correct);
-  } else {
-    const overallCorrect = body.total > 0 && body.correct / body.total >= 0.5;
-    for (const id of conceptIds) perMap.set(id, overallCorrect);
+    const allowed = new Set(conceptIds);
+    for (const p of body.perConcept) {
+      if (allowed.has(p.conceptId)) perMap.set(p.conceptId, !!p.correct);
+    }
+  }
+  // Legacy artifacts cannot always attribute an item. Preserve the old
+  // aggregate behavior only for concepts that were not individually scored.
+  for (const id of conceptIds) {
+    if (!perMap.has(id)) perMap.set(id, overallCorrect);
   }
 
   // Load existing mastery rows.
