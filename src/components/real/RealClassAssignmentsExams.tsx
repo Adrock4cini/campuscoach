@@ -28,9 +28,9 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
       {/* Assignments */}
       <Card className="shadow-card">
         <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
             <h3 className="font-display font-semibold text-foreground">Assignments</h3>
-            <Button size="sm" variant="outline" onClick={() => setAddA(true)}>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={() => setAddA(true)}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>
@@ -64,9 +64,9 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
       {/* Exams */}
       <Card className="shadow-card">
         <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
             <h3 className="font-display font-semibold text-foreground">Exams</h3>
-            <Button size="sm" variant="outline" onClick={() => setAddE(true)}>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={() => setAddE(true)}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>

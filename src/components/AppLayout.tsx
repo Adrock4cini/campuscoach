@@ -30,7 +30,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full relative">
+      <div className="min-h-screen flex w-full max-w-full overflow-x-hidden relative">
         {/* Ambient aurora orbs — softer in hyperfocus mode */}
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden z-0">
           <div className={`absolute -top-40 -left-32 h-[480px] w-[480px] rounded-full blur-[120px] animate-float-slow transition-opacity duration-700 ${dampen ? "bg-primary/5 opacity-50" : "bg-primary/15"}`} />
@@ -49,7 +49,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
               <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70 hidden lg:inline ml-2">AI Academic OS</span>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 lg:p-10 overflow-auto">
+          <main className="flex-1 min-w-0 max-w-full p-4 md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden">
             {children}
           </main>
         </div>
@@ -70,4 +70,3 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </FocusModeProvider>
   );
 }
-
