@@ -40,4 +40,20 @@ describe("capture journey", () => {
     expect(result.flashcardCount).toBeGreaterThan(0);
     expect(result.summary.toLowerCase()).toContain("memory models");
   });
+
+  it("does not invent concepts or flashcards for a real text capture", async () => {
+    const result = await commitCapture(
+      "professor-hint",
+      {
+        classId: "math",
+        date: "2026-07-14",
+        text: "The quadratic formula will be on the exam.",
+      },
+      { simulateDerivedContent: false },
+    );
+
+    expect(result.summary).toContain("quadratic formula");
+    expect(result.keyConcepts).toEqual([]);
+    expect(result.flashcardCount).toBe(0);
+  });
 });

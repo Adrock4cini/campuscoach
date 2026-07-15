@@ -66,6 +66,21 @@ const KIND_ICON: Record<CaptureKind, typeof Mic> = {
   "ask-brain": Sparkles,
 };
 
+const PLACEHOLDER_KINDS = new Set<CaptureKind>([
+  "record-lecture",
+  "scan-board",
+  "scan-textbook",
+  "upload-file",
+  "ask-brain",
+]);
+
+function trustworthyConcepts(kind: CaptureKind, concepts: string[]) {
+  // Typed notes and professor hints are real source material, but old UI
+  // versions attached placeholder "Core concepts" labels before extraction.
+  if (kind === "quick-note" || kind === "professor-hint") return [];
+  return concepts;
+}
+
 function fromLocal(classId: string): MemoryItem[] {
   return listCaptures()
     .filter((c) => c.context.classId === classId)
@@ -74,29 +89,34 @@ function fromLocal(classId: string): MemoryItem[] {
       kind: c.kind,
       topic: c.context.topic || CAPTURE_LABELS[c.kind],
       date: c.context.date || c.createdAt.slice(0, 10),
-      keyConcepts: c.keyConcepts,
+      keyConcepts: trustworthyConcepts(c.kind, c.keyConcepts),
       summary: c.summary,
       processingStatus: "ready",
       flashcardsReady: c.flashcardCount > 0,
       chapter: undefined,
       source: "local" as const,
+      isPlaceholder: PLACEHOLDER_KINDS.has(c.kind),
     }));
 }
 
 function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    const kind = (r.kind as CaptureKind) ?? "quick-note";
+    return ({
     id: r.id,
-    kind: (r.kind as CaptureKind) ?? "quick-note",
-    topic: r.topic || CAPTURE_LABELS[(r.kind as CaptureKind) ?? "quick-note"],
+    kind,
+    topic: r.topic || CAPTURE_LABELS[kind],
     date: r.createdAt.slice(0, 10),
-    keyConcepts: r.keyConcepts ?? [],
+    keyConcepts: trustworthyConcepts(kind, r.keyConcepts ?? []),
     summary: r.summary ?? "",
     processingStatus:
       (r.processingStatus as MemoryItem["processingStatus"]) ?? "ready",
     flashcardsReady: r.flashcardsReady,
     chapter: undefined,
     source: "supabase" as const,
-  }));
+    isPlaceholder: PLACEHOLDER_KINDS.has(kind),
+  });
+  });
 }
 
 function dedupe(items: MemoryItem[]): MemoryItem[] {
@@ -255,7 +275,11 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {CAPTURE_LABELS[item.kind]}
           </span>
-          {processing ? (
+          {item.isPlaceholder ? (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              preview only
+            </Badge>
+          ) : processing ? (
             <Badge variant="outline" className="text-[10px] gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> processing
             </Badge>
@@ -285,14 +309,16 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
       </button>
 
       <div className="flex items-center gap-1 shrink-0">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-primary hover:text-primary hover:bg-primary/10"
-          onClick={onStudy}
-        >
-          Study <ArrowRight className="h-3.5 w-3.5 ml-1" />
-        </Button>
+        {!item.isPlaceholder && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-primary hover:text-primary hover:bg-primary/10"
+            onClick={onStudy}
+          >
+            Study <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" className="h-8 w-8">
@@ -301,10 +327,14 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem onClick={onOpen}>Open detail</DropdownMenuItem>
-            <DropdownMenuItem onClick={onFlashcards}>
-              Generate flashcards
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onQuiz}>Generate quiz</DropdownMenuItem>
+            {!item.isPlaceholder && (
+              <>
+                <DropdownMenuItem onClick={onFlashcards}>
+                  Generate flashcards
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onQuiz}>Generate quiz</DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() =>
