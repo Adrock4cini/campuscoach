@@ -49,7 +49,7 @@ export default function StudyLab() {
 
 
   return (
-    <div className="max-w-3xl mx-auto space-y-10">
+    <div className="max-w-3xl mx-auto space-y-6 md:space-y-8">
       <div>
         <div className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-primary/90 mb-1.5">
           <Sparkles className="h-3 w-3" /> Study Lab

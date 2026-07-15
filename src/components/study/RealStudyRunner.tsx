@@ -12,8 +12,8 @@
  * behavior change, not a UI redesign.
  */
 
-import { useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,13 +50,27 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [incorrect, setIncorrect] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
-  const [startedAt] = useState(() => Date.now());
+  const [startedAt, setStartedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [readiness, setReadiness] = useState<number | null>(null);
   const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
 
   const total = items.length;
   const isLast = idx >= total - 1;
+
+  useEffect(() => {
+    if (!open) return;
+    setIdx(0);
+    setCorrect(0);
+    setIncorrect(0);
+    setFlipped(false);
+    setPicked(null);
+    setDone(false);
+    setReadiness(null);
+    setAnswerResults([]);
+    setStartedAt(Date.now());
+  }, [open, artifact.id]);
 
   const record = async (wasCorrect: boolean) => {
     const item = items[idx] as { conceptId?: string };
@@ -107,6 +121,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     }
     setDone(true);
     const r = data as { readiness?: number };
+    setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
     // Nudge the Dashboard coach to re-rank now that mastery has changed.
     window.dispatchEvent(new CustomEvent("coach:refresh"));
     onCompleted?.({ readiness: r?.readiness ?? 0, correct: finalCorrect, total });
@@ -115,6 +130,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const reset = () => {
     setIdx(0); setCorrect(0); setIncorrect(0);
     setFlipped(false); setPicked(null); setDone(false);
+    setReadiness(null); setStartedAt(Date.now());
     setAnswerResults([]);
   };
 
@@ -122,11 +138,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!submitting) onOpenChange(v); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100%-1rem)] max-w-md max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-3xl p-4 sm:p-6 gap-3">
+        <DialogHeader className="pr-8 text-left">
           <DialogTitle className="font-display">
             {done ? "Session saved" : artifact.kind === "flashcards" ? "Flashcards" : "Multiple choice"}
           </DialogTitle>
+          {!done && (
+            <DialogDescription className="text-xs leading-relaxed">
+              Based on {artifact.concept_ids.length} captured concept{artifact.concept_ids.length === 1 ? "" : "s"}. Your answers update mastery and future recommendations.
+            </DialogDescription>
+          )}
+          {done && <DialogDescription>Your answers were saved to concept memory.</DialogDescription>}
         </DialogHeader>
 
         {!done ? (
@@ -135,32 +157,44 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               <span>{idx + 1} / {total}</span>
               <span>{correct} correct · {incorrect} missed</span>
             </div>
-            <Progress value={((idx) / total) * 100} className="h-1" />
+            <Progress value={((idx + 1) / total) * 100} className="h-1" />
 
             {artifact.kind === "flashcards" ? (
               (() => {
                 const card = (artifact.payload as FlashcardsPayload).cards[idx];
                 return (
-                  <div>
+                  <div className="space-y-3">
                     <button
                       onClick={() => setFlipped((f) => !f)}
-                      className="w-full min-h-40 rounded-2xl border border-border/60 p-6 text-left hover:border-primary/40 transition-colors"
+                      className="w-full min-h-44 rounded-2xl border border-border/60 p-5 text-left hover:border-primary/40 transition-colors"
                     >
                       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                        {flipped ? "Answer" : "Prompt"} — tap to flip
+                        {flipped ? "Answer" : "Question"}
                       </p>
-                      <p className="text-base text-foreground">
+                      {card.conceptName && (
+                        <p className="text-[11px] text-primary mb-3">Concept: {card.conceptName}</p>
+                      )}
+                      <p className="text-base sm:text-lg text-foreground leading-relaxed">
                         {flipped ? card.back : card.front}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-5">
+                        Tap card to {flipped ? "see the question" : "reveal the answer"}
+                      </p>
                     </button>
-                    <div className="grid grid-cols-2 gap-2 pt-3">
-                      <Button variant="outline" onClick={() => record(false)} disabled={!flipped}>
-                        <X className="h-4 w-4 mr-1.5" /> Missed
+                    {!flipped ? (
+                      <Button className="w-full" onClick={() => setFlipped(true)}>
+                        Reveal answer
                       </Button>
-                      <Button onClick={() => record(true)} disabled={!flipped}>
-                        <Check className="h-4 w-4 mr-1.5" /> Got it
-                      </Button>
-                    </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" onClick={() => record(false)}>
+                          <X className="h-4 w-4 mr-1.5" /> Review again
+                        </Button>
+                        <Button onClick={() => record(true)}>
+                          <Check className="h-4 w-4 mr-1.5" /> I knew it
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })()
@@ -224,6 +258,11 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
             <p className="text-sm text-muted-foreground">
               {correct} of {total} correct · Concept memory updated.
             </p>
+            {readiness !== null && (
+              <p className="text-sm text-foreground">
+                Readiness recalculated to <span className="font-semibold text-primary">{Math.round(readiness)}%</span>.
+              </p>
+            )}
           </div>
         )}
 
@@ -236,8 +275,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </>
           ) : (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-              Close
+            <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => onOpenChange(false)} disabled={submitting}>
+              End session
             </Button>
           )}
         </DialogFooter>

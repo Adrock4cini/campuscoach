@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, Mic, FlaskConical, Pencil, Plus,
+  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -81,23 +81,23 @@ export default function ClassDetail() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-card border-primary/20 bg-primary/5">
-          <CardContent className="p-5 space-y-3">
+        <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
+          <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
             <div>
               <p className="text-xs font-medium text-primary mb-1">🎯 Start capturing</p>
-              <h3 className="font-display font-semibold text-foreground">Bring this class into Campus Brain</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Record a lecture, scan the board, or drop a quick note. Everything you capture appears in Class Memory below and powers your readiness.
+              <h3 className="font-display font-semibold text-foreground">Teach Campus Brain about this class</h3>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Add a quick note or save something your professor emphasized. Campus Brain extracts concepts first, then uses them to build study sets.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture()}>
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90 w-full sm:w-auto" onClick={() => openCapture()}>
                 <Plus className="h-4 w-4 mr-1" /> Quick Capture
               </Button>
-              <Button size="sm" variant="outline" onClick={() => openCapture("record-lecture")}>
-                <Mic className="h-4 w-4 mr-1" /> Record lecture
+              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCapture("professor-hint")}>
+                <MessageSquare className="h-4 w-4 mr-1" /> Professor Hint
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
+              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
                 <FlaskConical className="h-4 w-4 mr-1" /> Study Lab
               </Button>
             </div>

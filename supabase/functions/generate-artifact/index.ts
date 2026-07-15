@@ -35,7 +35,7 @@ interface Body {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v3-class-identity";
+const PROMPT_VERSION = "v4-study-transparency";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -44,11 +44,13 @@ const PROMPTS: Partial<Record<ArtifactKind, {
 }>> = {
   flashcards: {
     system: `You author study flashcards for a college student, grounded ONLY in the concepts provided.
-Return ONLY JSON matching: { "cards": [ { "front": string, "back": string, "conceptId": string } ] }
+Return ONLY JSON matching: { "cards": [ { "front": string, "back": string, "conceptId": string, "conceptName": string } ] }
 Rules:
 - One card per concept unless a concept clearly needs two.
 - conceptId MUST exactly match the ID supplied for the concept used by that card.
+- conceptName MUST exactly match the supplied concept name.
 - "front" is a short question or cue. "back" is 1-2 sentences, plain language.
+- Prefer useful recall or application prompts over generic "What is X?" cards.
 - Never invent facts not present in the concept's definition/examples.
 - No prose outside JSON.`,
     describe: (n) => `Generate up to ${n} flashcards covering these concepts.`,
@@ -61,11 +63,13 @@ Return ONLY JSON matching:
   "choices": string[],      // exactly 4
   "answerIndex": number,    // 0-3
   "rationale": string,      // 1 sentence, why the answer is right
-  "conceptId": string       // exact supplied concept ID tested
+  "conceptId": string,      // exact supplied concept ID tested
+  "conceptName": string     // exact supplied concept name tested
 } ] }
 Rules:
 - One question per concept. Exactly 4 choices. Exactly one correct.
 - conceptId MUST exactly match the ID supplied for the concept being tested.
+- conceptName MUST exactly match the supplied concept name.
 - Distractors must be plausible and drawn from adjacent ideas in the provided concepts — never invent unrelated facts.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,

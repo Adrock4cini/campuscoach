@@ -50,15 +50,13 @@ export function RealStudySet({ classId }: Props) {
 
   return (
     <Card className="border-border/40">
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <KindIcon className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground">
-              Generated from your captures
-            </span>
+            <span className="text-sm font-medium text-foreground">Your study set</span>
             <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-              Concept-backed
+              Evidence-backed
             </Badge>
           </div>
           <div className="flex items-center gap-1.5">
@@ -86,16 +84,14 @@ export function RealStudySet({ classId }: Props) {
               {count} {KIND_META[kind].label.toLowerCase()} ready · updated{" "}
               {new Date(artifact.updated_at).toLocaleDateString()}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Built from {artifact.concept_ids.length} concept
-              {artifact.concept_ids.length === 1 ? "" : "s"} you've captured.
+              {artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and professor hints. Your answers update mastery and future recommendations.
             </p>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No {KIND_META[kind].label.toLowerCase()} yet. Capture a lecture, board
-            photo, or note in this class and Campus Brain will build a study set
-            grounded in your concepts.
+            No {KIND_META[kind].label.toLowerCase()} yet. Add a quick note or professor hint first. Campus Brain will extract concepts before it builds a study set.
           </p>
         )}
 

@@ -129,6 +129,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
 
   const canContinue =
     !!kind &&
+    (!realMode || !!meta?.availableForRealUsers) &&
     !classesLoading &&
     !!ctx.classId &&
     !!ctx.date &&
@@ -145,7 +146,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
           onClick={onClose}
         >
           <motion.div
-            className="relative w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl glass-strong border border-border/60 shadow-elevated"
+            className="relative w-full sm:max-w-lg max-h-[calc(100dvh-0.5rem)] sm:max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl glass-strong border border-border/60 shadow-elevated"
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -158,7 +159,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
               <div className="absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-accent/20 blur-[100px]" />
             </div>
 
-            <div className="relative p-5 md:p-6">
+            <div className="relative p-4 sm:p-5 md:p-6">
               {/* Header */}
               <div className="flex items-center gap-2 mb-4">
                 {stage !== "menu" && stage !== "done" && (
@@ -254,7 +255,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
                     )}
                   </Field>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Date">
                       <div className="relative">
                         <Calendar className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />

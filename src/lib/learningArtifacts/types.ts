@@ -23,7 +23,7 @@ export type ArtifactKind =
   | "mnemonic";
 
 export interface FlashcardsPayload {
-  cards: Array<{ front: string; back: string; conceptId?: string }>;
+  cards: Array<{ front: string; back: string; conceptId?: string; conceptName?: string }>;
 }
 
 export interface MultipleChoicePayload {
@@ -33,6 +33,7 @@ export interface MultipleChoicePayload {
     answerIndex: number;
     rationale: string;
     conceptId?: string;
+    conceptName?: string;
   }>;
 }
 
