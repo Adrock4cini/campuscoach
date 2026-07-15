@@ -55,7 +55,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
 
     if (scope.captureId) q = q.eq("capture_id", scope.captureId);
     else if (scope.conceptIds?.length) q = q.overlaps("concept_ids", scope.conceptIds);
-    else if (scope.classId) q = q.eq("class_id", scope.classId);
+    else if (scope.classId) q = q.eq("client_class_id", scope.classId);
 
     const { data, error } = await q.maybeSingle();
     if (error) {

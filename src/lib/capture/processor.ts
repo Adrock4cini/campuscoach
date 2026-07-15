@@ -107,18 +107,23 @@ export function listCaptures(): CaptureResult[] {
 export async function commitCapture(
   kind: CaptureKind,
   context: CaptureContext,
+  options: { simulateDerivedContent?: boolean } = {},
 ): Promise<CaptureResult> {
   const cls = classes.find((c) => c.id === context.classId);
   const topicName = context.topic || cls?.currentTopic || "General";
+  const simulateDerivedContent = options.simulateDerivedContent ?? true;
 
   const result: CaptureResult = {
     id: `cap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     kind,
     context,
     createdAt: new Date().toISOString(),
-    keyConcepts: simulateConcepts(kind, context),
+    // Real accounts must never present placeholder concepts as AI output.
+    // Text captures are persisted below and the extraction edge function owns
+    // the actual Concepts that follow.
+    keyConcepts: simulateDerivedContent ? simulateConcepts(kind, context) : [],
     summary: simulateSummary(kind, context),
-    flashcardCount: kind === "quick-note" || kind === "ask-brain" ? 0 : 6,
+    flashcardCount: simulateDerivedContent && kind !== "quick-note" && kind !== "ask-brain" ? 6 : 0,
   };
 
   saveStore([result, ...loadStore()]);
@@ -163,8 +168,7 @@ export async function commitCapture(
   })();
 
   // Feed the topic-level signal used by the aggregate intelligence.
-  try {
-    await contributeStudySignal({
+  void contributeStudySignal({
       classId: context.classId,
       topicId: topicName,
       topicName,
@@ -172,11 +176,8 @@ export async function commitCapture(
       timeSpentMinutes: kind === "record-lecture" ? 45 : 5,
       sourceType: `capture:${kind}`,
       sourceId: result.id,
-    });
-  } catch {
-    /* offline / anon — fine for now */
-  }
+    })
+    .catch(() => undefined); // Offline/anonymous capture still stays local.
 
   return result;
 }
-

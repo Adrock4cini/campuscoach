@@ -32,6 +32,8 @@ export interface MemoryItem {
   flashcardsReady: boolean;
   chapter?: string;
   source: "local" | "supabase";
+  /** True when the original capture used a not-yet-connected media pipeline. */
+  isPlaceholder?: boolean;
 }
 
 interface Props {
@@ -81,7 +83,11 @@ export function CaptureDetailDrawer({
             <div className="flex items-center gap-2 mb-1 text-primary text-xs font-medium">
               <Brain className="h-3.5 w-3.5" /> Campus Brain
             </div>
-            <p className="text-sm text-foreground">{insight}</p>
+            <p className="text-sm text-foreground">
+              {item.isPlaceholder
+                ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or professor hint instead."
+                : insight}
+            </p>
           </div>
 
           {/* Summary */}
@@ -116,10 +122,10 @@ export function CaptureDetailDrawer({
             </div>
           )}
 
-          <Separator />
+          {!item.isPlaceholder && <Separator />}
 
           {/* Study actions */}
-          <div>
+          {!item.isPlaceholder && <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Next study actions
             </p>
@@ -166,7 +172,7 @@ export function CaptureDetailDrawer({
                 Generate quiz <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
-          </div>
+          </div>}
 
           {/* Meta */}
           <div className="text-[11px] text-muted-foreground">

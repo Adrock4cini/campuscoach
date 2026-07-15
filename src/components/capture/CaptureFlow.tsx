@@ -35,14 +35,22 @@ const MENU: {
   icon: typeof Mic;
   hint: string;
   requiresText?: boolean;
+  availableForRealUsers?: boolean;
 }[] = [
-  { kind: "record-lecture", icon: Mic,           hint: "Audio → transcript + notes" },
-  { kind: "scan-board",     icon: Camera,        hint: "OCR the whiteboard" },
-  { kind: "scan-textbook",  icon: BookOpen,      hint: "Chapter → summary + cards" },
-  { kind: "upload-file",    icon: FileUp,        hint: "PDF, slides, doc" },
-  { kind: "quick-note",     icon: StickyNote,    hint: "Jot a thought", requiresText: true },
-  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the prof said", requiresText: true },
-  { kind: "ask-brain",      icon: Brain,         hint: "Ask a question",  requiresText: true },
+  { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
+  { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
+  { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
+  { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
+  { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
+  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the professor emphasized", requiresText: true, availableForRealUsers: true },
+  { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },
+];
+
+const REAL_PROCESSING_STEPS: ProcessingStep[] = [
+  { id: "queued", label: "Saving your note…", duration: 350 },
+  { id: "class-detected", label: "Linked to your class", duration: 300 },
+  { id: "concepts-found", label: "Concept extraction queued", duration: 350 },
+  { id: "added-to-brain", label: "Added to Class Memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, onClose }: Props) {
@@ -73,8 +81,10 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
   // Reset every open
   useEffect(() => {
     if (!open) return;
-    setStage(initialKind ? "context" : "menu");
-    setKind(initialKind ?? null);
+    const initialMeta = initialKind ? MENU.find((item) => item.kind === initialKind) : null;
+    const canOpenInitial = !!initialKind && (!realMode || initialMeta?.availableForRealUsers);
+    setStage(canOpenInitial ? "context" : "menu");
+    setKind(canOpenInitial ? initialKind : null);
     setStepIndex(0);
     setResult(null);
     setCtx({
@@ -83,7 +93,7 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
       topic: detected?.currentTopic ?? "",
       text: "",
     });
-  }, [open, initialKind, detected]);
+  }, [open, initialKind, detected, realMode]);
 
   // Real classes arrive asynchronously. Select the first one without
   // resetting anything the student may already have typed into the form.
@@ -105,11 +115,12 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
     setStepIndex(0);
 
     // Kick off the real (mock) commit in parallel with the step animation.
-    const commitPromise = commitCapture(kind, ctx);
+    const commitPromise = commitCapture(kind, ctx, { simulateDerivedContent: !realMode });
+    const processingSteps = realMode ? REAL_PROCESSING_STEPS : PROCESSING_STEPS;
 
-    for (let i = 0; i < PROCESSING_STEPS.length; i++) {
+    for (let i = 0; i < processingSteps.length; i++) {
       setStepIndex(i);
-      await new Promise((r) => setTimeout(r, PROCESSING_STEPS[i].duration));
+      await new Promise((r) => setTimeout(r, processingSteps[i].duration));
     }
     const r = await commitPromise;
     setResult(r);
@@ -194,10 +205,16 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
                       <button
                         key={m.kind}
                         onClick={() => chooseKind(m.kind)}
-                        className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[84px] flex flex-col"
+                        disabled={realMode && !m.availableForRealUsers}
+                        className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[84px] flex flex-col disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border/50 disabled:hover:bg-background/30"
                       >
                         <m.icon className="h-5 w-5 text-primary mb-1.5" />
-                        <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
+                          {realMode && !m.availableForRealUsers && (
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Coming soon</span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-muted-foreground mt-1 leading-tight">{m.hint}</p>
                       </button>
                     ))}
@@ -298,7 +315,10 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
 
               {/* PROCESSING */}
               {stage === "processing" && (
-                <ProcessingTimeline stepIndex={stepIndex} />
+                <ProcessingTimeline
+                  stepIndex={stepIndex}
+                  steps={realMode ? REAL_PROCESSING_STEPS : PROCESSING_STEPS}
+                />
               )}
 
               {/* DONE */}
@@ -332,10 +352,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ProcessingTimeline({ stepIndex }: { stepIndex: number }) {
+function ProcessingTimeline({ stepIndex, steps }: { stepIndex: number; steps: ProcessingStep[] }) {
   return (
     <ol className="space-y-2.5">
-      {PROCESSING_STEPS.map((s: ProcessingStep, i) => {
+      {steps.map((s: ProcessingStep, i) => {
         const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
         return (
           <li

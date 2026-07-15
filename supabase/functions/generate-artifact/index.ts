@@ -35,7 +35,7 @@ interface Body {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v2-concept-attribution";
+const PROMPT_VERSION = "v3-class-identity";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -197,7 +197,11 @@ Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
   // 4. Persist artifact row
   const insertRow = {
     user_id: userId,
-    class_id: body.classId ?? concepts[0].class_id ?? null,
+    // `class_id` is the database UUID. `client_class_id` is the stable key
+    // used by the app (for example, "math"). Never put the latter in a UUID
+    // column; that caused the production UUID parsing failure.
+    class_id: concepts[0].class_id ?? null,
+    client_class_id: body.classId ?? concepts[0].client_class_id ?? null,
     kind: body.kind,
     concept_ids: concepts.map((c) => c.id),
     capture_id: body.captureId ?? concepts[0].capture_id ?? null,

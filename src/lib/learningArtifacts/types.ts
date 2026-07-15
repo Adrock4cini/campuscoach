@@ -64,6 +64,7 @@ export interface LearningArtifact<K extends ArtifactKind = ArtifactKind> {
   id: string;
   user_id: string;
   class_id: string | null;
+  client_class_id: string | null;
   kind: K;
   concept_ids: string[];
   capture_id: string | null;

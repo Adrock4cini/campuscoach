@@ -625,6 +625,7 @@ export type Database = {
         Row: {
           capture_id: string | null
           class_id: string | null
+          client_class_id: string | null
           concept_ids: string[]
           created_at: string
           id: string
@@ -640,6 +641,7 @@ export type Database = {
         Insert: {
           capture_id?: string | null
           class_id?: string | null
+          client_class_id?: string | null
           concept_ids?: string[]
           created_at?: string
           id?: string
@@ -655,6 +657,7 @@ export type Database = {
         Update: {
           capture_id?: string | null
           class_id?: string | null
+          client_class_id?: string | null
           concept_ids?: string[]
           created_at?: string
           id?: string
