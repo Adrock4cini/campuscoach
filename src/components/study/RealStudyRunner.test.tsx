@@ -18,6 +18,7 @@ const artifact: LearningArtifact<"flashcards"> = {
       back: "2 + 2 equals 4.",
       conceptId: "concept-1",
       conceptName: "Addition Facts",
+      sourceExcerpt: "2+2 = 4",
     }],
   },
   model: "test",
@@ -39,6 +40,7 @@ describe("real flashcard runner", () => {
 
     expect(screen.getByText(/answers update mastery and future recommendations/i)).toBeInTheDocument();
     expect(screen.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
+    expect(screen.getByText(/from your note/i)).toHaveTextContent("2+2 = 4");
     expect(screen.queryByRole("button", { name: /i knew it/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));

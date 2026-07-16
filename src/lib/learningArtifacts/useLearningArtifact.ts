@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ArtifactKind, LearningArtifact } from "./types";
+import { describeFunctionError } from "./functionError";
 
 interface Scope {
   captureId?: string;
@@ -87,7 +88,8 @@ export function useLearningArtifact<K extends ArtifactKind>(
         },
       });
       if (error) {
-        setState((s) => ({ ...s, generating: false, error: error.message }));
+        const message = await describeFunctionError(error);
+        setState((s) => ({ ...s, generating: false, error: message }));
         return null;
       }
       const artifact = ((data as { artifact: unknown } | null)?.artifact ?? null) as LearningArtifact<K> | null;

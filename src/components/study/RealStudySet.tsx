@@ -51,20 +51,20 @@ export function RealStudySet({ classId }: Props) {
   return (
     <Card className="border-border/40">
       <CardContent className="p-4 sm:p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="space-y-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <KindIcon className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-foreground">Your study set</span>
             <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
               Evidence-backed
             </Badge>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             {(Object.keys(KIND_META) as Kind[]).map((k) => (
               <button
                 key={k}
                 onClick={() => setKind(k)}
-                className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                className={`min-w-0 rounded-full px-2.5 py-2 text-xs transition-colors sm:py-1 ${
                   kind === k
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:text-foreground"
@@ -97,15 +97,16 @@ export function RealStudySet({ classId }: Props) {
 
         {error && (
           <p className="text-xs text-destructive">
-            Couldn't reach the generator: {error}
+            {error}
           </p>
         )}
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:flex sm:items-center sm:flex-wrap">
           <Button
             size="sm"
             variant={artifact ? "outline" : "default"}
             onClick={() => generate({ regenerate: !!artifact })}
+            className="w-full sm:w-auto"
             disabled={generating}
           >
             {generating ? (
@@ -126,7 +127,7 @@ export function RealStudySet({ classId }: Props) {
             )}
           </Button>
           {artifact && count > 0 && (
-            <Button size="sm" onClick={() => setStudying(true)} disabled={generating}>
+            <Button className="w-full sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
               <Play className="h-3.5 w-3.5 mr-1.5" />
               Study now
             </Button>
