@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   // 1. Load artifact (RLS enforces ownership).
   const { data: artifact, error: aErr } = await supabase
     .from("learning_artifacts")
-    .select("id, user_id, class_id, client_class_id, concept_ids, topic, kind")
+    .select("id, user_id, class_id, client_class_id, concept_ids, topic, kind, study_scope_type, study_scope_id, study_scope_label, study_scope_snapshot")
     .eq("id", body.artifactId)
     .maybeSingle();
   if (aErr) return json({ error: "artifact load failed", details: aErr.message }, 500);
@@ -102,6 +102,10 @@ Deno.serve(async (req) => {
       duration_minutes: durationMinutes,
       score: scorePct,
       topic: artifact.topic ?? null,
+      study_scope_type: artifact.study_scope_type ?? "class",
+      study_scope_id: artifact.study_scope_id ?? "class",
+      study_scope_label: artifact.study_scope_label ?? null,
+      study_scope_snapshot: artifact.study_scope_snapshot ?? {},
       ended_at: new Date().toISOString(),
     })
     .select("id")
@@ -179,9 +183,12 @@ Deno.serve(async (req) => {
       .from("user_concept_mastery")
       .select("strength")
       .eq("user_id", userId);
-    masteryQuery = realClassId
-      ? masteryQuery.eq("class_id", realClassId)
-      : masteryQuery.in("concept_id", classConceptIds);
+    const isExamScope = artifact.study_scope_type === "exam";
+    masteryQuery = isExamScope
+      ? masteryQuery.in("concept_id", conceptIds)
+      : realClassId
+        ? masteryQuery.eq("class_id", realClassId)
+        : masteryQuery.in("concept_id", classConceptIds);
     const { data: masteryAll } = await masteryQuery;
     const vals = (masteryAll ?? []).map((r) => Number(r.strength) || 0);
     if (vals.length) {
@@ -196,6 +203,13 @@ Deno.serve(async (req) => {
         readiness,
         computed_at: now.toISOString(),
       });
+      if (isExamScope && artifact.study_scope_id) {
+        await supabase
+          .from("exams")
+          .update({ readiness })
+          .eq("user_id", userId)
+          .eq("id", artifact.study_scope_id);
+      }
     }
   }
 

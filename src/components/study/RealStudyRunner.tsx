@@ -145,6 +145,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           </DialogTitle>
           {!done && (
             <DialogDescription className="text-xs leading-relaxed">
+              {artifact.study_scope_label ? `Target: ${artifact.study_scope_label}. ` : ""}
               Based on {artifact.concept_ids.length} captured concept{artifact.concept_ids.length === 1 ? "" : "s"}. Your answers update mastery and future recommendations.
             </DialogDescription>
           )}

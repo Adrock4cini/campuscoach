@@ -33,6 +33,14 @@ interface Body {
   topic?: string | null;
   count?: number;
   regenerate?: boolean; // if true, delete existing rows of same (kind, capture_id) first
+  studyScope?: {
+    type: "recent" | "exam" | "class";
+    id: string;
+    label: string;
+    examId?: string;
+    topics?: string[];
+    examDate?: string | null;
+  };
 }
 
 interface ConceptRow {
@@ -44,6 +52,17 @@ interface ConceptRow {
   class_id: string | null;
   client_class_id: string | null;
   capture_id: string | null;
+  created_at: string;
+}
+
+interface ResolvedStudyScope {
+  type: "recent" | "exam" | "class";
+  id: string;
+  label: string;
+  examId?: string;
+  topics: string[];
+  examDate?: string | null;
+  previousExamDate?: string | null;
 }
 
 interface Flashcard {
@@ -130,14 +149,18 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 1. Load concepts. Prefer explicit conceptIds, then captureId, then
-  // fall back to the user's weakest-mastery concepts in the class.
+  const resolvedScope = await resolveStudyScope(supabase, userId, body);
+  if (resolvedScope instanceof Response) return resolvedScope;
+
+  // 1. Load concepts. Explicit IDs/captures remain supported for direct
+  // actions. Study Lab requests are scoped to recent material, one exam, or
+  // an intentional mixed-class review.
   let conceptQuery = supabase
     .from("concepts")
-    .select("id, name, definition, examples, professor_emphasis, class_id, client_class_id, capture_id")
+    .select("id, name, definition, examples, professor_emphasis, class_id, client_class_id, capture_id, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(MAX_CONCEPTS);
+    .limit(resolvedScope.type === "exam" ? 100 : MAX_CONCEPTS);
 
   if (body.conceptIds?.length) {
     conceptQuery = conceptQuery.in("id", body.conceptIds);
@@ -153,7 +176,18 @@ Deno.serve(async (req) => {
     return json({ error: "No concepts found for this request" }, 404);
   }
 
-  const typedConcepts = concepts as ConceptRow[];
+  const typedConcepts = selectScopedConcepts(
+    concepts as ConceptRow[],
+    resolvedScope,
+    Boolean(body.conceptIds?.length || body.captureId),
+  );
+  if (!typedConcepts.length) {
+    return json({
+      error: resolvedScope.type === "exam"
+        ? `No captured concepts could be linked to ${resolvedScope.label}. Add exam topics or capture material for this assessment first.`
+        : "No concepts found for this study target",
+    }, 404);
+  }
   const count = Math.min(body.count ?? typedConcepts.length, typedConcepts.length, MAX_CONCEPTS);
   const sourceByConcept = await loadSourceExcerpts(supabase, typedConcepts);
   const key = Deno.env.get("LOVABLE_API_KEY");
@@ -251,12 +285,20 @@ Deno.serve(async (req) => {
     // `class_id` is the database UUID. `client_class_id` is the stable key
     // used by the app (for example, "math"). Never put the latter in a UUID
     // column; that caused the production UUID parsing failure.
-    class_id: concepts[0].class_id ?? null,
-    client_class_id: body.classId ?? concepts[0].client_class_id ?? null,
+    class_id: typedConcepts[0].class_id ?? null,
+    client_class_id: body.classId ?? typedConcepts[0].client_class_id ?? null,
     kind: body.kind,
     concept_ids: generatedConceptIds,
-    capture_id: body.captureId ?? concepts[0].capture_id ?? null,
+    capture_id: body.captureId ?? typedConcepts[0].capture_id ?? null,
     topic: body.topic ?? null,
+    study_scope_type: resolvedScope.type,
+    study_scope_id: resolvedScope.id,
+    study_scope_label: resolvedScope.label,
+    study_scope_snapshot: {
+      ...resolvedScope,
+      conceptIds: generatedConceptIds,
+      generatedAt: new Date().toISOString(),
+    },
     payload,
     model: modelUsed,
     prompt_version: PROMPT_VERSION,
@@ -275,24 +317,115 @@ Deno.serve(async (req) => {
       await supabase.from("learning_artifacts")
         .update({ stale: true })
         .eq("user_id", userId).eq("kind", body.kind).eq("capture_id", body.captureId)
+        .eq("study_scope_type", resolvedScope.type)
+        .eq("study_scope_id", resolvedScope.id)
         .neq("id", inserted.id);
     } else if (body.conceptIds?.length) {
       await supabase.from("learning_artifacts")
         .update({ stale: true })
         .eq("user_id", userId).eq("kind", body.kind)
         .overlaps("concept_ids", body.conceptIds)
+        .eq("study_scope_type", resolvedScope.type)
+        .eq("study_scope_id", resolvedScope.id)
         .neq("id", inserted.id);
     } else if (body.classId) {
       await supabase.from("learning_artifacts")
         .update({ stale: true })
         .eq("user_id", userId).eq("kind", body.kind)
         .eq("client_class_id", body.classId)
+        .eq("study_scope_type", resolvedScope.type)
+        .eq("study_scope_id", resolvedScope.id)
         .neq("id", inserted.id);
     }
   }
 
   return json({ ok: true, artifact: inserted });
 });
+
+async function resolveStudyScope(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  body: Body,
+): Promise<ResolvedStudyScope | Response> {
+  const requested = body.studyScope;
+  if (!requested || requested.type === "recent") {
+    return { type: "recent", id: "recent", label: "Recent material", topics: [] };
+  }
+  if (requested.type === "class") {
+    return { type: "class", id: "class", label: "Mixed class review", topics: [] };
+  }
+
+  const examId = requested.examId ?? requested.id;
+  const { data: exam, error } = await supabase
+    .from("exams")
+    .select("id, title, exam_date, topics, client_class_id")
+    .eq("user_id", userId)
+    .eq("id", examId)
+    .maybeSingle();
+  if (error) return json({ error: "exam load failed", details: error.message }, 500);
+  if (!exam) return json({ error: "Study target exam not found" }, 404);
+  if (body.classId && exam.client_class_id && exam.client_class_id !== body.classId) {
+    return json({ error: "Exam does not belong to the selected class" }, 400);
+  }
+
+  let previousExamDate: string | null = null;
+  if (exam.exam_date && exam.client_class_id) {
+    const { data: previous } = await supabase
+      .from("exams")
+      .select("exam_date")
+      .eq("user_id", userId)
+      .eq("client_class_id", exam.client_class_id)
+      .lt("exam_date", exam.exam_date)
+      .order("exam_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    previousExamDate = previous?.exam_date ?? null;
+  }
+
+  return {
+    type: "exam",
+    id: exam.id,
+    examId: exam.id,
+    label: exam.title,
+    topics: Array.isArray(exam.topics) ? exam.topics : [],
+    examDate: exam.exam_date,
+    previousExamDate,
+  };
+}
+
+function selectScopedConcepts(
+  concepts: ConceptRow[],
+  scope: ResolvedStudyScope,
+  directSelection: boolean,
+) {
+  if (directSelection || scope.type === "class") return concepts.slice(0, MAX_CONCEPTS);
+  if (scope.type === "recent") return concepts.slice(0, Math.min(5, MAX_CONCEPTS));
+
+  const topicTerms = scope.topics
+    .map((topic) => topic.trim().toLowerCase())
+    .filter(Boolean);
+  const topicMatches = topicTerms.length
+    ? concepts.filter((concept) => {
+      const haystack = [concept.name, concept.definition, ...(concept.examples ?? [])]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return topicTerms.some((topic) => haystack.includes(topic) || topic.includes(concept.name.toLowerCase()));
+    })
+    : [];
+  if (topicMatches.length) return topicMatches.slice(0, MAX_CONCEPTS);
+
+  const end = scope.examDate ? new Date(`${scope.examDate}T23:59:59.999Z`).getTime() : Infinity;
+  const start = scope.previousExamDate
+    ? new Date(`${scope.previousExamDate}T23:59:59.999Z`).getTime()
+    : -Infinity;
+  return concepts
+    .filter((concept) => {
+      const created = new Date(concept.created_at).getTime();
+      return created > start && created <= end;
+    })
+    .slice(0, MAX_CONCEPTS);
+}
 
 async function loadSourceExcerpts(
   supabase: ReturnType<typeof createClient>,

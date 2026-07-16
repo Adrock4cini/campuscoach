@@ -634,6 +634,10 @@ export type Database = {
           payload: Json
           prompt_version: string
           stale: boolean
+          study_scope_id: string
+          study_scope_label: string | null
+          study_scope_snapshot: Json
+          study_scope_type: string
           topic: string | null
           updated_at: string
           user_id: string
@@ -650,6 +654,10 @@ export type Database = {
           payload?: Json
           prompt_version?: string
           stale?: boolean
+          study_scope_id?: string
+          study_scope_label?: string | null
+          study_scope_snapshot?: Json
+          study_scope_type?: string
           topic?: string | null
           updated_at?: string
           user_id: string
@@ -666,6 +674,10 @@ export type Database = {
           payload?: Json
           prompt_version?: string
           stale?: boolean
+          study_scope_id?: string
+          study_scope_label?: string | null
+          study_scope_snapshot?: Json
+          study_scope_type?: string
           topic?: string | null
           updated_at?: string
           user_id?: string
@@ -977,6 +989,10 @@ export type Database = {
           mode: string | null
           score: number | null
           started_at: string
+          study_scope_id: string
+          study_scope_label: string | null
+          study_scope_snapshot: Json
+          study_scope_type: string
           topic: string | null
           user_id: string
           visibility: string
@@ -992,6 +1008,10 @@ export type Database = {
           mode?: string | null
           score?: number | null
           started_at?: string
+          study_scope_id?: string
+          study_scope_label?: string | null
+          study_scope_snapshot?: Json
+          study_scope_type?: string
           topic?: string | null
           user_id: string
           visibility?: string
@@ -1007,6 +1027,10 @@ export type Database = {
           mode?: string | null
           score?: number | null
           started_at?: string
+          study_scope_id?: string
+          study_scope_label?: string | null
+          study_scope_snapshot?: Json
+          study_scope_type?: string
           topic?: string | null
           user_id?: string
           visibility?: string
