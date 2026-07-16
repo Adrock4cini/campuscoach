@@ -136,6 +136,7 @@ Deno.serve(async (req) => {
     .from("concepts")
     .select("id, name, definition, examples, professor_emphasis, class_id, client_class_id, capture_id")
     .eq("user_id", userId)
+    .order("created_at", { ascending: false })
     .limit(MAX_CONCEPTS);
 
   if (body.conceptIds?.length) {
