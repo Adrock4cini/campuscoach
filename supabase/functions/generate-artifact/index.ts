@@ -11,7 +11,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { extractExactThinSource } from "../_shared/thin-source.ts";
+import { buildExactThinMultipleChoice, extractExactThinSource } from "../_shared/thin-source.ts";
 
 type ArtifactKind =
   | "flashcards"
@@ -55,7 +55,7 @@ interface Flashcard {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v5-grounded-regeneration";
+const PROMPT_VERSION = "v6-learning-science";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -70,7 +70,9 @@ Rules:
 - conceptId MUST exactly match the ID supplied for the concept used by that card.
 - conceptName MUST exactly match the supplied concept name.
 - "front" is a short question or cue. "back" is 1-2 sentences, plain language.
-- Prefer useful recall or application prompts over generic "What is X?" cards.
+- Start with the clearest direct-retrieval question supported by the source. Application comes only after basic recall.
+- Use the student's wording when it is already clear. Do not invent umbrella labels or terminology absent from the source.
+- Avoid awkward phrases such as "as defined in our course materials" or capitalized category names the student never used.
 - Never invent facts not present in the concept's definition/examples.
 - No prose outside JSON.`,
     describe: (n) => `Generate up to ${n} flashcards covering these concepts.`,
@@ -90,7 +92,10 @@ Rules:
 - One question per concept. Exactly 4 choices. Exactly one correct.
 - conceptId MUST exactly match the ID supplied for the concept being tested.
 - conceptName MUST exactly match the supplied concept name.
-- Distractors must be plausible and drawn from adjacent ideas in the provided concepts — never invent unrelated facts.
+- Ask the shortest clear question that directly tests the supplied source or definition before attempting transfer/application.
+- Use the student's wording when it is already clear. Never invent umbrella labels or terminology absent from the source.
+- Avoid awkward phrases such as "as defined in our course materials" and unnecessary capitalization.
+- Distractors must be plausible and grounded in adjacent provided ideas or simple errors — never invent unrelated facts.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,
     describe: (n) => `Generate up to ${n} multiple-choice questions covering these concepts.`,
@@ -168,6 +173,7 @@ Deno.serve(async (req) => {
         body,
         remaining,
         count - exact.cards.length,
+        sourceByConcept,
       );
       generatedCards = normalizeFlashcards(modelPayload, remaining, sourceByConcept);
       usedGateway = generatedCards.length > 0;
@@ -194,9 +200,22 @@ Deno.serve(async (req) => {
     else modelUsed = "deterministic-concept";
     payload = { cards };
   } else {
-    if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
-    const modelPayload = await callGateway(key, template, body, typedConcepts, count);
-    const questions = (modelPayload as { questions?: Array<Record<string, unknown>> } | null)?.questions;
+    const exact = buildExactMultipleChoice(typedConcepts, sourceByConcept, count);
+    const remaining = typedConcepts.filter((concept) => !exact.handledConceptIds.has(concept.id));
+    let generatedQuestions: Array<Record<string, unknown>> = [];
+    if (remaining.length && exact.questions.length < count) {
+      if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
+      const modelPayload = await callGateway(
+        key,
+        template,
+        body,
+        remaining,
+        count - exact.questions.length,
+        sourceByConcept,
+      );
+      generatedQuestions = (modelPayload as { questions?: Array<Record<string, unknown>> } | null)?.questions ?? [];
+    }
+    const questions = [...exact.questions, ...generatedQuestions].slice(0, count);
     const allowedConceptIds = new Set(typedConcepts.map((concept) => concept.id));
     if (!Array.isArray(questions) || questions.length === 0) {
       return json({ error: "model returned an empty or invalid artifact" }, 502);
@@ -204,6 +223,7 @@ Deno.serve(async (req) => {
     if (questions.some((item) => typeof item.conceptId !== "string" || !allowedConceptIds.has(item.conceptId))) {
       return json({ error: "model returned an artifact without valid concept attribution" }, 502);
     }
+    if (exact.questions.length && !generatedQuestions.length) modelUsed = "deterministic-source";
     payload = {
       questions: questions.map((question) => {
         const concept = typedConcepts.find((item) => item.id === question.conceptId)!;
@@ -292,6 +312,33 @@ async function loadSourceExcerpts(
   return sourceByConcept;
 }
 
+function buildExactMultipleChoice(
+  concepts: ConceptRow[],
+  sourceByConcept: Map<string, string>,
+  limit: number,
+) {
+  const questions: Array<Record<string, unknown>> = [];
+  const handledConceptIds = new Set<string>();
+  const seenSources = new Set<string>();
+
+  for (const concept of concepts) {
+    const source = sourceByConcept.get(concept.id);
+    const exact = source ? buildExactThinMultipleChoice(source) : null;
+    if (!source || !exact) continue;
+    handledConceptIds.add(concept.id);
+    const sourceKey = source.trim();
+    if (seenSources.has(sourceKey) || questions.length >= limit) continue;
+    seenSources.add(sourceKey);
+    questions.push({
+      ...exact,
+      conceptId: concept.id,
+      conceptName: extractExactThinSource(source)?.concepts[0].name ?? concept.name,
+      sourceExcerpt: sourceKey,
+    });
+  }
+  return { questions, handledConceptIds };
+}
+
 function buildExactFlashcards(
   concepts: ConceptRow[],
   sourceByConcept: Map<string, string>,
@@ -362,13 +409,15 @@ async function callGateway(
   body: Body,
   concepts: ConceptRow[],
   count: number,
+  sourceByConcept: Map<string, string>,
 ) {
   const conceptBlock = concepts.map((concept, index) =>
     `Concept ${index + 1} ID: ${concept.id}
 Name: ${concept.name}
 Definition: ${concept.definition ?? "(none)"}
 Examples: ${(concept.examples ?? []).join(" | ") || "(none)"}
-Professor emphasis: ${concept.professor_emphasis ? "yes" : "no"}`
+Professor emphasis: ${concept.professor_emphasis ? "yes" : "no"}
+Source excerpt: ${sourceByConcept.get(concept.id) ?? "(none)"}`
   ).join("\n\n");
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
