@@ -4,8 +4,11 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { NotebookPen, Sparkles, Brain, TrendingUp, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const KEY = "cc_onboarded_v1";
+const ACCOUNT_KEY = "campus_companion_tour_seen_v1";
 
 const steps = [
   {
@@ -35,17 +38,38 @@ const steps = [
 ];
 
 export function OnboardingDialog() {
+  const { user, mode } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!localStorage.getItem(KEY)) setOpen(true);
-  }, []);
+    if (mode !== "real" || !user) {
+      setOpen(false);
+      return;
+    }
+
+    const accountStorageKey = `${KEY}:${user.id}`;
+    const seenInAccount = user.user_metadata?.[ACCOUNT_KEY] === true;
+    const seenInBrowser =
+      localStorage.getItem(accountStorageKey) === "1" ||
+      localStorage.getItem(KEY) === "1";
+
+    setOpen(!seenInAccount && !seenInBrowser);
+  }, [mode, user]);
 
   const close = () => {
     localStorage.setItem(KEY, "1");
+    if (user) localStorage.setItem(`${KEY}:${user.id}`, "1");
     setOpen(false);
+
+    // Browser storage can be cleared or isolated on mobile. Store this small
+    // UI preference on the student's auth profile too so the tour stays
+    // dismissed across logins and devices. The local write above makes the
+    // close immediate even when the network is unavailable.
+    if (user?.user_metadata?.[ACCOUNT_KEY] !== true) {
+      void supabase.auth.updateUser({ data: { [ACCOUNT_KEY]: true } });
+    }
   };
 
   const s = steps[step];

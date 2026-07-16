@@ -21,6 +21,7 @@ import type {
   FlashcardsPayload,
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
+import { CURRENT_FLASHCARD_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 
 interface Props {
   classId?: string;
@@ -45,6 +46,12 @@ export function RealStudySet({ classId }: Props) {
       ? (artifact.payload as FlashcardsPayload).cards?.length ?? 0
       : (artifact.payload as MultipleChoicePayload).questions?.length ?? 0
     : 0;
+
+  const needsRefresh = Boolean(
+    artifact &&
+    kind === "flashcards" &&
+    artifact.prompt_version !== CURRENT_FLASHCARD_PROMPT_VERSION,
+  );
 
   const KindIcon = KIND_META[kind].icon;
 
@@ -78,6 +85,13 @@ export function RealStudySet({ classId }: Props) {
 
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading study set…</p>
+        ) : needsRefresh ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              These cards were created by an older generator. Refresh them from your original notes so the questions stay faithful to what you captured.
+            </p>
+          </div>
         ) : artifact ? (
           <div className="space-y-2">
             <p className="text-sm text-foreground">
@@ -114,6 +128,11 @@ export function RealStudySet({ classId }: Props) {
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 Generating…
               </>
+            ) : needsRefresh ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Refresh from notes
+              </>
             ) : artifact ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
@@ -126,7 +145,7 @@ export function RealStudySet({ classId }: Props) {
               </>
             )}
           </Button>
-          {artifact && count > 0 && (
+          {artifact && count > 0 && !needsRefresh && (
             <Button className="w-full sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
               <Play className="h-3.5 w-3.5 mr-1.5" />
               Study now
