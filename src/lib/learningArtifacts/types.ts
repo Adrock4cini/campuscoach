@@ -25,7 +25,11 @@ export type ArtifactKind =
 // Keep the client honest about which server generator produced a set. Older
 // artifacts can still exist in the disposable table after a deployment, but
 // students should refresh them before using them to update mastery.
-export const CURRENT_FLASHCARD_PROMPT_VERSION = "v5-grounded-regeneration";
+export const CURRENT_ARTIFACT_PROMPT_VERSION = "v6-learning-science";
+
+// Temporary compatibility alias for any older imports. New consumers should
+// use the artifact-wide constant because freshness applies to every study mode.
+export const CURRENT_FLASHCARD_PROMPT_VERSION = CURRENT_ARTIFACT_PROMPT_VERSION;
 
 export interface FlashcardsPayload {
   cards: Array<{
