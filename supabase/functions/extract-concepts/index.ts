@@ -5,6 +5,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { extractExactThinSource } from "../_shared/thin-source.ts";
 
 interface Body {
   captureId?: string;
@@ -38,9 +39,11 @@ Return ONLY JSON matching:
   ]
 }
 Rules:
-- 3-8 concepts. Never invent content not present in the source.
+- Return 1-8 concepts. Never invent content not present in the source.
 - If input is a professor hint, mark every concept professor_emphasis=true.
 - If the source is thin, return fewer concepts rather than padding.
+- A single equation or factual statement should normally become exactly one concept that preserves the source wording.
+- Do not replace a concrete fact with an umbrella label such as "Addition Fact" unless that label appears in the source.
 - No prose outside the JSON.`;
 
 const slugify = (s: string) =>
@@ -98,28 +101,39 @@ Deno.serve(async (req) => {
     rawText.slice(0, 12000),
   ].filter(Boolean).join("\n");
 
-  // 1. Extract concepts
-  const gwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-  if (!gwRes.ok) {
-    const details = await gwRes.text();
-    return json({ error: "extraction failed", status: gwRes.status, details }, gwRes.status);
+  // 1. Extract concepts. Preserve simple numeric facts exactly; asking a
+  // language model to interpret "2+2=4" previously inflated it into vague,
+  // invented concepts such as "Addition Fact".
+  const exactThinSource = extractExactThinSource(
+    rawText,
+    body.kind === "professor-hint",
+  );
+  let summary = exactThinSource?.summary ?? "";
+  let concepts: ExtractedConcept[] = exactThinSource?.concepts ?? [];
+
+  if (!exactThinSource) {
+    const gwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!gwRes.ok) {
+      const details = await gwRes.text();
+      return json({ error: "extraction failed", status: gwRes.status, details }, gwRes.status);
+    }
+    const gw = await gwRes.json();
+    let parsed: { summary?: string; concepts?: ExtractedConcept[] } = {};
+    try { parsed = JSON.parse(gw?.choices?.[0]?.message?.content ?? "{}"); } catch { /* fallthrough */ }
+    summary = parsed.summary ?? "";
+    concepts = Array.isArray(parsed.concepts) ? parsed.concepts.slice(0, 8) : [];
   }
-  const gw = await gwRes.json();
-  let parsed: { summary?: string; concepts?: ExtractedConcept[] } = {};
-  try { parsed = JSON.parse(gw?.choices?.[0]?.message?.content ?? "{}"); } catch { /* fallthrough */ }
-  const summary: string = parsed.summary ?? "";
-  const concepts: ExtractedConcept[] = Array.isArray(parsed.concepts) ? parsed.concepts.slice(0, 8) : [];
 
   // 2. Embed each concept name+definition
   const texts = concepts.map((c) => `${c.name}. ${c.definition ?? ""}`.trim());
