@@ -13,6 +13,13 @@ export interface ExactThinSource {
   sourceExcerpt: string;
 }
 
+export interface ExactThinMultipleChoice {
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  rationale: string;
+}
+
 const NUMBER = "-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)";
 const SIMPLE_EQUATION = new RegExp(
   `^\\s*(${NUMBER})\\s*([+\\-xX×*÷/])\\s*(${NUMBER})\\s*=\\s*(${NUMBER})\\s*[.!]?\\s*$`,
@@ -54,5 +61,45 @@ export function extractExactThinSource(
     question: `What is ${expression}?`,
     answer: result,
     sourceExcerpt,
+  };
+}
+
+/**
+ * A thin arithmetic note should produce a direct test of the exact fact the
+ * student captured. Keeping this deterministic prevents a model from turning
+ * "2 + 2 = 4" into vague terminology or an unrelated transfer question.
+ */
+export function buildExactThinMultipleChoice(rawText: string): ExactThinMultipleChoice | null {
+  const exact = extractExactThinSource(rawText);
+  const match = rawText.trim().match(SIMPLE_EQUATION);
+  if (!exact || !match) return null;
+
+  const left = Number(match[1]);
+  const right = Number(match[3]);
+  const result = Number(match[4]);
+  const step = Math.max(1, Math.abs(left), Math.abs(right));
+  const candidates = [
+    result - step,
+    result - Math.max(1, Math.abs(left - right)),
+    result,
+    result + Math.max(1, Math.min(Math.abs(left) || 1, Math.abs(right) || 1)),
+    result + step,
+  ];
+  const choices = [...new Set(candidates)]
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b)
+    .slice(0, 4);
+
+  for (let offset = 1; choices.length < 4; offset += 1) {
+    const candidate = result + step + offset;
+    if (!choices.includes(candidate)) choices.push(candidate);
+  }
+  choices.sort((a, b) => a - b);
+
+  return {
+    prompt: exact.question,
+    choices: choices.map(String),
+    answerIndex: choices.indexOf(result),
+    rationale: `${exact.sourceExcerpt.replace(/\s+/g, " ").replace(/[.!]?$/, ".")}`,
   };
 }
