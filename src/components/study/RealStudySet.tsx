@@ -21,7 +21,7 @@ import type {
   FlashcardsPayload,
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
-import { CURRENT_FLASHCARD_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 
 interface Props {
   classId?: string;
@@ -49,8 +49,7 @@ export function RealStudySet({ classId }: Props) {
 
   const needsRefresh = Boolean(
     artifact &&
-    kind === "flashcards" &&
-    artifact.prompt_version !== CURRENT_FLASHCARD_PROMPT_VERSION,
+    artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
   );
 
   const KindIcon = KIND_META[kind].icon;
@@ -89,7 +88,7 @@ export function RealStudySet({ classId }: Props) {
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              These cards were created by an older generator. Refresh them from your original notes so the questions stay faithful to what you captured.
+              These questions were created by an older generator. Refresh them from your original notes so they stay faithful to what you captured.
             </p>
           </div>
         ) : artifact ? (
