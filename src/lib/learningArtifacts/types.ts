@@ -22,6 +22,11 @@ export type ArtifactKind =
   | "eli_professor"
   | "mnemonic";
 
+// Keep the client honest about which server generator produced a set. Older
+// artifacts can still exist in the disposable table after a deployment, but
+// students should refresh them before using them to update mastery.
+export const CURRENT_FLASHCARD_PROMPT_VERSION = "v5-grounded-regeneration";
+
 export interface FlashcardsPayload {
   cards: Array<{
     front: string;
