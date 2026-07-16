@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RealStudySet } from "./RealStudySet";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
-import { CURRENT_FLASHCARD_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 
 const mocks = vi.hoisted(() => ({
-  artifact: null as LearningArtifact<"flashcards"> | null,
+  artifact: null as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice"> | null,
   generate: vi.fn(),
   reload: vi.fn(),
 }));
@@ -64,10 +64,32 @@ describe("real study set freshness", () => {
   });
 
   it("allows a current grounded set to be studied", () => {
-    mocks.artifact = artifact(CURRENT_FLASHCARD_PROMPT_VERSION);
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);
 
     expect(screen.getByRole("button", { name: /study now/i })).toBeInTheDocument();
     expect(screen.queryByText("Refresh this set before studying")).not.toBeInTheDocument();
+  });
+
+  it("blocks an older multiple-choice set until it is refreshed", () => {
+    mocks.artifact = {
+      ...artifact("v5-grounded-regeneration"),
+      kind: "multiple_choice",
+      payload: {
+        questions: [{
+          prompt: "Which example is an Addition Fact?",
+          choices: ["2 + 2 = 4", "5 - 2 = 3"],
+          answerIndex: 0,
+          rationale: "Old generated wording",
+        }],
+      },
+    } as LearningArtifact<"multiple_choice">;
+
+    render(<RealStudySet classId="math" />);
+    fireEvent.click(screen.getByRole("button", { name: /multiple choice/i }));
+
+    expect(screen.getByText("Refresh this set before studying")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /refresh from notes/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /study now/i })).not.toBeInTheDocument();
   });
 });
