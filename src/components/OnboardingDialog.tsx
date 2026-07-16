@@ -2,34 +2,34 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
-import { Camera, Sparkles, Users, TrendingUp, ArrowRight } from "lucide-react";
+import { NotebookPen, Sparkles, Brain, TrendingUp, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const KEY = "cc_onboarded_v1";
 
 const steps = [
   {
-    icon: Camera,
-    title: "Capture anything in one tap",
-    body: "Record lectures, snap the board, drop a textbook page. The capture button follows you on every screen.",
+    icon: NotebookPen,
+    title: "Save what matters",
+    body: "Add a quick note or professor hint and choose the class it belongs to. Your original words stay connected to what Campus Brain creates.",
     tint: "from-primary/30 to-accent/20",
   },
   {
     icon: Sparkles,
-    title: "AI organizes it instantly",
-    body: "We detect the class, extract concepts, summarize, and turn it into flashcards — within seconds.",
+    title: "Campus Brain finds the concepts",
+    body: "It turns your class material into grounded concepts without padding a short note into facts you never provided.",
     tint: "from-accent/30 to-primary/20",
   },
   {
-    icon: Users,
-    title: "Your class makes it smarter",
-    body: "Anonymous patterns from classmates surface what's likely on the exam — never their private notes.",
+    icon: Brain,
+    title: "Study the right material",
+    body: "Build evidence-backed flashcards and questions. Every card stays linked to the concept and source that created it.",
     tint: "from-primary/30 to-success/20",
   },
   {
     icon: TrendingUp,
-    title: "Your readiness improves daily",
-    body: "Every capture, debrief, and study sprint sharpens the predictions for you and everyone in your class.",
+    title: "Your coach learns with you",
+    body: "Mark what you knew and what needs review. Campus Companion updates mastery and improves your next recommendation.",
     tint: "from-success/30 to-primary/20",
   },
 ];
@@ -53,12 +53,12 @@ export function OnboardingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-md p-0 overflow-hidden border-border/60">
+      <DialogContent className="w-[calc(100vw_-_1rem)] max-w-[calc(100vw_-_1rem)] min-w-0 overflow-hidden border-border/60 p-0 sm:max-w-md">
         <VisuallyHidden>
           <DialogTitle>{s.title}</DialogTitle>
           <DialogDescription>{s.body}</DialogDescription>
         </VisuallyHidden>
-        <div className={`p-6 bg-gradient-to-br ${s.tint}`}>
+        <div className={`min-w-0 bg-gradient-to-br p-5 sm:p-6 ${s.tint}`}>
           <div className="h-14 w-14 rounded-2xl bg-background/40 backdrop-blur flex items-center justify-center mb-4">
             <Icon className="h-7 w-7 text-foreground" />
           </div>
@@ -73,15 +73,15 @@ export function OnboardingDialog() {
               <p className="text-[11px] uppercase tracking-[0.22em] text-foreground/60 mb-1">
                 Step {step + 1} of {steps.length}
               </p>
-              <h2 className="text-2xl font-display font-semibold text-foreground leading-tight">
+              <h2 className="break-words text-2xl font-display font-semibold text-foreground leading-tight">
                 {s.title}
               </h2>
-              <p className="text-sm text-foreground/75 mt-2">{s.body}</p>
+              <p className="mt-2 break-words text-sm leading-relaxed text-foreground/75">{s.body}</p>
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <div className="p-4 flex items-center justify-between bg-card">
+        <div className="grid min-w-0 grid-cols-1 gap-3 bg-card p-4 min-[360px]:grid-cols-[auto_minmax(0,1fr)] min-[360px]:items-center">
           <div className="flex gap-1.5">
             {steps.map((_, i) => (
               <div
@@ -92,11 +92,11 @@ export function OnboardingDialog() {
               />
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2 min-[360px]:justify-self-end">
             <Button variant="ghost" size="sm" onClick={close}>Skip</Button>
             <Button
               size="sm"
-              className="bg-gradient-calm border-0 text-primary-foreground"
+              className="min-w-0 bg-gradient-calm border-0 px-3 text-primary-foreground"
               onClick={() => (step < steps.length - 1 ? setStep(step + 1) : close())}
             >
               {step < steps.length - 1 ? "Next" : "Start studying"}
