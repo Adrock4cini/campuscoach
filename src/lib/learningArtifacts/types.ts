@@ -31,6 +31,17 @@ export const CURRENT_ARTIFACT_PROMPT_VERSION = "v6-learning-science";
 // use the artifact-wide constant because freshness applies to every study mode.
 export const CURRENT_FLASHCARD_PROMPT_VERSION = CURRENT_ARTIFACT_PROMPT_VERSION;
 
+export type StudyScopeType = "recent" | "exam" | "class";
+
+export interface StudyScope {
+  type: StudyScopeType;
+  id: string;
+  label: string;
+  examId?: string;
+  topics?: string[];
+  examDate?: string | null;
+}
+
 export interface FlashcardsPayload {
   cards: Array<{
     front: string;
@@ -86,6 +97,10 @@ export interface LearningArtifact<K extends ArtifactKind = ArtifactKind> {
   concept_ids: string[];
   capture_id: string | null;
   topic: string | null;
+  study_scope_type: StudyScopeType;
+  study_scope_id: string;
+  study_scope_label: string | null;
+  study_scope_snapshot: Record<string, unknown>;
   payload: ArtifactPayloadByKind[K];
   model: string | null;
   prompt_version: string;

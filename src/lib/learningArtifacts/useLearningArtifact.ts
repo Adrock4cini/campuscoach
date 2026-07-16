@@ -10,14 +10,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { ArtifactKind, LearningArtifact } from "./types";
+import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
 import { describeFunctionError } from "./functionError";
 
-interface Scope {
+export interface LearningArtifactScope {
   captureId?: string;
   conceptIds?: string[];
   classId?: string;
   topic?: string;
+  studyScope?: StudyScope;
 }
 
 interface UseLearningArtifactState<K extends ArtifactKind> {
@@ -29,7 +30,7 @@ interface UseLearningArtifactState<K extends ArtifactKind> {
 
 export function useLearningArtifact<K extends ArtifactKind>(
   kind: K,
-  scope: Scope,
+  scope: LearningArtifactScope,
 ) {
   const [state, setState] = useState<UseLearningArtifactState<K>>({
     artifact: null,
@@ -42,6 +43,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
     captureId: scope.captureId ?? null,
     conceptIds: scope.conceptIds ?? null,
     classId: scope.classId ?? null,
+    studyScope: scope.studyScope ?? null,
   });
 
   const load = useCallback(async () => {
@@ -57,6 +59,11 @@ export function useLearningArtifact<K extends ArtifactKind>(
     if (scope.captureId) q = q.eq("capture_id", scope.captureId);
     else if (scope.conceptIds?.length) q = q.overlaps("concept_ids", scope.conceptIds);
     else if (scope.classId) q = q.eq("client_class_id", scope.classId);
+    if (scope.studyScope) {
+      q = q
+        .eq("study_scope_type", scope.studyScope.type)
+        .eq("study_scope_id", scope.studyScope.id);
+    }
 
     const { data, error } = await q.maybeSingle();
     if (error) {
@@ -83,6 +90,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
           conceptIds: scope.conceptIds,
           classId: scope.classId,
           topic: scope.topic,
+          studyScope: scope.studyScope,
           count: opts?.count,
           regenerate: opts?.regenerate ?? false,
         },

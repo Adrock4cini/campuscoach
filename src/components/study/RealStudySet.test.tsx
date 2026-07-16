@@ -21,6 +21,19 @@ vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
   }),
 }));
 
+vi.mock("@/lib/realData/hooks", () => ({
+  useRealExams: () => ({
+    items: [{
+      id: "exam-1",
+      title: "Unit 1 Exam",
+      exam_date: "2026-07-20",
+      topics: ["Addition"],
+    }],
+    loading: false,
+    reload: vi.fn(),
+  }),
+}));
+
 function artifact(promptVersion: string): LearningArtifact<"flashcards"> {
   return {
     id: "artifact-1",
@@ -31,6 +44,10 @@ function artifact(promptVersion: string): LearningArtifact<"flashcards"> {
     concept_ids: ["concept-1"],
     capture_id: "capture-1",
     topic: "Addition",
+    study_scope_type: "recent",
+    study_scope_id: "recent",
+    study_scope_label: "Recent material",
+    study_scope_snapshot: {},
     payload: {
       cards: [{
         front: "What is 2 + 2?",
@@ -69,6 +86,15 @@ describe("real study set freshness", () => {
 
     expect(screen.getByRole("button", { name: /study now/i })).toBeInTheDocument();
     expect(screen.queryByText("Refresh this set before studying")).not.toBeInTheDocument();
+  });
+
+  it("lets the student choose a specific assessment target", () => {
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+    render(<RealStudySet classId="math" />);
+
+    expect(screen.getByText("What are you studying for?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /unit 1 exam/i }));
+    expect(screen.getByText("Questions will stay tied to Unit 1 Exam.")).toBeInTheDocument();
   });
 
   it("blocks an older multiple-choice set until it is refreshed", () => {

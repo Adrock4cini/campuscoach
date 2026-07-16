@@ -9,11 +9,11 @@
  * `mode === "real"`.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Sparkles, ListChecks, Play } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target } from "lucide-react";
 import { RealStudyRunner } from "@/components/study/RealStudyRunner";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
@@ -22,6 +22,8 @@ import type {
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
+import type { StudyScope } from "@/lib/learningArtifacts/types";
+import { useRealExams } from "@/lib/realData/hooks";
 
 interface Props {
   classId?: string;
@@ -37,7 +39,30 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 export function RealStudySet({ classId }: Props) {
   const [kind, setKind] = useState<Kind>("flashcards");
   const [studying, setStudying] = useState(false);
-  const scope = useMemo(() => ({ classId }), [classId]);
+  const [selectedTarget, setSelectedTarget] = useState("recent");
+  const { items: exams, loading: examsLoading } = useRealExams(classId);
+
+  useEffect(() => {
+    setSelectedTarget("recent");
+    setStudying(false);
+  }, [classId]);
+
+  const studyTargets = useMemo<StudyScope[]>(() => [
+    { type: "recent", id: "recent", label: "Recent material" },
+    ...exams.map((exam) => ({
+      type: "exam" as const,
+      id: exam.id,
+      examId: exam.id,
+      label: exam.title,
+      topics: exam.topics,
+      examDate: exam.exam_date,
+    })),
+    { type: "class", id: "class", label: "Mixed class review" },
+  ], [exams]);
+
+  const studyScope = studyTargets.find((target) => target.id === selectedTarget)
+    ?? studyTargets[0];
+  const scope = useMemo(() => ({ classId, studyScope }), [classId, studyScope]);
   const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
@@ -57,6 +82,44 @@ export function RealStudySet({ classId }: Props) {
   return (
     <Card className="border-border/40">
       <CardContent className="p-4 sm:p-5 space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Target className="h-4 w-4 text-primary" />
+            <span>What are you studying for?</span>
+          </div>
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {studyTargets.map((target) => (
+              <button
+                key={`${target.type}:${target.id}`}
+                type="button"
+                aria-pressed={studyScope.type === target.type && studyScope.id === target.id}
+                onClick={() => {
+                  setSelectedTarget(target.id);
+                  setStudying(false);
+                }}
+                className={`shrink-0 rounded-full border px-3 py-2 text-xs transition-colors ${
+                  studyScope.type === target.type && studyScope.id === target.id
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border/60 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {target.label}
+                {target.type === "exam" && target.examDate
+                  ? ` · ${new Date(`${target.examDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                  : ""}
+              </button>
+            ))}
+            {examsLoading && <span className="shrink-0 px-2 py-2 text-xs text-muted-foreground">Loading exams…</span>}
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            {studyScope.type === "exam"
+              ? `Questions will stay tied to ${studyScope.label}.`
+              : studyScope.type === "recent"
+                ? "Uses your newest captured concepts, without pulling in older units."
+                : "Intentionally mixes concepts from across this class."}
+          </p>
+        </div>
+
         <div className="space-y-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <KindIcon className="h-4 w-4 text-primary" />

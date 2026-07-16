@@ -12,6 +12,10 @@ const artifact: LearningArtifact<"flashcards"> = {
   concept_ids: ["concept-1"],
   capture_id: "capture-1",
   topic: "Addition",
+  study_scope_type: "recent",
+  study_scope_id: "recent",
+  study_scope_label: "Recent material",
+  study_scope_snapshot: {},
   payload: {
     cards: [{
       front: "What does 2 + 2 equal?",
