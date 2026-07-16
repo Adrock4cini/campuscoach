@@ -11,6 +11,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { extractExactThinSource } from "../_shared/thin-source.ts";
 
 type ArtifactKind =
   | "flashcards"
@@ -34,8 +35,27 @@ interface Body {
   regenerate?: boolean; // if true, delete existing rows of same (kind, capture_id) first
 }
 
+interface ConceptRow {
+  id: string;
+  name: string;
+  definition: string | null;
+  examples: string[] | null;
+  professor_emphasis: boolean | null;
+  class_id: string | null;
+  client_class_id: string | null;
+  capture_id: string | null;
+}
+
+interface Flashcard {
+  front: string;
+  back: string;
+  conceptId: string;
+  conceptName: string;
+  sourceExcerpt?: string;
+}
+
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v4-study-transparency";
+const PROMPT_VERSION = "v5-grounded-regeneration";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -83,9 +103,6 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -130,75 +147,84 @@ Deno.serve(async (req) => {
     return json({ error: "No concepts found for this request" }, 404);
   }
 
-  const count = Math.min(body.count ?? concepts.length, concepts.length, MAX_CONCEPTS);
-  const conceptBlock = concepts.map((c, i) =>
-    `Concept ${i + 1} ID: ${c.id}
-Name: ${c.name}
-Definition: ${c.definition ?? "(none)"}
-Examples: ${(c.examples ?? []).join(" | ") || "(none)"}
-Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
-  ).join("\n\n");
+  const typedConcepts = concepts as ConceptRow[];
+  const count = Math.min(body.count ?? typedConcepts.length, typedConcepts.length, MAX_CONCEPTS);
+  const sourceByConcept = await loadSourceExcerpts(supabase, typedConcepts);
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  let payload: { cards: Flashcard[] } | { questions: Array<Record<string, unknown>> };
+  let modelUsed = MODEL;
 
-  // 2. Call the gateway
-  const gwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify({
-      model: MODEL,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: template.system },
-        {
-          role: "user",
-          content: [
-            body.topic ? `Topic: ${body.topic}` : null,
-            template.describe(count),
-            "---",
-            conceptBlock,
-          ].filter(Boolean).join("\n"),
-        },
-      ],
-    }),
-  });
-  if (!gwRes.ok) {
-    const details = await gwRes.text();
-    return json({ error: "generation failed", status: gwRes.status, details }, gwRes.status);
-  }
-  const gw = await gwRes.json();
-  let payload: unknown = {};
-  try { payload = JSON.parse(gw?.choices?.[0]?.message?.content ?? "{}"); } catch {
-    return json({ error: "model returned non-JSON" }, 502);
-  }
+  if (body.kind === "flashcards") {
+    const exact = buildExactFlashcards(typedConcepts, sourceByConcept, count);
+    const remaining = typedConcepts.filter((concept) => !exact.handledConceptIds.has(concept.id));
+    let generatedCards: Flashcard[] = [];
+    let usedGateway = false;
+    let usedFallback = false;
 
-  // Reject untraceable output. Every study item must point back to a
-  // permanent Concept so a student's answer updates only that memory.
-  const allowedConceptIds = new Set(concepts.map((c) => c.id));
-  const generatedItems = body.kind === "flashcards"
-    ? (payload as { cards?: Array<{ conceptId?: string }> }).cards
-    : (payload as { questions?: Array<{ conceptId?: string }> }).questions;
-  if (!Array.isArray(generatedItems) || generatedItems.length === 0) {
-    return json({ error: "model returned an empty or invalid artifact" }, 502);
-  }
-  if (generatedItems.some((item) => !item.conceptId || !allowedConceptIds.has(item.conceptId))) {
-    return json({ error: "model returned an artifact without valid concept attribution" }, 502);
-  }
-
-  // 3. Optional regenerate: mark prior rows stale for same (kind, capture_id or conceptIds).
-  if (body.regenerate) {
-    if (body.captureId) {
-      await supabase.from("learning_artifacts")
-        .update({ stale: true })
-        .eq("user_id", userId).eq("kind", body.kind).eq("capture_id", body.captureId);
-    } else if (body.conceptIds?.length) {
-      // best-effort: mark artifacts overlapping these concept ids as stale
-      await supabase.from("learning_artifacts")
-        .update({ stale: true })
-        .eq("user_id", userId).eq("kind", body.kind)
-        .overlaps("concept_ids", body.conceptIds);
+    if (remaining.length && exact.cards.length < count && key) {
+      const modelPayload = await callGateway(
+        key,
+        template,
+        body,
+        remaining,
+        count - exact.cards.length,
+      );
+      generatedCards = normalizeFlashcards(modelPayload, remaining, sourceByConcept);
+      usedGateway = generatedCards.length > 0;
     }
+
+    // Regeneration must not strand a student when the gateway is down or
+    // returns unusable attribution. This fallback only restates permanent
+    // Concepts; it never invents new academic content.
+    if (remaining.length && exact.cards.length + generatedCards.length < count) {
+      const alreadyGenerated = new Set(generatedCards.map((card) => card.conceptId));
+      generatedCards.push(...buildGroundedFallbackFlashcards(
+        remaining.filter((concept) => !alreadyGenerated.has(concept.id)),
+        sourceByConcept,
+        count - exact.cards.length - generatedCards.length,
+      ));
+      usedFallback = true;
+    }
+
+    const cards = [...exact.cards, ...generatedCards].slice(0, count);
+    if (!cards.length) return json({ error: "No usable concept content was available for flashcards" }, 422);
+    if (usedGateway && usedFallback) modelUsed = `${MODEL}+concept-fallback`;
+    else if (usedGateway) modelUsed = MODEL;
+    else if (exact.cards.length && !generatedCards.length) modelUsed = "deterministic-source";
+    else modelUsed = "deterministic-concept";
+    payload = { cards };
+  } else {
+    if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
+    const modelPayload = await callGateway(key, template, body, typedConcepts, count);
+    const questions = (modelPayload as { questions?: Array<Record<string, unknown>> } | null)?.questions;
+    const allowedConceptIds = new Set(typedConcepts.map((concept) => concept.id));
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return json({ error: "model returned an empty or invalid artifact" }, 502);
+    }
+    if (questions.some((item) => typeof item.conceptId !== "string" || !allowedConceptIds.has(item.conceptId))) {
+      return json({ error: "model returned an artifact without valid concept attribution" }, 502);
+    }
+    payload = {
+      questions: questions.map((question) => {
+        const concept = typedConcepts.find((item) => item.id === question.conceptId)!;
+        return {
+          ...question,
+          conceptName: concept.name,
+          sourceExcerpt: sourceByConcept.get(concept.id),
+        };
+      }),
+    };
   }
 
-  // 4. Persist artifact row
+  const generatedItems = "cards" in payload ? payload.cards : payload.questions;
+  const generatedConceptIds = [...new Set(
+    generatedItems
+      .map((item) => item.conceptId)
+      .filter((id): id is string => typeof id === "string"),
+  )];
+
+  // 3. Persist the replacement before retiring the prior set. A failed
+  // insert must never make the student's last working artifact disappear.
   const insertRow = {
     user_id: userId,
     // `class_id` is the database UUID. `client_class_id` is the stable key
@@ -207,11 +233,11 @@ Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
     class_id: concepts[0].class_id ?? null,
     client_class_id: body.classId ?? concepts[0].client_class_id ?? null,
     kind: body.kind,
-    concept_ids: concepts.map((c) => c.id),
+    concept_ids: generatedConceptIds,
     capture_id: body.captureId ?? concepts[0].capture_id ?? null,
     topic: body.topic ?? null,
     payload,
-    model: MODEL,
+    model: modelUsed,
     prompt_version: PROMPT_VERSION,
   };
   const { data: inserted, error: insErr } = await supabase
@@ -221,8 +247,157 @@ Professor emphasis: ${c.professor_emphasis ? "yes" : "no"}`
     .single();
   if (insErr) return json({ error: "artifact insert failed", details: insErr.message }, 500);
 
+  // 4. Regeneration is now safe: only stale earlier rows after the new row
+  // exists, and explicitly exclude it from the update.
+  if (body.regenerate) {
+    if (body.captureId) {
+      await supabase.from("learning_artifacts")
+        .update({ stale: true })
+        .eq("user_id", userId).eq("kind", body.kind).eq("capture_id", body.captureId)
+        .neq("id", inserted.id);
+    } else if (body.conceptIds?.length) {
+      await supabase.from("learning_artifacts")
+        .update({ stale: true })
+        .eq("user_id", userId).eq("kind", body.kind)
+        .overlaps("concept_ids", body.conceptIds)
+        .neq("id", inserted.id);
+    } else if (body.classId) {
+      await supabase.from("learning_artifacts")
+        .update({ stale: true })
+        .eq("user_id", userId).eq("kind", body.kind)
+        .eq("client_class_id", body.classId)
+        .neq("id", inserted.id);
+    }
+  }
+
   return json({ ok: true, artifact: inserted });
 });
+
+async function loadSourceExcerpts(
+  supabase: ReturnType<typeof createClient>,
+  concepts: ConceptRow[],
+) {
+  const captureIds = [...new Set(concepts.map((concept) => concept.capture_id).filter(Boolean))] as string[];
+  const sourceByConcept = new Map<string, string>();
+  if (!captureIds.length) return sourceByConcept;
+
+  const { data } = await supabase.from("captures").select("id, raw_text").in("id", captureIds);
+  const sourceByCapture = new Map(
+    (data ?? []).map((capture) => [capture.id as string, (capture.raw_text as string | null)?.trim() ?? ""]),
+  );
+  for (const concept of concepts) {
+    const source = concept.capture_id ? sourceByCapture.get(concept.capture_id) : undefined;
+    if (source) sourceByConcept.set(concept.id, source);
+  }
+  return sourceByConcept;
+}
+
+function buildExactFlashcards(
+  concepts: ConceptRow[],
+  sourceByConcept: Map<string, string>,
+  limit: number,
+) {
+  const cards: Flashcard[] = [];
+  const handledConceptIds = new Set<string>();
+  const seenSources = new Set<string>();
+
+  for (const concept of concepts) {
+    const source = sourceByConcept.get(concept.id);
+    const exact = source ? extractExactThinSource(source, Boolean(concept.professor_emphasis)) : null;
+    if (!exact) continue;
+    handledConceptIds.add(concept.id);
+    if (seenSources.has(exact.sourceExcerpt) || cards.length >= limit) continue;
+    seenSources.add(exact.sourceExcerpt);
+    cards.push({
+      front: exact.question,
+      back: exact.answer,
+      conceptId: concept.id,
+      conceptName: exact.concepts[0].name,
+      sourceExcerpt: exact.sourceExcerpt,
+    });
+  }
+  return { cards, handledConceptIds };
+}
+
+function buildGroundedFallbackFlashcards(
+  concepts: ConceptRow[],
+  sourceByConcept: Map<string, string>,
+  limit: number,
+) {
+  return concepts.slice(0, Math.max(0, limit)).map((concept): Flashcard => ({
+    front: `Explain ${concept.name} in your own words.`,
+    back: concept.definition?.trim()
+      || concept.examples?.find((example) => example.trim())
+      || `Review ${concept.name} in your original class material.`,
+    conceptId: concept.id,
+    conceptName: concept.name,
+    sourceExcerpt: sourceByConcept.get(concept.id),
+  }));
+}
+
+function normalizeFlashcards(
+  payload: unknown,
+  concepts: ConceptRow[],
+  sourceByConcept: Map<string, string>,
+) {
+  const cards = (payload as { cards?: Array<Partial<Flashcard>> } | null)?.cards;
+  if (!Array.isArray(cards)) return [];
+  const conceptById = new Map(concepts.map((concept) => [concept.id, concept]));
+  return cards.flatMap((card): Flashcard[] => {
+    const concept = card.conceptId ? conceptById.get(card.conceptId) : undefined;
+    if (!concept || typeof card.front !== "string" || typeof card.back !== "string") return [];
+    return [{
+      front: card.front.trim(),
+      back: card.back.trim(),
+      conceptId: concept.id,
+      conceptName: concept.name,
+      sourceExcerpt: sourceByConcept.get(concept.id),
+    }];
+  });
+}
+
+async function callGateway(
+  key: string,
+  template: NonNullable<(typeof PROMPTS)[ArtifactKind]>,
+  body: Body,
+  concepts: ConceptRow[],
+  count: number,
+) {
+  const conceptBlock = concepts.map((concept, index) =>
+    `Concept ${index + 1} ID: ${concept.id}
+Name: ${concept.name}
+Definition: ${concept.definition ?? "(none)"}
+Examples: ${(concept.examples ?? []).join(" | ") || "(none)"}
+Professor emphasis: ${concept.professor_emphasis ? "yes" : "no"}`
+  ).join("\n\n");
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: MODEL,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: template.system },
+          {
+            role: "user",
+            content: [
+              body.topic ? `Topic: ${body.topic}` : null,
+              template.describe(count),
+              "---",
+              conceptBlock,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+      }),
+    });
+    if (!response.ok) return null;
+    const gateway = await response.json();
+    return JSON.parse(gateway?.choices?.[0]?.message?.content ?? "{}");
+  } catch {
+    return null;
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
