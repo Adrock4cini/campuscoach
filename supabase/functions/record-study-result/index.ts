@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   // 1. Load artifact (RLS enforces ownership).
   const { data: artifact, error: aErr } = await supabase
     .from("learning_artifacts")
-    .select("id, user_id, class_id, concept_ids, topic, kind")
+    .select("id, user_id, class_id, client_class_id, concept_ids, topic, kind")
     .eq("id", body.artifactId)
     .maybeSingle();
   if (aErr) return json({ error: "artifact load failed", details: aErr.message }, 500);
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
 
   const realClassId: string | null = concepts.find((c) => c.class_id)?.class_id ?? null;
   const clientClassId: string | null =
-    concepts.find((c) => c.client_class_id)?.client_class_id ?? artifact.class_id ?? null;
+    concepts.find((c) => c.client_class_id)?.client_class_id ?? artifact.client_class_id ?? null;
 
   const scorePct = body.total > 0 ? Math.round((body.correct / body.total) * 100) : 0;
   const durationMinutes = Math.max(1, Math.round((body.durationSeconds ?? 0) / 60));
@@ -162,25 +162,41 @@ Deno.serve(async (req) => {
   if (uErr) return json({ error: "mastery upsert failed", details: uErr.message }, 500);
 
   // 5. Recompute class readiness from mastery.
-  let readiness = 0;
-  if (realClassId) {
-    const { data: masteryAll } = await supabase
+  let readiness: number | null = null;
+  if (realClassId || clientClassId) {
+    let classConceptIds: string[] = conceptIds;
+    if (!realClassId && clientClassId) {
+      const { data: classConcepts } = await supabase
+        .from("concepts")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("client_class_id", clientClassId);
+      const fetchedIds = (classConcepts ?? []).map((concept) => concept.id as string);
+      if (fetchedIds.length) classConceptIds = fetchedIds;
+    }
+
+    let masteryQuery = supabase
       .from("user_concept_mastery")
       .select("strength")
-      .eq("user_id", userId)
-      .eq("class_id", realClassId);
+      .eq("user_id", userId);
+    masteryQuery = realClassId
+      ? masteryQuery.eq("class_id", realClassId)
+      : masteryQuery.in("concept_id", classConceptIds);
+    const { data: masteryAll } = await masteryQuery;
     const vals = (masteryAll ?? []).map((r) => Number(r.strength) || 0);
     if (vals.length) {
       const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
       readiness = Math.round(clamp(avg, 0, 1) * 100);
     }
-    await supabase.from("readiness_scores").insert({
-      user_id: userId,
-      class_id: realClassId,
-      client_class_id: clientClassId,
-      readiness,
-      computed_at: now.toISOString(),
-    });
+    if (readiness !== null) {
+      await supabase.from("readiness_scores").insert({
+        user_id: userId,
+        class_id: realClassId,
+        client_class_id: clientClassId,
+        readiness,
+        computed_at: now.toISOString(),
+      });
+    }
   }
 
   // 6. Optional topic_signal (best-effort, non-fatal).
