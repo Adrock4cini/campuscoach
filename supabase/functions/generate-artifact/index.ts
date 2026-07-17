@@ -349,10 +349,10 @@ async function resolveStudyScope(
 ): Promise<ResolvedStudyScope | Response> {
   const requested = body.studyScope;
   if (!requested || requested.type === "recent") {
-    return { type: "recent", id: "recent", label: "Recent material", topics: [] };
+    return { type: "recent", id: "recent", label: "What I just learned", topics: [] };
   }
   if (requested.type === "class") {
-    return { type: "class", id: "class", label: "Mixed class review", topics: [] };
+    return { type: "class", id: "class", label: "Everything in this class", topics: [] };
   }
 
   const examId = requested.examId ?? requested.id;
@@ -402,7 +402,7 @@ function selectScopedConcepts(
   if (scope.type === "recent") return concepts.slice(0, Math.min(5, MAX_CONCEPTS));
 
   const topicTerms = scope.topics
-    .map((topic) => topic.trim().toLowerCase())
+    .flatMap(expandStudyTopic)
     .filter(Boolean);
   const topicMatches = topicTerms.length
     ? concepts.filter((concept) => {
@@ -410,7 +410,8 @@ function selectScopedConcepts(
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-      return topicTerms.some((topic) => haystack.includes(topic) || topic.includes(concept.name.toLowerCase()));
+      const searchable = buildStudySearchText(haystack);
+      return topicTerms.some((topic) => searchable.includes(topic));
     })
     : [];
   if (topicMatches.length) return topicMatches.slice(0, MAX_CONCEPTS);
@@ -425,6 +426,40 @@ function selectScopedConcepts(
       return created > start && created <= end;
     })
     .slice(0, MAX_CONCEPTS);
+}
+
+const STUDY_TOPIC_ALIASES: Record<string, string[]> = {
+  addition: ["addition", "add", "plus", "sum"],
+  subtraction: ["subtraction", "subtract", "minus", "difference"],
+  multiplication: ["multiplication", "multiply", "times", "product"],
+  division: ["division", "divide", "quotient"],
+};
+
+function normalizeStudyText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/×/g, " * ")
+    .replace(/÷/g, " / ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function expandStudyTopic(topic: string) {
+  const normalized = normalizeStudyText(topic);
+  if (!normalized) return [];
+
+  const aliases = STUDY_TOPIC_ALIASES[normalized] ?? [];
+  return [...new Set([normalized, ...aliases.map(normalizeStudyText)])];
+}
+
+function buildStudySearchText(value: string) {
+  const normalized = normalizeStudyText(value);
+  const inferred: string[] = [];
+  if (/\d\s*\+\s*\d/.test(normalized)) inferred.push(...STUDY_TOPIC_ALIASES.addition);
+  if (/\d\s*-\s*\d/.test(normalized)) inferred.push(...STUDY_TOPIC_ALIASES.subtraction);
+  if (/\d\s*\*\s*\d/.test(normalized)) inferred.push(...STUDY_TOPIC_ALIASES.multiplication);
+  if (/\d\s*\/\s*\d/.test(normalized)) inferred.push(...STUDY_TOPIC_ALIASES.division);
+  return `${normalized} ${inferred.join(" ")}`.trim();
 }
 
 async function loadSourceExcerpts(
