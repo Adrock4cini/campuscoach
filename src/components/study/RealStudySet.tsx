@@ -36,6 +36,12 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
   multiple_choice: { label: "Multiple choice", icon: ListChecks },
 };
 
+function targetButtonLabel(target: StudyScope) {
+  if (target.type === "recent") return "What I just learned";
+  if (target.type === "class") return "Everything in this class";
+  return `Prepare for ${target.label}`;
+}
+
 export function RealStudySet({ classId }: Props) {
   const [kind, setKind] = useState<Kind>("flashcards");
   const [studying, setStudying] = useState(false);
@@ -85,7 +91,7 @@ export function RealStudySet({ classId }: Props) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Target className="h-4 w-4 text-primary" />
-            <span>What are you studying for?</span>
+            <span>Choose what to study</span>
           </div>
           <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {studyTargets.map((target) => (
@@ -103,7 +109,7 @@ export function RealStudySet({ classId }: Props) {
                     : "border-border/60 text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {target.label}
+                {targetButtonLabel(target)}
                 {target.type === "exam" && target.examDate
                   ? ` · ${new Date(`${target.examDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
                   : ""}
@@ -113,10 +119,10 @@ export function RealStudySet({ classId }: Props) {
           </div>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             {studyScope.type === "exam"
-              ? `Questions will stay tied to ${studyScope.label}.`
+              ? `Only material for ${studyScope.label} will be included.`
               : studyScope.type === "recent"
-                ? "Uses your newest captured concepts, without pulling in older units."
-                : "Intentionally mixes concepts from across this class."}
+                ? "A quick review of the newest material you added."
+                : "A broader review that mixes older and newer material."}
           </p>
         </div>
 
@@ -125,7 +131,7 @@ export function RealStudySet({ classId }: Props) {
             <KindIcon className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-foreground">Your study set</span>
             <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-              Evidence-backed
+              Built from your notes
             </Badge>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
@@ -166,9 +172,18 @@ export function RealStudySet({ classId }: Props) {
             </p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No {KIND_META[kind].label.toLowerCase()} yet. Add a quick note or professor hint first. Campus Brain will extract concepts before it builds a study set.
-          </p>
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-foreground">
+              {studyScope.type === "exam"
+                ? `Build a study set for ${studyScope.label}`
+                : `No ${KIND_META[kind].label.toLowerCase()} here yet`}
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {studyScope.type === "exam"
+                ? `We’ll look through your notes for material that matches this test and turn it into practice questions.`
+                : "Add a quick note or professor hint, then come back to build practice questions from it."}
+            </p>
+          </div>
         )}
 
         {error && (
@@ -198,12 +213,12 @@ export function RealStudySet({ classId }: Props) {
             ) : artifact ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Regenerate
+                Rebuild from notes
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                Generate
+                {studyScope.type === "exam" ? "Build test practice" : "Build study set"}
               </>
             )}
           </Button>

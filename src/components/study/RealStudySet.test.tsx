@@ -92,9 +92,10 @@ describe("real study set freshness", () => {
     mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);
 
-    expect(screen.getByText("What are you studying for?")).toBeInTheDocument();
+    expect(screen.getByText("Choose what to study")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /unit 1 exam/i }));
-    expect(screen.getByText("Questions will stay tied to Unit 1 Exam.")).toBeInTheDocument();
+    expect(screen.getByText("Only material for Unit 1 Exam will be included.")).toBeInTheDocument();
+    expect(screen.getByText("Built from your notes")).toBeInTheDocument();
   });
 
   it("blocks an older multiple-choice set until it is refreshed", () => {

@@ -37,7 +37,6 @@ const COMING_SOON_FOR_REAL = new Set<string>([
   "/your-week",
   "/calendar",
   "/notes",
-  "/study-lab",
   "/path-to-graduation",
   "/scholarships",
   "/course-intelligence",
@@ -149,7 +148,7 @@ export function AppSidebar() {
             )}
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item: any) => (
+                {group.items.map((item) => (
                   <SidebarMenuItem key={item.title + item.url}>
                     <SidebarMenuButton asChild>
                       <NavLink

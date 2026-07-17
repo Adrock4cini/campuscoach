@@ -55,8 +55,11 @@ export default function StudyLab() {
           <Sparkles className="h-3 w-3" /> Study Lab
         </div>
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground tracking-tight">
-          Best next step
+          What do you want to study?
         </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose a class, then focus on what matters right now.
+        </p>
       </div>
 
       {/* Class chips */}
