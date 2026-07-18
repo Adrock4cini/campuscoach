@@ -42,14 +42,18 @@ describe("real flashcard runner", () => {
       />,
     );
 
-    expect(screen.getByText(/answers update mastery and future recommendations/i)).toBeInTheDocument();
+    expect(screen.getByText(/answer from memory first/i)).toBeInTheDocument();
     expect(screen.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
-    expect(screen.getByText(/from your note/i)).toHaveTextContent("2+2 = 4");
+    expect(screen.queryByText(/addition facts/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/source from your notes/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("2+2 = 4")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /i knew it/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
 
     expect(screen.getByText("2 + 2 equals 4.")).toBeInTheDocument();
+    expect(screen.getByText(/addition facts/i)).toBeInTheDocument();
+    expect(screen.getByText(/source from your notes/i)).toHaveTextContent("2+2 = 4");
     expect(screen.getByRole("button", { name: /review again/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /i knew it/i })).toBeInTheDocument();
   });

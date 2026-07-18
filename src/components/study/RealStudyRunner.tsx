@@ -145,8 +145,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           </DialogTitle>
           {!done && (
             <DialogDescription className="text-xs leading-relaxed">
-              {artifact.study_scope_label ? `Target: ${artifact.study_scope_label}. ` : ""}
-              Based on {artifact.concept_ids.length} captured concept{artifact.concept_ids.length === 1 ? "" : "s"}. Your answers update mastery and future recommendations.
+              {artifact.study_scope_label ? `Reviewing: ${studentScopeLabel(artifact.study_scope_label)}. ` : ""}
+              Answer from memory first. Your results help choose what to review next.
             </DialogDescription>
           )}
           {done && <DialogDescription>Your answers were saved to concept memory.</DialogDescription>}
@@ -172,15 +172,15 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
                         {flipped ? "Answer" : "Question"}
                       </p>
-                      {card.conceptName && (
+                      {flipped && card.conceptName && (
                         <p className="text-[11px] text-primary mb-3">Concept: {card.conceptName}</p>
                       )}
                       <p className="break-words text-base text-foreground leading-relaxed sm:text-lg">
                         {flipped ? card.back : card.front}
                       </p>
-                      {card.sourceExcerpt && (
+                      {flipped && card.sourceExcerpt && (
                         <p className="mt-4 break-words border-t border-border/40 pt-3 text-xs leading-relaxed text-muted-foreground">
-                          From your note: “{card.sourceExcerpt}”
+                          Source from your notes: “{card.sourceExcerpt}”
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-5">
@@ -289,6 +289,12 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       </DialogContent>
     </Dialog>
   );
+}
+
+function studentScopeLabel(label: string) {
+  if (label.toLowerCase() === "recent material") return "what you just learned";
+  if (label.toLowerCase() === "mixed class review") return "everything in this class";
+  return label;
 }
 
 function summarizeByConcept(results: AnswerResult[]) {
