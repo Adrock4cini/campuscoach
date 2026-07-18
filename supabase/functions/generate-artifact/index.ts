@@ -74,7 +74,7 @@ interface Flashcard {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v6-learning-science";
+const PROMPT_VERSION = "v7-retrieval-integrity";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -176,11 +176,12 @@ Deno.serve(async (req) => {
     return json({ error: "No concepts found for this request" }, 404);
   }
 
-  const typedConcepts = selectScopedConcepts(
+  let typedConcepts = selectScopedConcepts(
     concepts as ConceptRow[],
     resolvedScope,
     Boolean(body.conceptIds?.length || body.captureId),
   );
+  typedConcepts = await enforceClassBoundary(supabase, typedConcepts, body.classId);
   if (!typedConcepts.length) {
     return json({
       error: resolvedScope.type === "exam"
@@ -479,6 +480,36 @@ async function loadSourceExcerpts(
     if (source) sourceByConcept.set(concept.id, source);
   }
   return sourceByConcept;
+}
+
+async function enforceClassBoundary(
+  supabase: ReturnType<typeof createClient>,
+  concepts: ConceptRow[],
+  requestedClassId?: string,
+) {
+  if (!requestedClassId) return concepts;
+
+  // The concept and its original capture must both belong to the requested
+  // class. This prevents a stale/mis-associated concept from leaking into a
+  // different class's study set. Concepts without captures are still allowed
+  // only when their own class identity is an exact match.
+  const candidates = concepts.filter((concept) => concept.client_class_id === requestedClassId);
+  const captureIds = [...new Set(candidates.map((concept) => concept.capture_id).filter(Boolean))] as string[];
+  if (!captureIds.length) return candidates;
+
+  const { data, error } = await supabase
+    .from("captures")
+    .select("id, client_class_id")
+    .in("id", captureIds);
+  if (error) return [];
+
+  const captureClass = new Map(
+    (data ?? []).map((capture) => [capture.id as string, capture.client_class_id as string | null]),
+  );
+  return candidates.filter((concept) => {
+    if (!concept.capture_id) return true;
+    return captureClass.get(concept.capture_id) === requestedClassId;
+  });
 }
 
 function buildExactMultipleChoice(
