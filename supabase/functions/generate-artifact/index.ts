@@ -12,6 +12,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "../_shared/thin-source.ts";
+import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
 
 type ArtifactKind =
   | "flashcards"
@@ -74,7 +75,7 @@ interface Flashcard {
 }
 
 const MODEL = "google/gemini-2.5-flash";
-const PROMPT_VERSION = "v7-retrieval-integrity";
+const PROMPT_VERSION = "v8-grounding-quality";
 const MAX_CONCEPTS = 8;
 
 const PROMPTS: Partial<Record<ArtifactKind, {
@@ -189,8 +190,18 @@ Deno.serve(async (req) => {
         : "No concepts found for this study target",
     }, 404);
   }
-  const count = Math.min(body.count ?? typedConcepts.length, typedConcepts.length, MAX_CONCEPTS);
   const sourceByConcept = await loadSourceExcerpts(supabase, typedConcepts);
+  typedConcepts = typedConcepts.filter((concept) => {
+    const evidence = sourceByConcept.get(concept.id)
+      ?? `${concept.name}. ${concept.definition ?? ""}`;
+    return assessSourceSufficiency(evidence).sufficient;
+  });
+  if (!typedConcepts.length) {
+    return json({
+      error: "No grounded source material is available for this study target. Add a definition, example, equation, class fact, or professor hint first.",
+    }, 422);
+  }
+  const count = Math.min(body.count ?? typedConcepts.length, typedConcepts.length, MAX_CONCEPTS);
   const key = Deno.env.get("LOVABLE_API_KEY");
   let payload: { cards: Flashcard[] } | { questions: Array<Record<string, unknown>> };
   let modelUsed = MODEL;

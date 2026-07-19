@@ -6,6 +6,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { extractExactThinSource } from "../_shared/thin-source.ts";
+import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
 
 interface Body {
   captureId?: string;
@@ -39,7 +40,8 @@ Return ONLY JSON matching:
   ]
 }
 Rules:
-- Return 1-8 concepts. Never invent content not present in the source.
+- Return 0-8 concepts. Never invent content not present in the source.
+- If the source does not support a concrete academic concept, return an empty concepts array.
 - If input is a professor hint, mark every concept professor_emphasis=true.
 - If the source is thin, return fewer concepts rather than padding.
 - A single equation or factual statement should normally become exactly one concept that preserves the source wording.
@@ -74,6 +76,9 @@ Deno.serve(async (req) => {
 
   const rawText = (body.rawText ?? "").trim();
   if (!rawText) return json({ error: "rawText required" }, 400);
+  if (!assessSourceSufficiency(rawText).sufficient) {
+    return insufficientSource();
+  }
 
   // Resolve the student's stable client class id to the real classes.id UUID.
   // Both identifiers travel through the pipeline: the client id drives routes,
@@ -134,6 +139,8 @@ Deno.serve(async (req) => {
     summary = parsed.summary ?? "";
     concepts = Array.isArray(parsed.concepts) ? parsed.concepts.slice(0, 8) : [];
   }
+
+  if (!concepts.length) return insufficientSource();
 
   // 2. Embed each concept name+definition
   const texts = concepts.map((c) => `${c.name}. ${c.definition ?? ""}`.trim());
@@ -217,6 +224,13 @@ Deno.serve(async (req) => {
 
   return json({ ok: true, summary, concepts, conceptIds: insertedIds });
 });
+
+function insufficientSource() {
+  return json({
+    error: "insufficient_source",
+    message: "Add a definition, example, equation, class fact, or professor hint before building study questions.",
+  }, 422);
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

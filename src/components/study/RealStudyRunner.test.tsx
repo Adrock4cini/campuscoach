@@ -1,7 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RealStudyRunner } from "./RealStudyRunner";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
+
+const { invoke } = vi.hoisted(() => ({
+  invoke: vi.fn().mockResolvedValue({ data: { readiness: 42 }, error: null }),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { functions: { invoke } },
+}));
 
 const artifact: LearningArtifact<"flashcards"> = {
   id: "artifact-1",
@@ -48,6 +56,7 @@ describe("real flashcard runner", () => {
     expect(screen.queryByText(/source from your notes/i)).not.toBeInTheDocument();
     expect(screen.queryByText("2+2 = 4")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /i knew it/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /end session/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
 
@@ -56,5 +65,27 @@ describe("real flashcard runner", () => {
     expect(screen.getByText(/source from your notes/i)).toHaveTextContent("2+2 = 4");
     expect(screen.getByRole("button", { name: /review again/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /i knew it/i })).toBeInTheDocument();
+  });
+
+  it("waits for an explicit finish after the final card is rated", async () => {
+    invoke.mockClear();
+    render(
+      <RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+
+    expect(screen.getByText(/last card rated/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /finish session/i })).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "record-study-result",
+      expect.any(Object),
+    ));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
   });
 });
