@@ -37,6 +37,12 @@ interface AnswerResult {
   correct: boolean;
 }
 
+interface PendingFinalResult {
+  correct: number;
+  incorrect: number;
+  results: AnswerResult[];
+}
+
 export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: Props) {
   const items = useMemo(() => {
     if (artifact.kind === "flashcards") {
@@ -55,6 +61,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [done, setDone] = useState(false);
   const [readiness, setReadiness] = useState<number | null>(null);
   const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
+  const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
 
   const total = items.length;
   const isLast = idx >= total - 1;
@@ -69,6 +76,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setDone(false);
     setReadiness(null);
     setAnswerResults([]);
+    setPendingFinal(null);
+    setSubmitting(false);
     setStartedAt(Date.now());
   }, [open, artifact.id]);
 
@@ -86,11 +95,13 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     if (wasCorrect) setCorrect((c) => c + 1);
     else setIncorrect((c) => c + 1);
     if (isLast) {
-      await finish(
-        wasCorrect ? correct + 1 : correct,
-        wasCorrect ? incorrect : incorrect + 1,
-        nextResults,
-      );
+      const finalResult = {
+        correct: wasCorrect ? correct + 1 : correct,
+        incorrect: wasCorrect ? incorrect : incorrect + 1,
+        results: nextResults,
+      };
+      if (artifact.kind === "flashcards") setPendingFinal(finalResult);
+      else await finish(finalResult.correct, finalResult.incorrect, finalResult.results);
     } else {
       setIdx((i) => i + 1);
       setFlipped(false);
@@ -132,6 +143,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setFlipped(false); setPicked(null); setDone(false);
     setReadiness(null); setStartedAt(Date.now());
     setAnswerResults([]);
+    setPendingFinal(null);
+    setSubmitting(false);
   };
 
   if (!items.length) return null;
@@ -187,7 +200,11 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         Tap card to {flipped ? "see the question" : "reveal the answer"}
                       </p>
                     </button>
-                    {!flipped ? (
+                    {pendingFinal ? (
+                      <p className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-center text-sm text-foreground">
+                        Last card rated. Finish to save your progress.
+                      </p>
+                    ) : !flipped ? (
                       <Button className="w-full" onClick={() => setFlipped(true)}>
                         Reveal answer
                       </Button>
@@ -280,7 +297,16 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               </Button>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </>
-          ) : (
+          ) : pendingFinal ? (
+            <Button
+              className="w-full"
+              disabled={submitting}
+              onClick={() => finish(pendingFinal.correct, pendingFinal.incorrect, pendingFinal.results)}
+            >
+              {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Finish session
+            </Button>
+          ) : isLast ? null : (
             <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => onOpenChange(false)} disabled={submitting}>
               End session
             </Button>
