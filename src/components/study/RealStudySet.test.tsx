@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RealStudySet } from "./RealStudySet";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
@@ -118,5 +118,21 @@ describe("real study set freshness", () => {
     expect(screen.getByText("Refresh this set before studying")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh from notes/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /study now/i })).not.toBeInTheDocument();
+  });
+
+  it("automatically builds the exact concepts handed off by Campus Coach", async () => {
+    mocks.artifact = null;
+    render(
+      <RealStudySet
+        classId="math"
+        initialConceptIds={["11111111-1111-4111-8111-111111111111"]}
+        initialStudyScope={{ type: "class", id: "coach-abc", label: "Coach picks" }}
+        autoStart
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Coach picks" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/weak, overdue, and high-impact concepts/i)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
   });
 });

@@ -29,7 +29,12 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   artifact: LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice">;
-  onCompleted?: (result: { readiness: number; correct: number; total: number }) => void;
+  onCompleted?: (result: {
+    readiness: number;
+    readinessDelta: number | null;
+    correct: number;
+    total: number;
+  }) => void;
 }
 
 interface AnswerResult {
@@ -60,6 +65,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [readiness, setReadiness] = useState<number | null>(null);
+  const [readinessDelta, setReadinessDelta] = useState<number | null>(null);
   const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
 
@@ -75,6 +81,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setPicked(null);
     setDone(false);
     setReadiness(null);
+    setReadinessDelta(null);
     setAnswerResults([]);
     setPendingFinal(null);
     setSubmitting(false);
@@ -131,17 +138,23 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       return;
     }
     setDone(true);
-    const r = data as { readiness?: number | null };
+    const r = data as { readiness?: number | null; readinessDelta?: number | null };
     setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
+    setReadinessDelta(typeof r?.readinessDelta === "number" ? r.readinessDelta : null);
     // Nudge the Dashboard coach to re-rank now that mastery has changed.
     window.dispatchEvent(new CustomEvent("coach:refresh"));
-    onCompleted?.({ readiness: r?.readiness ?? 0, correct: finalCorrect, total });
+    onCompleted?.({
+      readiness: r?.readiness ?? 0,
+      readinessDelta: r?.readinessDelta ?? null,
+      correct: finalCorrect,
+      total,
+    });
   };
 
   const reset = () => {
     setIdx(0); setCorrect(0); setIncorrect(0);
     setFlipped(false); setPicked(null); setDone(false);
-    setReadiness(null); setStartedAt(Date.now());
+    setReadiness(null); setReadinessDelta(null); setStartedAt(Date.now());
     setAnswerResults([]);
     setPendingFinal(null);
     setSubmitting(false);
@@ -283,7 +296,21 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
             </p>
             {readiness !== null && (
               <p className="text-sm text-foreground">
-                Readiness recalculated to <span className="font-semibold text-primary">{Math.round(readiness)}%</span>.
+                {readinessDelta !== null && readinessDelta > 0 ? (
+                  <>
+                    Readiness <span className="font-semibold text-primary">+{Math.round(readinessDelta)} points</span>
+                    {" · now "}<span className="font-semibold text-primary">{Math.round(readiness)}%</span>.
+                  </>
+                ) : readinessDelta !== null && readinessDelta < 0 ? (
+                  <>
+                    We found what to review next · readiness is now{" "}
+                    <span className="font-semibold text-primary">{Math.round(readiness)}%</span>.
+                  </>
+                ) : (
+                  <>
+                    Readiness is <span className="font-semibold text-primary">{Math.round(readiness)}%</span>.
+                  </>
+                )}
               </p>
             )}
           </div>
