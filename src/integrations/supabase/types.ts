@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_request_rate_limits: {
+        Row: {
+          function_name: string
+          last_requested_at: string
+          request_count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          function_name: string
+          last_requested_at?: string
+          request_count?: number
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          function_name?: string
+          last_requested_at?: string
+          request_count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       assignments: {
         Row: {
           class_id: string | null
@@ -1247,6 +1271,15 @@ export type Database = {
       }
     }
     Functions: {
+      consume_ai_request_quota: {
+        Args: {
+          p_function_name: string
+          p_limit: number
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
       owns_row: { Args: { _user_id: string }; Returns: boolean }
       recompute_topic_scores: {
         Args: { _class_id?: string }
