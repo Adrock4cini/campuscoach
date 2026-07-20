@@ -26,7 +26,7 @@ export function ClassTabs({ value, onChange, showAll = true, className }: ClassT
           return (
             <button
               key={c.id}
-              onClick={() => onChange(c.id as any)}
+              onClick={() => onChange(c.id)}
               className={cn(
                 "relative flex items-center gap-2 px-3.5 py-2 rounded-full text-sm whitespace-nowrap transition-all",
                 "border backdrop-blur",

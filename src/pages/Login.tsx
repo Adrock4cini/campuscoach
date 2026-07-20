@@ -32,7 +32,7 @@ export default function Login() {
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
-    if (result.error) toast.error("Google sign-in failed", { description: String((result.error as any)?.message ?? "") });
+    if (result.error) toast.error("Google sign-in failed", { description: String(result.error) });
     // On success the popup/redirect finishes and onAuthStateChange takes over.
   }
 

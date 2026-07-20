@@ -58,9 +58,9 @@ export function SyllabusImport({
           asg === 1 ? "" : "s"
         } detected. Confirm below.`,
       });
-    } catch (e: any) {
+    } catch (error: unknown) {
       toast.error("Couldn't read that file", {
-        description: e?.message ?? "Try a clearer PDF or photo.",
+        description: error instanceof Error ? error.message : "Try a clearer PDF or photo.",
       });
     } finally {
       setBusy(false);

@@ -1,16 +1,22 @@
 // One-shot admin function to (re)create a seeded beta test user.
-// Uses the service role to bypass RLS + auth signup restrictions so we have
-// a stable account to sign in with during development.
+// This function uses the service role, so it requires BOTH a valid Supabase
+// JWT at the gateway and a separate server-side admin secret.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
+  const expectedAdminSecret = Deno.env.get("SEED_BETA_ADMIN_SECRET");
+  const suppliedAdminSecret = req.headers.get("x-seed-admin-secret");
+  if (!expectedAdminSecret) {
+    console.error("[seed-beta-user] SEED_BETA_ADMIN_SECRET is not configured");
+    return json({ error: "Beta seeding is disabled" }, 503);
+  }
+  if (!suppliedAdminSecret || suppliedAdminSecret !== expectedAdminSecret) {
+    return json({ error: "Forbidden" }, 403);
+  }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -18,10 +24,20 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const body = await req.json().catch(() => ({}));
-  const email: string = body.email ?? "adam@campuscompanion.dev";
-  const password: string = body.password ?? "CampusBeta2026!";
-  const fullName: string = body.fullName ?? "Adam (Beta Tester)";
+  const body = await req.json().catch(() => null);
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const password = typeof body?.password === "string" ? body.password : "";
+  const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return json({ error: "A valid email is required" }, 400);
+  }
+  if (password.length < 12) {
+    return json({ error: "Password must be at least 12 characters" }, 400);
+  }
+  if (!fullName || fullName.length > 100) {
+    return json({ error: "A full name between 1 and 100 characters is required" }, 400);
+  }
 
   // Try create; if it already exists, look it up and reset password.
   let userId: string | null = null;
@@ -72,7 +88,6 @@ Deno.serve(async (req) => {
     ok: true,
     userId,
     email,
-    password,
     profileError: profileErr?.message ?? null,
   });
 });
@@ -80,6 +95,6 @@ Deno.serve(async (req) => {
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
   });
 }

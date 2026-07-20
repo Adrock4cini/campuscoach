@@ -25,6 +25,7 @@ import type {
 interface Props {
   open: boolean;
   initialKind?: CaptureKind;
+  initialClassId?: string;
   onClose: () => void;
 }
 
@@ -53,7 +54,7 @@ const REAL_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "added-to-brain", label: "Added to Class Memory", duration: 300 },
 ];
 
-export function CaptureFlow({ open, initialKind, onClose }: Props) {
+export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
   const { classes: myClasses, loading: classesLoading } = useMyClasses();
@@ -88,12 +89,12 @@ export function CaptureFlow({ open, initialKind, onClose }: Props) {
     setStepIndex(0);
     setResult(null);
     setCtx({
-      classId: detected?.id ?? "",
+      classId: initialClassId ?? detected?.id ?? "",
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
     });
-  }, [open, initialKind, detected, realMode]);
+  }, [open, initialKind, initialClassId, detected, realMode]);
 
   // Real classes arrive asynchronously. Select the first one without
   // resetting anything the student may already have typed into the form.

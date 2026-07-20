@@ -33,8 +33,10 @@ import { RealExamsView } from "@/components/real/RealExamsView";
  */
 export default function ExamsPage() {
   const { user, isDemoMode } = useAuth();
-  if (user && !isDemoMode) return <RealExamsView />;
+  return user && !isDemoMode ? <RealExamsView /> : <DemoExamsPage />;
+}
 
+function DemoExamsPage() {
   const navigate = useNavigate();
   const [activeClass, setActiveClass] = useState<string | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);

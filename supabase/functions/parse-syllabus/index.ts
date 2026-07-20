@@ -1,4 +1,5 @@
 // Parse a syllabus (PDF or image) into structured class data using Lovable AI Gateway.
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 interface Body {
@@ -7,6 +8,11 @@ interface Body {
   mimeType?: string;
   hint?: string; // optional student-provided context (e.g. "Spring 2026")
 }
+
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_REQUEST_BYTES = Math.ceil((MAX_FILE_BYTES * 4) / 3) + 16_384;
+const MAX_HINT_LENGTH = 300;
+const MAX_FILENAME_LENGTH = 180;
 
 const SYSTEM = `You extract structured class information from a college syllabus, class schedule, or timetable.
 Return ONLY JSON matching this schema, no prose:
@@ -36,35 +42,80 @@ Rules:
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
+  const authorization = req.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return json({ error: "Authentication required" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) {
+    console.error("[parse-syllabus] Supabase environment is incomplete");
+    return json({ error: "Service unavailable" }, 503);
+  }
+
+  const authClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: authData, error: authError } = await authClient.auth.getUser();
+  if (authError || !authData.user) {
+    return json({ error: "Authentication required" }, 401);
+  }
+
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return json({ error: "File exceeds the 15 MB limit" }, 413);
+  }
+
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[parse-syllabus] LOVABLE_API_KEY is missing");
+    return json({ error: "Service unavailable" }, 503);
   }
 
   let body: Body;
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Invalid JSON" }, 400);
   }
 
-  if (!body.fileDataUrl || !body.fileDataUrl.startsWith("data:")) {
-    return new Response(JSON.stringify({ error: "fileDataUrl (data:...;base64,...) required" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (typeof body.fileDataUrl !== "string" || !body.fileDataUrl.startsWith("data:")) {
+    return json({ error: "A PDF or image is required" }, 400);
+  }
+  if (body.fileDataUrl.length > MAX_REQUEST_BYTES) {
+    return json({ error: "File exceeds the 15 MB limit" }, 413);
+  }
+  if (body.hint && (typeof body.hint !== "string" || body.hint.length > MAX_HINT_LENGTH)) {
+    return json({ error: "Context is too long" }, 400);
+  }
+  if (body.filename && (typeof body.filename !== "string" || body.filename.length > MAX_FILENAME_LENGTH)) {
+    return json({ error: "Filename is too long" }, 400);
   }
 
-  const mime =
-    body.mimeType ??
-    body.fileDataUrl.slice(5, body.fileDataUrl.indexOf(";")) ??
-    "application/octet-stream";
+  const dataUrlHeaderEnd = body.fileDataUrl.indexOf(",");
+  const dataUrlHeader = dataUrlHeaderEnd >= 0 ? body.fileDataUrl.slice(0, dataUrlHeaderEnd) : "";
+  const mimeMatch = /^data:([^;,]+);base64$/i.exec(dataUrlHeader);
+  if (!mimeMatch) {
+    return json({ error: "File must use a valid base64 data URL" }, 400);
+  }
+
+  const base64 = body.fileDataUrl.slice(dataUrlHeaderEnd + 1);
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
+    return json({ error: "File contains invalid base64 data" }, 400);
+  }
+  const paddingBytes = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  const decodedBytes = Math.floor((base64.length * 3) / 4) - paddingBytes;
+  if (decodedBytes > MAX_FILE_BYTES) {
+    return json({ error: "File exceeds the 15 MB limit" }, 413);
+  }
+
+  const mime = mimeMatch[1].toLowerCase();
   const isImage = mime.startsWith("image/");
   const isPdf = mime === "application/pdf";
 
@@ -78,10 +129,32 @@ Deno.serve(async (req) => {
       : null;
 
   if (!contentBlock) {
-    return new Response(
-      JSON.stringify({ error: `Unsupported file type: ${mime}. Use PDF or image.` }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: "Unsupported file type. Use a PDF or image." }, 400);
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceRoleKey) {
+    console.error("[parse-syllabus] SUPABASE_SERVICE_ROLE_KEY is missing");
+    return json({ error: "Service unavailable" }, 503);
+  }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: withinQuota, error: quotaError } = await adminClient.rpc(
+    "consume_ai_request_quota",
+    {
+      p_user_id: authData.user.id,
+      p_function_name: "parse-syllabus",
+      p_limit: 12,
+      p_window_seconds: 3600,
+    },
+  );
+  if (quotaError) {
+    console.error(`[parse-syllabus] quota check failed: ${quotaError.message}`);
+    return json({ error: "Service temporarily unavailable" }, 503);
+  }
+  if (!withinQuota) {
+    return json({ error: "Syllabus import limit reached. Try again later." }, 429);
   }
 
   const userText = `Extract the class(es) from this syllabus/schedule.${
@@ -110,10 +183,7 @@ Deno.serve(async (req) => {
   if (!gwRes.ok) {
     const details = await gwRes.text();
     console.error(`[parse-syllabus] gateway ${gwRes.status}: ${details}`);
-    return new Response(
-      JSON.stringify({ error: "AI extraction failed", status: gwRes.status, details }),
-      { status: gwRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: "AI extraction failed. Please try again." }, 502);
   }
 
   const gw = await gwRes.json();
@@ -125,7 +195,12 @@ Deno.serve(async (req) => {
     parsed = { student: null, classes: [], _raw: raw };
   }
 
-  return new Response(JSON.stringify(parsed), {
+  return json(parsed);
+});
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-});
+}

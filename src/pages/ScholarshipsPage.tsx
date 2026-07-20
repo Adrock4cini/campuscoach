@@ -33,7 +33,8 @@ export default function ScholarshipsPage() {
   const toggleSave = (id: string) =>
     setSaved((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
 

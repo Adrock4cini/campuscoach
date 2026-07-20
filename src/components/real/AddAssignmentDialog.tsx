@@ -55,7 +55,7 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
     const row = await createAssignment(user.id, {
       title: title.trim(),
       clientClassId: classId,
-      classUuid: (cls as any)?.uuid ?? null,
+      classUuid: cls?.uuid ?? null,
       dueDate: dueDate || null,
       estimatedMinutes: parseInt(minutes) || 30,
       priority,

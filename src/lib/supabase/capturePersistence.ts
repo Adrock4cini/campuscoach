@@ -69,7 +69,6 @@ function todayISO(): string {
 
 function warn(scope: string, err: unknown) {
   // Never throw from persistence — the UI must keep working.
-  // eslint-disable-next-line no-console
   console.warn(`[capturePersistence:${scope}]`, err);
 }
 
@@ -175,10 +174,28 @@ export async function saveCampusBrainSignal(
 /* Reads                                                               */
 /* ------------------------------------------------------------------ */
 
-function rowToCapture(row: any): PersistedCapture {
+interface CaptureQueryRow {
+  id: string;
+  kind: string;
+  client_class_id: string | null;
+  topic: string | null;
+  processing_status: string;
+  flashcards_ready: boolean;
+  created_at: string;
+  raw_text: string | null;
+  processed_content:
+    | { summary: string | null; key_concepts: unknown }
+    | { summary: string | null; key_concepts: unknown }[]
+    | null;
+}
+
+function rowToCapture(row: CaptureQueryRow): PersistedCapture {
   const processed = Array.isArray(row.processed_content)
     ? row.processed_content[0]
     : row.processed_content;
+  const keyConcepts = Array.isArray(processed?.key_concepts)
+    ? processed.key_concepts.filter((value): value is string => typeof value === "string")
+    : [];
   return {
     id: row.id,
     kind: row.kind,
@@ -188,7 +205,7 @@ function rowToCapture(row: any): PersistedCapture {
     flashcardsReady: !!row.flashcards_ready,
     createdAt: row.created_at,
     summary: processed?.summary ?? null,
-    keyConcepts: processed?.key_concepts ?? [],
+    keyConcepts,
     rawText: row.raw_text,
   };
 }

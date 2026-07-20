@@ -1,7 +1,7 @@
 project_id = "norsaaoyppctrvxxgjtg"
 
 [functions.parse-syllabus]
-verify_jwt = false
+verify_jwt = true
 
 [functions.seed-beta-user]
-verify_jwt = false
+verify_jwt = true

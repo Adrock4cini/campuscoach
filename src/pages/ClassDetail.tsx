@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus,
+  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -91,10 +91,10 @@ export default function ClassDetail() {
               </p>
             </div>
             <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
-              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90 w-full sm:w-auto" onClick={() => openCapture()}>
+              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90 w-full sm:w-auto" onClick={() => openCapture(undefined, c.id)}>
                 <Plus className="h-4 w-4 mr-1" /> Quick Capture
               </Button>
-              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCapture("professor-hint")}>
+              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCapture("professor-hint", c.id)}>
                 <MessageSquare className="h-4 w-4 mr-1" /> Professor Hint
               </Button>
               <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>

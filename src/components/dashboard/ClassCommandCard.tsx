@@ -17,6 +17,7 @@ import {
 import { CampusBrainInsightCard } from "@/components/intelligence/CampusBrainCard";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import { cn } from "@/lib/utils";
+import type { ElementType } from "react";
 
 
 interface Props { classId: string; index?: number; }
@@ -31,6 +32,7 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
   const [open, setOpen] = useState(false);
 
   const c = classes.find((k) => k.id === classId) as ClassInfo | undefined;
+  const brainInsight = useClassCampusBrainInsight(c?.id ?? "");
   if (!c) return null;
 
   const exam = exams
@@ -40,9 +42,6 @@ export function ClassCommandCard({ classId, index = 0 }: Props) {
     .filter((a) => a.classId === c.id && a.status !== "turned-in")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
   const pulse = getClassPulse(c.id);
-  const brainInsight = useClassCampusBrainInsight(c.id);
-
-
   const examDays = exam ? getDaysUntil(exam.date) : null;
   const assignDays = nextAssign ? getDaysUntil(nextAssign.dueDate) : null;
 
@@ -272,7 +271,7 @@ function Detail({
 }: {
   Icon: typeof CalendarClock; label: string; value: string; meta?: string; onClick?: () => void;
 }) {
-  const Comp: any = onClick ? "button" : "div";
+  const Comp: ElementType = onClick ? "button" : "div";
   return (
     <Comp
       onClick={onClick}

@@ -7,6 +7,7 @@ import {
   CalendarRange, AlertTriangle, TrendingDown, Sparkles, Flame, ArrowRight, Target,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
 import {
   classes, assignments, exams, getDaysUntil, getReadinessColor,
 } from "@/data/demo";
@@ -50,7 +51,7 @@ export default function YourWeekPage() {
       cta: "Open assignment",
       action: () => navigate(`/assignments/${weekAssignments[0].id}`),
     },
-  ].filter(Boolean) as { icon: any; title: string; detail: string; cta: string; action: () => void }[];
+  ].filter(Boolean) as { icon: ReactNode; title: string; detail: string; cta: string; action: () => void }[];
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

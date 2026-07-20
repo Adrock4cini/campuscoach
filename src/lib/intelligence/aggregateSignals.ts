@@ -7,13 +7,12 @@
  * Privacy rules enforced here:
  *   - never expose raw notes, recordings, scans, or exam questions
  *   - only counts, percentages, trends, and safe concept labels leave this module
- *   - a minimum threshold (>= MIN_STUDENTS students or >= MIN_SIGNALS signals)
- *     must be met before an insight is surfaced; otherwise we return
+ *   - at least MIN_STUDENTS distinct students must contribute before an
+ *     insight is surfaced; otherwise we return
  *     "still learning" so nothing thin/identifying leaks
  *
  * Data sources (all already aggregate-safe):
  *   - `topic_scores`         — public aggregate view, no user_id
- *   - `exam_debriefs`        — post-exam recall (topic names only)
  *   - `campus_brain_signals` — event stream, we only count by class/source
  *
  * We never SELECT raw_text, payload, or user_id fields when composing
@@ -33,9 +32,7 @@ import type {
 /* ------------------------------------------------------------------ */
 
 /** Below this student count, no per-topic insight is surfaced. */
-export const MIN_STUDENTS = 3;
-/** Below this signal count, no course/professor-wide insight is surfaced. */
-export const MIN_SIGNALS = 5;
+export const MIN_STUDENTS = 10;
 
 export type AggregateSourceType =
   | "capture"
@@ -110,7 +107,6 @@ function professorForClass(clientClassId: string): string | null {
 }
 
 function warn(scope: string, err: unknown) {
-  // eslint-disable-next-line no-console
   console.warn(`[aggregateSignals:${scope}]`, err);
 }
 
@@ -243,12 +239,6 @@ interface TopicScoreRow {
   probability: number;
 }
 
-interface DebriefRow {
-  topics_mentioned: string[] | null;
-  format_tags: string[] | null;
-  study_more_tags: string[] | null;
-}
-
 /** Build safe, thresholded insights for a single class. */
 export async function getAggregateInsightsForClass(
   clientClassId: string
@@ -256,24 +246,16 @@ export async function getAggregateInsightsForClass(
   const insights: AggregateInsight[] = [];
 
   try {
-    const [scoresRes, debriefsRes] = await Promise.all([
-      supabase
-        .from("topic_scores")
-        .select(
-          "topic_id, topic_name, student_count, star_count, total_time_spent_minutes, miss_rate, post_exam_mentions, probability"
-        )
-        .eq("class_id", clientClassId)
-        .order("probability", { ascending: false })
-        .limit(10),
-      supabase
-        .from("exam_debriefs")
-        .select("topics_mentioned, format_tags, study_more_tags")
-        .eq("class_id", clientClassId)
-        .limit(50),
-    ]);
+    const scoresRes = await supabase
+      .from("topic_scores")
+      .select(
+        "topic_id, topic_name, student_count, star_count, total_time_spent_minutes, miss_rate, post_exam_mentions, probability"
+      )
+      .eq("class_id", clientClassId)
+      .order("probability", { ascending: false })
+      .limit(10);
 
     const scores = (scoresRes.data ?? []) as TopicScoreRow[];
-    const debriefs = (debriefsRes.data ?? []) as DebriefRow[];
 
     // Trending topic (by probability, with threshold)
     const trending = scores.find((t) => t.student_count >= MIN_STUDENTS);
@@ -309,7 +291,7 @@ export async function getAggregateInsightsForClass(
 
     // Post-exam mentions (what actually showed up)
     const examTopic = scores
-      .filter((t) => t.post_exam_mentions >= 2)
+      .filter((t) => t.student_count >= MIN_STUDENTS && t.post_exam_mentions >= 2)
       .sort((a, b) => b.post_exam_mentions - a.post_exam_mentions)[0];
     if (examTopic) {
       insights.push({
@@ -326,50 +308,6 @@ export async function getAggregateInsightsForClass(
       });
     }
 
-    // Debrief format lean
-    if (debriefs.length >= MIN_SIGNALS) {
-      const fmt: Record<string, number> = {};
-      debriefs.forEach((d) =>
-        (d.format_tags ?? []).forEach((f) => {
-          fmt[f] = (fmt[f] ?? 0) + 1;
-        })
-      );
-      const top = Object.entries(fmt).sort((a, b) => b[1] - a[1])[0];
-      if (top && top[1] >= 3) {
-        insights.push({
-          id: `format:${top[0]}`,
-          headline: `Recent exams lean ${top[0].replace(/-/g, " ")}`,
-          metric: `${top[1]} debriefs`,
-          source: "exam_debrief",
-          studentCount: debriefs.length,
-          signalCount: top[1],
-          confidence: bandFor(debriefs.length, top[1] * 3),
-        });
-      }
-    }
-
-    // "Study more" wish trend
-    if (debriefs.length >= MIN_SIGNALS) {
-      const wish: Record<string, number> = {};
-      debriefs.forEach((d) =>
-        (d.study_more_tags ?? []).forEach((t) => {
-          wish[t] = (wish[t] ?? 0) + 1;
-        })
-      );
-      const topWish = Object.entries(wish).sort((a, b) => b[1] - a[1])[0];
-      if (topWish && topWish[1] >= 3) {
-        insights.push({
-          id: `wish:${topWish[0]}`,
-          headline: `Peers wished they'd reviewed ${topWish[0]} more`,
-          metric: `${topWish[1]} mentions`,
-          source: "exam_debrief",
-          topic: topWish[0],
-          studentCount: debriefs.length,
-          signalCount: topWish[1],
-          confidence: bandFor(debriefs.length, topWish[1] * 3),
-        });
-      }
-    }
   } catch (err) {
     warn("getAggregateInsightsForClass", err);
   }
@@ -415,7 +353,7 @@ export async function getAggregateInsightsForProfessor(
     }
   }
   return Array.from(combined.values()).filter(
-    (i) => i.studentCount >= MIN_STUDENTS || i.signalCount >= MIN_SIGNALS
+    (i) => i.studentCount >= MIN_STUDENTS
   );
 }
 
@@ -436,7 +374,7 @@ export async function getAggregateInsightsForCourse(
   );
   const merged = perClass.flat();
   return merged.filter(
-    (i) => i.studentCount >= MIN_STUDENTS || i.signalCount >= MIN_SIGNALS
+    (i) => i.studentCount >= MIN_STUDENTS
   );
 }
 

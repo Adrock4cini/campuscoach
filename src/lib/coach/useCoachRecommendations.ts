@@ -61,7 +61,7 @@ export function useCoachRecommendations() {
     }).filter((r) => r.class_id);
     setMastery(rows);
     setLoading(false);
-  }, [user?.id, realMode]);
+  }, [user, realMode]);
 
   useEffect(() => { void loadMastery(); }, [loadMastery]);
   useEffect(() => {

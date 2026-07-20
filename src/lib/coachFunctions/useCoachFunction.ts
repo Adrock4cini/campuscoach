@@ -33,7 +33,7 @@ export function useCoachFunction<I = unknown, P = unknown>(functionId: string) {
       if (r.status === "error") setError(r.error ?? "Coach function failed");
       return r;
     },
-    [functionId, user?.id],
+    [functionId, user],
   );
 
   const reset = useCallback(() => {

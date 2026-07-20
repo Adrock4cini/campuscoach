@@ -99,7 +99,7 @@ export function InviteClassmatesModal({
         await (navigator as Navigator & {
           share: (data: ShareData) => Promise<void>;
         }).share({
-          title: `Campus Coach — ${className}`,
+          title: `Campus Companion — ${className}`,
           text: customMessage,
           url: link,
         });

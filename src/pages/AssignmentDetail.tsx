@@ -15,7 +15,7 @@ import {
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { ProfessorHint } from "@/data/demo";
+import type { Assignment, ProfessorHint } from "@/data/demo";
 import { getAssignmentStartSuggestion } from "@/data/courseIntelligence";
 
 const aiResponses: Record<string, { title: string; content: string }> = {
@@ -45,7 +45,7 @@ export default function AssignmentDetail() {
   const { assignmentId } = useParams();
   const navigate = useNavigate();
   const [modalKey, setModalKey] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<Assignment["status"] | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [reminderSet, setReminderSet] = useState(false);
   const a = assignments.find(as => as.id === assignmentId);
@@ -98,7 +98,7 @@ export default function AssignmentDetail() {
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center gap-3 flex-wrap">
               <Badge variant="secondary" className={`${getPriorityColor(a.priority)}`}>{a.priority} priority</Badge>
-              <Badge variant="outline">{getStatusLabel(currentStatus as any)}</Badge>
+              <Badge variant="outline">{getStatusLabel(currentStatus)}</Badge>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" /> {a.estimatedTime}
               </div>
@@ -124,7 +124,7 @@ export default function AssignmentDetail() {
             <div>
               <h3 className="font-semibold text-foreground text-sm mb-2">Update Progress</h3>
               <div className="flex gap-2 flex-wrap">
-                {['not-started', 'started', 'draft-done', 'turned-in'].map(s => (
+                {(['not-started', 'started', 'draft-done', 'turned-in'] as Assignment["status"][]).map((s) => (
                   <Button
                     key={s}
                     variant={currentStatus === s ? "default" : "outline"}
@@ -133,7 +133,7 @@ export default function AssignmentDetail() {
                     onClick={() => setStatus(s)}
                   >
                     {currentStatus === s && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    {getStatusLabel(s as any)}
+                    {getStatusLabel(s)}
                   </Button>
                 ))}
               </div>

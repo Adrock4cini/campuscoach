@@ -16,6 +16,7 @@ import {
   LogOut,
   LogIn,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -33,17 +34,55 @@ import {
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { classes as demoClasses } from "@/data/demo";
 
-const COMING_SOON_FOR_REAL = new Set<string>([
-  "/your-week",
-  "/calendar",
-  "/notes",
-  "/path-to-graduation",
-  "/scholarships",
-  "/course-intelligence",
-  "/progress",
-]);
+interface SidebarItemDefinition {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  dotColor?: string;
+}
 
-function buildGroups(classList: { id: string; name: string; color: string }[]) {
+interface SidebarGroupDefinition {
+  label: string;
+  items: SidebarItemDefinition[];
+}
+
+function buildGroups(
+  classList: { id: string; name: string; color: string }[],
+  realMode: boolean,
+): SidebarGroupDefinition[] {
+  const classItems = [
+    { title: "All Classes", url: "/classes", icon: BookOpen },
+    ...classList.map((c) => ({
+      title: c.name.split(" ").slice(0, 2).join(" "),
+      url: `/classes/${c.id}`,
+      icon: BookOpen,
+      dotColor: c.color,
+    })),
+  ];
+
+  // Signed-in students only see destinations that are backed by their real
+  // data. Demo mode remains the place to preview the longer-term product.
+  if (realMode) {
+    return [
+      {
+        label: "Today",
+        items: [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }],
+      },
+      {
+        label: "Classes",
+        items: classItems,
+      },
+      {
+        label: "Study",
+        items: [
+          { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
+          { title: "Assignments", url: "/assignments", icon: BookOpen },
+          { title: "Exams", url: "/exams", icon: GraduationCap },
+        ],
+      },
+    ];
+  }
+
   return [
     {
       label: "Today",
@@ -54,15 +93,7 @@ function buildGroups(classList: { id: string; name: string; color: string }[]) {
     },
     {
       label: "Classes",
-      items: [
-        { title: "All Classes", url: "/classes", icon: BookOpen },
-        ...classList.map((c) => ({
-          title: c.name.split(" ").slice(0, 2).join(" "),
-          url: `/classes/${c.id}`,
-          icon: BookOpen,
-          dotColor: c.color,
-        })),
-      ],
+      items: classItems,
     },
     {
       label: "Tools",
@@ -110,7 +141,7 @@ export function AppSidebar() {
   // "demo" or "loading" → demo tour classes.
   const realMode = mode === "real";
   const classList = realMode ? myClasses : demoClasses;
-  const groups = buildGroups(classList);
+  const groups = buildGroups(classList, realMode);
 
 
 
@@ -163,14 +194,7 @@ export function AppSidebar() {
                           <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
                         )}
                         {!collapsed && (
-                          <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
-                            <span className="truncate">{item.title}</span>
-                            {realMode && COMING_SOON_FOR_REAL.has(item.url) && (
-                              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
-                                Soon
-                              </span>
-                            )}
-                          </span>
+                          <span className="tracking-tight truncate flex-1">{item.title}</span>
                         )}
                       </NavLink>
                     </SidebarMenuButton>
