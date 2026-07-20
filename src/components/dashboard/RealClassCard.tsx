@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Clock, User, ChevronRight, Mic, Camera, Sparkles } from "lucide-react";
+import { MapPin, Clock, User, ChevronRight, StickyNote, MessageSquare, Sparkles } from "lucide-react";
 import type { ClassInfo } from "@/data/demo";
 import { cn } from "@/lib/utils";
+import { useCapture } from "@/contexts/CaptureContext";
 
 /**
  * RealClassCard — a large, tappable class card.
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
  */
 export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }) {
   const navigate = useNavigate();
+  const { open: openCapture } = useCapture();
 
   const meta = [
     c.professor && c.professor !== "TBD" ? { Icon: User, text: c.professor } : null,
@@ -77,14 +79,14 @@ export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }
       {/* Primary actions — 3 equal, large tap tiles */}
       <div className="grid grid-cols-3 gap-1.5 p-3">
         <ActionTile
-          Icon={Mic}
-          label="Record"
-          onClick={() => navigate(`/notes?classId=${c.id}&action=record`)}
+          Icon={StickyNote}
+          label="Note"
+          onClick={() => openCapture("quick-note", c.id)}
         />
         <ActionTile
-          Icon={Camera}
-          label="Scan"
-          onClick={() => navigate(`/notes?classId=${c.id}&action=scan`)}
+          Icon={MessageSquare}
+          label="Hint"
+          onClick={() => openCapture("professor-hint", c.id)}
         />
         <ActionTile
           Icon={Sparkles}
@@ -103,7 +105,7 @@ function ActionTile({
   onClick,
   emphasized = false,
 }: {
-  Icon: typeof Mic;
+  Icon: typeof StickyNote;
   label: string;
   onClick: () => void;
   emphasized?: boolean;

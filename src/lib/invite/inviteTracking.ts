@@ -57,7 +57,6 @@ export function trackInviteEvent(
     /* SSR / non-window — ignore */
   }
   // Console breadcrumb so we can see the loop working in the demo.
-  // eslint-disable-next-line no-console
   console.info("[invite]", name, detail);
 }
 
@@ -79,7 +78,7 @@ export function buildInviteLink(classId: string): string {
 }
 
 export function buildInviteMessage(className: string): string {
-  return `Join our Campus Coach class brain for ${className}. The more of us who add notes, scans, and study signals, the smarter it gets for everyone.`;
+  return `Join our Campus Companion class brain for ${className}. The more of us who add notes, scans, and study signals, the smarter it gets for everyone.`;
 }
 
 /* ------------------------------------------------------------------ */

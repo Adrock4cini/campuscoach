@@ -50,6 +50,7 @@ import { StudyFromCaptureDrawer } from "./StudyFromCaptureDrawer";
 import type { StudyMode } from "@/lib/study/studyFromCapture";
 import { ClassBrainAggregateStrip } from "@/components/intelligence/ClassBrainAggregateStrip";
 import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   classId: string;
@@ -130,6 +131,7 @@ function dedupe(items: MemoryItem[]): MemoryItem[] {
 }
 
 export function ClassMemory({ classId, className }: Props) {
+  const { mode } = useAuth();
   const [items, setItems] = useState<MemoryItem[]>(() => fromLocal(classId));
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -183,7 +185,7 @@ export function ClassMemory({ classId, className }: Props) {
           </Badge>
         </div>
         <ClassBrainAggregateStrip classId={classId} className="mb-3" />
-        {className && (
+        {mode === "demo" && className && (
           <InviteClassmatesButton
             classId={classId}
             className={className}
@@ -195,8 +197,7 @@ export function ClassMemory({ classId, className }: Props) {
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
             Nothing captured yet. Tap the <span className="font-medium">+</span>{" "}
-            button to record a lecture, scan the board, or add a quick note —
-            it will appear here.
+            button to add a quick note or professor hint. It will appear here.
           </div>
         ) : (
           <div className="space-y-2">

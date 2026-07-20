@@ -91,7 +91,7 @@ export default function Onboarding() {
         ...data,
         classes: data.classes.filter((c) => c.name.trim()),
       });
-      toast.success("You're set up!", { description: "Welcome to Campus Coach." });
+      toast.success("You're set up!", { description: "Welcome to Campus Companion." });
       await refreshOnboarded();
       nav("/dashboard", { replace: true });
     } catch (e) {
@@ -252,7 +252,7 @@ export default function Onboarding() {
                   </StepShell>
                 )}
                 {step === 4 && (
-                  <StepShell title="Professor & schedule" hint="Optional but makes Campus Coach smarter.">
+                  <StepShell title="Professor & schedule" hint="Optional but makes Campus Companion smarter.">
                     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                       {data.classes
                         .filter((c) => c.name.trim())

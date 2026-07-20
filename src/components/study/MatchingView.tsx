@@ -11,12 +11,12 @@ interface Props {
 }
 
 export default function MatchingView({ question, onComplete }: Props) {
-  const pairs = question.matchPairs ?? [];
+  const pairs = useMemo(() => question.matchPairs ?? [], [question.matchPairs]);
   const total = pairs.length;
 
   const shuffledDefs = useMemo(
     () => [...pairs].sort(() => Math.random() - 0.5),
-    [question.id]
+    [pairs]
   );
 
   const [selectedTerm, setSelectedTerm] = useState<number | null>(null);

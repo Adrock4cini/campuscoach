@@ -43,21 +43,29 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
           setState({ classes: [], isReal: true, loading: false });
           return;
         }
-        const mapped: ClassInfo[] = data.map((row: any, i: number) => ({
-          id: row.client_class_id || row.id,
-          name: row.name,
-          professor: row.professor || "TBD",
-          location: row.location || "",
-          days: (row.meta?.days as string[]) || [],
-          time: (row.meta?.time as string) || "",
-          color: row.color || palette[i % palette.length],
-          currentTopic: row.current_topic || "Getting started",
-          nextExamDate: "",
-          readiness: row.readiness ?? 0,
-          suggestedAction: "Add your first capture for this class",
-          gradingWeights: [],
-          chapters: [],
-        }));
+        const mapped: ClassInfo[] = data.map((row, i) => {
+          const meta = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
+            ? row.meta
+            : {};
+          return {
+            uuid: row.id,
+            id: row.client_class_id || row.id,
+            name: row.name,
+            professor: row.professor || "TBD",
+            location: row.location || "",
+            days: Array.isArray(meta.days)
+              ? meta.days.filter((day): day is string => typeof day === "string")
+              : [],
+            time: typeof meta.time === "string" ? meta.time : "",
+            color: row.color || palette[i % palette.length],
+            currentTopic: row.current_topic || "Getting started",
+            nextExamDate: "",
+            readiness: row.readiness ?? 0,
+            suggestedAction: "Add your first capture for this class",
+            gradingWeights: [],
+            chapters: [],
+          };
+        });
         setState({ classes: mapped, isReal: true, loading: false });
       } catch (e) {
         console.warn("[useMyClasses] load failed; showing empty real state (no demo fallback for signed-in users)", e);
@@ -67,7 +75,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isDemoMode]);
+  }, [user, isDemoMode]);
 
   return state;
 }

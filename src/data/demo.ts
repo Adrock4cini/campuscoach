@@ -1,4 +1,6 @@
 export interface ClassInfo {
+  /** Supabase row id for real classes; demo classes only use `id`. */
+  uuid?: string;
   id: string;
   name: string;
   professor: string;

@@ -70,7 +70,7 @@ export function useClassIntelligence(classId: string | null | undefined): ClassI
 
     setTopics((scoresRes.data ?? []) as AggregatedTopic[]);
     setDebriefs((debriefsRes.data ?? []) as AggregatedDebrief[]);
-    const uniqueUsers = new Set((signalsRes.data ?? []).map((r: any) => r.user_id));
+    const uniqueUsers = new Set((signalsRes.data ?? []).map((row) => row.user_id));
     setSignalUsers(uniqueUsers.size);
     setSignalCount(signalsRes.count ?? 0);
     setWeekly((weeklySignalsRes.count ?? 0) + (weeklyDebriefsRes.count ?? 0));

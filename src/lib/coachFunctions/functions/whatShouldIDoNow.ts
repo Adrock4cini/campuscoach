@@ -105,7 +105,7 @@ export const whatShouldIDoNow: CoachFunctionDefinition<Input, WhatShouldIDoNowPa
     }));
 
     const to = top.action === "capture"
-      ? `/class/${top.classId}`
+      ? `/classes/${top.classId}`
       : `/study-lab?classId=${encodeURIComponent(top.classId)}`;
 
     return {

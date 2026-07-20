@@ -77,7 +77,7 @@ export const prepareForExam: CoachFunctionDefinition<Input, PrepareForExamPayloa
               }]
             : []),
         ],
-        actions: [{ label: "Capture something", to: `/class/${exam.class_id}`, kind: "capture" }],
+        actions: [{ label: "Capture something", to: `/classes/${exam.class_id}`, kind: "capture" }],
         payload: {
           examId: exam.id, examTitle: exam.title, classId: exam.class_id, daysUntil: days,
           priorityConceptIds: [], sequence: [], totalMinutes: 0, readinessGap: TARGET_READINESS,

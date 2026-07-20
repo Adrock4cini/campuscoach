@@ -50,7 +50,7 @@ export const studyWeakestTopic: CoachFunctionDefinition<Input, StudyWeakestTopic
         summary:
           "Capture a lecture or note first — study sets are built from the concepts Campus Brain extracts.",
         evidence: [{ type: "capture", label: "0 concepts captured", source: "concepts", confidence: 1, weight: 0.6 }],
-        actions: [{ label: "Capture something", to: input.classId ? `/class/${input.classId}` : "/", kind: "capture" }],
+        actions: [{ label: "Capture something", to: input.classId ? `/classes/${input.classId}` : "/", kind: "capture" }],
         payload: { classId: input.classId ?? null, conceptIds: [], conceptNames: [], recommendedKind: "flashcards", minutes: 10 },
       };
     }

@@ -18,7 +18,7 @@ export function useRealAssignments(clientClassId?: string) {
     const rows = await listAssignments(user.id, clientClassId);
     setItems(rows);
     setLoading(false);
-  }, [user?.id, clientClassId]);
+  }, [user, clientClassId]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -41,7 +41,7 @@ export function useRealExams(clientClassId?: string) {
     const rows = await listExams(user.id, clientClassId);
     setItems(rows);
     setLoading(false);
-  }, [user?.id, clientClassId]);
+  }, [user, clientClassId]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {

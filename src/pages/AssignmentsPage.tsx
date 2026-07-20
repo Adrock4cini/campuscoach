@@ -37,8 +37,10 @@ import { RealAssignmentsView } from "@/components/real/RealAssignmentsView";
  */
 export default function AssignmentsPage() {
   const { user, isDemoMode } = useAuth();
-  if (user && !isDemoMode) return <RealAssignmentsView />;
+  return user && !isDemoMode ? <RealAssignmentsView /> : <DemoAssignmentsPage />;
+}
 
+function DemoAssignmentsPage() {
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState<"smart" | "date">("smart");
   const [aiModal, setAiModal] = useState<{ assignmentId: string; type: string } | null>(null);
