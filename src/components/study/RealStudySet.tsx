@@ -9,7 +9,7 @@
  * `mode === "real"`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,9 @@ import { useRealExams } from "@/lib/realData/hooks";
 
 interface Props {
   classId?: string;
+  initialConceptIds?: string[];
+  initialStudyScope?: StudyScope;
+  autoStart?: boolean;
 }
 
 type Kind = "flashcards" | "multiple_choice";
@@ -37,23 +40,34 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 };
 
 function targetButtonLabel(target: StudyScope) {
+  if (target.id.startsWith("coach-")) return "Coach picks";
   if (target.type === "recent") return "What I just learned";
   if (target.type === "class") return "Everything in this class";
   return `Prepare for ${target.label}`;
 }
 
-export function RealStudySet({ classId }: Props) {
+export function RealStudySet({
+  classId,
+  initialConceptIds = [],
+  initialStudyScope,
+  autoStart = false,
+}: Props) {
   const [kind, setKind] = useState<Kind>("flashcards");
   const [studying, setStudying] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState("recent");
+  const [selectedTarget, setSelectedTarget] = useState(initialStudyScope?.id ?? "recent");
+  const autoStartKey = useRef<string | null>(null);
   const { items: exams, loading: examsLoading } = useRealExams(classId);
 
+  const initialConceptKey = initialConceptIds.join(",");
+
   useEffect(() => {
-    setSelectedTarget("recent");
+    setSelectedTarget(initialStudyScope?.id ?? "recent");
     setStudying(false);
-  }, [classId]);
+    autoStartKey.current = null;
+  }, [classId, initialConceptKey, initialStudyScope?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
+    ...(initialStudyScope ? [initialStudyScope] : []),
     { type: "recent", id: "recent", label: "Recent material" },
     ...exams.map((exam) => ({
       type: "exam" as const,
@@ -64,11 +78,18 @@ export function RealStudySet({ classId }: Props) {
       examDate: exam.exam_date,
     })),
     { type: "class", id: "class", label: "Mixed class review" },
-  ], [exams]);
+  ], [exams, initialStudyScope]);
 
   const studyScope = studyTargets.find((target) => target.id === selectedTarget)
     ?? studyTargets[0];
-  const scope = useMemo(() => ({ classId, studyScope }), [classId, studyScope]);
+  const isCoachTarget = Boolean(
+    initialStudyScope && studyScope.id === initialStudyScope.id,
+  );
+  const scope = useMemo(() => ({
+    classId,
+    studyScope,
+    conceptIds: isCoachTarget ? initialConceptIds : undefined,
+  }), [classId, initialConceptIds, isCoachTarget, studyScope]);
   const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
@@ -82,6 +103,34 @@ export function RealStudySet({ classId }: Props) {
     artifact &&
     artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
   );
+
+  useEffect(() => {
+    if (!autoStart || !isCoachTarget || loading || generating || error) return;
+
+    if (artifact && !needsRefresh) {
+      const key = `open:${kind}:${artifact.id}`;
+      if (autoStartKey.current === key) return;
+      autoStartKey.current = key;
+      setStudying(true);
+      return;
+    }
+
+    const key = `generate:${kind}:${studyScope.id}`;
+    if (autoStartKey.current === key) return;
+    autoStartKey.current = key;
+    void generate({ regenerate: Boolean(artifact) });
+  }, [
+    artifact,
+    autoStart,
+    error,
+    generate,
+    generating,
+    isCoachTarget,
+    kind,
+    loading,
+    needsRefresh,
+    studyScope.id,
+  ]);
 
   const KindIcon = KIND_META[kind].icon;
 
@@ -118,7 +167,9 @@ export function RealStudySet({ classId }: Props) {
             {examsLoading && <span className="shrink-0 px-2 py-2 text-xs text-muted-foreground">Loading exams…</span>}
           </div>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            {studyScope.type === "exam"
+            {isCoachTarget
+              ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
+              : studyScope.type === "exam"
               ? `Only material for ${studyScope.label} will be included.`
               : studyScope.type === "recent"
                 ? "A quick review of the newest material you added."
@@ -174,12 +225,16 @@ export function RealStudySet({ classId }: Props) {
         ) : (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
-              {studyScope.type === "exam"
+              {isCoachTarget
+                ? "Build your coach-picked study set"
+                : studyScope.type === "exam"
                 ? `Build a study set for ${studyScope.label}`
                 : `No ${KIND_META[kind].label.toLowerCase()} here yet`}
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              {studyScope.type === "exam"
+              {isCoachTarget
+                ? "These cards focus only on the concepts your coach recommended right now."
+                : studyScope.type === "exam"
                 ? `We’ll look through your notes for material that matches this test and turn it into practice questions.`
                 : "Add a quick note or professor hint, then come back to build practice questions from it."}
             </p>

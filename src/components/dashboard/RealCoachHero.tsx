@@ -42,10 +42,7 @@ export function RealCoachHero() {
   if (!top) return null;
 
   const Icon = ACTION_ICON[top.action];
-  const href =
-    top.action === "capture"
-      ? `/classes/${top.classId}`
-      : `/study-lab?classId=${encodeURIComponent(top.classId)}`;
+  const href = coachActionHref(top);
 
   return (
     <div className="space-y-3">
@@ -172,10 +169,7 @@ export function RealCoachHero() {
           <ul className="space-y-1.5">
             {recommendations.slice(1, 4).map((r) => {
               const RIcon = ACTION_ICON[r.action];
-              const rhref =
-                r.action === "capture"
-                  ? `/classes/${r.classId}`
-                  : `/study-lab?classId=${encodeURIComponent(r.classId)}`;
+              const rhref = coachActionHref(r);
               return (
                 <li key={r.id}>
                   <Link
@@ -208,4 +202,18 @@ export function RealCoachHero() {
       )}
     </div>
   );
+}
+
+function coachActionHref(recommendation: {
+  action: CoachActionKind;
+  classId: string;
+  conceptIds: string[];
+}) {
+  if (recommendation.action === "capture") return `/classes/${recommendation.classId}`;
+
+  const params = new URLSearchParams({ classId: recommendation.classId });
+  if (recommendation.conceptIds.length) {
+    params.set("conceptIds", recommendation.conceptIds.slice(0, 8).join(","));
+  }
+  return `/study-lab?${params.toString()}`;
 }

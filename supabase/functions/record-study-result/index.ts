@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
 
   // 5. Recompute class readiness from mastery.
   let readiness: number | null = null;
+  let readinessBefore: number | null = null;
   if (realClassId || clientClassId) {
     let classConceptIds: string[] = conceptIds;
     if (!realClassId && clientClassId) {
@@ -181,7 +182,7 @@ Deno.serve(async (req) => {
 
     let masteryQuery = supabase
       .from("user_concept_mastery")
-      .select("strength")
+      .select("concept_id, strength")
       .eq("user_id", userId);
     const isExamScope = artifact.study_scope_type === "exam";
     masteryQuery = isExamScope
@@ -194,6 +195,14 @@ Deno.serve(async (req) => {
     if (vals.length) {
       const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
       readiness = Math.round(clamp(avg, 0, 1) * 100);
+
+      const beforeVals = (masteryAll ?? []).map((row) => {
+        const conceptId = row.concept_id as string;
+        if (!perMap.has(conceptId)) return Number(row.strength) || 0;
+        return prevBy.get(conceptId)?.strength ?? 0;
+      });
+      const beforeAvg = beforeVals.reduce((a, b) => a + b, 0) / beforeVals.length;
+      readinessBefore = Math.round(clamp(beforeAvg, 0, 1) * 100);
     }
     if (readiness !== null) {
       await supabase.from("readiness_scores").insert({
@@ -232,6 +241,10 @@ Deno.serve(async (req) => {
     ok: true,
     sessionId: session.id,
     readiness,
+    readinessBefore,
+    readinessDelta: readiness !== null && readinessBefore !== null
+      ? readiness - readinessBefore
+      : null,
     updatedConcepts: rows.length,
   });
 });

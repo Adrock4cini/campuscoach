@@ -10,6 +10,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RealStudySet } from "@/components/study/RealStudySet";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
+  buildCoachStudyScope,
+  parseCoachConceptIds,
+} from "@/lib/learningArtifacts/coachStudyScope";
+import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
 } from "lucide-react";
@@ -33,6 +37,8 @@ export default function StudyLab() {
   const { classes: availableClasses, loading: classesLoading } = useMyClasses();
 
   const preselectedClass = searchParams.get("classId");
+  const coachConceptIds = parseCoachConceptIds(searchParams.get("conceptIds"));
+  const coachStudyScope = buildCoachStudyScope(coachConceptIds);
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || "");
   const effectiveClass = selectedClass || availableClasses[0]?.id || "";
@@ -91,7 +97,14 @@ export default function StudyLab() {
           </CardContent>
         </Card>
       )}
-      {isRealUser && effectiveClass && <RealStudySet classId={effectiveClass} />}
+      {isRealUser && effectiveClass && (
+        <RealStudySet
+          classId={effectiveClass}
+          initialConceptIds={coachConceptIds}
+          initialStudyScope={coachStudyScope ?? undefined}
+          autoStart={Boolean(coachStudyScope)}
+        />
+      )}
 
 
 

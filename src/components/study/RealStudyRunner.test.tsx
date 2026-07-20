@@ -88,4 +88,18 @@ describe("real flashcard runner", () => {
     ));
     expect(await screen.findByText("Session saved")).toBeInTheDocument();
   });
+
+  it("shows the readiness gain so the final score is understandable", async () => {
+    invoke.mockResolvedValueOnce({
+      data: { readiness: 61, readinessDelta: 15 },
+      error: null,
+    });
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    expect(await screen.findByText(/readiness/i)).toHaveTextContent("+15 points · now 61%");
+  });
 });
