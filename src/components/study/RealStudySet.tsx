@@ -9,7 +9,7 @@
  * `mode === "real"`.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,8 @@ export function RealStudySet({
   const [studying, setStudying] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState(initialStudyScope?.id ?? "recent");
   const autoStartKey = useRef<string | null>(null);
+  const generationInFlight = useRef(false);
+  const reloadAfterStudy = useRef(false);
   const { items: exams, loading: examsLoading } = useRealExams(classId);
 
   const initialConceptKey = initialConceptIds.join(",");
@@ -64,6 +66,7 @@ export function RealStudySet({
     setSelectedTarget(initialStudyScope?.id ?? "recent");
     setStudying(false);
     autoStartKey.current = null;
+    reloadAfterStudy.current = false;
   }, [classId, initialConceptKey, initialStudyScope?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
@@ -104,6 +107,19 @@ export function RealStudySet({
     artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
   );
 
+  const startGeneration = useCallback(async (regenerate: boolean) => {
+    // State-driven button disabling lands on the next render. The ref closes
+    // the small same-frame window where a fast double tap could create two
+    // active artifacts for the same study target.
+    if (generationInFlight.current) return;
+    generationInFlight.current = true;
+    try {
+      await generate({ regenerate });
+    } finally {
+      generationInFlight.current = false;
+    }
+  }, [generate]);
+
   useEffect(() => {
     if (!autoStart || !isCoachTarget || loading || generating || error) return;
 
@@ -118,17 +134,17 @@ export function RealStudySet({
     const key = `generate:${kind}:${studyScope.id}`;
     if (autoStartKey.current === key) return;
     autoStartKey.current = key;
-    void generate({ regenerate: Boolean(artifact) });
+    void startGeneration(Boolean(artifact));
   }, [
     artifact,
     autoStart,
     error,
-    generate,
     generating,
     isCoachTarget,
     kind,
     loading,
     needsRefresh,
+    startGeneration,
     studyScope.id,
   ]);
 
@@ -151,6 +167,7 @@ export function RealStudySet({
                 onClick={() => {
                   setSelectedTarget(target.id);
                   setStudying(false);
+                  reloadAfterStudy.current = false;
                 }}
                 className={`shrink-0 rounded-full border px-3 py-2 text-xs transition-colors ${
                   studyScope.type === target.type && studyScope.id === target.id
@@ -251,7 +268,7 @@ export function RealStudySet({
           <Button
             size="sm"
             variant={artifact ? "outline" : "default"}
-            onClick={() => generate({ regenerate: !!artifact })}
+            onClick={() => { void startGeneration(Boolean(artifact)); }}
             className="w-full sm:w-auto"
             disabled={generating}
           >
@@ -289,9 +306,17 @@ export function RealStudySet({
       {artifact && studying && (
         <RealStudyRunner
           open={studying}
-          onOpenChange={setStudying}
+          onOpenChange={(nextOpen) => {
+            setStudying(nextOpen);
+            if (!nextOpen && reloadAfterStudy.current) {
+              reloadAfterStudy.current = false;
+              void reload();
+            }
+          }}
           artifact={artifact as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice">}
-          onCompleted={() => { reload(); }}
+          // Keep the saved-results screen stable. Reloading while it is open
+          // can replace the artifact prop and reset the runner back to card 1.
+          onCompleted={() => { reloadAfterStudy.current = true; }}
         />
       )}
     </Card>
