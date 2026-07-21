@@ -69,7 +69,7 @@ export function RealStudySet({
   const autoStartKey = useRef<string | null>(null);
   const generationInFlight = useRef(false);
   const reloadAfterStudy = useRef(false);
-  const { items: exams, loading: examsLoading } = useRealExams(classId);
+  const { items: exams, loading: examsLoading, error: examsError } = useRealExams(classId);
 
   const initialConceptKey = initialConceptIds.join(",");
 
@@ -199,6 +199,7 @@ export function RealStudySet({
               </button>
             ))}
             {examsLoading && <span className="shrink-0 px-2 py-2 text-xs text-muted-foreground">Loading exams…</span>}
+            {examsError && <span className="shrink-0 px-2 py-2 text-xs text-danger">Exams unavailable</span>}
           </div>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             {isCoachTarget
