@@ -42,6 +42,7 @@ export function resolveLatestReadiness(
 
 export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading: boolean } {
   const { user, mode } = useAuth();
+  const userId = user?.id;
   const realMode = mode === "real";
   const requestVersion = useRef(0);
   const [state, setState] = useState<{ classes: ClassInfo[]; isReal: boolean; loading: boolean }>(() => ({
@@ -61,7 +62,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
       setState({ classes: demoClasses, isReal: false, loading: false });
       return;
     }
-    if (!user) {
+    if (!userId) {
       setState({ classes: [], isReal: false, loading: false });
       return;
     }
@@ -72,12 +73,12 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
         supabase
           .from("classes")
           .select("id, client_class_id, name, professor, location, color, current_topic, readiness, meta")
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .order("created_at", { ascending: true }),
         supabase
           .from("readiness_scores")
           .select("class_id, client_class_id, readiness, computed_at")
-          .eq("user_id", user.id),
+          .eq("user_id", userId),
       ]);
       if (classResult.error) throw classResult.error;
       if (request !== requestVersion.current) return;
@@ -125,7 +126,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
       console.warn("[useMyClasses] load failed; showing empty real state (no demo fallback for signed-in users)", e);
       setState({ classes: [], isReal: true, loading: false });
     }
-  }, [mode, user]);
+  }, [mode, userId]);
 
   useEffect(() => {
     void load();
