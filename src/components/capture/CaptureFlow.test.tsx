@@ -112,4 +112,34 @@ describe("CaptureFlow class boundaries", () => {
       "Atoms have three subatomic particles",
     );
   });
+
+  it("does not claim Campus Brain finished when only the source was saved", async () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    vi.spyOn(captureProcessor, "commitCapture").mockResolvedValueOnce({
+      id: "capture-1",
+      kind: "quick-note",
+      context: {
+        classId: "science",
+        date: "2026-07-20",
+        text: "Atoms have three subatomic particles",
+      },
+      createdAt: "2026-07-20T10:00:00.000Z",
+      keyConcepts: [],
+      summary: "Note captured",
+      flashcardCount: 0,
+      processingStatus: "failed",
+      processingMessage: "Your note is safe, but Campus Brain couldn't finish processing it.",
+    });
+
+    renderCapture("science");
+    fireEvent.change(screen.getByPlaceholderText("Type here…"), {
+      target: { value: "Atoms have three subatomic particles" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(await screen.findByText("Saved to Class Memory", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText(/note is safe/i)).toBeInTheDocument();
+    expect(screen.queryByText("Added to Campus Brain")).not.toBeInTheDocument();
+  });
 });
