@@ -27,6 +27,8 @@ import { useRealExams } from "@/lib/realData/hooks";
 
 interface Props {
   classId?: string;
+  initialCaptureId?: string;
+  initialKind?: Kind;
   initialConceptIds?: string[];
   initialStudyScope?: StudyScope;
   autoStart?: boolean;
@@ -41,6 +43,7 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 
 function targetButtonLabel(target: StudyScope) {
   if (target.id.startsWith("coach-")) return "Coach picks";
+  if (target.id.startsWith("capture-")) return "This capture";
   if (target.type === "recent") return "What I just learned";
   if (target.type === "class") return "Everything in this class";
   return `Prepare for ${target.label}`;
@@ -48,13 +51,21 @@ function targetButtonLabel(target: StudyScope) {
 
 export function RealStudySet({
   classId,
+  initialCaptureId,
+  initialKind = "flashcards",
   initialConceptIds = [],
   initialStudyScope,
   autoStart = false,
 }: Props) {
-  const [kind, setKind] = useState<Kind>("flashcards");
+  const [kind, setKind] = useState<Kind>(initialKind);
   const [studying, setStudying] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState(initialStudyScope?.id ?? "recent");
+  const captureStudyScope = useMemo<StudyScope | undefined>(() => (
+    initialCaptureId
+      ? { type: "recent", id: `capture-${initialCaptureId}`, label: "This capture" }
+      : undefined
+  ), [initialCaptureId]);
+  const initialTarget = initialStudyScope ?? captureStudyScope;
+  const [selectedTarget, setSelectedTarget] = useState(initialTarget?.id ?? "recent");
   const autoStartKey = useRef<string | null>(null);
   const generationInFlight = useRef(false);
   const reloadAfterStudy = useRef(false);
@@ -63,14 +74,15 @@ export function RealStudySet({
   const initialConceptKey = initialConceptIds.join(",");
 
   useEffect(() => {
-    setSelectedTarget(initialStudyScope?.id ?? "recent");
+    setSelectedTarget(initialTarget?.id ?? "recent");
+    setKind(initialKind);
     setStudying(false);
     autoStartKey.current = null;
     reloadAfterStudy.current = false;
-  }, [classId, initialConceptKey, initialStudyScope?.id]);
+  }, [classId, initialConceptKey, initialKind, initialTarget?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
-    ...(initialStudyScope ? [initialStudyScope] : []),
+    ...(initialTarget ? [initialTarget] : []),
     { type: "recent", id: "recent", label: "Recent material" },
     ...exams.map((exam) => ({
       type: "exam" as const,
@@ -81,18 +93,22 @@ export function RealStudySet({
       examDate: exam.exam_date,
     })),
     { type: "class", id: "class", label: "Mixed class review" },
-  ], [exams, initialStudyScope]);
+  ], [exams, initialTarget]);
 
   const studyScope = studyTargets.find((target) => target.id === selectedTarget)
     ?? studyTargets[0];
   const isCoachTarget = Boolean(
     initialStudyScope && studyScope.id === initialStudyScope.id,
   );
+  const isCaptureTarget = Boolean(
+    initialCaptureId && captureStudyScope && studyScope.id === captureStudyScope.id,
+  );
   const scope = useMemo(() => ({
     classId,
     studyScope,
     conceptIds: isCoachTarget ? initialConceptIds : undefined,
-  }), [classId, initialConceptIds, isCoachTarget, studyScope]);
+    captureId: isCaptureTarget ? initialCaptureId : undefined,
+  }), [classId, initialCaptureId, initialConceptIds, isCaptureTarget, isCoachTarget, studyScope]);
   const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
@@ -121,7 +137,7 @@ export function RealStudySet({
   }, [generate]);
 
   useEffect(() => {
-    if (!autoStart || !isCoachTarget || loading || generating || error) return;
+    if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
 
     if (artifact && !needsRefresh) {
       const key = `open:${kind}:${artifact.id}`;
@@ -141,6 +157,7 @@ export function RealStudySet({
     error,
     generating,
     isCoachTarget,
+    isCaptureTarget,
     kind,
     loading,
     needsRefresh,
@@ -186,6 +203,8 @@ export function RealStudySet({
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             {isCoachTarget
               ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
+              : isCaptureTarget
+              ? "Only concepts extracted from this capture will be included."
               : studyScope.type === "exam"
               ? `Only material for ${studyScope.label} will be included.`
               : studyScope.type === "recent"
@@ -244,6 +263,8 @@ export function RealStudySet({
             <p className="text-sm font-medium text-foreground">
               {isCoachTarget
                 ? "Build your coach-picked study set"
+                : isCaptureTarget
+                ? "Build a study set from this capture"
                 : studyScope.type === "exam"
                 ? `Build a study set for ${studyScope.label}`
                 : `No ${KIND_META[kind].label.toLowerCase()} here yet`}
@@ -251,6 +272,8 @@ export function RealStudySet({
             <p className="text-xs leading-relaxed text-muted-foreground">
               {isCoachTarget
                 ? "These cards focus only on the concepts your coach recommended right now."
+                : isCaptureTarget
+                ? "We’ll turn this captured material into grounded practice questions."
                 : studyScope.type === "exam"
                 ? `We’ll look through your notes for material that matches this test and turn it into practice questions.`
                 : "Add a quick note or professor hint, then come back to build practice questions from it."}
