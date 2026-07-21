@@ -1347,7 +1347,7 @@ export type Database = {
       apply_study_concept_result: {
         Args: {
           p_attempt_id: string
-          p_class_id: string | null
+          p_class_id: string
           p_concept_id: string
           p_correct: boolean
           p_seen_at?: string
