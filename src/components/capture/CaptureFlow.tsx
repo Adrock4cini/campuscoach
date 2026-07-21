@@ -200,7 +200,11 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     {stage === "menu" && "What are you capturing?"}
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
-                    {stage === "done" && "Added to Campus Brain"}
+                    {stage === "done" && (
+                      result?.processingStatus === "failed"
+                        ? "Saved to Class Memory"
+                        : "Added to Campus Brain"
+                    )}
                     {stage === "error" && "Capture wasn't saved"}
                   </h2>
                 </div>
@@ -447,17 +451,34 @@ function DoneSummary({
   className?: string;
 }) {
   const cls = { name: className || "your class" };
+  const processingFailed = result.processingStatus === "failed";
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-success/25 bg-success/5 p-4 flex items-start gap-3">
-        <div className="h-9 w-9 rounded-full bg-success/20 text-success flex items-center justify-center shrink-0">
+      <div className={`rounded-2xl border p-4 flex items-start gap-3 ${
+        processingFailed
+          ? "border-warning/30 bg-warning/5"
+          : "border-success/25 bg-success/5"
+      }`}>
+        <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
+          processingFailed ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
+        }`}>
           <Check className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Saved to {cls?.name}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{result.summary}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {processingFailed
+              ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
+              : result.summary}
+          </p>
         </div>
       </div>
+
+      {processingFailed && (
+        <p className="text-xs text-muted-foreground">
+          Open the class and tap Retry. Study tools will stay off until the concepts are ready.
+        </p>
+      )}
 
       {result.keyConcepts.length > 0 && (
         <div>
