@@ -54,7 +54,7 @@ describe("signed-in product navigation", () => {
     );
     expect(screen.getByRole("link", { name: /Your Week Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/calendar");
-    expect(screen.getByRole("link", { name: /Notes & Recordings Preview/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Notes & Recordings" })).toHaveAttribute("href", "/notes");
     expect(screen.getByRole("link", { name: /Scholarships Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Class Intelligence Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Exam Debrief Preview/i })).toBeInTheDocument();
