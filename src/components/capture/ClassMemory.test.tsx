@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaptureResult } from "@/lib/capture/types";
 import { ClassMemory } from "./ClassMemory";
@@ -106,5 +106,38 @@ describe("Class Memory data boundaries", () => {
     expect(mocks.navigate).toHaveBeenCalledWith(
       "/study-lab?classId=math&captureId=remote-real&format=flashcards",
     );
+  });
+
+  it("never presents a failed real-data read as an empty Class Memory", async () => {
+    mocks.getCapturesForClass.mockRejectedValueOnce(new Error("offline"));
+
+    render(<ClassMemory classId="math" className="Math" />);
+
+    expect(await screen.findByText("Couldn’t load Class Memory")).toBeInTheDocument();
+    expect(screen.getByText(/saved captures were not deleted/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing captured yet/i)).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale response after the student switches classes", async () => {
+    let resolveMath!: (rows: (typeof realCapture)[]) => void;
+    let resolveScience!: (rows: (typeof realCapture)[]) => void;
+    const mathRequest = new Promise<(typeof realCapture)[]>((resolve) => { resolveMath = resolve; });
+    const scienceRequest = new Promise<(typeof realCapture)[]>((resolve) => { resolveScience = resolve; });
+    mocks.getCapturesForClass.mockImplementation((classId: string) => (
+      classId === "math" ? mathRequest : scienceRequest
+    ));
+
+    const { rerender } = render(<ClassMemory classId="math" className="Math" />);
+    rerender(<ClassMemory classId="science" className="Science" />);
+
+    await act(async () => {
+      resolveScience([{ ...realCapture, id: "science-capture", topic: "Cell Division" }]);
+    });
+    expect(await screen.findByText("Cell Division")).toBeInTheDocument();
+
+    await act(async () => { resolveMath([realCapture]); });
+    await waitFor(() => {
+      expect(screen.queryByText("Quadratic Formula")).not.toBeInTheDocument();
+    });
   });
 });
