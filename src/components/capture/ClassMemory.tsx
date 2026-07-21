@@ -13,7 +13,7 @@
  *   Campus Brain insight.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +140,9 @@ export function ClassMemory({ classId, className }: Props) {
   const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
   const [studyMode, setStudyMode] = useState<StudyMode | undefined>();
   const [studyOpen, setStudyOpen] = useState(false);
+  const [loading, setLoading] = useState(mode !== "demo");
+  const [loadError, setLoadError] = useState(false);
+  const requestVersion = useRef(0);
   const navigate = useNavigate();
 
   const openStudy = (item: MemoryItem, requestedMode?: StudyMode) => {
@@ -161,17 +164,31 @@ export function ClassMemory({ classId, className }: Props) {
 
   const refresh = useMemo(
     () => async () => {
+      const request = ++requestVersion.current;
+      setLoadError(false);
       if (mode === "loading") {
         setItems([]);
+        setLoading(true);
         return;
       }
       if (mode === "demo") {
         setItems(dedupe(fromLocal(classId)));
+        setLoading(false);
         return;
       }
 
-      const remote = fromPersisted(await getCapturesForClass(classId, 25));
-      setItems(dedupe(remote));
+      setItems([]);
+      setLoading(true);
+      try {
+        const remote = fromPersisted(await getCapturesForClass(classId, 25));
+        if (request !== requestVersion.current) return;
+        setItems(dedupe(remote));
+      } catch {
+        if (request !== requestVersion.current) return;
+        setLoadError(true);
+      } finally {
+        if (request === requestVersion.current) setLoading(false);
+      }
     },
     [classId, mode],
   );
@@ -180,7 +197,10 @@ export function ClassMemory({ classId, className }: Props) {
     void refresh();
     const onCommit = () => void refresh();
     window.addEventListener("capture:committed", onCommit);
-    return () => window.removeEventListener("capture:committed", onCommit);
+    return () => {
+      requestVersion.current += 1;
+      window.removeEventListener("capture:committed", onCommit);
+    };
   }, [refresh]);
 
   const openDetail = (item: MemoryItem) => {
@@ -214,7 +234,21 @@ export function ClassMemory({ classId, className }: Props) {
         )}
 
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="rounded-lg border border-border/40 p-6 text-center text-sm text-muted-foreground">
+            Loading Class Memory…
+          </div>
+        ) : loadError ? (
+          <div className="rounded-lg border border-danger/30 bg-danger/5 p-5 text-center">
+            <p className="text-sm font-medium text-foreground">Couldn’t load Class Memory</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your saved captures were not deleted. Check your connection and try again.
+            </p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => void refresh()}>
+              Try again
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
             Nothing captured yet. Tap the <span className="font-medium">+</span>{" "}
             button to add a quick note or professor hint. It will appear here.
