@@ -265,14 +265,12 @@ export async function getRecentCaptures(
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error || !data) {
-      warn("getRecentCaptures", error);
-      return [];
-    }
+    if (error) throw error;
+    if (!data) throw new Error("Capture query returned no data");
     return data.map(rowToCapture);
   } catch (err) {
     warn("getRecentCaptures.catch", err);
-    return [];
+    throw err;
   }
 }
 
