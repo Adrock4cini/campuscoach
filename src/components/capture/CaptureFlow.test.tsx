@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
+import * as captureProcessor from "@/lib/capture/processor";
 import { CaptureFlow } from "./CaptureFlow";
 
 const mocks = vi.hoisted(() => ({
@@ -53,6 +54,10 @@ describe("CaptureFlow class boundaries", () => {
     mocks.loading = true;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("does not silently choose the first class after global capture loads", () => {
     const view = renderCapture();
     expect(screen.getByText("Loading your classes…")).toBeInTheDocument();
@@ -85,5 +90,26 @@ describe("CaptureFlow class boundaries", () => {
     renderCapture("science");
 
     expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("science");
+  });
+
+  it("keeps the student's note available when Supabase does not confirm the save", async () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    vi.spyOn(captureProcessor, "commitCapture").mockRejectedValueOnce(
+      new Error("We couldn't save this capture. Check your connection and try again."),
+    );
+
+    renderCapture("science");
+    const note = screen.getByPlaceholderText("Type here…");
+    fireEvent.change(note, { target: { value: "Atoms have three subatomic particles" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(await screen.findByText("Capture wasn't saved", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText("Your note is still here.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review note" }));
+    expect(screen.getByPlaceholderText("Type here…")).toHaveValue(
+      "Atoms have three subatomic particles",
+    );
   });
 });
