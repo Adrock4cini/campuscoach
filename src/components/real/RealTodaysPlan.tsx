@@ -10,10 +10,21 @@ import { Clock, Calendar, CheckCircle2 } from "lucide-react";
 import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export function RealTodaysPlan() {
-  const { items: assignments } = useRealAssignments();
-  const { items: exams } = useRealExams();
+  const {
+    items: assignments,
+    loading: assignmentsLoading,
+    error: assignmentsError,
+    reload: reloadAssignments,
+  } = useRealAssignments();
+  const {
+    items: exams,
+    loading: examsLoading,
+    error: examsError,
+    reload: reloadExams,
+  } = useRealExams();
 
   const openAssignments = assignments.filter((a) => a.status !== "complete");
   const upcomingExams = exams.filter((e) => {
@@ -22,7 +33,11 @@ export function RealTodaysPlan() {
   });
 
   const toggle = async (id: string, status: AssignmentStatus) => {
-    await updateAssignment(id, { status: status === "complete" ? "not_started" : "complete" });
+    const updated = await updateAssignment(id, { status: status === "complete" ? "not_started" : "complete" });
+    if (!updated) {
+      toast.error("Couldn’t update assignment");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
   };
 
@@ -39,7 +54,22 @@ export function RealTodaysPlan() {
         )}
       </div>
 
-      {empty ? (
+      {assignmentsLoading || examsLoading ? (
+        <div className="rounded-2xl border border-border/40 bg-background/30 p-5 text-xs text-muted-foreground">
+          Loading today’s plan…
+        </div>
+      ) : assignmentsError || examsError ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-5 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Couldn’t load today’s plan</p>
+          <p className="mt-1">Your assignments and exams were not deleted.</p>
+          <button
+            className="mt-2 font-medium text-primary"
+            onClick={() => { void reloadAssignments(); void reloadExams(); }}
+          >
+            Try again
+          </button>
+        </div>
+      ) : empty ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-background/30 p-5 text-xs text-muted-foreground">
           Nothing scheduled yet. Add an{" "}
           <Link to="/assignments" className="text-primary hover:underline">assignment</Link> or{" "}
