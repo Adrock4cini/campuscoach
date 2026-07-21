@@ -34,11 +34,17 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
   useEffect(() => {
     if (!open) return;
     setTitle("");
-    setClassId(defaultClientClassId || myClasses[0]?.id || "");
+    setClassId(defaultClientClassId || "");
     setExamDate("");
     setTopicsRaw("");
     setNotes("");
-  }, [open, defaultClientClassId, myClasses]);
+  }, [open, defaultClientClassId]); // initialize once per opening
+
+  useEffect(() => {
+    if (open && !classId && myClasses[0]?.id) {
+      setClassId(defaultClientClassId || myClasses[0].id);
+    }
+  }, [classId, defaultClientClassId, myClasses, open]);
 
   const submit = async () => {
     if (!user) return;
@@ -47,28 +53,33 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
       return;
     }
     setSaving(true);
-    const topics = topicsRaw
-      .split(/[,\n]/)
-      .map((t) => t.trim())
-      .filter(Boolean);
-    const row = await createExam(user.id, {
-      title: title.trim(),
-      clientClassId: classId,
-      examDate: examDate || null,
-      topics,
-      // Readiness is earned from concept mastery, never self-reported.
-      readiness: 0,
-      notes: notes.trim() || null,
-    });
-    setSaving(false);
-    if (!row) {
-      toast.error("Couldn't save exam");
-      return;
+    try {
+      const topics = topicsRaw
+        .split(/[,\n]/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const row = await createExam(user.id, {
+        title: title.trim(),
+        clientClassId: classId,
+        examDate: examDate || null,
+        topics,
+        // Readiness is earned from concept mastery, never self-reported.
+        readiness: 0,
+        notes: notes.trim() || null,
+      });
+      if (!row) {
+        toast.error("Couldn't save exam");
+        return;
+      }
+      toast.success("Exam added");
+      window.dispatchEvent(new CustomEvent("real-exams:changed"));
+      onCreated?.();
+      onOpenChange(false);
+    } catch {
+      toast.error("Couldn't save exam. Your work is still here.");
+    } finally {
+      setSaving(false);
     }
-    toast.success("Exam added");
-    window.dispatchEvent(new CustomEvent("real-exams:changed"));
-    onCreated?.();
-    onOpenChange(false);
   };
 
   return (
