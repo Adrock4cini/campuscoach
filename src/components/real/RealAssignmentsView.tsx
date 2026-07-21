@@ -12,6 +12,7 @@ import { useRealAssignments, daysUntil } from "@/lib/realData/hooks";
 import { updateAssignment, deleteAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -26,7 +27,12 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 export function RealAssignmentsView() {
-  const { classes: myClasses } = useMyClasses();
+  const {
+    classes: myClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
   const { items, loading, error, reload } = useRealAssignments();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -57,12 +63,16 @@ export function RealAssignmentsView() {
             {items.filter((a) => a.status !== "complete").length} active
           </p>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={myClasses.length === 0}>
+        <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
           <Plus className="h-4 w-4 mr-1" /> Add
         </Button>
       </div>
 
-      {myClasses.length === 0 ? (
+      {classesLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-10">Loading classes…</p>
+      ) : classesError ? (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      ) : myClasses.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
           Add a class first so you can attach assignments to it.
         </CardContent></Card>
