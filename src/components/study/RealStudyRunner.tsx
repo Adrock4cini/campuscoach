@@ -16,6 +16,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Check, X, Loader2, RotateCcw } from "lucide-react";
@@ -69,6 +79,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
 
   const total = items.length;
   const isLast = idx >= total - 1;
@@ -87,6 +98,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setAnswerResults([]);
     setPendingFinal(null);
     setSaveError(null);
+    setExitConfirmOpen(false);
     setSubmitting(false);
     setStartedAt(Date.now());
   }, [open, artifact.id]);
@@ -172,13 +184,24 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setAnswerResults([]);
     setPendingFinal(null);
     setSaveError(null);
+    setExitConfirmOpen(false);
     setSubmitting(false);
+  };
+
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (submitting) return;
+    const hasUnsavedAnswers = !done && (answerResults.length > 0 || pendingFinal !== null);
+    if (!nextOpen && hasUnsavedAnswers) {
+      setExitConfirmOpen(true);
+      return;
+    }
+    onOpenChange(nextOpen);
   };
 
   if (!items.length) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!submitting) onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent className="w-[calc(100vw_-_1rem)] max-w-[calc(100vw_-_1rem)] min-w-0 max-h-[calc(100dvh_-_1rem)] overflow-x-hidden overflow-y-auto rounded-3xl p-4 sm:max-w-md sm:p-6 gap-3">
         <DialogHeader className="pr-8 text-left">
           <DialogTitle className="font-display">
@@ -356,12 +379,35 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               {saveError ? "Try saving again" : "Finish session"}
             </Button>
           ) : isLast ? null : (
-            <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => requestOpenChange(false)} disabled={submitting}>
               End session
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={exitConfirmOpen} onOpenChange={setExitConfirmOpen}>
+        <AlertDialogContent className="w-[calc(100vw_-_2rem)] max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Leave study session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your answers have not been saved. Keep studying to protect your progress.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep studying</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setExitConfirmOpen(false);
+                onOpenChange(false);
+              }}
+            >
+              Leave session
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
