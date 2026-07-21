@@ -68,9 +68,14 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     () => (!open || realMode ? null : detectCurrentClass(new Date())),
     [open, realMode],
   );
+  const defaultClassId =
+    initialClassId ?? detected?.id ?? (!realMode ? classes[0]?.id ?? "" : "");
 
   const [ctx, setCtx] = useState<CaptureContext>(() => ({
-    classId: detected?.id ?? classes[0]?.id ?? "",
+    // Real global capture must never guess a class. A wrong default poisons
+    // every downstream concept, artifact, mastery score, and recommendation.
+    // Class-scoped entry points still pass initialClassId and stay one-tap.
+    classId: defaultClassId,
     date: new Date().toISOString().slice(0, 10),
     topic: detected?.currentTopic ?? "",
     text: "",
@@ -89,19 +94,12 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setStepIndex(0);
     setResult(null);
     setCtx({
-      classId: initialClassId ?? detected?.id ?? "",
+      classId: defaultClassId,
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
     });
-  }, [open, initialKind, initialClassId, detected, realMode]);
-
-  // Real classes arrive asynchronously. Select the first one without
-  // resetting anything the student may already have typed into the form.
-  useEffect(() => {
-    if (!open || ctx.classId || !classes[0]?.id) return;
-    setCtx((current) => ({ ...current, classId: classes[0].id }));
-  }, [open, ctx.classId, classes]);
+  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic]);
 
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
 
@@ -132,7 +130,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     !!kind &&
     (!realMode || !!meta?.availableForRealUsers) &&
     !classesLoading &&
-    !!ctx.classId &&
+    classes.some((classInfo) => classInfo.id === ctx.classId) &&
     !!ctx.date &&
     (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0);
 
@@ -245,10 +243,14 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                       </div>
                     ) : (
                       <select
+                        aria-label="Class"
                         value={ctx.classId}
                         onChange={(e) => setCtx((c) => ({ ...c, classId: e.target.value }))}
                         className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
                       >
+                        {realMode && (
+                          <option value="" disabled>Choose a class</option>
+                        )}
                         {classes.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
