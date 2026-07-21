@@ -53,6 +53,8 @@ describe("useLearningArtifact class boundary", () => {
     await waitFor(() => expect(mocks.pending).toHaveLength(1));
     rerender({ classId: "science" });
     await waitFor(() => expect(mocks.pending).toHaveLength(2));
+    const scienceQuery = mocks.from.mock.results[1].value as { eq: ReturnType<typeof vi.fn> };
+    expect(scienceQuery.eq).toHaveBeenCalledWith("client_class_id", "science");
 
     await act(async () => {
       mocks.pending[1].resolve({
