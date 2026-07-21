@@ -7,8 +7,9 @@
  * same shape:
  *
  *   1. Try the live write / read.
- *   2. On failure, log and return `null` (or `[]`) so callers can
- *      fall back to their local store.
+ *   2. Writes return `null` on failure so callers can preserve unsaved work.
+ *      Reads throw so real UI never mistakes a network failure for an empty
+ *      student account.
  *
  * When real transcription / OCR / storage upload is wired in, only
  * `saveCapture` grows — the public surface stays the same.
@@ -223,14 +224,12 @@ export async function getCapturesForClass(
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error || !data) {
-      warn("getCapturesForClass", error);
-      return [];
-    }
+    if (error) throw error;
+    if (!data) throw new Error("Capture query returned no data");
     return data.map(rowToCapture);
   } catch (err) {
     warn("getCapturesForClass.catch", err);
-    return [];
+    throw err;
   }
 }
 
