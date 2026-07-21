@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   reload: vi.fn(),
   invoke: vi.fn(),
+  scopes: [] as unknown[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -16,14 +17,17 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
-  useLearningArtifact: () => ({
+  useLearningArtifact: (_kind: unknown, scope: unknown) => {
+    mocks.scopes.push(scope);
+    return ({
     artifact: mocks.artifact,
     loading: false,
     generating: false,
     error: null,
     generate: mocks.generate,
     reload: mocks.reload,
-  }),
+    });
+  },
 }));
 
 vi.mock("@/lib/realData/hooks", () => ({
@@ -78,6 +82,7 @@ describe("real study set freshness", () => {
       data: { readiness: 61, readinessDelta: 15 },
       error: null,
     });
+    mocks.scopes.length = 0;
   });
 
   it("blocks an older ungrounded set until it is refreshed", () => {
@@ -142,6 +147,28 @@ describe("real study set freshness", () => {
 
     expect(screen.getByRole("button", { name: "Coach picks" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/weak, overdue, and high-impact concepts/i)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
+  });
+
+  it("keeps a capture handoff limited to that capture", async () => {
+    mocks.artifact = null;
+    render(
+      <RealStudySet
+        classId="math"
+        initialCaptureId="capture-1"
+        initialKind="multiple_choice"
+        autoStart
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "This capture" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/only concepts extracted from this capture/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /multiple choice/i })).toHaveClass("text-primary");
+    expect(mocks.scopes.at(-1)).toMatchObject({
+      classId: "math",
+      captureId: "capture-1",
+      studyScope: { type: "recent", id: "capture-capture-1" },
+    });
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
   });
 
