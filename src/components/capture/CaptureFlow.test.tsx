@@ -89,6 +89,25 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 
+  it("only presents working real capture modes as buttons", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow open onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: /Quick Note/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Professor Hint/i })).toBeEnabled();
+    expect(screen.getByRole("list", { name: "Coming next" })).toBeInTheDocument();
+    expect(screen.getByText("Record Lecture")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Record Lecture/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Scan Board/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Not tappable yet")).toBeInTheDocument();
+  });
+
   it("preserves the class supplied by a class-scoped capture action", () => {
     mocks.classes = [math, science];
     mocks.loading = false;
