@@ -68,6 +68,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [readinessDelta, setReadinessDelta] = useState<number | null>(null);
   const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]);
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const total = items.length;
   const isLast = idx >= total - 1;
@@ -84,6 +85,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setReadinessDelta(null);
     setAnswerResults([]);
     setPendingFinal(null);
+    setSaveError(null);
     setSubmitting(false);
     setStartedAt(Date.now());
   }, [open, artifact.id]);
@@ -107,8 +109,13 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
         incorrect: wasCorrect ? incorrect : incorrect + 1,
         results: nextResults,
       };
-      if (artifact.kind === "flashcards") setPendingFinal(finalResult);
-      else await finish(finalResult.correct, finalResult.incorrect, finalResult.results);
+      // Keep an immutable final score for both study modes. If the save fails,
+      // the retry must submit this same result instead of grading the last
+      // multiple-choice answer a second time.
+      setPendingFinal(finalResult);
+      if (artifact.kind !== "flashcards") {
+        await finish(finalResult.correct, finalResult.incorrect, finalResult.results);
+      }
     } else {
       setIdx((i) => i + 1);
       setFlipped(false);
@@ -122,33 +129,39 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     results: AnswerResult[],
   ) => {
     setSubmitting(true);
+    setSaveError(null);
     const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    const { data, error } = await supabase.functions.invoke("record-study-result", {
-      body: {
-        artifactId: artifact.id,
+    try {
+      const { data, error } = await supabase.functions.invoke("record-study-result", {
+        body: {
+          artifactId: artifact.id,
+          correct: finalCorrect,
+          total,
+          durationSeconds,
+          perConcept: summarizeByConcept(results),
+        },
+      });
+      if (error) throw error;
+
+      setDone(true);
+      const r = data as { readiness?: number | null; readinessDelta?: number | null };
+      setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
+      setReadinessDelta(typeof r?.readinessDelta === "number" ? r.readinessDelta : null);
+      // Nudge the Dashboard coach to re-rank now that mastery has changed.
+      window.dispatchEvent(new CustomEvent("coach:refresh"));
+      onCompleted?.({
+        readiness: r?.readiness ?? 0,
+        readinessDelta: r?.readinessDelta ?? null,
         correct: finalCorrect,
         total,
-        durationSeconds,
-        perConcept: summarizeByConcept(results),
-      },
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error(`Couldn't save results: ${error.message}`);
-      return;
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Please try again.";
+      setSaveError("Your answers are still here. Try saving again.");
+      toast.error(`Couldn't save results: ${detail}`);
+    } finally {
+      setSubmitting(false);
     }
-    setDone(true);
-    const r = data as { readiness?: number | null; readinessDelta?: number | null };
-    setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
-    setReadinessDelta(typeof r?.readinessDelta === "number" ? r.readinessDelta : null);
-    // Nudge the Dashboard coach to re-rank now that mastery has changed.
-    window.dispatchEvent(new CustomEvent("coach:refresh"));
-    onCompleted?.({
-      readiness: r?.readiness ?? 0,
-      readinessDelta: r?.readinessDelta ?? null,
-      correct: finalCorrect,
-      total,
-    });
   };
 
   const reset = () => {
@@ -157,6 +170,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setReadiness(null); setReadinessDelta(null); setStartedAt(Date.now());
     setAnswerResults([]);
     setPendingFinal(null);
+    setSaveError(null);
     setSubmitting(false);
   };
 
@@ -267,14 +281,16 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                     {revealed && (
                       <p className="text-xs text-muted-foreground">{q.rationale}</p>
                     )}
-                    <div className="flex justify-end">
-                      <Button
-                        disabled={!revealed}
-                        onClick={() => record(picked === q.answerIndex)}
-                      >
-                        {isLast ? "Finish" : "Next"}
-                      </Button>
-                    </div>
+                    {!pendingFinal && (
+                      <div className="flex justify-end">
+                        <Button
+                          disabled={!revealed}
+                          onClick={() => record(picked === q.answerIndex)}
+                        >
+                          {isLast ? "Finish" : "Next"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })()
@@ -283,6 +299,11 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
             {submitting && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Loader2 className="h-3 w-3 animate-spin" /> Saving results…
+              </p>
+            )}
+            {saveError && !submitting && (
+              <p role="alert" className="rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-foreground">
+                {saveError}
               </p>
             )}
           </div>
@@ -331,7 +352,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               onClick={() => finish(pendingFinal.correct, pendingFinal.incorrect, pendingFinal.results)}
             >
               {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Finish session
+              {saveError ? "Try saving again" : "Finish session"}
             </Button>
           ) : isLast ? null : (
             <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => onOpenChange(false)} disabled={submitting}>
