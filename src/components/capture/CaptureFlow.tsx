@@ -21,6 +21,7 @@ import type {
   CaptureResult,
   ProcessingStep,
 } from "@/lib/capture/types";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 interface Props {
   open: boolean;
@@ -57,7 +58,12 @@ const REAL_PROCESSING_STEPS: ProcessingStep[] = [
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
-  const { classes: myClasses, loading: classesLoading } = useMyClasses();
+  const {
+    classes: myClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
   const realMode = !!user && !isDemoMode;
   const classes = realMode ? myClasses : demoClasses;
 
@@ -250,8 +256,16 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               {/* CONTEXT FORM */}
               {stage === "context" && meta && (
                 <div className="space-y-3">
-                  <Field label="Class">
-                    {classesLoading ? (
+                  {classesError && !classesLoading ? (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Class</span>
+                      <div className="mt-1">
+                        <ClassesLoadError compact onRetry={() => void reloadClasses()} />
+                      </div>
+                    </div>
+                  ) : (
+                    <Field label="Class">
+                      {classesLoading ? (
                       <div className="h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-muted-foreground flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading your classes…
                       </div>
@@ -280,8 +294,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
-                    )}
-                  </Field>
+                      )}
+                    </Field>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Date">
