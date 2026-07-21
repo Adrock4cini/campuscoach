@@ -314,15 +314,19 @@ export async function persistCaptureResult(
   if (captureId && needsExtraction) {
     try {
       if (!hasAuthenticatedSession) throw new Error("Authenticated AI session unavailable");
-      await invokeConceptExtraction({
+      const extractionStatus = await invokeConceptExtraction({
         captureId,
         clientClassId: result.context.classId,
         topic: result.context.topic ?? null,
         kind: result.kind,
         rawText,
       });
-      result.processingStatus = "ready";
-      dispatchConceptsExtracted(captureId);
+      result.processingStatus = extractionStatus;
+      if (extractionStatus === "ready") {
+        dispatchConceptsExtracted(captureId);
+      } else {
+        result.processingMessage = "Campus Brain is already working on this note.";
+      }
     } catch (err) {
       warn("persistCaptureResult.extract", err);
       await setCaptureProcessingStatus(captureId, "failed");
@@ -342,7 +346,7 @@ interface ConceptExtractionInput {
   rawText: string;
 }
 
-async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<void> {
+async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<"processing" | "ready"> {
   const { data, error } = await supabase.functions.invoke("extract-concepts", {
     body: {
       captureId: input.captureId,
@@ -353,10 +357,11 @@ async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<v
       rawText: input.rawText,
     },
   });
-  const response = data as { ok?: boolean; error?: string; message?: string } | null;
+  const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Concept extraction failed");
   }
+  return response.processing ? "processing" : "ready";
 }
 
 async function setCaptureProcessingStatus(
@@ -393,14 +398,14 @@ export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<
 
   await setCaptureProcessingStatus(capture.id, "processing");
   try {
-    await invokeConceptExtraction({
+    const extractionStatus = await invokeConceptExtraction({
       captureId: capture.id,
       clientClassId: capture.clientClassId,
       topic: capture.topic,
       kind: capture.kind,
       rawText,
     });
-    dispatchConceptsExtracted(capture.id);
+    if (extractionStatus === "ready") dispatchConceptsExtracted(capture.id);
   } catch (err) {
     await setCaptureProcessingStatus(capture.id, "failed");
     throw err;

@@ -101,6 +101,17 @@ describe("real capture processing integrity", () => {
     expect(mocks.captureUpdate).not.toHaveBeenCalledWith({ processing_status: "failed" });
   });
 
+  it("keeps the capture processing when another extraction already owns it", async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true, processing: true }, error: null });
+    const capture = result();
+
+    await persistCaptureResult(capture);
+
+    expect(capture.processingStatus).toBe("processing");
+    expect(capture.processingMessage).toMatch(/already working/i);
+    expect(mocks.captureUpdate).not.toHaveBeenCalledWith({ processing_status: "failed" });
+  });
+
   it("prefers real AI output over an older mock row", () => {
     expect(selectTrustworthyProcessedContent([
       {

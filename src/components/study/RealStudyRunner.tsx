@@ -12,7 +12,7 @@
  * behavior change, not a UI redesign.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -80,6 +80,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const attemptIdRef = useRef(createStudyAttemptId());
 
   const total = items.length;
   const isLast = idx >= total - 1;
@@ -101,6 +102,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setExitConfirmOpen(false);
     setSubmitting(false);
     setStartedAt(Date.now());
+    attemptIdRef.current = createStudyAttemptId();
   }, [open, artifact.id]);
 
   const record = async (wasCorrect: boolean) => {
@@ -147,6 +149,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     try {
       const { data, error } = await supabase.functions.invoke("record-study-result", {
         body: {
+          attemptId: attemptIdRef.current,
           artifactId: artifact.id,
           correct: finalCorrect,
           total,
@@ -186,6 +189,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSaveError(null);
     setExitConfirmOpen(false);
     setSubmitting(false);
+    attemptIdRef.current = createStudyAttemptId();
   };
 
   const requestOpenChange = (nextOpen: boolean) => {
@@ -430,4 +434,15 @@ function summarizeByConcept(results: AnswerResult[]) {
     conceptId,
     correct: score.correct / score.total >= 0.5,
   }));
+}
+
+function createStudyAttemptId() {
+  if (typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }

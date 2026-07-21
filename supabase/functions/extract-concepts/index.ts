@@ -51,6 +51,8 @@ Rules:
 const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "concept";
 
+const EXTRACTION_CLAIM_MS = 5 * 60 * 1000;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -59,7 +61,6 @@ Deno.serve(async (req) => {
     return json({ error: "Unauthorized" }, 401);
   }
   const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -74,7 +75,28 @@ Deno.serve(async (req) => {
   let body: Body;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
-  const rawText = (body.rawText ?? "").trim();
+  // A durable capture is the source of truth on retries. This prevents a
+  // changed client payload from attaching different material to the same
+  // capture after a mobile response is lost.
+  let capture: {
+    id: string;
+    class_id: string | null;
+    client_class_id: string | null;
+    raw_text: string | null;
+  } | null = null;
+  if (body.captureId) {
+    const { data: ownedCapture, error: captureErr } = await supabase
+      .from("captures")
+      .select("id, class_id, client_class_id, raw_text")
+      .eq("id", body.captureId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (captureErr) return json({ error: "capture lookup failed", details: captureErr.message }, 500);
+    if (!ownedCapture) return json({ error: "capture not found" }, 404);
+    capture = ownedCapture;
+  }
+
+  const rawText = (capture?.raw_text ?? body.rawText ?? "").trim();
   if (!rawText) return json({ error: "rawText required" }, 400);
   if (!assessSourceSufficiency(rawText).sufficient) {
     return insufficientSource();
@@ -83,20 +105,167 @@ Deno.serve(async (req) => {
   // Resolve the student's stable client class id to the real classes.id UUID.
   // Both identifiers travel through the pipeline: the client id drives routes,
   // while the UUID anchors mastery/readiness foreign keys.
-  let resolvedClassId = body.classId ?? null;
-  let resolvedClientClassId = body.clientClassId ?? null;
-  if (body.clientClassId) {
+  let resolvedClassId = capture?.class_id ?? body.classId ?? null;
+  let resolvedClientClassId = capture?.client_class_id ?? body.clientClassId ?? null;
+  if (resolvedClientClassId) {
     const { data: ownedClass, error: classErr } = await supabase
       .from("classes")
       .select("id, client_class_id")
       .eq("user_id", userId)
-      .eq("client_class_id", body.clientClassId)
+      .eq("client_class_id", resolvedClientClassId)
       .maybeSingle();
     if (classErr) return json({ error: "class lookup failed", details: classErr.message }, 500);
     if (!ownedClass) return json({ error: "class not found" }, 404);
     resolvedClassId = ownedClass.id;
     resolvedClientClassId = ownedClass.client_class_id;
   }
+
+  // If a previous request inserted the concepts but its response or final
+  // status update was lost, repair the remaining derived rows and return the
+  // original concepts. Never ask the AI to create a second set.
+  if (body.captureId) {
+    const { data: existingConcepts, error: existingErr } = await supabase
+      .from("concepts")
+      .select("id, class_id, name, definition, examples, professor_emphasis")
+      .eq("user_id", userId)
+      .eq("capture_id", body.captureId)
+      .order("created_at", { ascending: true });
+    if (existingErr) return json({ error: "existing concepts lookup failed", details: existingErr.message }, 500);
+    if (existingConcepts?.length) {
+      const existingIds = existingConcepts.map((concept) => concept.id as string);
+      const { data: masteryRows, error: masteryLookupErr } = await supabase
+        .from("user_concept_mastery")
+        .select("concept_id")
+        .eq("user_id", userId)
+        .in("concept_id", existingIds);
+      if (masteryLookupErr) {
+        return json({ error: "mastery recovery lookup failed", details: masteryLookupErr.message }, 500);
+      }
+      const mastered = new Set((masteryRows ?? []).map((row) => row.concept_id as string));
+      const missingMastery = existingConcepts
+        .filter((concept) => !mastered.has(concept.id as string))
+        .map((concept) => ({
+          user_id: userId,
+          concept_id: concept.id,
+          class_id: concept.class_id,
+          strength: 0.15,
+          attempts: 0,
+          correct: 0,
+          last_seen_at: new Date().toISOString(),
+          next_review_at: new Date().toISOString(),
+          streak: 0,
+        }));
+      if (missingMastery.length) {
+        const { error: recoveryErr } = await supabase
+          .from("user_concept_mastery")
+          .insert(missingMastery);
+        if (recoveryErr) return json({ error: "mastery recovery failed", details: recoveryErr.message }, 500);
+      }
+
+      const { data: processedRows, error: processedLookupErr } = await supabase
+        .from("processed_content")
+        .select("summary")
+        .eq("user_id", userId)
+        .eq("capture_id", body.captureId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (processedLookupErr) {
+        return json({ error: "processed content recovery lookup failed", details: processedLookupErr.message }, 500);
+      }
+      const recoveredSummary = processedRows?.[0]?.summary
+        ?? existingConcepts
+          .map((concept) => concept.definition)
+          .filter((definition): definition is string => !!definition)
+          .slice(0, 2)
+          .join(" ");
+      if (!processedRows?.length) {
+        const { error: processedRecoveryErr } = await supabase.from("processed_content").insert({
+          capture_id: body.captureId,
+          user_id: userId,
+          summary: recoveredSummary,
+          key_concepts: existingConcepts.map((concept) => concept.name),
+          transcript: body.kind === "record-lecture" ? rawText : null,
+          ocr_text: (body.kind === "scan-board" || body.kind === "scan-textbook") ? rawText : null,
+          model: "google/gemini-2.5-flash",
+        });
+        if (processedRecoveryErr) {
+          return json({ error: "processed content recovery failed", details: processedRecoveryErr.message }, 500);
+        }
+      }
+
+      const { error: captureRecoveryErr } = await supabase
+        .from("captures")
+        .update({
+          processing_status: "ready",
+          flashcards_ready: false,
+          class_id: resolvedClassId,
+          client_class_id: resolvedClientClassId,
+          concept_extraction_claim_id: null,
+          concept_extraction_started_at: null,
+        })
+        .eq("id", body.captureId)
+        .eq("user_id", userId);
+      if (captureRecoveryErr) {
+        return json({ error: "capture recovery failed", details: captureRecoveryErr.message }, 500);
+      }
+
+      return json({
+        ok: true,
+        reused: true,
+        summary: recoveredSummary,
+        concepts: existingConcepts.map((concept) => ({
+          name: concept.name,
+          definition: concept.definition,
+          examples: concept.examples ?? [],
+          professor_emphasis: !!concept.professor_emphasis,
+        })),
+        conceptIds: existingIds,
+      });
+    }
+  }
+
+  // Only one request may send this capture to paid AI services at a time.
+  // A stale claim can be recovered after five minutes.
+  if (!key) return json({ error: "LOVABLE_API_KEY missing" }, 500);
+  let claimId: string | null = null;
+  if (body.captureId) {
+    claimId = crypto.randomUUID();
+    const staleBefore = new Date(Date.now() - EXTRACTION_CLAIM_MS).toISOString();
+    const { data: claimedCapture, error: claimErr } = await supabase
+      .from("captures")
+      .update({
+        concept_extraction_claim_id: claimId,
+        concept_extraction_started_at: new Date().toISOString(),
+        processing_status: "processing",
+      })
+      .eq("id", body.captureId)
+      .eq("user_id", userId)
+      .or(`concept_extraction_claim_id.is.null,concept_extraction_started_at.lt.${staleBefore}`)
+      .select("id")
+      .maybeSingle();
+    if (claimErr) return json({ error: "extraction claim failed", details: claimErr.message }, 500);
+    if (!claimedCapture) {
+      return json({
+        ok: true,
+        processing: true,
+        message: "Campus Brain is already processing this capture.",
+      });
+    }
+  }
+
+  const releaseClaimAsFailed = async () => {
+    if (!body.captureId || !claimId) return;
+    await supabase
+      .from("captures")
+      .update({
+        processing_status: "failed",
+        concept_extraction_claim_id: null,
+        concept_extraction_started_at: null,
+      })
+      .eq("id", body.captureId)
+      .eq("user_id", userId)
+      .eq("concept_extraction_claim_id", claimId);
+  };
 
   const userPrompt = [
     body.className ? `Class: ${body.className}` : null,
@@ -117,43 +286,65 @@ Deno.serve(async (req) => {
   let concepts: ExtractedConcept[] = exactThinSource?.concepts ?? [];
 
   if (!exactThinSource) {
-    const gwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
+    let gwRes: Response;
+    try {
+      gwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      });
+    } catch (error) {
+      await releaseClaimAsFailed();
+      const details = error instanceof Error ? error.message : "AI gateway unavailable";
+      return json({ error: "extraction failed", details }, 502);
+    }
     if (!gwRes.ok) {
       const details = await gwRes.text();
+      await releaseClaimAsFailed();
       return json({ error: "extraction failed", status: gwRes.status, details }, gwRes.status);
     }
-    const gw = await gwRes.json();
+    let gw: { choices?: Array<{ message?: { content?: string } }> };
+    try {
+      gw = await gwRes.json();
+    } catch {
+      await releaseClaimAsFailed();
+      return json({ error: "extraction returned invalid JSON" }, 502);
+    }
     let parsed: { summary?: string; concepts?: ExtractedConcept[] } = {};
     try { parsed = JSON.parse(gw?.choices?.[0]?.message?.content ?? "{}"); } catch { /* fallthrough */ }
     summary = parsed.summary ?? "";
     concepts = Array.isArray(parsed.concepts) ? parsed.concepts.slice(0, 8) : [];
   }
 
-  if (!concepts.length) return insufficientSource();
+  if (!concepts.length) {
+    await releaseClaimAsFailed();
+    return insufficientSource();
+  }
 
   // 2. Embed each concept name+definition
   const texts = concepts.map((c) => `${c.name}. ${c.definition ?? ""}`.trim());
   let embeddings: number[][] = [];
   if (texts.length) {
-    const emRes = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: texts }),
-    });
-    if (emRes.ok) {
-      const em = await emRes.json();
-      embeddings = (em?.data ?? []).map((d: { embedding: number[] }) => d.embedding);
+    try {
+      const emRes = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+        body: JSON.stringify({ model: "openai/text-embedding-3-small", input: texts }),
+      });
+      if (emRes.ok) {
+        const em = await emRes.json();
+        embeddings = (em?.data ?? []).map((d: { embedding: number[] }) => d.embedding);
+      }
+    } catch {
+      // Embeddings improve retrieval but are not required to preserve a
+      // student's capture or build its first study set.
     }
   }
 
@@ -179,7 +370,10 @@ Deno.serve(async (req) => {
       .from("concepts")
       .insert(conceptRows)
       .select("id, class_id");
-    if (insErr) return json({ error: "concepts insert failed", details: insErr.message }, 500);
+    if (insErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "concepts insert failed", details: insErr.message }, 500);
+    }
     insertedIds = (inserted ?? []).map((r: { id: string }) => r.id);
 
     // seed mastery at strength 0.15 (exposed, not yet learned)
@@ -195,13 +389,19 @@ Deno.serve(async (req) => {
       streak: 0,
     }));
     if (masteryRows.length) {
-      await supabase.from("user_concept_mastery").upsert(masteryRows, { onConflict: "user_id,concept_id" });
+      const { error: masteryErr } = await supabase
+        .from("user_concept_mastery")
+        .upsert(masteryRows, { onConflict: "user_id,concept_id" });
+      if (masteryErr) {
+        await releaseClaimAsFailed();
+        return json({ error: "mastery seed failed", details: masteryErr.message }, 500);
+      }
     }
   }
 
   // 4. Persist processed_content row (summary + key_concepts strings)
   if (body.captureId) {
-    await supabase.from("processed_content").insert({
+    const { error: processedErr } = await supabase.from("processed_content").insert({
       capture_id: body.captureId,
       user_id: userId,
       summary,
@@ -210,16 +410,27 @@ Deno.serve(async (req) => {
       ocr_text: (body.kind === "scan-board" || body.kind === "scan-textbook") ? rawText : null,
       model: "google/gemini-2.5-flash",
     });
-    await supabase
+    if (processedErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "processed content insert failed", details: processedErr.message }, 500);
+    }
+    const { error: readyErr } = await supabase
       .from("captures")
       .update({
         processing_status: "ready",
         flashcards_ready: false,
         class_id: resolvedClassId,
         client_class_id: resolvedClientClassId,
+        concept_extraction_claim_id: null,
+        concept_extraction_started_at: null,
       })
       .eq("id", body.captureId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("concept_extraction_claim_id", claimId);
+    if (readyErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "capture completion failed", details: readyErr.message }, 500);
+    }
   }
 
   return json({ ok: true, summary, concepts, conceptIds: insertedIds });

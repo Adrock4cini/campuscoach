@@ -158,6 +158,11 @@ describe("real flashcard runner", () => {
     expect(await screen.findByText("Session saved")).toBeInTheDocument();
 
     expect(invoke).toHaveBeenCalledTimes(2);
+    const attemptIds = invoke.mock.calls.map((call) => call[1].body.attemptId);
+    expect(attemptIds[0]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(attemptIds[1]).toBe(attemptIds[0]);
     for (const call of invoke.mock.calls) {
       expect(call[1].body).toMatchObject({ correct: 1, total: 1 });
     }
