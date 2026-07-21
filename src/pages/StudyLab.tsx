@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,14 @@ export default function StudyLab() {
   const coachStudyScope = buildCoachStudyScope(coachConceptIds);
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || "");
+
+  // Capture and Coach links can target a different class while Study Lab is
+  // already mounted. Follow the newest URL instead of retaining the previous
+  // class selection and silently dropping the new capture scope.
+  useEffect(() => {
+    setSelectedClass(preselectedClass || "");
+  }, [preselectedClass]);
+
   const effectiveClass = selectedClass || availableClasses[0]?.id || "";
   const activeCaptureId = effectiveClass === preselectedClass
     ? requestedCaptureId
