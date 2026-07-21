@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,10 +33,13 @@ const STEPS = [
 
 export default function Onboarding() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const importSyllabusMode = searchParams.get("import") === "syllabus";
   const { refreshOnboarded, profile, user } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(emptyOnboarding);
   const [saving, setSaving] = useState(false);
+  const [syllabusImported, setSyllabusImported] = useState(false);
   const initialized = useRef(false);
   const termOptions = useMemo(() => academicTermOptions(), []);
 
@@ -62,10 +65,11 @@ export default function Onboarding() {
     });
 
     // Do not ask returning students to re-enter information already stored.
-    if (name && school && term) setStep(3);
+    if (importSyllabusMode) setStep(0);
+    else if (name && school && term) setStep(3);
     else if (name && school) setStep(2);
     else if (name) setStep(1);
-  }, [profile, user]);
+  }, [importSyllabusMode, profile, user]);
 
   const update = (patch: Partial<OnboardingData>) => setData((d) => ({ ...d, ...patch }));
   const updateClass = (i: number, patch: Partial<OnboardingClass>) =>
@@ -83,6 +87,7 @@ export default function Onboarding() {
       default: return true;
     }
   })();
+  const canContinue = importSyllabusMode && step === 0 ? syllabusImported : canNext;
 
   const finish = async () => {
     setSaving(true);
@@ -91,9 +96,13 @@ export default function Onboarding() {
         ...data,
         classes: data.classes.filter((c) => c.name.trim()),
       });
-      toast.success("You're set up!", { description: "Welcome to Campus Companion." });
+      toast.success(importSyllabusMode ? "Syllabus added" : "You're set up!", {
+        description: importSyllabusMode
+          ? "Your classes and detected deadlines are ready to review."
+          : "Welcome to Campus Companion.",
+      });
       await refreshOnboarded();
-      nav("/dashboard", { replace: true });
+      nav(importSyllabusMode ? "/calendar" : "/dashboard", { replace: true });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Please try again.";
       toast.error("Couldn't finish setup", { description: message });
@@ -105,7 +114,13 @@ export default function Onboarding() {
   // Demo mode is entered from the login screen; onboarding is only reached
   // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
-  const next = () => (step < STEPS.length - 1 ? setStep(step + 1) : finish());
+  const next = () => (
+    importSyllabusMode && step === 0 && syllabusImported
+      ? finish()
+      : step < STEPS.length - 1
+      ? setStep(step + 1)
+      : finish()
+  );
   const back = () => setStep((s) => Math.max(0, s - 1));
 
   return (
@@ -142,7 +157,12 @@ export default function Onboarding() {
                 className="mt-4"
               >
                 {step === 0 && (
-                  <StepShell title="What's your name?" hint="First name is fine. Have a syllabus? Upload it and we'll fill in everything below.">
+                  <StepShell
+                    title={importSyllabusMode ? "Import a syllabus" : "What's your name?"}
+                    hint={importSyllabusMode
+                      ? "Upload a PDF or photo. Review what Campus Brain found, then save it to your calendar."
+                      : "First name is fine. Have a syllabus? Upload it and we'll fill in everything below."}
+                  >
                     <div className="space-y-3">
                       <Input
                         autoFocus
@@ -165,7 +185,11 @@ export default function Onboarding() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <SyllabusImport data={data} onMerge={update} />
+                      <SyllabusImport
+                        data={data}
+                        onMerge={update}
+                        onParsed={(parsed) => setSyllabusImported(parsed.classes.length > 0)}
+                      />
                     </div>
                   </StepShell>
                 )}
@@ -352,9 +376,15 @@ export default function Onboarding() {
                 size="sm"
                 className="bg-gradient-calm border-0 text-primary-foreground"
                 onClick={next}
-                disabled={!canNext || saving}
+                disabled={!canContinue || saving}
               >
-                {step === STEPS.length - 1 ? (saving ? "Setting up…" : "Finish") : "Next"}
+                {saving
+                  ? (importSyllabusMode ? "Saving…" : "Setting up…")
+                  : importSyllabusMode && step === 0 && syllabusImported
+                  ? "Save syllabus"
+                  : step === STEPS.length - 1
+                  ? "Finish"
+                  : "Next"}
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </div>

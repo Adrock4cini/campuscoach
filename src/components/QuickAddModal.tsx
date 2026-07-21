@@ -15,7 +15,7 @@ const actions = [
   { label: "Add Exam", icon: GraduationCap, desc: "Add an upcoming exam", route: "/exams" },
   { label: "Add Event", icon: Calendar, desc: "Add to your calendar", route: "/calendar" },
   { label: "Add Note", icon: FileText, desc: "Create a note manually", route: "/notes" },
-  { label: "Upload Syllabus", icon: FileUp, desc: "Upload & analyze a syllabus", route: "/classes" },
+  { label: "Upload Syllabus", icon: FileUp, desc: "Upload & analyze a syllabus", route: "/onboarding?import=syllabus" },
   { label: "Record Lecture", icon: Mic, desc: "Start a class recording", route: "/notes" },
   { label: "Professor Hint", icon: MessageSquare, desc: "Save what the professor said", route: "/classes" },
 ];

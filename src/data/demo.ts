@@ -14,6 +14,8 @@ export interface ClassInfo {
   suggestedAction: string;
   gradingWeights: { category: string; weight: number }[];
   chapters: Chapter[];
+  /** Dated class topics extracted from a real student's syllabus. */
+  schedule?: { date: string; topic: string; dueItems?: string[] }[];
 }
 
 export interface Chapter {

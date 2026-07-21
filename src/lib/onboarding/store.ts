@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAnonUserId } from "@/hooks/useClassIntelligence";
 import type { OnboardingData } from "./types";
 import { canonicalizeSchoolName } from "./options";
+import { buildSyllabusDeadlineRows } from "./syllabusDeadlines";
 
 const ONBOARDED_KEY = "cc_onboarded_real_v1";
 const DEMO_MODE_KEY = "cc_demo_mode_v1";
@@ -111,6 +112,7 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
               textbook: c.textbook || null,
               examDates: c.examDates ?? [],
               assignments: c.assignments ?? [],
+              schedule: c.schedule ?? [],
               term: data.term,
               school: schoolName || null,
               schoolId,
@@ -133,6 +135,13 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
           { onConflict: "user_id,class_id" }
         );
       if (enrollmentError) throw enrollmentError;
+
+      const deadlineRows = buildSyllabusDeadlineRows(c, {
+        userId,
+        classUuid: inserted.id,
+        clientClassId,
+      });
+      await saveSyllabusDeadlines(deadlineRows);
     }
   }
 
@@ -144,6 +153,45 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
 
   localStorage.setItem(ONBOARDED_KEY, "1");
   localStorage.removeItem(DEMO_MODE_KEY);
+}
+
+export async function saveSyllabusDeadlines(
+  rows: ReturnType<typeof buildSyllabusDeadlineRows>,
+) {
+  // Onboarding can be retried after a network interruption. Check the natural
+  // class/title/date identity before each insert so a retry does not duplicate
+  // syllabus deadlines that were already saved.
+  for (const row of rows.assignments) {
+    const { data: existing, error: lookupError } = await supabase
+      .from("assignments")
+      .select("id")
+      .eq("user_id", row.user_id)
+      .eq("client_class_id", row.client_class_id)
+      .eq("title", row.title)
+      .eq("due_date", row.due_date)
+      .limit(1);
+    if (lookupError) throw lookupError;
+    if (existing?.length) continue;
+
+    const { error: insertError } = await supabase.from("assignments").insert(row);
+    if (insertError) throw insertError;
+  }
+
+  for (const row of rows.exams) {
+    const { data: existing, error: lookupError } = await supabase
+      .from("exams")
+      .select("id")
+      .eq("user_id", row.user_id)
+      .eq("client_class_id", row.client_class_id)
+      .eq("title", row.title)
+      .eq("exam_date", row.exam_date)
+      .limit(1);
+    if (lookupError) throw lookupError;
+    if (existing?.length) continue;
+
+    const { error: insertError } = await supabase.from("exams").insert(row);
+    if (insertError) throw insertError;
+  }
 }
 
 

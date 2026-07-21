@@ -13,6 +13,7 @@ import { updateAssignment, deleteAssignment, type AssignmentStatus } from "@/lib
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { useSearchParams } from "react-router-dom";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -27,13 +28,16 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 export function RealAssignmentsView() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedClassId = searchParams.get("classId") || undefined;
+  const selectedAssignmentId = searchParams.get("assignmentId") || undefined;
   const {
     classes: myClasses,
     loading: classesLoading,
     error: classesError,
     reload: reloadClasses,
   } = useMyClasses();
-  const { items, loading, error, reload } = useRealAssignments();
+  const { items, loading, error, reload } = useRealAssignments(selectedClassId);
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
@@ -61,6 +65,15 @@ export function RealAssignmentsView() {
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Assignments</h1>
           <p className="text-xs text-muted-foreground mt-1">
             {items.filter((a) => a.status !== "complete").length} active
+            {selectedClassId && (
+              <button
+                type="button"
+                className="ml-2 text-primary hover:underline"
+                onClick={() => setSearchParams({})}
+              >
+                Show all
+              </button>
+            )}
           </p>
         </div>
         <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
@@ -112,7 +125,7 @@ export function RealAssignmentsView() {
               days <= 1 ? "text-danger" :
               days <= 3 ? "text-warning" : "text-muted-foreground";
             return (
-              <Card key={a.id} className="shadow-card">
+              <Card key={a.id} className={`shadow-card ${a.id === selectedAssignmentId ? "border-primary/50 ring-1 ring-primary/20" : ""}`}>
                 <CardContent className="p-4 flex items-start gap-3">
                   <button
                     onClick={() => toggleStatus(a.id, a.status === "complete" ? "not_started" : "complete")}

@@ -112,6 +112,18 @@ describe("real study set freshness", () => {
     expect(screen.getByText("Built from your notes")).toBeInTheDocument();
   });
 
+  it("opens the exact exam selected from the academic calendar", () => {
+    mocks.artifact = null;
+    render(<RealStudySet classId="math" initialExamId="exam-1" />);
+
+    expect(screen.getByRole("button", { name: /unit 1 exam/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Only material for Unit 1 Exam will be included.")).toBeInTheDocument();
+    expect(mocks.scopes.at(-1)).toMatchObject({
+      classId: "math",
+      studyScope: { type: "exam", id: "exam-1", examId: "exam-1" },
+    });
+  });
+
   it("blocks an older multiple-choice set until it is refreshed", () => {
     mocks.artifact = {
       ...artifact("v5-grounded-regeneration"),

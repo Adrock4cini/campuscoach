@@ -6,7 +6,7 @@ import { QuickAddModal } from "@/components/QuickAddModal";
 
 const actions = [
   { label: "Record Class", icon: Mic, color: "bg-gradient-calm", route: "/notes" },
-  { label: "Snap Syllabus", icon: Camera, color: "bg-gradient-warm", route: "/classes" },
+  { label: "Snap Syllabus", icon: Camera, color: "bg-gradient-warm", route: "/onboarding?import=syllabus" },
   { label: "Add Assignment", icon: ClipboardPlus, color: "bg-primary", route: "/assignments" },
   { label: "Study Sprint", icon: Timer, color: "bg-success", route: "/study-lab" },
   { label: "Upload Notes", icon: FileUp, color: "bg-accent", route: "/notes" },

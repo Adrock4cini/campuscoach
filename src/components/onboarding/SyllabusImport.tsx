@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Upload, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { parseSyllabusFile } from "@/lib/onboarding/parseSyllabus";
+import { parseSyllabusFile, type ParsedSyllabus } from "@/lib/onboarding/parseSyllabus";
 import type { OnboardingData, OnboardingClass } from "@/lib/onboarding/types";
 
 const ACCEPT = "application/pdf,image/*";
@@ -11,12 +11,15 @@ const MAX_BYTES = 15 * 1024 * 1024;
 export function SyllabusImport({
   data,
   onMerge,
+  onParsed,
 }: {
   data: OnboardingData;
   onMerge: (patch: Partial<OnboardingData>) => void;
+  onParsed?: (parsed: ParsedSyllabus) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<ParsedSyllabus | null>(null);
 
   const handle = async (file: File) => {
     if (file.size > MAX_BYTES) {
@@ -27,6 +30,7 @@ export function SyllabusImport({
     try {
       const hint = [data.term, data.school].filter(Boolean).join(", ");
       const parsed = await parseSyllabusFile(file, hint || undefined);
+      setPreview(parsed);
 
       const nextClasses: OnboardingClass[] = parsed.classes.length
         ? parsed.classes.map((c) => ({
@@ -40,6 +44,7 @@ export function SyllabusImport({
             textbook: c.textbook ?? "",
             examDates: c.examDates ?? [],
             assignments: c.assignments ?? [],
+            schedule: c.schedule ?? [],
           }))
         : data.classes;
 
@@ -49,6 +54,7 @@ export function SyllabusImport({
         term: data.term || parsed.student?.term || "",
         classes: nextClasses,
       });
+      onParsed?.(parsed);
 
       const extracted = parsed.classes.length;
       const exams = parsed.classes.reduce((n, c) => n + (c.examDates?.length ?? 0), 0);
@@ -109,6 +115,25 @@ export function SyllabusImport({
               )}
             </Button>
           </div>
+          {preview?.classes.length ? (
+            <div className="mt-3 space-y-2 rounded-lg border border-border/60 bg-background/30 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-primary">Check what we found</p>
+              {preview.classes.map((course, index) => (
+                <div key={`${course.name}-${index}`} className="text-xs">
+                  <p className="font-medium text-foreground">{course.name}</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {course.days.length ? `${course.days.join("/")}${course.time ? ` · ${course.time}` : ""}` : "Schedule not listed"}
+                    {` · ${course.examDates?.length ?? 0} exam${course.examDates?.length === 1 ? "" : "s"}`}
+                    {` · ${course.assignments?.length ?? 0} assignment${course.assignments?.length === 1 ? "" : "s"}`}
+                    {` · ${course.schedule?.length ?? 0} class topic${course.schedule?.length === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+              ))}
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Campus Companion will save these to your classes and calendar when you continue.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

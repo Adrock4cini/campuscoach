@@ -126,6 +126,20 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
           suggestedAction: "Add your first capture for this class",
           gradingWeights: [],
           chapters: [],
+          schedule: Array.isArray(meta.schedule)
+            ? meta.schedule.flatMap((item) => {
+                if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+                const row = item as Record<string, unknown>;
+                if (typeof row.date !== "string" || typeof row.topic !== "string") return [];
+                return [{
+                  date: row.date,
+                  topic: row.topic,
+                  dueItems: Array.isArray(row.dueItems)
+                    ? row.dueItems.filter((value): value is string => typeof value === "string")
+                    : [],
+                }];
+              })
+            : [],
         };
       });
       setState({ classes: mapped, isReal: true, loading: false, error: null });

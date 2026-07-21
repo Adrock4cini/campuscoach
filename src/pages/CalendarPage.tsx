@@ -8,6 +8,8 @@ import { EditEventModal } from "@/components/EditEventModal";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@/data/demo";
+import { useAuth } from "@/contexts/AuthContext";
+import { RealCalendarView } from "@/components/real/RealCalendarView";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const hours = Array.from({ length: 14 }, (_, i) => i + 7);
@@ -48,6 +50,13 @@ function getDateForDay(weekStart: Date, dayIndex: number): Date {
 }
 
 export default function CalendarPage() {
+  const { mode } = useAuth();
+  if (mode === "loading") return null;
+  if (mode === "real") return <RealCalendarView />;
+  return <DemoCalendarPage />;
+}
+
+function DemoCalendarPage() {
   const navigate = useNavigate();
   const today = new Date("2026-04-04");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(today));

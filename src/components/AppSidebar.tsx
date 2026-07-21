@@ -51,7 +51,6 @@ interface SidebarGroupDefinition {
 // real data, rather than having the feature disappear from navigation.
 const PREVIEW_ONLY_FOR_REAL = new Set<string>([
   "/your-week",
-  "/calendar",
   "/notes",
   "/path-to-graduation",
   "/scholarships",
