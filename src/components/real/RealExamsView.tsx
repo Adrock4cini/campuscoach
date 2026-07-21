@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 export function RealExamsView() {
   const { classes: myClasses } = useMyClasses();
-  const { items, loading } = useRealExams();
+  const { items, loading, error, reload } = useRealExams();
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
@@ -45,6 +45,12 @@ export function RealExamsView() {
         </CardContent></Card>
       ) : loading ? (
         <p className="text-sm text-muted-foreground text-center py-10">Loading…</p>
+      ) : error ? (
+        <Card><CardContent className="p-8 text-center space-y-3">
+          <p className="font-medium text-foreground">Couldn’t load exams</p>
+          <p className="text-sm text-muted-foreground">Your exams were not deleted.</p>
+          <Button size="sm" variant="outline" onClick={() => void reload()}>Try again</Button>
+        </CardContent></Card>
       ) : items.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center space-y-3">
