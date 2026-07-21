@@ -7,8 +7,9 @@
  * same shape:
  *
  *   1. Try the live write / read.
- *   2. On failure, log and return `null` (or `[]`) so callers can
- *      fall back to their local store.
+ *   2. Writes return `null` on failure so callers can preserve unsaved work.
+ *      Reads throw so real UI never mistakes a network failure for an empty
+ *      student account.
  *
  * When real transcription / OCR / storage upload is wired in, only
  * `saveCapture` grows — the public surface stays the same.
@@ -184,15 +185,36 @@ interface CaptureQueryRow {
   created_at: string;
   raw_text: string | null;
   processed_content:
-    | { summary: string | null; key_concepts: unknown }
-    | { summary: string | null; key_concepts: unknown }[]
+    | ProcessedContentRow
+    | ProcessedContentRow[]
     | null;
 }
 
+interface ProcessedContentRow {
+  summary: string | null;
+  key_concepts: unknown;
+  model?: string | null;
+  created_at?: string | null;
+}
+
+export function selectTrustworthyProcessedContent(
+  content: CaptureQueryRow["processed_content"],
+): ProcessedContentRow | null {
+  const rows = Array.isArray(content) ? content : content ? [content] : [];
+  if (!rows.length) return null;
+
+  return [...rows].sort((a, b) => {
+    const aReal = a.model && a.model !== "mock-v1" ? 1 : 0;
+    const bReal = b.model && b.model !== "mock-v1" ? 1 : 0;
+    if (aReal !== bReal) return bReal - aReal;
+    return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+  })[0];
+}
+
 function rowToCapture(row: CaptureQueryRow): PersistedCapture {
-  const processed = Array.isArray(row.processed_content)
-    ? row.processed_content[0]
-    : row.processed_content;
+  // Older clients wrote a mock summary before the real extractor finished.
+  // Prefer a real model row so historical captures repair themselves on read.
+  const processed = selectTrustworthyProcessedContent(row.processed_content);
   const keyConcepts = Array.isArray(processed?.key_concepts)
     ? processed.key_concepts.filter((value): value is string => typeof value === "string")
     : [];
@@ -217,20 +239,18 @@ export async function getCapturesForClass(
   try {
     const { data, error } = await supabase
       .from("captures")
-      .select("*, processed_content(summary, key_concepts)")
+      .select("*, processed_content(summary, key_concepts, model, created_at)")
       .eq("user_id", getAnonUserId())
       .eq("client_class_id", clientClassId)
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error || !data) {
-      warn("getCapturesForClass", error);
-      return [];
-    }
+    if (error) throw error;
+    if (!data) throw new Error("Capture query returned no data");
     return data.map(rowToCapture);
   } catch (err) {
     warn("getCapturesForClass.catch", err);
-    return [];
+    throw err;
   }
 }
 
@@ -240,7 +260,7 @@ export async function getRecentCaptures(
   try {
     const { data, error } = await supabase
       .from("captures")
-      .select("*, processed_content(summary, key_concepts)")
+      .select("*, processed_content(summary, key_concepts, model, created_at)")
       .eq("user_id", getAnonUserId())
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -263,6 +283,20 @@ export async function getRecentCaptures(
 export async function persistCaptureResult(
   result: CaptureResult
 ): Promise<string | null> {
+  const rawText = (result.context.text ?? "").trim();
+  let hasAuthenticatedSession = false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    hasAuthenticatedSession = Boolean(data.session?.access_token);
+  } catch (err) {
+    warn("persistCaptureResult.session", err);
+  }
+
+  // Simulated demo results already contain derived concepts. A real capture
+  // arrives with no concepts and must remain "processing" until the edge
+  // function confirms that durable concepts and mastery rows exist.
+  const hasDerivedContent = result.keyConcepts.length > 0 || result.flashcardCount > 0;
+  const needsExtraction = rawText.length > 0 && !hasDerivedContent;
   const captureId = await saveCapture({
     localId: result.id,
     kind: result.kind,
@@ -270,38 +304,110 @@ export async function persistCaptureResult(
     topic: result.context.topic,
     capturedOn: result.context.date,
     rawText: result.context.text,
-    processingStatus: "ready",
+    processingStatus: needsExtraction ? "processing" : "ready",
     flashcardsReady: result.flashcardCount > 0,
-    keyConcepts: result.keyConcepts,
-    summary: result.summary,
+    keyConcepts: hasDerivedContent ? result.keyConcepts : undefined,
+    summary: hasDerivedContent ? result.summary : undefined,
     meta: { flashcardCount: result.flashcardCount },
   });
 
-  // Real AI concept extraction — only when we have textual source content and
-  // an authenticated session. Silently skipped for anon/demo users.
-  const rawText = (result.context.text ?? "").trim();
-  if (captureId && rawText.length > 0) {
+  if (captureId && needsExtraction) {
     try {
-      const { data: sess } = await supabase.auth.getSession();
-      if (sess?.session?.access_token) {
-        await supabase.functions.invoke("extract-concepts", {
-          body: {
-            captureId,
-            clientClassId: result.context.classId,
-            className: null,
-            topic: result.context.topic ?? null,
-            kind: result.kind,
-            rawText,
-          },
-        });
-        try {
-          window.dispatchEvent(new CustomEvent("concepts:extracted", { detail: { captureId } }));
-        } catch { /* non-browser */ }
+      if (!hasAuthenticatedSession) throw new Error("Authenticated AI session unavailable");
+      const extractionStatus = await invokeConceptExtraction({
+        captureId,
+        clientClassId: result.context.classId,
+        topic: result.context.topic ?? null,
+        kind: result.kind,
+        rawText,
+      });
+      result.processingStatus = extractionStatus;
+      if (extractionStatus === "ready") {
+        dispatchConceptsExtracted(captureId);
+      } else {
+        result.processingMessage = "Campus Brain is already working on this note.";
       }
     } catch (err) {
       warn("persistCaptureResult.extract", err);
+      await setCaptureProcessingStatus(captureId, "failed");
+      result.processingStatus = "failed";
+      result.processingMessage = "Your note is safe, but Campus Brain couldn't finish processing it.";
     }
   }
 
   return captureId;
+}
+
+interface ConceptExtractionInput {
+  captureId: string;
+  clientClassId: string;
+  topic?: string | null;
+  kind: string;
+  rawText: string;
+}
+
+async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<"processing" | "ready"> {
+  const { data, error } = await supabase.functions.invoke("extract-concepts", {
+    body: {
+      captureId: input.captureId,
+      clientClassId: input.clientClassId,
+      className: null,
+      topic: input.topic ?? null,
+      kind: input.kind,
+      rawText: input.rawText,
+    },
+  });
+  const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
+  if (error || response?.ok !== true) {
+    throw error ?? new Error(response?.message ?? response?.error ?? "Concept extraction failed");
+  }
+  return response.processing ? "processing" : "ready";
+}
+
+async function setCaptureProcessingStatus(
+  captureId: string,
+  status: "processing" | "ready" | "failed",
+): Promise<void> {
+  const { error } = await supabase
+    .from("captures")
+    .update({ processing_status: status })
+    .eq("id", captureId)
+    .eq("user_id", getAnonUserId());
+  if (error) warn("setCaptureProcessingStatus", error);
+}
+
+function dispatchConceptsExtracted(captureId: string) {
+  try {
+    window.dispatchEvent(new CustomEvent("concepts:extracted", { detail: { captureId } }));
+  } catch {
+    /* non-browser */
+  }
+}
+
+export interface RetryCaptureInput {
+  id: string;
+  kind: string;
+  clientClassId: string;
+  topic?: string | null;
+  rawText?: string | null;
+}
+
+export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<void> {
+  const rawText = (capture.rawText ?? "").trim();
+  if (!rawText) throw new Error("This capture has no source text to process.");
+
+  await setCaptureProcessingStatus(capture.id, "processing");
+  try {
+    const extractionStatus = await invokeConceptExtraction({
+      captureId: capture.id,
+      clientClassId: capture.clientClassId,
+      topic: capture.topic,
+      kind: capture.kind,
+      rawText,
+    });
+    if (extractionStatus === "ready") dispatchConceptsExtracted(capture.id);
+  } catch (err) {
+    await setCaptureProcessingStatus(capture.id, "failed");
+    throw err;
+  }
 }

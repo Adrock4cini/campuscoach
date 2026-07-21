@@ -8,6 +8,7 @@ import { CaptureProvider } from "@/contexts/CaptureContext";
 import { FocusModeToggle } from "@/components/FocusModeToggle";
 import { CommandPalette, useCommandPalette } from "@/components/CommandPalette";
 import { Search } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 function HeaderSearchButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -26,7 +27,24 @@ function HeaderSearchButton({ onOpen }: { onOpen: () => void }) {
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const { mode } = useFocusMode();
   const { open, setOpen } = useCommandPalette();
+  const { mode: dataMode } = useAuth();
   const dampen = mode === "hyperfocus"; // dim ambient orbs in hyperfocus
+
+  // Keep the global shell neutral until auth resolves. Rendering the sidebar
+  // or capture button here would briefly expose demo classes/actions to a
+  // returning signed-in student.
+  if (dataMode === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground" aria-busy="true">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="h-9 w-9 rounded-xl bg-gradient-calm flex items-center justify-center text-primary-foreground font-bold">
+            C
+          </span>
+          Loading Campus Companion…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

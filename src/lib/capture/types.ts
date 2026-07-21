@@ -52,4 +52,8 @@ export interface CaptureResult {
   keyConcepts: string[];
   summary: string;
   flashcardCount: number;
+  /** Durable AI handoff status for real captures. Demo captures omit this. */
+  processingStatus?: "ready" | "processing" | "failed";
+  /** Student-safe explanation when the note saved but AI processing did not. */
+  processingMessage?: string;
 }

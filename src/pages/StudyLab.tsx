@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
 } from "lucide-react";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 const secondaryModes: { icon: React.ElementType; label: string; mode: StudyMode }[] = [
   { icon: Brain, label: "Flashcards", mode: "flashcards" },
@@ -34,14 +35,34 @@ export default function StudyLab() {
   const navigate = useNavigate();
   const { mode: authMode } = useAuth();
   const isRealUser = authMode === "real";
-  const { classes: availableClasses, loading: classesLoading } = useMyClasses();
+  const {
+    classes: availableClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
 
   const preselectedClass = searchParams.get("classId");
+  const requestedCaptureId = searchParams.get("captureId") || undefined;
+  const requestedFormat = searchParams.get("format") === "multiple_choice"
+    ? "multiple_choice"
+    : "flashcards";
   const coachConceptIds = parseCoachConceptIds(searchParams.get("conceptIds"));
   const coachStudyScope = buildCoachStudyScope(coachConceptIds);
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || "");
+
+  // Capture and Coach links can target a different class while Study Lab is
+  // already mounted. Follow the newest URL instead of retaining the previous
+  // class selection and silently dropping the new capture scope.
+  useEffect(() => {
+    setSelectedClass(preselectedClass || "");
+  }, [preselectedClass]);
+
   const effectiveClass = selectedClass || availableClasses[0]?.id || "";
+  const activeCaptureId = effectiveClass === preselectedClass
+    ? requestedCaptureId
+    : undefined;
   // Study-format recommendation comes from the Intelligence Engine,
   // which also picks the topic to attack based on peer signal.
   const recommendation = useStudyFormatRecommendation(effectiveClass);
@@ -89,7 +110,10 @@ export default function StudyLab() {
       {isRealUser && classesLoading && (
         <p className="text-sm text-muted-foreground">Loading your classes…</p>
       )}
-      {isRealUser && !classesLoading && !effectiveClass && (
+      {isRealUser && !classesLoading && classesError && (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      )}
+      {isRealUser && !classesLoading && !classesError && !effectiveClass && (
         <Card className="border-dashed border-border/50">
           <CardContent className="p-6 text-center">
             <p className="text-sm text-foreground">Add a class before starting a study session.</p>
@@ -97,12 +121,14 @@ export default function StudyLab() {
           </CardContent>
         </Card>
       )}
-      {isRealUser && effectiveClass && (
+      {isRealUser && !classesError && effectiveClass && (
         <RealStudySet
           classId={effectiveClass}
+          initialCaptureId={activeCaptureId}
+          initialKind={requestedFormat}
           initialConceptIds={coachConceptIds}
           initialStudyScope={coachStudyScope ?? undefined}
-          autoStart={Boolean(coachStudyScope)}
+          autoStart={Boolean(coachStudyScope || activeCaptureId)}
         />
       )}
 

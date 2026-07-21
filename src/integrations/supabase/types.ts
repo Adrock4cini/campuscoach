@@ -157,6 +157,8 @@ export type Database = {
           chapter: string | null
           class_id: string | null
           client_class_id: string | null
+          concept_extraction_claim_id: string | null
+          concept_extraction_started_at: string | null
           created_at: string
           flashcards_ready: boolean
           id: string
@@ -176,6 +178,8 @@ export type Database = {
           chapter?: string | null
           class_id?: string | null
           client_class_id?: string | null
+          concept_extraction_claim_id?: string | null
+          concept_extraction_started_at?: string | null
           created_at?: string
           flashcards_ready?: boolean
           id?: string
@@ -195,6 +199,8 @@ export type Database = {
           chapter?: string | null
           class_id?: string | null
           client_class_id?: string | null
+          concept_extraction_claim_id?: string | null
+          concept_extraction_started_at?: string | null
           created_at?: string
           flashcards_ready?: boolean
           id?: string
@@ -1001,16 +1007,68 @@ export type Database = {
         }
         Relationships: []
       }
+      study_result_concept_updates: {
+        Row: {
+          answer_correct: boolean
+          applied_at: string
+          class_id: string | null
+          client_attempt_id: string
+          concept_id: string
+          previous_strength: number
+          resulting_strength: number | null
+          user_id: string
+        }
+        Insert: {
+          answer_correct: boolean
+          applied_at?: string
+          class_id?: string | null
+          client_attempt_id: string
+          concept_id: string
+          previous_strength: number
+          resulting_strength?: number | null
+          user_id: string
+        }
+        Update: {
+          answer_correct?: boolean
+          applied_at?: string
+          class_id?: string | null
+          client_attempt_id?: string
+          concept_id?: string
+          previous_strength?: number
+          resulting_strength?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_result_concept_updates_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_result_concept_updates_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_sessions: {
         Row: {
           anonymized: boolean
+          artifact_id: string | null
           class_id: string | null
+          client_attempt_id: string | null
           client_class_id: string | null
           created_at: string
           duration_minutes: number
           ended_at: string | null
           id: string
           mode: string | null
+          result_payload: Json | null
+          result_status: string
           score: number | null
           started_at: string
           study_scope_id: string
@@ -1023,13 +1081,17 @@ export type Database = {
         }
         Insert: {
           anonymized?: boolean
+          artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           client_class_id?: string | null
           created_at?: string
           duration_minutes?: number
           ended_at?: string | null
           id?: string
           mode?: string | null
+          result_payload?: Json | null
+          result_status?: string
           score?: number | null
           started_at?: string
           study_scope_id?: string
@@ -1042,13 +1104,17 @@ export type Database = {
         }
         Update: {
           anonymized?: boolean
+          artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           client_class_id?: string | null
           created_at?: string
           duration_minutes?: number
           ended_at?: string | null
           id?: string
           mode?: string | null
+          result_payload?: Json | null
+          result_status?: string
           score?: number | null
           started_at?: string
           study_scope_id?: string
@@ -1060,6 +1126,13 @@ export type Database = {
           visibility?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "study_sessions_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "learning_artifacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "study_sessions_class_id_fkey"
             columns: ["class_id"]
@@ -1271,6 +1344,16 @@ export type Database = {
       }
     }
     Functions: {
+      apply_study_concept_result: {
+        Args: {
+          p_attempt_id: string
+          p_class_id: string | null
+          p_concept_id: string
+          p_correct: boolean
+          p_seen_at?: string
+        }
+        Returns: Json
+      }
       consume_ai_request_quota: {
         Args: {
           p_function_name: string

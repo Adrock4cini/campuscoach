@@ -360,6 +360,14 @@ async function resolveStudyScope(
   body: Body,
 ): Promise<ResolvedStudyScope | Response> {
   const requested = body.studyScope;
+  if (body.captureId) {
+    return {
+      type: "recent",
+      id: `capture-${body.captureId}`,
+      label: "This capture",
+      topics: [],
+    };
+  }
   if (!requested || requested.type === "recent") {
     return { type: "recent", id: "recent", label: "What I just learned", topics: [] };
   }

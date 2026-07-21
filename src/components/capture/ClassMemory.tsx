@@ -13,7 +13,7 @@
  *   Campus Brain insight.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,12 @@ import {
   Loader2,
   CheckCircle2,
   Brain,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   getCapturesForClass,
+  retryCaptureConcepts,
   type PersistedCapture,
 } from "@/lib/supabase/capturePersistence";
 import { listCaptures, CAPTURE_LABELS } from "@/lib/capture/processor";
@@ -78,8 +81,11 @@ const PLACEHOLDER_KINDS = new Set<CaptureKind>([
 function trustworthyConcepts(kind: CaptureKind, concepts: string[]) {
   // Typed notes and professor hints are real source material, but old UI
   // versions attached placeholder "Core concepts" labels before extraction.
-  if (kind === "quick-note" || kind === "professor-hint") return [];
-  return concepts;
+  if (kind !== "quick-note" && kind !== "professor-hint") return concepts;
+  return concepts.filter((concept) => ![
+    "Core concepts",
+    "Professor emphasis: Core concepts",
+  ].includes(concept));
 }
 
 function fromLocal(classId: string): MemoryItem[] {
@@ -95,6 +101,7 @@ function fromLocal(classId: string): MemoryItem[] {
       processingStatus: "ready",
       flashcardsReady: c.flashcardCount > 0,
       chapter: undefined,
+      rawText: c.context.text ?? null,
       source: "local" as const,
       isPlaceholder: PLACEHOLDER_KINDS.has(c.kind),
     }));
@@ -103,17 +110,30 @@ function fromLocal(classId: string): MemoryItem[] {
 function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
   return rows.map((r) => {
     const kind = (r.kind as CaptureKind) ?? "quick-note";
+    const keyConcepts = trustworthyConcepts(kind, r.keyConcepts ?? []);
+    const storedStatus =
+      (r.processingStatus as MemoryItem["processingStatus"]) ?? "ready";
+    // Repair captures created by the older client that marked the row ready
+    // before the extractor returned. A real text capture with no real concept
+    // is not study-ready, regardless of the legacy status value.
+    const processingStatus =
+      storedStatus === "ready" &&
+      (kind === "quick-note" || kind === "professor-hint") &&
+      Boolean(r.rawText?.trim()) &&
+      keyConcepts.length === 0
+        ? "failed"
+        : storedStatus;
     return ({
     id: r.id,
     kind,
     topic: r.topic || CAPTURE_LABELS[kind],
     date: r.createdAt.slice(0, 10),
-    keyConcepts: trustworthyConcepts(kind, r.keyConcepts ?? []),
+    keyConcepts,
     summary: r.summary ?? "",
-    processingStatus:
-      (r.processingStatus as MemoryItem["processingStatus"]) ?? "ready",
+    processingStatus,
     flashcardsReady: r.flashcardsReady,
     chapter: undefined,
+    rawText: r.rawText,
     source: "supabase" as const,
     isPlaceholder: PLACEHOLDER_KINDS.has(kind),
   });
@@ -132,36 +152,107 @@ function dedupe(items: MemoryItem[]): MemoryItem[] {
 
 export function ClassMemory({ classId, className }: Props) {
   const { mode } = useAuth();
-  const [items, setItems] = useState<MemoryItem[]>(() => fromLocal(classId));
+  // Never hydrate browser-local demo captures while auth is resolving or for
+  // a signed-in student. Supabase is the only source of truth in real mode.
+  const [items, setItems] = useState<MemoryItem[]>([]);
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
   const [studyMode, setStudyMode] = useState<StudyMode | undefined>();
   const [studyOpen, setStudyOpen] = useState(false);
+  const [loading, setLoading] = useState(mode !== "demo");
+  const [loadError, setLoadError] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const requestVersion = useRef(0);
   const navigate = useNavigate();
 
-  const openStudy = (item: MemoryItem, mode?: StudyMode) => {
+  const openStudy = (item: MemoryItem, requestedMode?: StudyMode) => {
+    if (mode === "real" && item.source === "supabase") {
+      const format = requestedMode === "quiz" ? "multiple_choice" : "flashcards";
+      const params = new URLSearchParams({
+        classId,
+        captureId: item.id,
+        format,
+      });
+      navigate(`/study-lab?${params.toString()}`);
+      return;
+    }
+
     setStudyItem(item);
-    setStudyMode(mode);
+    setStudyMode(requestedMode);
     setStudyOpen(true);
   };
 
   const refresh = useMemo(
     () => async () => {
-      const local = fromLocal(classId);
-      const remote = fromPersisted(await getCapturesForClass(classId, 25));
-      // Prefer remote (has processed_content), then append any local-only.
-      setItems(dedupe([...remote, ...local]));
+      const request = ++requestVersion.current;
+      setLoadError(false);
+      if (mode === "loading") {
+        setItems([]);
+        setLoading(true);
+        return;
+      }
+      if (mode === "demo") {
+        setItems(dedupe(fromLocal(classId)));
+        setLoading(false);
+        return;
+      }
+
+      setItems([]);
+      setLoading(true);
+      try {
+        const remote = fromPersisted(await getCapturesForClass(classId, 25));
+        if (request !== requestVersion.current) return;
+        setItems(dedupe(remote));
+      } catch {
+        if (request !== requestVersion.current) return;
+        setLoadError(true);
+      } finally {
+        if (request === requestVersion.current) setLoading(false);
+      }
     },
-    [classId],
+    [classId, mode],
   );
 
   useEffect(() => {
     void refresh();
     const onCommit = () => void refresh();
     window.addEventListener("capture:committed", onCommit);
-    return () => window.removeEventListener("capture:committed", onCommit);
+    window.addEventListener("concepts:extracted", onCommit);
+    return () => {
+      requestVersion.current += 1;
+      window.removeEventListener("capture:committed", onCommit);
+      window.removeEventListener("concepts:extracted", onCommit);
+    };
   }, [refresh]);
+
+  const retryProcessing = async (item: MemoryItem) => {
+    if (!item.rawText?.trim()) return;
+    setRetryingId(item.id);
+    setItems((current) => current.map((candidate) => (
+      candidate.id === item.id
+        ? { ...candidate, processingStatus: "processing" }
+        : candidate
+    )));
+    try {
+      await retryCaptureConcepts({
+        id: item.id,
+        kind: item.kind,
+        clientClassId: classId,
+        topic: item.topic,
+        rawText: item.rawText,
+      });
+      await refresh();
+    } catch {
+      setItems((current) => current.map((candidate) => (
+        candidate.id === item.id
+          ? { ...candidate, processingStatus: "failed" }
+          : candidate
+      )));
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   const openDetail = (item: MemoryItem) => {
     setSelected(item);
@@ -194,7 +285,21 @@ export function ClassMemory({ classId, className }: Props) {
         )}
 
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="rounded-lg border border-border/40 p-6 text-center text-sm text-muted-foreground">
+            Loading Class Memory…
+          </div>
+        ) : loadError ? (
+          <div className="rounded-lg border border-danger/30 bg-danger/5 p-5 text-center">
+            <p className="text-sm font-medium text-foreground">Couldn’t load Class Memory</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your saved captures were not deleted. Check your connection and try again.
+            </p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => void refresh()}>
+              Try again
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
             Nothing captured yet. Tap the <span className="font-medium">+</span>{" "}
             button to add a quick note or professor hint. It will appear here.
@@ -209,6 +314,8 @@ export function ClassMemory({ classId, className }: Props) {
                 onStudy={() => openStudy(item)}
                 onFlashcards={() => openStudy(item, "flashcards")}
                 onQuiz={() => openStudy(item, "quiz")}
+                onRetry={() => void retryProcessing(item)}
+                retrying={retryingId === item.id}
               />
             ))}
           </div>
@@ -227,14 +334,16 @@ export function ClassMemory({ classId, className }: Props) {
         }}
       />
 
-      <StudyFromCaptureDrawer
-        open={studyOpen}
-        onOpenChange={setStudyOpen}
-        item={studyItem}
-        classId={classId}
-        className={className}
-        initialMode={studyMode}
-      />
+      {mode === "demo" && (
+        <StudyFromCaptureDrawer
+          open={studyOpen}
+          onOpenChange={setStudyOpen}
+          item={studyItem}
+          classId={classId}
+          className={className}
+          initialMode={studyMode}
+        />
+      )}
     </Card>
   );
 }
@@ -247,11 +356,15 @@ interface RowProps {
   onStudy: () => void;
   onFlashcards: () => void;
   onQuiz: () => void;
+  onRetry: () => void;
+  retrying: boolean;
 }
 
-function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
+function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retrying }: RowProps) {
   const Icon = KIND_ICON[item.kind] ?? StickyNote;
-  const processing = item.processingStatus !== "ready";
+  const processing = item.processingStatus === "queued" || item.processingStatus === "processing";
+  const failed = item.processingStatus === "failed";
+  const studyReady = !item.isPlaceholder && item.processingStatus === "ready" && item.keyConcepts.length > 0;
 
   return (
     <div className="group flex items-start gap-3 rounded-lg border border-border/40 bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
@@ -279,6 +392,10 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
           {item.isPlaceholder ? (
             <Badge variant="outline" className="text-[10px] text-muted-foreground">
               preview only
+            </Badge>
+          ) : failed ? (
+            <Badge variant="outline" className="text-[10px] gap-1 border-warning/30 text-warning">
+              <AlertTriangle className="h-3 w-3" /> needs attention
             </Badge>
           ) : processing ? (
             <Badge variant="outline" className="text-[10px] gap-1">
@@ -310,7 +427,18 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
       </button>
 
       <div className="flex items-center gap-1 shrink-0">
-        {!item.isPlaceholder && (
+        {failed && item.rawText?.trim() ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-warning hover:text-warning hover:bg-warning/10"
+            onClick={onRetry}
+            disabled={retrying}
+          >
+            {retrying ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+            Retry
+          </Button>
+        ) : studyReady ? (
           <Button
             size="sm"
             variant="ghost"
@@ -319,7 +447,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
           >
             Study <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
-        )}
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" className="h-8 w-8">
@@ -328,7 +456,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz }: RowProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem onClick={onOpen}>Open detail</DropdownMenuItem>
-            {!item.isPlaceholder && (
+            {studyReady && (
               <>
                 <DropdownMenuItem onClick={onFlashcards}>
                   Generate flashcards

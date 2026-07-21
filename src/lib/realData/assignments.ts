@@ -40,7 +40,7 @@ export async function listAssignments(userId: string, clientClassId?: string): P
   const { data, error } = await q.order("due_date", { ascending: true, nullsFirst: false });
   if (error) {
     console.warn("[assignments:list]", error);
-    return [];
+    throw error;
   }
   return (data ?? []) as RealAssignment[];
 }

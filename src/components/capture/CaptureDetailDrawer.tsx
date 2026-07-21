@@ -31,6 +31,7 @@ export interface MemoryItem {
   processingStatus: "queued" | "processing" | "ready" | "failed";
   flashcardsReady: boolean;
   chapter?: string;
+  rawText?: string | null;
   source: "local" | "supabase";
   /** True when the original capture used a not-yet-connected media pipeline. */
   isPlaceholder?: boolean;
@@ -58,6 +59,10 @@ export function CaptureDetailDrawer({
   if (!item) return null;
 
   const insight = buildInsight(item);
+  const studyReady =
+    !item.isPlaceholder &&
+    item.processingStatus === "ready" &&
+    item.keyConcepts.length > 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -86,6 +91,10 @@ export function CaptureDetailDrawer({
             <p className="text-sm text-foreground">
               {item.isPlaceholder
                 ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or professor hint instead."
+                : item.processingStatus === "failed"
+                  ? "Your source is safe, but concept processing needs another try before study tools can use it."
+                  : item.processingStatus !== "ready"
+                    ? "Campus Brain is still turning this source into concepts. Study tools will unlock when it finishes."
                 : insight}
             </p>
           </div>
@@ -125,7 +134,7 @@ export function CaptureDetailDrawer({
           {!item.isPlaceholder && <Separator />}
 
           {/* Study actions */}
-          {!item.isPlaceholder && <div>
+          {studyReady && <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Next study actions
             </p>

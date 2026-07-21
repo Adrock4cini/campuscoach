@@ -46,9 +46,23 @@ interface SidebarGroupDefinition {
   items: SidebarItemDefinition[];
 }
 
+// These destinations remain part of the product and should stay discoverable.
+// Signed-in students get a guarded preview until each page is backed by their
+// real data, rather than having the feature disappear from navigation.
+const PREVIEW_ONLY_FOR_REAL = new Set<string>([
+  "/your-week",
+  "/calendar",
+  "/notes",
+  "/path-to-graduation",
+  "/scholarships",
+  "/course-intelligence",
+  "/exam-debrief",
+  "/progress",
+  "/settings",
+]);
+
 function buildGroups(
   classList: { id: string; name: string; color: string }[],
-  realMode: boolean,
 ): SidebarGroupDefinition[] {
   const classItems = [
     { title: "All Classes", url: "/classes", icon: BookOpen },
@@ -59,29 +73,6 @@ function buildGroups(
       dotColor: c.color,
     })),
   ];
-
-  // Signed-in students only see destinations that are backed by their real
-  // data. Demo mode remains the place to preview the longer-term product.
-  if (realMode) {
-    return [
-      {
-        label: "Today",
-        items: [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }],
-      },
-      {
-        label: "Classes",
-        items: classItems,
-      },
-      {
-        label: "Study",
-        items: [
-          { title: "Study Lab", url: "/study-lab", icon: FlaskConical },
-          { title: "Assignments", url: "/assignments", icon: BookOpen },
-          { title: "Exams", url: "/exams", icon: GraduationCap },
-        ],
-      },
-    ];
-  }
 
   return [
     {
@@ -138,10 +129,10 @@ export function AppSidebar() {
   const { classes: myClasses } = useMyClasses();
   // Single source of truth: mode drives which class list we show.
   // "real" → user's Supabase classes only (empty if none yet).
-  // "demo" or "loading" → demo tour classes.
+  // "demo" → demo tour classes. Loading stays neutral in AppLayout.
   const realMode = mode === "real";
-  const classList = realMode ? myClasses : demoClasses;
-  const groups = buildGroups(classList, realMode);
+  const classList = realMode ? myClasses : mode === "demo" ? demoClasses : [];
+  const groups = buildGroups(classList);
 
 
 
@@ -194,7 +185,14 @@ export function AppSidebar() {
                           <item.icon className="mr-2 h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110" />
                         )}
                         {!collapsed && (
-                          <span className="tracking-tight truncate flex-1">{item.title}</span>
+                          <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
+                            <span className="truncate">{item.title}</span>
+                            {realMode && PREVIEW_ONLY_FOR_REAL.has(item.url) && (
+                              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
+                                Preview
+                              </span>
+                            )}
+                          </span>
                         )}
                       </NavLink>
                     </SidebarMenuButton>

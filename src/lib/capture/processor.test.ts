@@ -7,12 +7,21 @@
  *      queryable via listCaptures — this is what powers Class Memory
  *      when offline / anon.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commitCapture, listCaptures } from "@/lib/capture/processor";
+
+const mocks = vi.hoisted(() => ({
+  persistCaptureResult: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/capturePersistence", () => ({
+  persistCaptureResult: mocks.persistCaptureResult,
+}));
 
 describe("capture journey", () => {
   beforeEach(() => {
     localStorage.clear();
+    mocks.persistCaptureResult.mockReset().mockResolvedValue("remote-capture-id");
   });
 
   it("commits a quick note and surfaces it in Class Memory", async () => {
@@ -55,5 +64,63 @@ describe("capture journey", () => {
     expect(result.summary).toContain("quadratic formula");
     expect(result.keyConcepts).toEqual([]);
     expect(result.flashcardCount).toBe(0);
+  });
+
+  it("confirms a signed-in capture remotely without putting it in the demo store", async () => {
+    const result = await commitCapture(
+      "quick-note",
+      {
+        classId: "math",
+        date: "2026-07-20",
+        text: "The quadratic formula will be on the exam.",
+      },
+      {
+        simulateDerivedContent: false,
+        requireRemotePersistence: true,
+      },
+    );
+
+    expect(mocks.persistCaptureResult).toHaveBeenCalledWith(result);
+    expect(listCaptures()).toEqual([]);
+  });
+
+  it("keeps a saved note successful while surfacing a failed AI handoff", async () => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = "failed";
+      result.processingMessage = "Your note is safe, but Campus Brain couldn't finish processing it.";
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "quick-note",
+      {
+        classId: "math",
+        date: "2026-07-20",
+        text: "The quadratic formula will be on the exam.",
+      },
+      { simulateDerivedContent: false, requireRemotePersistence: true },
+    );
+
+    expect(result.processingStatus).toBe("failed");
+    expect(result.processingMessage).toMatch(/note is safe/i);
+    expect(listCaptures()).toEqual([]);
+  });
+
+  it("does not report success when a required remote save fails", async () => {
+    mocks.persistCaptureResult.mockResolvedValueOnce(null);
+
+    await expect(
+      commitCapture(
+        "quick-note",
+        {
+          classId: "math",
+          date: "2026-07-20",
+          text: "Keep this note visible for retry.",
+        },
+        { requireRemotePersistence: true },
+      ),
+    ).rejects.toThrow("couldn't save this capture");
+
+    expect(listCaptures()).toEqual([]);
   });
 });

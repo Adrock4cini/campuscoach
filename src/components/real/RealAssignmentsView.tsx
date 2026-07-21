@@ -12,6 +12,7 @@ import { useRealAssignments, daysUntil } from "@/lib/realData/hooks";
 import { updateAssignment, deleteAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -26,14 +27,23 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 export function RealAssignmentsView() {
-  const { classes: myClasses } = useMyClasses();
-  const { items, loading } = useRealAssignments();
+  const {
+    classes: myClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
+  const { items, loading, error, reload } = useRealAssignments();
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
 
   const toggleStatus = async (id: string, next: AssignmentStatus) => {
-    await updateAssignment(id, { status: next });
+    const updated = await updateAssignment(id, { status: next });
+    if (!updated) {
+      toast.error("Couldn’t update assignment");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
   };
 
@@ -53,17 +63,27 @@ export function RealAssignmentsView() {
             {items.filter((a) => a.status !== "complete").length} active
           </p>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={myClasses.length === 0}>
+        <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
           <Plus className="h-4 w-4 mr-1" /> Add
         </Button>
       </div>
 
-      {myClasses.length === 0 ? (
+      {classesLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-10">Loading classes…</p>
+      ) : classesError ? (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      ) : myClasses.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
           Add a class first so you can attach assignments to it.
         </CardContent></Card>
       ) : loading ? (
         <p className="text-sm text-muted-foreground text-center py-10">Loading…</p>
+      ) : error ? (
+        <Card><CardContent className="p-8 text-center space-y-3">
+          <p className="font-medium text-foreground">Couldn’t load assignments</p>
+          <p className="text-sm text-muted-foreground">Your assignments were not deleted.</p>
+          <Button size="sm" variant="outline" onClick={() => void reload()}>Try again</Button>
+        </CardContent></Card>
       ) : items.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center space-y-3">

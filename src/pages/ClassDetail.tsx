@@ -24,12 +24,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
 import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 export default function ClassDetail() {
   const { classId } = useParams();
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
-  const { classes: myClasses } = useMyClasses();
+  const { classes: myClasses, loading: classesLoading, error: classesError, reload: reloadClasses } = useMyClasses();
   const { open: openCapture } = useCapture();
   const realMode = !!user && !isDemoMode;
 
@@ -41,6 +42,18 @@ export default function ClassDetail() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [classHints, setClassHints] = useState<ProfessorHint[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+
+  if (realMode && classesLoading) {
+    return <p className="py-20 text-center text-sm text-muted-foreground">Loading your class…</p>;
+  }
+
+  if (realMode && classesError) {
+    return (
+      <div className="max-w-3xl mx-auto py-12">
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      </div>
+    );
+  }
 
   if (!c) {
     return (

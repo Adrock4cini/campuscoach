@@ -21,6 +21,7 @@ import type {
   CaptureResult,
   ProcessingStep,
 } from "@/lib/capture/types";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 interface Props {
   open: boolean;
@@ -29,7 +30,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Stage = "menu" | "context" | "processing" | "done";
+type Stage = "menu" | "context" | "processing" | "done" | "error";
 
 const MENU: {
   kind: CaptureKind;
@@ -57,7 +58,12 @@ const REAL_PROCESSING_STEPS: ProcessingStep[] = [
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
-  const { classes: myClasses, loading: classesLoading } = useMyClasses();
+  const {
+    classes: myClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
   const realMode = !!user && !isDemoMode;
   const classes = realMode ? myClasses : demoClasses;
 
@@ -83,6 +89,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<CaptureResult | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   // Reset every open
   useEffect(() => {
@@ -93,6 +100,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setKind(canOpenInitial ? initialKind : null);
     setStepIndex(0);
     setResult(null);
+    setCaptureError(null);
     setCtx({
       classId: defaultClassId,
       date: new Date().toISOString().slice(0, 10),
@@ -112,17 +120,35 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     if (!kind) return;
     setStage("processing");
     setStepIndex(0);
+    setCaptureError(null);
 
-    // Kick off the real (mock) commit in parallel with the step animation.
-    const commitPromise = commitCapture(kind, ctx, { simulateDerivedContent: !realMode });
+    // Kick off the commit in parallel with the step animation. Convert a
+    // rejection into data immediately so it cannot become an unhandled promise
+    // while the progress animation is still running.
+    const commitPromise = commitCapture(kind, ctx, {
+      simulateDerivedContent: !realMode,
+      requireRemotePersistence: realMode,
+    })
+      .then((value) => ({ value, error: null as Error | null }))
+      .catch((error: unknown) => ({
+        value: null,
+        error: error instanceof Error ? error : new Error(String(error)),
+      }));
     const processingSteps = realMode ? REAL_PROCESSING_STEPS : PROCESSING_STEPS;
 
     for (let i = 0; i < processingSteps.length; i++) {
       setStepIndex(i);
       await new Promise((r) => setTimeout(r, processingSteps[i].duration));
     }
-    const r = await commitPromise;
-    setResult(r);
+    const outcome = await commitPromise;
+    if (outcome.error || !outcome.value) {
+      setCaptureError(
+        outcome.error?.message ?? "We couldn't save this capture. Check your connection and try again.",
+      );
+      setStage("error");
+      return;
+    }
+    setResult(outcome.value);
     setStage("done");
   };
 
@@ -180,7 +206,12 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     {stage === "menu" && "What are you capturing?"}
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
-                    {stage === "done" && "Added to Campus Brain"}
+                    {stage === "done" && (
+                      result?.processingStatus === "failed"
+                        ? "Saved to Class Memory"
+                        : "Added to Campus Brain"
+                    )}
+                    {stage === "error" && "Capture wasn't saved"}
                   </h2>
                 </div>
                 <button
@@ -225,8 +256,16 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               {/* CONTEXT FORM */}
               {stage === "context" && meta && (
                 <div className="space-y-3">
-                  <Field label="Class">
-                    {classesLoading ? (
+                  {classesError && !classesLoading ? (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Class</span>
+                      <div className="mt-1">
+                        <ClassesLoadError compact onRetry={() => void reloadClasses()} />
+                      </div>
+                    </div>
+                  ) : (
+                    <Field label="Class">
+                      {classesLoading ? (
                       <div className="h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-muted-foreground flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading your classes…
                       </div>
@@ -255,8 +294,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
-                    )}
-                  </Field>
+                      )}
+                    </Field>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Date">
@@ -337,6 +377,34 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   }}
                 />
               )}
+
+              {/* ERROR */}
+              {stage === "error" && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+                    <p className="text-sm font-medium text-foreground">Your note is still here.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {captureError ?? "We couldn't save it yet. Check your connection and try again."}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStage("context")}
+                      className="flex-1 h-11 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground"
+                    >
+                      Review note
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void startProcessing()}
+                      className="btn-glow flex-1 h-11 rounded-2xl text-sm font-medium"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
@@ -397,18 +465,35 @@ function DoneSummary({
   onOpenClass: () => void;
   className?: string;
 }) {
-  const cls = { name: className || demoClasses.find((c) => c.id === result.context.classId)?.name || "your class" };
+  const cls = { name: className || "your class" };
+  const processingFailed = result.processingStatus === "failed";
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-success/25 bg-success/5 p-4 flex items-start gap-3">
-        <div className="h-9 w-9 rounded-full bg-success/20 text-success flex items-center justify-center shrink-0">
+      <div className={`rounded-2xl border p-4 flex items-start gap-3 ${
+        processingFailed
+          ? "border-warning/30 bg-warning/5"
+          : "border-success/25 bg-success/5"
+      }`}>
+        <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
+          processingFailed ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
+        }`}>
           <Check className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Saved to {cls?.name}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{result.summary}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {processingFailed
+              ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
+              : result.summary}
+          </p>
         </div>
       </div>
+
+      {processingFailed && (
+        <p className="text-xs text-muted-foreground">
+          Open the class and tap Retry. Study tools will stay off until the concepts are ready.
+        </p>
+      )}
 
       {result.keyConcepts.length > 0 && (
         <div>

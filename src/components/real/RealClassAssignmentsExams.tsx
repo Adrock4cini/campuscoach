@@ -11,15 +11,30 @@ import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hook
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
 import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
+import { toast } from "sonner";
 
 export function RealClassAssignmentsExams({ classId }: { classId: string }) {
-  const { items: assignments } = useRealAssignments(classId);
-  const { items: exams } = useRealExams(classId);
+  const {
+    items: assignments,
+    loading: assignmentsLoading,
+    error: assignmentsError,
+    reload: reloadAssignments,
+  } = useRealAssignments(classId);
+  const {
+    items: exams,
+    loading: examsLoading,
+    error: examsError,
+    reload: reloadExams,
+  } = useRealExams(classId);
   const [addA, setAddA] = useState(false);
   const [addE, setAddE] = useState(false);
 
   const toggle = async (id: string, status: AssignmentStatus) => {
-    await updateAssignment(id, { status: status === "complete" ? "not_started" : "complete" });
+    const updated = await updateAssignment(id, { status: status === "complete" ? "not_started" : "complete" });
+    if (!updated) {
+      toast.error("Couldn’t update assignment");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
   };
 
@@ -34,7 +49,13 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>
-          {assignments.length === 0 ? (
+          {assignmentsLoading ? (
+            <p className="text-xs text-muted-foreground">Loading assignments…</p>
+          ) : assignmentsError ? (
+            <button className="text-xs text-primary" onClick={() => void reloadAssignments()}>
+              Couldn’t load assignments · Try again
+            </button>
+          ) : assignments.length === 0 ? (
             <p className="text-xs text-muted-foreground">No assignments yet.</p>
           ) : (
             <ul className="space-y-2">
@@ -70,7 +91,13 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>
-          {exams.length === 0 ? (
+          {examsLoading ? (
+            <p className="text-xs text-muted-foreground">Loading exams…</p>
+          ) : examsError ? (
+            <button className="text-xs text-primary" onClick={() => void reloadExams()}>
+              Couldn’t load exams · Try again
+            </button>
+          ) : exams.length === 0 ? (
             <p className="text-xs text-muted-foreground">No exams yet.</p>
           ) : (
             <ul className="space-y-2">

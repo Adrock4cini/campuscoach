@@ -40,6 +40,21 @@ const artifact: LearningArtifact<"flashcards"> = {
   updated_at: "2026-07-15T00:00:00.000Z",
 };
 
+const multipleChoiceArtifact: LearningArtifact<"multiple_choice"> = {
+  ...artifact,
+  id: "artifact-2",
+  kind: "multiple_choice",
+  payload: {
+    questions: [{
+      prompt: "What does 2 + 2 equal?",
+      choices: ["3", "4", "5"],
+      answerIndex: 1,
+      rationale: "The source states that 2 + 2 equals 4.",
+      conceptId: "concept-1",
+    }],
+  },
+};
+
 describe("real flashcard runner", () => {
   it("explains the mastery loop and waits to grade until the answer is revealed", () => {
     render(
@@ -73,10 +88,13 @@ describe("real flashcard runner", () => {
       <RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />,
     );
 
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
 
     expect(screen.getByText(/last card rated/i)).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
     expect(screen.getByRole("button", { name: /finish session/i })).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalled();
 
@@ -101,5 +119,71 @@ describe("real flashcard runner", () => {
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
 
     expect(await screen.findByText(/readiness/i)).toHaveTextContent("+15 points · now 61%");
+  });
+
+  it("leaves saving state and lets the student retry after a network rejection", async () => {
+    invoke.mockRejectedValueOnce(new Error("offline"));
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/saving results/i)).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/answers are still here/i);
+    expect(screen.getByRole("button", { name: /try saving again/i })).toBeEnabled();
+    expect(screen.queryByText("Session saved")).not.toBeInTheDocument();
+  });
+
+  it("retries the same final multiple-choice result without grading it twice", async () => {
+    invoke.mockClear();
+    invoke
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ data: { readiness: 42 }, error: null });
+    render(
+      <RealStudyRunner
+        open
+        onOpenChange={vi.fn()}
+        artifact={multipleChoiceArtifact}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still here/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /try saving again/i }));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+
+    expect(invoke).toHaveBeenCalledTimes(2);
+    const attemptIds = invoke.mock.calls.map((call) => call[1].body.attemptId);
+    expect(attemptIds[0]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(attemptIds[1]).toBe(attemptIds[0]);
+    for (const call of invoke.mock.calls) {
+      expect(call[1].body).toMatchObject({ correct: 1, total: 1 });
+    }
+  });
+
+  it("warns before closing a session with unsaved answers", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <RealStudyRunner
+        open
+        onOpenChange={onOpenChange}
+        artifact={artifact}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(/leave study session/i);
+    expect(screen.getByText(/answers have not been saved/i)).toBeInTheDocument();
   });
 });
