@@ -15,6 +15,7 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 /**
  * Dashboard — the intelligent home screen.
@@ -27,7 +28,7 @@ export default function Dashboard() {
   const { mode } = useAuth();
   const priorities = useClassPriorities();
   const insight = useCampusBrainInsight();
-  const { classes: myClasses, loading } = useMyClasses();
+  const { classes: myClasses, loading, error: classesError, reload: reloadClasses } = useMyClasses();
 
   // Single source of truth: `mode` decides demo-vs-real for EVERY widget below.
   const realMode = mode === "real";
@@ -48,7 +49,9 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto space-y-5 md:space-y-6">
       <TopStrip />
 
-      {hasNoRealData ? (
+      {realMode && !loading && classesError ? (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      ) : hasNoRealData ? (
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
