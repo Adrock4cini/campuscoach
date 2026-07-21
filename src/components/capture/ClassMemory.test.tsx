@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   mode: "real" as "real" | "demo" | "loading",
   listCaptures: vi.fn(),
   getCapturesForClass: vi.fn(),
+  retryCaptureConcepts: vi.fn(),
   navigate: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("@/lib/capture/processor", async (importOriginal) => {
 
 vi.mock("@/lib/supabase/capturePersistence", () => ({
   getCapturesForClass: mocks.getCapturesForClass,
+  retryCaptureConcepts: mocks.retryCaptureConcepts,
 }));
 
 vi.mock("./CaptureDetailDrawer", () => ({
@@ -67,7 +69,7 @@ const realCapture = {
   flashcardsReady: false,
   createdAt: "2026-07-20T11:00:00.000Z",
   summary: "My real math note",
-  keyConcepts: [],
+  keyConcepts: ["Discriminant"],
   rawText: "x equals negative b plus or minus...",
 };
 
@@ -76,6 +78,7 @@ describe("Class Memory data boundaries", () => {
     mocks.mode = "real";
     mocks.listCaptures.mockReset().mockReturnValue([localSample]);
     mocks.getCapturesForClass.mockReset().mockResolvedValue([realCapture]);
+    mocks.retryCaptureConcepts.mockReset().mockResolvedValue(undefined);
     mocks.navigate.mockReset();
   });
 
@@ -116,6 +119,28 @@ describe("Class Memory data boundaries", () => {
     expect(await screen.findByText("Couldn’t load Class Memory")).toBeInTheDocument();
     expect(screen.getByText(/saved captures were not deleted/i)).toBeInTheDocument();
     expect(screen.queryByText(/nothing captured yet/i)).not.toBeInTheDocument();
+  });
+
+  it("repairs a legacy false-ready capture and offers a safe retry instead of Study", async () => {
+    mocks.getCapturesForClass.mockResolvedValueOnce([{
+      ...realCapture,
+      processingStatus: "ready",
+      keyConcepts: [],
+    }]);
+
+    render(<ClassMemory classId="math" className="Math" />);
+
+    expect(await screen.findByText("needs attention")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^study/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(mocks.retryCaptureConcepts).toHaveBeenCalledWith(expect.objectContaining({
+        id: "remote-real",
+        clientClassId: "math",
+        rawText: realCapture.rawText,
+      }));
+    });
   });
 
   it("ignores a stale response after the student switches classes", async () => {
