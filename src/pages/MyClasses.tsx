@@ -8,12 +8,21 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 export default function MyClasses() {
-  const { classes, isReal, loading } = useMyClasses();
+  const { classes, isReal, loading, error, reload } = useMyClasses();
   const { user, isDemoMode } = useAuth();
   const realMode = !!user && !isDemoMode;
   const navigate = useNavigate();
+
+  if (realMode && !loading && error) {
+    return (
+      <div className="max-w-3xl mx-auto pt-8">
+        <ClassesLoadError onRetry={() => void reload()} />
+      </div>
+    );
+  }
 
   if (realMode && !loading && classes.length === 0) {
     return (
