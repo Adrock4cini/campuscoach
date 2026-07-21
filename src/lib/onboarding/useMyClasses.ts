@@ -40,34 +40,42 @@ export function resolveLatestReadiness(
   return latest ? latest.readiness : fallback;
 }
 
-export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading: boolean } {
+interface MyClassesState {
+  classes: ClassInfo[];
+  isReal: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+export function useMyClasses(): MyClassesState & { reload: () => Promise<void> } {
   const { user, mode } = useAuth();
   const userId = user?.id;
   const realMode = mode === "real";
   const requestVersion = useRef(0);
-  const [state, setState] = useState<{ classes: ClassInfo[]; isReal: boolean; loading: boolean }>(() => ({
+  const [state, setState] = useState<MyClassesState>(() => ({
     // Signed-in real users NEVER see demo classes — start empty while loading.
     classes: mode === "demo" ? demoClasses : [],
     isReal: realMode,
     loading: mode !== "demo",
+    error: null,
   }));
 
   const load = useCallback(async () => {
     const request = ++requestVersion.current;
     if (mode === "loading") {
-      setState({ classes: [], isReal: false, loading: true });
+      setState({ classes: [], isReal: false, loading: true, error: null });
       return;
     }
     if (mode === "demo") {
-      setState({ classes: demoClasses, isReal: false, loading: false });
+      setState({ classes: demoClasses, isReal: false, loading: false, error: null });
       return;
     }
     if (!userId) {
-      setState({ classes: [], isReal: false, loading: false });
+      setState({ classes: [], isReal: false, loading: false, error: null });
       return;
     }
 
-    setState((current) => ({ ...current, isReal: true, loading: true }));
+    setState((current) => ({ ...current, isReal: true, loading: true, error: null }));
     try {
       const [classResult, readinessResult] = await Promise.all([
         supabase
@@ -88,7 +96,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
       const data = classResult.data;
       if (!data || data.length === 0) {
         // Real signed-in user with no classes yet — return empty (real mode).
-        setState({ classes: [], isReal: true, loading: false });
+        setState({ classes: [], isReal: true, loading: false, error: null });
         return;
       }
       const readinessRows = (readinessResult.data ?? []) as ReadinessSnapshot[];
@@ -120,11 +128,16 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
           chapters: [],
         };
       });
-      setState({ classes: mapped, isReal: true, loading: false });
+      setState({ classes: mapped, isReal: true, loading: false, error: null });
     } catch (e) {
       if (request !== requestVersion.current) return;
-      console.warn("[useMyClasses] load failed; showing empty real state (no demo fallback for signed-in users)", e);
-      setState({ classes: [], isReal: true, loading: false });
+      console.warn("[useMyClasses] load failed; preserving an explicit error state", e);
+      setState({
+        classes: [],
+        isReal: true,
+        loading: false,
+        error: "Couldn’t load your classes. Your saved classes were not deleted.",
+      });
     }
   }, [mode, userId]);
 
@@ -138,7 +151,7 @@ export function useMyClasses(): { classes: ClassInfo[]; isReal: boolean; loading
     return () => window.removeEventListener("coach:refresh", handler);
   }, [load]);
 
-  return state;
+  return { ...state, reload: load };
 }
 
 const palette = ["bg-primary", "bg-success", "bg-accent", "bg-warning", "bg-danger"];
