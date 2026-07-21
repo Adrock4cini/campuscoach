@@ -84,6 +84,28 @@ describe("capture journey", () => {
     expect(listCaptures()).toEqual([]);
   });
 
+  it("keeps a saved note successful while surfacing a failed AI handoff", async () => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = "failed";
+      result.processingMessage = "Your note is safe, but Campus Brain couldn't finish processing it.";
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "quick-note",
+      {
+        classId: "math",
+        date: "2026-07-20",
+        text: "The quadratic formula will be on the exam.",
+      },
+      { simulateDerivedContent: false, requireRemotePersistence: true },
+    );
+
+    expect(result.processingStatus).toBe("failed");
+    expect(result.processingMessage).toMatch(/note is safe/i);
+    expect(listCaptures()).toEqual([]);
+  });
+
   it("does not report success when a required remote save fails", async () => {
     mocks.persistCaptureResult.mockResolvedValueOnce(null);
 
