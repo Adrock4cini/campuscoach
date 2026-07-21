@@ -17,6 +17,7 @@ import {
   Brain, Zap, Target, Gamepad2, Clock,
   ArrowRight, Sparkles, Trophy
 } from "lucide-react";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 const secondaryModes: { icon: React.ElementType; label: string; mode: StudyMode }[] = [
   { icon: Brain, label: "Flashcards", mode: "flashcards" },
@@ -34,7 +35,12 @@ export default function StudyLab() {
   const navigate = useNavigate();
   const { mode: authMode } = useAuth();
   const isRealUser = authMode === "real";
-  const { classes: availableClasses, loading: classesLoading } = useMyClasses();
+  const {
+    classes: availableClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
 
   const preselectedClass = searchParams.get("classId");
   const requestedCaptureId = searchParams.get("captureId") || undefined;
@@ -96,7 +102,10 @@ export default function StudyLab() {
       {isRealUser && classesLoading && (
         <p className="text-sm text-muted-foreground">Loading your classes…</p>
       )}
-      {isRealUser && !classesLoading && !effectiveClass && (
+      {isRealUser && !classesLoading && classesError && (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      )}
+      {isRealUser && !classesLoading && !classesError && !effectiveClass && (
         <Card className="border-dashed border-border/50">
           <CardContent className="p-6 text-center">
             <p className="text-sm text-foreground">Add a class before starting a study session.</p>
@@ -104,7 +113,7 @@ export default function StudyLab() {
           </CardContent>
         </Card>
       )}
-      {isRealUser && effectiveClass && (
+      {isRealUser && !classesError && effectiveClass && (
         <RealStudySet
           classId={effectiveClass}
           initialCaptureId={activeCaptureId}
