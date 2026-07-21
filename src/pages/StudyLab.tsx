@@ -37,11 +37,18 @@ export default function StudyLab() {
   const { classes: availableClasses, loading: classesLoading } = useMyClasses();
 
   const preselectedClass = searchParams.get("classId");
+  const requestedCaptureId = searchParams.get("captureId") || undefined;
+  const requestedFormat = searchParams.get("format") === "multiple_choice"
+    ? "multiple_choice"
+    : "flashcards";
   const coachConceptIds = parseCoachConceptIds(searchParams.get("conceptIds"));
   const coachStudyScope = buildCoachStudyScope(coachConceptIds);
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [selectedClass, setSelectedClass] = useState<string>(preselectedClass || "");
   const effectiveClass = selectedClass || availableClasses[0]?.id || "";
+  const activeCaptureId = effectiveClass === preselectedClass
+    ? requestedCaptureId
+    : undefined;
   // Study-format recommendation comes from the Intelligence Engine,
   // which also picks the topic to attack based on peer signal.
   const recommendation = useStudyFormatRecommendation(effectiveClass);
@@ -100,9 +107,11 @@ export default function StudyLab() {
       {isRealUser && effectiveClass && (
         <RealStudySet
           classId={effectiveClass}
+          initialCaptureId={activeCaptureId}
+          initialKind={requestedFormat}
           initialConceptIds={coachConceptIds}
           initialStudyScope={coachStudyScope ?? undefined}
-          autoStart={Boolean(coachStudyScope)}
+          autoStart={Boolean(coachStudyScope || activeCaptureId)}
         />
       )}
 
