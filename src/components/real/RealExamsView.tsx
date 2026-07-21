@@ -12,9 +12,15 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { deleteExam } from "@/lib/realData/exams";
 import { toast } from "sonner";
+import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 export function RealExamsView() {
-  const { classes: myClasses } = useMyClasses();
+  const {
+    classes: myClasses,
+    loading: classesLoading,
+    error: classesError,
+    reload: reloadClasses,
+  } = useMyClasses();
   const { items, loading, error, reload } = useRealExams();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -34,12 +40,16 @@ export function RealExamsView() {
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Exams</h1>
           <p className="text-xs text-muted-foreground mt-1">{items.length} upcoming</p>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={myClasses.length === 0}>
+        <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
           <Plus className="h-4 w-4 mr-1" /> Add
         </Button>
       </div>
 
-      {myClasses.length === 0 ? (
+      {classesLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-10">Loading classes…</p>
+      ) : classesError ? (
+        <ClassesLoadError onRetry={() => void reloadClasses()} />
+      ) : myClasses.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
           Add a class first so you can schedule exams for it.
         </CardContent></Card>
