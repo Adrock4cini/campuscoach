@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaptureResult } from "@/lib/capture/types";
 import { ClassMemory } from "./ClassMemory";
@@ -7,10 +7,11 @@ const mocks = vi.hoisted(() => ({
   mode: "real" as "real" | "demo" | "loading",
   listCaptures: vi.fn(),
   getCapturesForClass: vi.fn(),
+  navigate: vi.fn(),
 }));
 
 vi.mock("react-router-dom", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -75,6 +76,7 @@ describe("Class Memory data boundaries", () => {
     mocks.mode = "real";
     mocks.listCaptures.mockReset().mockReturnValue([localSample]);
     mocks.getCapturesForClass.mockReset().mockResolvedValue([realCapture]);
+    mocks.navigate.mockReset();
   });
 
   it("never mixes browser-local demo captures into a signed-in student's memory", async () => {
@@ -93,5 +95,16 @@ describe("Class Memory data boundaries", () => {
 
     expect(await screen.findByText("Atomic Composition")).toBeInTheDocument();
     expect(mocks.getCapturesForClass).not.toHaveBeenCalled();
+  });
+
+  it("routes a signed-in capture into the concept-backed study lab", async () => {
+    render(<ClassMemory classId="math" className="Math" />);
+
+    await screen.findByText("Quadratic Formula");
+    fireEvent.click(screen.getByRole("button", { name: /^study/i }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      "/study-lab?classId=math&captureId=remote-real&format=flashcards",
+    );
   });
 });
