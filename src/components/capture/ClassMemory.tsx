@@ -132,7 +132,9 @@ function dedupe(items: MemoryItem[]): MemoryItem[] {
 
 export function ClassMemory({ classId, className }: Props) {
   const { mode } = useAuth();
-  const [items, setItems] = useState<MemoryItem[]>(() => fromLocal(classId));
+  // Never hydrate browser-local demo captures while auth is resolving or for
+  // a signed-in student. Supabase is the only source of truth in real mode.
+  const [items, setItems] = useState<MemoryItem[]>([]);
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
@@ -148,12 +150,19 @@ export function ClassMemory({ classId, className }: Props) {
 
   const refresh = useMemo(
     () => async () => {
-      const local = fromLocal(classId);
+      if (mode === "loading") {
+        setItems([]);
+        return;
+      }
+      if (mode === "demo") {
+        setItems(dedupe(fromLocal(classId)));
+        return;
+      }
+
       const remote = fromPersisted(await getCapturesForClass(classId, 25));
-      // Prefer remote (has processed_content), then append any local-only.
-      setItems(dedupe([...remote, ...local]));
+      setItems(dedupe(remote));
     },
-    [classId],
+    [classId, mode],
   );
 
   useEffect(() => {
