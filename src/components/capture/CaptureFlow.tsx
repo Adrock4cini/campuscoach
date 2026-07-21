@@ -231,25 +231,64 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                       Detected class: <span className="font-medium">{detected.name}</span> · {detected.currentTopic}
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    {MENU.map((m) => (
-                      <button
-                        key={m.kind}
-                        onClick={() => chooseKind(m.kind)}
-                        disabled={realMode && !m.availableForRealUsers}
-                        className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[84px] flex flex-col disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border/50 disabled:hover:bg-background/30"
-                      >
-                        <m.icon className="h-5 w-5 text-primary mb-1.5" />
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
-                          {realMode && !m.availableForRealUsers && (
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Coming soon</span>
-                          )}
+                  {realMode ? (
+                    <div className="space-y-4">
+                      <div>
+                        <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                          Capture now
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {MENU.filter((item) => item.availableForRealUsers).map((m) => (
+                            <button
+                              key={m.kind}
+                              onClick={() => chooseKind(m.kind)}
+                              className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[92px] flex flex-col"
+                            >
+                              <m.icon className="h-5 w-5 text-primary mb-1.5" />
+                              <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
+                              <p className="text-[11px] text-muted-foreground mt-1 leading-tight">{m.hint}</p>
+                            </button>
+                          ))}
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-tight">{m.hint}</p>
-                      </button>
-                    ))}
-                  </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/40 bg-background/20 p-3">
+                        <div className="flex items-center justify-between gap-3 mb-2.5">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                            Coming next
+                          </p>
+                          <span className="text-[10px] text-muted-foreground">Not tappable yet</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2" role="list" aria-label="Coming next">
+                          {MENU.filter((item) => !item.availableForRealUsers).map((m) => (
+                            <div
+                              key={m.kind}
+                              role="listitem"
+                              aria-disabled="true"
+                              className="flex items-center gap-2 min-w-0 text-muted-foreground/75"
+                            >
+                              <m.icon className="h-4 w-4 shrink-0" />
+                              <span className="text-xs truncate">{CAPTURE_LABELS[m.kind]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {MENU.map((m) => (
+                        <button
+                          key={m.kind}
+                          onClick={() => chooseKind(m.kind)}
+                          className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[84px] flex flex-col"
+                        >
+                          <m.icon className="h-5 w-5 text-primary mb-1.5" />
+                          <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-tight">{m.hint}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
