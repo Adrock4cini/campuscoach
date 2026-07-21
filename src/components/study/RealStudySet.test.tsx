@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   artifact: null as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice"> | null,
   generate: vi.fn(),
   reload: vi.fn(),
+  invoke: vi.fn(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { functions: { invoke: mocks.invoke } },
 }));
 
 vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
@@ -67,8 +72,12 @@ function artifact(promptVersion: string): LearningArtifact<"flashcards"> {
 
 describe("real study set freshness", () => {
   beforeEach(() => {
-    mocks.generate.mockClear();
+    mocks.generate.mockReset().mockResolvedValue(null);
     mocks.reload.mockClear();
+    mocks.invoke.mockReset().mockResolvedValue({
+      data: { readiness: 61, readinessDelta: 15 },
+      error: null,
+    });
   });
 
   it("blocks an older ungrounded set until it is refreshed", () => {
@@ -134,5 +143,33 @@ describe("real study set freshness", () => {
     expect(screen.getByRole("button", { name: "Coach picks" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/weak, overdue, and high-impact concepts/i)).toBeInTheDocument();
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
+  });
+
+  it("ignores a rapid second build tap for the same study target", () => {
+    mocks.artifact = null;
+    render(<RealStudySet classId="math" />);
+
+    const build = screen.getByRole("button", { name: /build study set/i });
+    fireEvent.click(build);
+    fireEvent.click(build);
+
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false });
+  });
+
+  it("keeps saved results open and reloads only after Done", async () => {
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+    render(<RealStudySet classId="math" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /study now/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(mocks.reload).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(mocks.reload).toHaveBeenCalledTimes(1);
   });
 });
