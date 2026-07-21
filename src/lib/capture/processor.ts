@@ -107,7 +107,10 @@ export function listCaptures(): CaptureResult[] {
 export async function commitCapture(
   kind: CaptureKind,
   context: CaptureContext,
-  options: { simulateDerivedContent?: boolean } = {},
+  options: {
+    simulateDerivedContent?: boolean;
+    requireRemotePersistence?: boolean;
+  } = {},
 ): Promise<CaptureResult> {
   const cls = classes.find((c) => c.id === context.classId);
   const topicName = context.topic || cls?.currentTopic || "General";
@@ -126,10 +129,32 @@ export async function commitCapture(
     flashcardCount: simulateDerivedContent && kind !== "quick-note" && kind !== "ask-brain" ? 6 : 0,
   };
 
-  saveStore([result, ...loadStore()]);
+  const persist = async () => {
+    const { persistCaptureResult } = await import(
+      "@/lib/supabase/capturePersistence"
+    );
+    return persistCaptureResult(result);
+  };
+
+  if (options.requireRemotePersistence) {
+    try {
+      const persistedId = await persist();
+      if (!persistedId) throw new Error("Capture persistence returned no id");
+    } catch (error) {
+      console.warn("[capture] required Supabase save failed", error);
+      throw new Error("We couldn't save this capture. Check your connection and try again.");
+    }
+  } else {
+    // Demo and signed-out captures remain device-local and keep working
+    // offline. Real captures never enter this shared browser store.
+    saveStore([result, ...loadStore()]);
+
+    void persist().catch(() => undefined);
+  }
 
   // Notify any listening surface (e.g. Class Memory) so newly captured
-  // items can appear without a full refresh.
+  // items can appear without a full refresh. For real captures this fires
+  // only after Supabase confirms the durable write.
   try {
     window.dispatchEvent(
       new CustomEvent("capture:committed", { detail: result }),
@@ -137,20 +162,6 @@ export async function commitCapture(
   } catch {
     /* non-browser env */
   }
-
-  // Mirror to Supabase — non-blocking, gracefully falls back to the
-  // local store if the write fails. Import kept lazy so the module
-  // stays testable without the Supabase client in scope.
-  void (async () => {
-    try {
-      const { persistCaptureResult } = await import(
-        "@/lib/supabase/capturePersistence"
-      );
-      await persistCaptureResult(result);
-    } catch {
-      /* offline / not configured — local store is source of truth */
-    }
-  })();
 
   // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
   void (async () => {
