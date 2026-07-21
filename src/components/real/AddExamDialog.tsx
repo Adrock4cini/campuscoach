@@ -3,7 +3,7 @@
  * Emits `real-exams:changed` on success.
  */
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +28,6 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
   const [classId, setClassId] = useState(defaultClientClassId || "");
   const [examDate, setExamDate] = useState("");
   const [topicsRaw, setTopicsRaw] = useState("");
-  const [readiness, setReadiness] = useState("30");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -38,7 +37,6 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
     setClassId(defaultClientClassId || myClasses[0]?.id || "");
     setExamDate("");
     setTopicsRaw("");
-    setReadiness("30");
     setNotes("");
   }, [open, defaultClientClassId, myClasses]);
 
@@ -58,7 +56,8 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
       clientClassId: classId,
       examDate: examDate || null,
       topics,
-      readiness: Math.max(0, Math.min(100, parseInt(readiness) || 0)),
+      // Readiness is earned from concept mastery, never self-reported.
+      readiness: 0,
       notes: notes.trim() || null,
     });
     setSaving(false);
@@ -77,6 +76,9 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add exam</DialogTitle>
+          <DialogDescription>
+            Add the date and topics. Readiness will grow from your study results.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -94,15 +96,9 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Exam date</Label>
-              <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Readiness (%)</Label>
-              <Input type="number" min="0" max="100" value={readiness} onChange={(e) => setReadiness(e.target.value)} />
-            </div>
+          <div>
+            <Label>Exam date</Label>
+            <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
           </div>
           <div>
             <Label>Topics <span className="text-xs text-muted-foreground">(comma or newline separated)</span></Label>
