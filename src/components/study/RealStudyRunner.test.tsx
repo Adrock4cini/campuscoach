@@ -162,4 +162,23 @@ describe("real flashcard runner", () => {
       expect(call[1].body).toMatchObject({ correct: 1, total: 1 });
     }
   });
+
+  it("warns before closing a session with unsaved answers", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <RealStudyRunner
+        open
+        onOpenChange={onOpenChange}
+        artifact={artifact}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(/leave study session/i);
+    expect(screen.getByText(/answers have not been saved/i)).toBeInTheDocument();
+  });
 });
