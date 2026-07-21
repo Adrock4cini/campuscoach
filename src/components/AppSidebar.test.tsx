@@ -53,7 +53,7 @@ describe("signed-in product navigation", () => {
       "/path-to-graduation",
     );
     expect(screen.getByRole("link", { name: /Your Week Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Calendar Preview/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/calendar");
     expect(screen.getByRole("link", { name: /Notes & Recordings Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Scholarships Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Class Intelligence Preview/i })).toBeInTheDocument();

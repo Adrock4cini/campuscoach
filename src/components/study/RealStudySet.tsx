@@ -28,6 +28,7 @@ import { useRealExams } from "@/lib/realData/hooks";
 interface Props {
   classId?: string;
   initialCaptureId?: string;
+  initialExamId?: string;
   initialKind?: Kind;
   initialConceptIds?: string[];
   initialStudyScope?: StudyScope;
@@ -52,6 +53,7 @@ function targetButtonLabel(target: StudyScope) {
 export function RealStudySet({
   classId,
   initialCaptureId,
+  initialExamId,
   initialKind = "flashcards",
   initialConceptIds = [],
   initialStudyScope,
@@ -65,7 +67,7 @@ export function RealStudySet({
       : undefined
   ), [initialCaptureId]);
   const initialTarget = initialStudyScope ?? captureStudyScope;
-  const [selectedTarget, setSelectedTarget] = useState(initialTarget?.id ?? "recent");
+  const [selectedTarget, setSelectedTarget] = useState(initialTarget?.id ?? initialExamId ?? "recent");
   const autoStartKey = useRef<string | null>(null);
   const generationInFlight = useRef(false);
   const reloadAfterStudy = useRef(false);
@@ -74,12 +76,12 @@ export function RealStudySet({
   const initialConceptKey = initialConceptIds.join(",");
 
   useEffect(() => {
-    setSelectedTarget(initialTarget?.id ?? "recent");
+    setSelectedTarget(initialTarget?.id ?? initialExamId ?? "recent");
     setKind(initialKind);
     setStudying(false);
     autoStartKey.current = null;
     reloadAfterStudy.current = false;
-  }, [classId, initialConceptKey, initialKind, initialTarget?.id]);
+  }, [classId, initialConceptKey, initialExamId, initialKind, initialTarget?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
     ...(initialTarget ? [initialTarget] : []),

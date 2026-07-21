@@ -8,6 +8,12 @@ export interface OnboardingAssignment {
   dueDate: string; // ISO YYYY-MM-DD
 }
 
+export interface OnboardingScheduleItem {
+  date: string; // ISO YYYY-MM-DD
+  topic: string;
+  dueItems?: string[];
+}
+
 export interface OnboardingClass {
   name: string;
   code?: string;
@@ -19,6 +25,7 @@ export interface OnboardingClass {
   textbook?: string;
   examDates?: OnboardingExam[];
   assignments?: OnboardingAssignment[];
+  schedule?: OnboardingScheduleItem[];
 }
 
 export type LearnerType = "high_school" | "college" | "certification" | "other";

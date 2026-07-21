@@ -94,7 +94,7 @@ const App = () => (
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
-                    <Route path="/calendar" element={<Protected><DemoOnly title="Calendar — coming soon" description="Your real calendar view is on the way. We'll pull in your classes, assignments, and exams automatically."><CalendarPage /></DemoOnly></Protected>} />
+                    <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
                     <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
                     <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
                     <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />

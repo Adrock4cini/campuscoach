@@ -44,6 +44,7 @@ export default function StudyLab() {
 
   const preselectedClass = searchParams.get("classId");
   const requestedCaptureId = searchParams.get("captureId") || undefined;
+  const requestedExamId = searchParams.get("examId") || undefined;
   const requestedFormat = searchParams.get("format") === "multiple_choice"
     ? "multiple_choice"
     : "flashcards";
@@ -125,6 +126,7 @@ export default function StudyLab() {
         <RealStudySet
           classId={effectiveClass}
           initialCaptureId={activeCaptureId}
+          initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
           initialKind={requestedFormat}
           initialConceptIds={coachConceptIds}
           initialStudyScope={coachStudyScope ?? undefined}

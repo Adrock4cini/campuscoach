@@ -29,7 +29,10 @@ Return ONLY JSON matching this schema, no prose:
       "endTime": string|null,               // e.g. "11:15 AM"
       "textbook": string|null,
       "examDates": [ { "label": string, "date": string } ],     // ISO YYYY-MM-DD
-      "assignments": [ { "label": string, "dueDate": string } ] // ISO YYYY-MM-DD
+      "assignments": [ { "label": string, "dueDate": string } ], // ISO YYYY-MM-DD
+      "schedule": [
+        { "date": string, "topic": string, "dueItems": string[] }
+      ] // dated lecture/agenda topics and work due that day
     }
   ]
 }
@@ -37,6 +40,7 @@ Rules:
 - Never invent data. Use null / [] when unknown.
 - Normalize days to 3-letter form.
 - Convert dates to ISO YYYY-MM-DD; if only month/day is present, use the term's year when obvious, else null.
+- Preserve dated agenda/course-calendar topics in schedule. Put each dated reading, quiz, paper, or other deliverable in assignments too; never leave it only in dueItems.
 - If the document covers a single class, still return an array of length 1.`;
 
 Deno.serve(async (req) => {

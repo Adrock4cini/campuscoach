@@ -36,6 +36,7 @@ export async function parseSyllabusFile(
     days: Array.isArray(c.days) ? c.days : [],
     examDates: Array.isArray(c.examDates) ? c.examDates : [],
     assignments: Array.isArray(c.assignments) ? c.assignments : [],
+    schedule: Array.isArray(c.schedule) ? c.schedule : [],
   }));
   return result;
 }
