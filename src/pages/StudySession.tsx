@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import {
   StudyMode, getQuestionsForSession, getMatchingForSession,
   getModeType, modeLabels, StudyQuestion,
@@ -17,10 +17,32 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+
+export function buildRealStudyLabPath(searchParams: URLSearchParams) {
+  const next = new URLSearchParams();
+  const classId = searchParams.get("classId");
+  const captureId = searchParams.get("captureId");
+  const conceptIds = searchParams.get("conceptIds");
+  const requestedMode = searchParams.get("format") ?? searchParams.get("mode");
+  const format = requestedMode === "multiple_choice"
+    || requestedMode === "multiple-choice"
+    || requestedMode === "quiz"
+    ? "multiple_choice"
+    : "flashcards";
+
+  if (classId) next.set("classId", classId);
+  if (captureId) next.set("captureId", captureId);
+  if (conceptIds) next.set("conceptIds", conceptIds);
+  next.set("format", format);
+
+  return `/study-lab?${next.toString()}`;
+}
 
 export default function StudySession() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { mode: authMode } = useAuth();
   const initialMode = (searchParams.get("mode") as StudyMode) || "flashcards";
   const initialClassId = searchParams.get("classId") || undefined;
   const initialTopic = searchParams.get("topic") || undefined;
@@ -32,6 +54,13 @@ export default function StudySession() {
 
   const engine = useStudySession();
   const { phase, session, elapsed, currentQuestion, isLastQuestion, scorePercent } = engine;
+
+  // This page is the device-local demo question engine. Signed-in students
+  // must use the concept-backed Study Lab so sample questions can never be
+  // mistaken for their own class material or update real mastery.
+  if (authMode === "real") {
+    return <Navigate to={buildRealStudyLabPath(searchParams)} replace />;
+  }
 
   const handleSetupStart = (config: { classId: string; topic: string; difficulty: "easy" | "medium" | "hard" | "mixed"; count: number; duration?: number }) => {
     let questions: StudyQuestion[];
