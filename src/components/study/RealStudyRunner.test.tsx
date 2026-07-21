@@ -88,10 +88,13 @@ describe("real flashcard runner", () => {
       <RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />,
     );
 
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
 
     expect(screen.getByText(/last card rated/i)).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
     expect(screen.getByRole("button", { name: /finish session/i })).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalled();
 
