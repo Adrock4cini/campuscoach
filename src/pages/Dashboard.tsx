@@ -86,7 +86,7 @@ export default function Dashboard() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.05 }}
-              className="space-y-2"
+              className={`space-y-2 ${realMode ? "order-2 lg:order-1" : ""}`}
             >
               <div className="flex items-baseline justify-between px-1">
                 <h2 className="text-sm font-medium text-foreground/80">Your classes</h2>
@@ -113,10 +113,10 @@ export default function Dashboard() {
               )}
             </motion.section>
 
-            <aside className="space-y-4 lg:sticky lg:top-4 self-start">
+            <aside className={`space-y-4 lg:sticky lg:top-4 self-start ${realMode ? "order-1 lg:order-2" : ""}`}>
               {demoMode && <TodaysChecklist />}
               {demoMode && <BrainOneLiner insight={insight} />}
-              {realMode && <RealTodaysPlan />}
+              {realMode && <RealTodaysPlan classes={ordered} />}
             </aside>
           </div>
 
