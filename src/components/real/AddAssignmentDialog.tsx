@@ -3,7 +3,7 @@
  * Emits `real-assignments:changed` on success so pages can refresh.
  */
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,13 +36,19 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
   useEffect(() => {
     if (!open) return;
     setTitle("");
-    setClassId(defaultClientClassId || myClasses[0]?.id || "");
+    setClassId(defaultClientClassId || "");
     setDueDate("");
     setMinutes("60");
     setPriority("medium");
     setStatus("not_started");
     setNotes("");
-  }, [open, defaultClientClassId, myClasses]);
+  }, [open, defaultClientClassId]); // initialize once per opening
+
+  useEffect(() => {
+    if (open && !classId && myClasses[0]?.id) {
+      setClassId(defaultClientClassId || myClasses[0].id);
+    }
+  }, [classId, defaultClientClassId, myClasses, open]);
 
   const submit = async () => {
     if (!user) return;
@@ -51,26 +57,31 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
       return;
     }
     setSaving(true);
-    const cls = myClasses.find((c) => c.id === classId);
-    const row = await createAssignment(user.id, {
-      title: title.trim(),
-      clientClassId: classId,
-      classUuid: cls?.uuid ?? null,
-      dueDate: dueDate || null,
-      estimatedMinutes: parseInt(minutes) || 30,
-      priority,
-      status,
-      notes: notes.trim() || null,
-    });
-    setSaving(false);
-    if (!row) {
-      toast.error("Couldn't save assignment");
-      return;
+    try {
+      const cls = myClasses.find((c) => c.id === classId);
+      const row = await createAssignment(user.id, {
+        title: title.trim(),
+        clientClassId: classId,
+        classUuid: cls?.uuid ?? null,
+        dueDate: dueDate || null,
+        estimatedMinutes: parseInt(minutes) || 30,
+        priority,
+        status,
+        notes: notes.trim() || null,
+      });
+      if (!row) {
+        toast.error("Couldn't save assignment");
+        return;
+      }
+      toast.success("Assignment added");
+      window.dispatchEvent(new CustomEvent("real-assignments:changed"));
+      onCreated?.();
+      onOpenChange(false);
+    } catch {
+      toast.error("Couldn't save assignment. Your work is still here.");
+    } finally {
+      setSaving(false);
     }
-    toast.success("Assignment added");
-    window.dispatchEvent(new CustomEvent("real-assignments:changed"));
-    onCreated?.();
-    onOpenChange(false);
   };
 
   return (
@@ -78,6 +89,9 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add assignment</DialogTitle>
+          <DialogDescription>
+            Add the due date and next-step details for one class.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
