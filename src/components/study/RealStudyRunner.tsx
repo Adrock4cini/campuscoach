@@ -72,6 +72,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   const total = items.length;
   const isLast = idx >= total - 1;
+  const completed = pendingFinal ? total : idx;
 
   useEffect(() => {
     if (!open) return;
@@ -198,7 +199,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               <span>{idx + 1} / {total}</span>
               <span className="min-w-0 text-right break-words">{correct} correct · {incorrect} missed</span>
             </div>
-            <Progress value={((idx + 1) / total) * 100} className="h-1" />
+            <Progress value={(completed / total) * 100} className="h-1" />
 
             {artifact.kind === "flashcards" ? (
               (() => {
