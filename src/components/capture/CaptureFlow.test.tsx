@@ -8,6 +8,8 @@ import { CaptureFlow } from "./CaptureFlow";
 const mocks = vi.hoisted(() => ({
   classes: [] as ClassInfo[],
   loading: true,
+  error: null as string | null,
+  reload: vi.fn(),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -22,6 +24,8 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({
     classes: mocks.classes,
     isReal: true,
     loading: mocks.loading,
+    error: mocks.error,
+    reload: mocks.reload,
   }),
 }));
 
@@ -52,6 +56,8 @@ describe("CaptureFlow class boundaries", () => {
   beforeEach(() => {
     mocks.classes = [];
     mocks.loading = true;
+    mocks.error = null;
+    mocks.reload.mockReset();
   });
 
   afterEach(() => {
@@ -90,6 +96,19 @@ describe("CaptureFlow class boundaries", () => {
     renderCapture("science");
 
     expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("science");
+  });
+
+  it("does not mistake a class load failure for a student with no classes", () => {
+    mocks.loading = false;
+    mocks.error = "Couldn’t load your classes";
+
+    renderCapture();
+
+    expect(screen.getByText("Couldn’t load your classes")).toBeInTheDocument();
+    expect(screen.getByText(/saved classes were not deleted/i)).toBeInTheDocument();
+    expect(screen.queryByText(/add a class before saving/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(mocks.reload).toHaveBeenCalledOnce();
   });
 
   it("keeps the student's note available when Supabase does not confirm the save", async () => {
