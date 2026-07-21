@@ -142,9 +142,20 @@ export function ClassMemory({ classId, className }: Props) {
   const [studyOpen, setStudyOpen] = useState(false);
   const navigate = useNavigate();
 
-  const openStudy = (item: MemoryItem, mode?: StudyMode) => {
+  const openStudy = (item: MemoryItem, requestedMode?: StudyMode) => {
+    if (mode === "real" && item.source === "supabase") {
+      const format = requestedMode === "quiz" ? "multiple_choice" : "flashcards";
+      const params = new URLSearchParams({
+        classId,
+        captureId: item.id,
+        format,
+      });
+      navigate(`/study-lab?${params.toString()}`);
+      return;
+    }
+
     setStudyItem(item);
-    setStudyMode(mode);
+    setStudyMode(requestedMode);
     setStudyOpen(true);
   };
 
@@ -236,14 +247,16 @@ export function ClassMemory({ classId, className }: Props) {
         }}
       />
 
-      <StudyFromCaptureDrawer
-        open={studyOpen}
-        onOpenChange={setStudyOpen}
-        item={studyItem}
-        classId={classId}
-        className={className}
-        initialMode={studyMode}
-      />
+      {mode === "demo" && (
+        <StudyFromCaptureDrawer
+          open={studyOpen}
+          onOpenChange={setStudyOpen}
+          item={studyItem}
+          classId={classId}
+          className={className}
+          initialMode={studyMode}
+        />
+      )}
     </Card>
   );
 }
