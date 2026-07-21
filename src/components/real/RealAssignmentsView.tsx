@@ -27,13 +27,17 @@ const PRIORITY_TONE: Record<string, string> = {
 
 export function RealAssignmentsView() {
   const { classes: myClasses } = useMyClasses();
-  const { items, loading } = useRealAssignments();
+  const { items, loading, error, reload } = useRealAssignments();
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
 
   const toggleStatus = async (id: string, next: AssignmentStatus) => {
-    await updateAssignment(id, { status: next });
+    const updated = await updateAssignment(id, { status: next });
+    if (!updated) {
+      toast.error("Couldn’t update assignment");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
   };
 
@@ -64,6 +68,12 @@ export function RealAssignmentsView() {
         </CardContent></Card>
       ) : loading ? (
         <p className="text-sm text-muted-foreground text-center py-10">Loading…</p>
+      ) : error ? (
+        <Card><CardContent className="p-8 text-center space-y-3">
+          <p className="font-medium text-foreground">Couldn’t load assignments</p>
+          <p className="text-sm text-muted-foreground">Your assignments were not deleted.</p>
+          <Button size="sm" variant="outline" onClick={() => void reload()}>Try again</Button>
+        </CardContent></Card>
       ) : items.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center space-y-3">
