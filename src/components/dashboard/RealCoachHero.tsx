@@ -26,9 +26,9 @@ const ACTION_ICON: Record<CoachActionKind, React.ElementType> = {
 };
 
 const ACTION_VERB: Record<CoachActionKind, string> = {
-  study: "Study now",
-  review: "Review now",
-  capture: "Capture something",
+  study: "Start study",
+  review: "Start review",
+  capture: "Capture now",
   debrief: "Debrief",
 };
 
@@ -68,7 +68,7 @@ export function RealCoachHero() {
 
             <div className="flex-1 min-w-0">
               <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.22em] text-primary/90 mb-1">
-                <Sparkles className="h-3 w-3" /> Coach · next {top.minutes} min
+                <Sparkles className="h-3 w-3" /> Do this now · {top.minutes} min
               </div>
               <h2 className="font-display text-xl md:text-2xl font-semibold tracking-tight text-foreground leading-tight">
                 {top.className}
@@ -97,7 +97,7 @@ export function RealCoachHero() {
                     className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/90 hover:text-foreground transition-colors"
                   >
                     <Info className="h-3 w-3" />
-                    {showWhy ? "Hide why" : "Why?"}
+                    {showWhy ? "Hide why" : "Why this?"}
                   </button>
                   <AnimatePresence initial={false}>
                     {showWhy && (

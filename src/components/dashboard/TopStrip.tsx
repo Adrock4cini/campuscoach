@@ -14,6 +14,14 @@ function greetingWord() {
   return "Evening";
 }
 
+function todayLabel() {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).toUpperCase();
+}
+
 /**
  * Row 1 — compact top strip. ~76px.
  *   Greeting · Momentum · Weekly trend · Search · Notifications
@@ -53,7 +61,9 @@ export function TopStrip() {
         <h1 className="font-display text-lg md:text-xl font-semibold text-foreground leading-tight truncate">
           {greetingWord()}, {name}
         </h1>
-        <p className="text-[11px] text-muted-foreground truncate">{realMode ? "Welcome back" : mode === "loading" ? "" : momentum.line}</p>
+        <p className="text-[11px] tracking-[0.16em] text-muted-foreground truncate">
+          {realMode ? todayLabel() : mode === "loading" ? "" : momentum.line}
+        </p>
 
       </div>
 

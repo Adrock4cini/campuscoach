@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Clock, User, ChevronRight, StickyNote, MessageSquare, Sparkles } from "lucide-react";
+import { MapPin, Clock, User, ChevronRight, Camera, Sparkles } from "lucide-react";
 import type { ClassInfo } from "@/data/demo";
 import { cn } from "@/lib/utils";
 import { useCapture } from "@/contexts/CaptureContext";
@@ -57,7 +57,10 @@ export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }
             );
           })()}
         </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="shrink-0 text-right">
+          <span className="block text-xs font-medium tabular-nums text-primary">{c.readiness}% ready</span>
+          <ChevronRight className="ml-auto mt-1 h-4 w-4 text-muted-foreground" />
+        </span>
       </button>
 
       {meta.length > 1 && (
@@ -76,17 +79,12 @@ export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }
       {/* Divider */}
       <div className="mx-5 md:mx-6 border-t border-border/40" />
 
-      {/* Primary actions — 3 equal, large tap tiles */}
-      <div className="grid grid-cols-3 gap-1.5 p-3">
+      {/* Capture contains note, professor hint, scan, upload, and recording. */}
+      <div className="grid grid-cols-2 gap-1.5 p-3">
         <ActionTile
-          Icon={StickyNote}
-          label="Note"
-          onClick={() => openCapture("quick-note", c.id)}
-        />
-        <ActionTile
-          Icon={MessageSquare}
-          label="Hint"
-          onClick={() => openCapture("professor-hint", c.id)}
+          Icon={Camera}
+          label="Capture"
+          onClick={() => openCapture(undefined, c.id)}
         />
         <ActionTile
           Icon={Sparkles}
@@ -105,7 +103,7 @@ function ActionTile({
   onClick,
   emphasized = false,
 }: {
-  Icon: typeof StickyNote;
+  Icon: typeof Camera;
   label: string;
   onClick: () => void;
   emphasized?: boolean;
