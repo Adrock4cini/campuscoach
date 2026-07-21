@@ -62,7 +62,10 @@ export function useLearningArtifact<K extends ArtifactKind>(
 
       if (scope.captureId) q = q.eq("capture_id", scope.captureId);
       else if (scope.conceptIds?.length) q = q.overlaps("concept_ids", scope.conceptIds);
-      else if (scope.classId) q = q.eq("client_class_id", scope.classId);
+      // Class is an additional boundary, not merely a fallback selector. It
+      // protects direct capture/Coach links from loading a historically
+      // mis-associated artifact that happens to share the explicit ID.
+      if (scope.classId) q = q.eq("client_class_id", scope.classId);
       if (scope.studyScope) {
         q = q
           .eq("study_scope_type", scope.studyScope.type)
