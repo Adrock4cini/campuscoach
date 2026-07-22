@@ -9,9 +9,10 @@ import {
   Mic, Map, Award, TrendingUp, MessageSquare, BarChart3, Settings,
   Sparkles, Search, Timer,
 } from "lucide-react";
-import { classes, assignments, exams } from "@/data/demo";
+import { classes as demoClasses, assignments, exams } from "@/data/demo";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -27,7 +28,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { setMode } = useFocusMode();
   const { mode } = useAuth();
+  const { classes: myClasses } = useMyClasses();
   const demoMode = mode === "demo";
+  const searchableClasses = demoMode ? demoClasses : mode === "real" ? myClasses : [];
 
   const go = (path: string) => {
     onOpenChange(false);
@@ -59,13 +62,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandGroup heading="Navigate">
           <CommandItem onSelect={() => go("/dashboard")}><LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard</CommandItem>
           <CommandItem onSelect={() => go("/classes")}><BookOpen className="mr-2 h-4 w-4" /> All Classes</CommandItem>
+          <CommandItem onSelect={() => go("/calendar")}><CalendarDays className="mr-2 h-4 w-4" /> Calendar</CommandItem>
+          <CommandItem onSelect={() => go("/notes")}><Mic className="mr-2 h-4 w-4" /> Notes & Recordings</CommandItem>
           <CommandItem onSelect={() => go("/study-lab")}><FlaskConical className="mr-2 h-4 w-4" /> Study Lab</CommandItem>
           <CommandItem onSelect={() => go("/assignments")}><BookOpen className="mr-2 h-4 w-4" /> Assignments</CommandItem>
           <CommandItem onSelect={() => go("/exams")}><GraduationCap className="mr-2 h-4 w-4" /> Exams</CommandItem>
           {demoMode && (
             <>
-              <CommandItem onSelect={() => go("/calendar")}><CalendarDays className="mr-2 h-4 w-4" /> Calendar</CommandItem>
-              <CommandItem onSelect={() => go("/notes")}><Mic className="mr-2 h-4 w-4" /> Notes & Recordings</CommandItem>
               <CommandItem onSelect={() => go("/path-to-graduation")}><Map className="mr-2 h-4 w-4" /> Path to Graduation</CommandItem>
               <CommandItem onSelect={() => go("/scholarships")}><Award className="mr-2 h-4 w-4" /> Scholarships</CommandItem>
               <CommandItem onSelect={() => go("/course-intelligence")}><TrendingUp className="mr-2 h-4 w-4" /> Class Intelligence</CommandItem>
@@ -76,12 +79,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           )}
         </CommandGroup>
 
-        {demoMode && (
+        {searchableClasses.length > 0 && (
           <>
             <CommandSeparator />
 
             <CommandGroup heading="Classes">
-              {classes.map((c) => (
+              {searchableClasses.map((c) => (
                 <CommandItem key={c.id} value={`class ${c.name} ${c.professor}`} onSelect={() => go(`/classes/${c.id}`)}>
                   <span className={`mr-2 h-2 w-2 rounded-full ${c.color}`} />
                   {c.name}
@@ -89,7 +92,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 </CommandItem>
               ))}
             </CommandGroup>
+          </>
+        )}
 
+        {demoMode && (
+          <>
             <CommandSeparator />
 
             <CommandGroup heading="Assignments">

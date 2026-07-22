@@ -2,11 +2,12 @@
  * Real exams list — signed-in student view. No demo data.
  */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Calendar, GraduationCap, Trash2 } from "lucide-react";
+import { Plus, Calendar, GraduationCap, Trash2, Sparkles } from "lucide-react";
 import { AddExamDialog } from "@/components/real/AddExamDialog";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useRealExams, daysUntil } from "@/lib/realData/hooks";
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 export function RealExamsView() {
+  const navigate = useNavigate();
   const {
     classes: myClasses,
     loading: classesLoading,
@@ -109,6 +111,17 @@ export function RealExamsView() {
                         <Badge key={t} variant="outline" className="text-[10px] border-primary/20 text-primary">{t}</Badge>
                       ))}
                     </div>
+                  )}
+                  {e.client_class_id && (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(`/study-lab?${new URLSearchParams({
+                        classId: e.client_class_id!,
+                        examId: e.id,
+                      }).toString()}`)}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1.5" /> Study for this exam
+                    </Button>
                   )}
                 </CardContent>
               </Card>

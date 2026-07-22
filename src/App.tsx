@@ -102,7 +102,7 @@ const App = () => (
                     <Route path="/assignments/:assignmentId" element={<Protected><DemoOnly title="Assignment details — coming soon" description="Detailed assignment views for your real assignments are on the way. For now, manage them from the Assignments list."><AssignmentDetail /></DemoOnly></Protected>} />
                     <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
                     <Route path="/exams/:examId" element={<Protected><DemoOnly title="Exam details — coming soon" description="Detailed exam readiness views for your real exams are on the way. For now, manage them from the Exams list."><ExamDetail /></DemoOnly></Protected>} />
-                    <Route path="/notes" element={<Protected><DemoOnly title="Notes & Recordings — coming soon" description="Your real capture library is being wired up here."><NotesPage /></DemoOnly></Protected>} />
+                    <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
                     <Route path="/notes/:noteId" element={<Protected><DemoOnly title="Note details — coming soon" description="Detailed views for your real captures are on the way."><NoteDetail /></DemoOnly></Protected>} />
                     <Route path="/progress" element={<Protected><DemoOnly title="Progress — coming soon" description="Your real study progress and streaks will show up here soon."><ProgressPage /></DemoOnly></Protected>} />
                     <Route path="/settings" element={<Protected><DemoOnly title="Settings — coming soon" description="Account settings backed by your real profile are being finished. Nothing shown here will pretend to save until it can be stored securely."><SettingsPage /></DemoOnly></Protected>} />
