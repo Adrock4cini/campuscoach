@@ -87,13 +87,19 @@ export default function StudyLab() {
         </h1>
       </div>
 
-      {/* Class chips */}
-      <div className="flex flex-wrap gap-2">
+      {/* Keep class selection on one line so a full course load does not crowd the page. */}
+      <div
+        role="group"
+        aria-label="Choose a class"
+        className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {availableClasses.map(c => (
           <button
             key={c.id}
+            type="button"
+            aria-pressed={effectiveClass === c.id}
             onClick={() => setSelectedClass(c.id)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+            className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-medium transition-colors ${
               effectiveClass === c.id
                 ? "border-primary/60 bg-primary/10 text-foreground"
                 : "border-border/40 text-muted-foreground hover:text-foreground"

@@ -59,9 +59,9 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 relative z-10">
-          <header className="h-14 flex items-center gap-3 border-b border-border/50 px-4 glass sticky top-0 z-30">
-            <SidebarTrigger />
-            <span className="text-sm text-muted-foreground font-medium tracking-wide hidden sm:inline">Campus Companion</span>
+          <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border/50 px-3 glass md:h-14 md:gap-3 md:px-4">
+            <SidebarTrigger className="-ml-1 h-11 w-11" />
+            <span className="truncate text-xs font-medium tracking-wide text-muted-foreground sm:text-sm">Campus Companion</span>
             <div className="ml-auto flex items-center gap-2">
               <HeaderSearchButton onOpen={() => setOpen(true)} />
               <FocusModeToggle />

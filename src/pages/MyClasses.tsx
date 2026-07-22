@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight } from "lucide-react";
+import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
@@ -65,7 +65,7 @@ export default function MyClasses() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {classes.map((c, i) => {
           const hasProfessor = Boolean(c.professor && c.professor !== "TBD");
           const hasSchedule = c.days.length > 0 || Boolean(c.time);
@@ -79,49 +79,56 @@ export default function MyClasses() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
           >
-            <Link to={`/classes/${c.id}`}>
-              <Card className="shadow-card hover:shadow-elevated transition-shadow cursor-pointer group">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-3 w-3 rounded-full ${c.color}`} />
-                      <h3 className="font-display font-semibold text-foreground text-lg">{c.name}</h3>
+            <Link to={`/classes/${c.id}`} aria-label={`Open ${c.name}`} className="block h-full">
+              <Card className="group h-full cursor-pointer overflow-hidden rounded-[26px] border-border/50 bg-card/70 shadow-card backdrop-blur-md transition-all hover:border-border/80 hover:shadow-elevated">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-sm font-semibold text-primary-foreground shadow-sm ${c.color}`}>
+                      {c.name.trim().charAt(0)}
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-display text-lg font-semibold leading-tight text-foreground">{c.name}</h3>
+                      {hasProfessor && (
+                        <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                          <User className="h-3 w-3 shrink-0" />
+                          {c.professor}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`block text-sm font-bold tabular-nums ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
+                      <span className="block text-[10px] text-muted-foreground">ready</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
 
-                  {(hasProfessor || hasSchedule || hasLocation || hasCurrentTopic) && (
-                    <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                      {hasProfessor && <div className="flex items-center gap-2"><User className="h-3.5 w-3.5" /><span>{c.professor}</span></div>}
+                  {(hasSchedule || hasLocation || hasCurrentTopic) && (
+                    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                       {hasSchedule && (
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" />
                           <span>{[c.days.join("/"), c.time].filter(Boolean).join(" · ")}</span>
                         </div>
                       )}
-                      {hasLocation && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /><span>{c.location}</span></div>}
-                      {hasCurrentTopic && <div className="flex items-center gap-2"><BookOpen className="h-3.5 w-3.5" /><span>Current: {c.currentTopic}</span></div>}
+                      {hasLocation && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /><span>{c.location}</span></div>}
+                      {hasCurrentTopic && <div className="flex min-w-0 items-center gap-1.5"><BookOpen className="h-3 w-3 shrink-0" /><span className="truncate">{c.currentTopic}</span></div>}
                     </div>
                   )}
 
                   {c.nextExamDate && (
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="secondary" className="text-xs bg-danger/10 text-danger">
+                    <div className="mt-3 flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-danger/10 text-xs text-danger">
                         Exam in {getDaysUntil(c.nextExamDate)} days
                       </Badge>
                     </div>
                   )}
 
-                  <div className="bg-muted/50 rounded-lg p-3 mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-muted-foreground">Readiness</span>
-                      <span className={`text-sm font-bold ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
-                    </div>
-                    <Progress value={c.readiness} className="h-2" />
+                  <div className="mt-4 rounded-2xl bg-background/35 px-3 py-3">
+                    <Progress value={c.readiness} className="h-1.5" />
                   </div>
 
                   {c.chapters.length > 0 && (
-                    <div className="flex items-center gap-1.5 mb-3">
+                    <div className="mt-3 flex items-center gap-1.5">
                       {c.chapters.map(ch => (
                         <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>
                           {ch.status === 'completed' ? <CheckCircle2 className="h-4 w-4 text-success" /> :
@@ -129,12 +136,13 @@ export default function MyClasses() {
                            <Circle className="h-4 w-4 text-muted-foreground/30" />}
                         </div>
                       ))}
-                      <span className="text-xs text-muted-foreground ml-1">chapters</span>
+                      <span className="ml-1 text-xs text-muted-foreground">chapters</span>
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-xs text-primary font-medium">💡 {c.suggestedAction}</p>
+                  <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary">
+                    <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="line-clamp-2">{c.suggestedAction}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -144,8 +152,9 @@ export default function MyClasses() {
         })}
       </div>
 
-      <Button variant="outline" className="w-full border-dashed" onClick={() => navigate("/onboarding")}>
-        + Add a New Class
+      <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" onClick={() => navigate("/onboarding")}>
+        <Plus className="h-4 w-4" />
+        Add class
       </Button>
     </div>
   );

@@ -102,6 +102,15 @@ describe("real study set freshness", () => {
     expect(screen.queryByText("Refresh this set before studying")).not.toBeInTheDocument();
   });
 
+  it("presents study formats as one accessible segmented choice", () => {
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+    render(<RealStudySet classId="math" />);
+
+    expect(screen.getByRole("group", { name: "Study format" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Flashcards" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Multiple choice" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("keeps study-set provenance available without leaving it on screen", () => {
     mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);

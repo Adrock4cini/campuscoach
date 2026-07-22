@@ -155,14 +155,11 @@ export function RealCalendarView() {
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground tracking-tight">
             See what’s coming
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Classes, assignments, and exams in one place.
-          </p>
         </div>
         <Button
           size="sm"
           variant="outline"
-          className="shrink-0"
+          className="h-11 shrink-0 rounded-xl"
           onClick={() => navigate("/onboarding?import=syllabus")}
         >
           <Plus className="h-4 w-4 mr-1" />
@@ -171,7 +168,7 @@ export function RealCalendarView() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
-        <Card className="border-border/40 shadow-card overflow-hidden">
+        <Card className="overflow-hidden rounded-[26px] border-border/40 shadow-card">
           <CardContent className="p-2 sm:p-3">
             <Calendar
               mode="single"
@@ -196,7 +193,7 @@ export function RealCalendarView() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/40 shadow-card">
+        <Card className="rounded-[26px] border-border/40 shadow-card">
           <CardContent className="p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between gap-2">
               <div>

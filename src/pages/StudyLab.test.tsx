@@ -47,6 +47,18 @@ function RouteHarness() {
 }
 
 describe("Study Lab class handoff", () => {
+  it("keeps class selection in one clear, accessible control", () => {
+    render(
+      <MemoryRouter initialEntries={["/study-lab?classId=math"]}>
+        <RouteHarness />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("group", { name: "Choose a class" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Math" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Science" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("follows a new capture URL when the page is already open", () => {
     render(
       <MemoryRouter initialEntries={["/study-lab?classId=math&captureId=math-note"]}>
