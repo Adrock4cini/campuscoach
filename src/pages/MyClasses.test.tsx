@@ -69,6 +69,10 @@ describe("My Classes data trust", () => {
     expect(screen.queryByText("TBD")).not.toBeInTheDocument();
     expect(screen.queryByText("Current: Getting started")).not.toBeInTheDocument();
     expect(screen.queryByText("chapters")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Math" })).toHaveAttribute(
+      "href",
+      "/classes/math-1",
+    );
     expect(screen.getByRole("link", { name: /degree path/i })).toHaveAttribute(
       "href",
       "/path-to-graduation",

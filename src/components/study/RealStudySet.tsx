@@ -194,8 +194,8 @@ export function RealStudySet({
     : count === 1 ? "question" : "questions";
 
   return (
-    <Card className="border-border/40">
-      <CardContent className="p-4 sm:p-5 space-y-4">
+    <Card className="overflow-hidden rounded-[28px] border-border/40 bg-card/70 shadow-card backdrop-blur-md">
+      <CardContent className="space-y-5 p-4 sm:p-5">
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
             <span className="inline-flex items-center gap-2">
@@ -217,7 +217,7 @@ export function RealStudySet({
                   setStudying(false);
                   reloadAfterStudy.current = false;
                 }}
-                className={`max-w-[12rem] shrink-0 truncate rounded-full border px-3 py-2 text-xs transition-colors ${
+                className={`min-h-11 max-w-[12rem] shrink-0 truncate rounded-full border px-3 text-xs transition-colors ${
                   studyScope.type === target.type && studyScope.id === target.id
                     ? "border-primary bg-primary/15 text-primary"
                     : "border-border/60 text-muted-foreground hover:text-foreground"
@@ -243,14 +243,20 @@ export function RealStudySet({
             </Badge>
             <InfoPopover label="About this study set">{sourceDetail}</InfoPopover>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <div
+            role="group"
+            aria-label="Study format"
+            className="grid grid-cols-2 gap-1 rounded-2xl border border-border/30 bg-background/35 p-1"
+          >
             {(Object.keys(KIND_META) as Kind[]).map((k) => (
               <button
                 key={k}
+                type="button"
+                aria-pressed={kind === k}
                 onClick={() => setKind(k)}
-                className={`min-w-0 rounded-full px-2.5 py-2 text-xs transition-colors sm:py-1 ${
+                className={`min-h-11 min-w-0 rounded-xl px-2.5 text-xs font-medium transition-colors ${
                   kind === k
-                    ? "bg-primary/15 text-primary"
+                    ? "bg-primary/15 text-primary shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -300,7 +306,7 @@ export function RealStudySet({
             size="sm"
             variant={artifact ? "outline" : "default"}
             onClick={() => { void startGeneration(Boolean(artifact)); }}
-            className="w-full sm:w-auto"
+            className="h-11 w-full rounded-xl sm:w-auto"
             disabled={generating}
             aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
@@ -327,7 +333,7 @@ export function RealStudySet({
             )}
           </Button>
           {artifact && count > 0 && !needsRefresh && (
-            <Button aria-label="Start study session" className="w-full sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
+            <Button aria-label="Start study session" className="h-11 w-full rounded-xl sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
               <Play className="h-3.5 w-3.5 mr-1.5" />
               Start
             </Button>

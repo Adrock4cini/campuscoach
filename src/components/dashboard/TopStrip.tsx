@@ -55,7 +55,7 @@ export function TopStrip() {
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="flex items-center gap-3 px-1 h-[76px]"
+      className="flex h-[72px] items-center gap-3 px-1"
     >
       <div className="min-w-0">
         <h1 className="font-display text-lg md:text-xl font-semibold text-foreground leading-tight truncate">
@@ -91,18 +91,18 @@ export function TopStrip() {
 
         <button
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/40 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+          className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-border/50 bg-background/40 p-0 text-xs text-muted-foreground backdrop-blur transition-colors hover:border-border/80 hover:text-foreground md:w-auto md:px-3"
           aria-label="Search"
         >
-          <Search className="h-3.5 w-3.5" />
+          <Search className="h-4 w-4" />
           <span className="hidden md:inline">Search</span>
         </button>
         <button
           aria-label="Notifications"
-          className="relative h-8 w-8 rounded-full border border-border/50 bg-background/40 backdrop-blur inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/50 bg-background/40 text-muted-foreground backdrop-blur transition-colors hover:border-border/80 hover:text-foreground"
         >
-          <Bell className="h-3.5 w-3.5" />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
+          <Bell className="h-4 w-4" />
+          <span className="absolute right-3 top-2.5 h-1.5 w-1.5 rounded-full bg-accent" />
         </button>
       </div>
     </motion.header>
