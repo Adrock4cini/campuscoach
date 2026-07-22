@@ -85,9 +85,6 @@ export default function StudyLab() {
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground tracking-tight">
           What do you want to study?
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose a class, then focus on what matters right now.
-        </p>
       </div>
 
       {/* Class chips */}

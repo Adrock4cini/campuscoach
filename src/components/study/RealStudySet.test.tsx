@@ -98,26 +98,36 @@ describe("real study set freshness", () => {
     mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);
 
-    expect(screen.getByRole("button", { name: /study now/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start study session/i })).toBeInTheDocument();
     expect(screen.queryByText("Refresh this set before studying")).not.toBeInTheDocument();
+  });
+
+  it("keeps study-set provenance available without leaving it on screen", () => {
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+    render(<RealStudySet classId="math" />);
+
+    expect(screen.queryByText(/Built from 1 concept extracted/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /about this study set/i }));
+    expect(screen.getByText(/Built from 1 concept extracted/i)).toBeInTheDocument();
   });
 
   it("lets the student choose a specific assessment target", () => {
     mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);
 
-    expect(screen.getByText("Choose what to study")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /unit 1 exam/i }));
+    expect(screen.getByText("Focus")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^test · unit 1 exam/i }));
+    expect(screen.queryByText("Only material for Unit 1 Exam will be included.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /about unit 1 exam/i }));
     expect(screen.getByText("Only material for Unit 1 Exam will be included.")).toBeInTheDocument();
-    expect(screen.getByText("Built from your notes")).toBeInTheDocument();
+    expect(screen.getByText("Your notes")).toBeInTheDocument();
   });
 
   it("opens the exact exam selected from the academic calendar", () => {
     mocks.artifact = null;
     render(<RealStudySet classId="math" initialExamId="exam-1" />);
 
-    expect(screen.getByRole("button", { name: /unit 1 exam/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Only material for Unit 1 Exam will be included.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^test · unit 1 exam/i })).toHaveAttribute("aria-pressed", "true");
     expect(mocks.scopes.at(-1)).toMatchObject({
       classId: "math",
       studyScope: { type: "exam", id: "exam-1", examId: "exam-1" },
@@ -158,6 +168,7 @@ describe("real study set freshness", () => {
     );
 
     expect(screen.getByRole("button", { name: "Coach picks" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /about coach picks/i }));
     expect(screen.getByText(/weak, overdue, and high-impact concepts/i)).toBeInTheDocument();
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
   });
@@ -174,6 +185,7 @@ describe("real study set freshness", () => {
     );
 
     expect(screen.getByRole("button", { name: "This capture" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /about this capture/i }));
     expect(screen.getByText(/only concepts extracted from this capture/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /multiple choice/i })).toHaveClass("text-primary");
     expect(mocks.scopes.at(-1)).toMatchObject({
@@ -200,7 +212,7 @@ describe("real study set freshness", () => {
     mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
     render(<RealStudySet classId="math" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /study now/i }));
+    fireEvent.click(screen.getByRole("button", { name: /start study session/i }));
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));

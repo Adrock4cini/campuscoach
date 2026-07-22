@@ -93,4 +93,12 @@ describe("coach.recommend", () => {
       }
     }
   });
+
+  it("keeps the visible reason concise and leaves the readiness estimate structured", () => {
+    const rec = recommend(base())[0];
+
+    expect(rec.why).toBe("2 concepts need practice.");
+    expect(rec.why).not.toMatch(/readiness/i);
+    expect(rec.impact.readinessDelta).toBeGreaterThan(0);
+  });
 });
