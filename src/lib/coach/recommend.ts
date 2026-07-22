@@ -153,8 +153,8 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
         conceptIds: [],
         minutes: BLOCK_MINUTES,
         why: exam
-          ? `${exam.title} is in ${exam.days} days and Campus Brain has nothing to work with — capture a lecture or note first.`
-          : `Campus Brain needs source material for ${c.name} before it can help you study.`,
+          ? `${exam.title} is in ${exam.days} days — add notes first.`
+          : "Add a note or professor hint to build your first study set.",
         evidence,
         impact: { readinessDelta: 0, examWeight },
         score,
@@ -247,7 +247,7 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
     }
     evidence.sort((a, b) => b.weight - a.weight);
 
-    const why = buildWhy({ action, exam, weakCount: weak.length, overdueCount: overdue.length, readinessDelta, className: c.name });
+    const why = buildWhy({ action, exam, weakCount: weak.length, overdueCount: overdue.length, className: c.name });
 
     recs.push({
       id: `${c.id}:${action}`,
@@ -271,18 +271,17 @@ function buildWhy(args: {
   exam: { days: number; title: string } | undefined;
   weakCount: number;
   overdueCount: number;
-  readinessDelta: number;
   className: string;
 }): string {
-  const parts: string[] = [];
+  let attention: string;
   if (args.action === "review" && args.overdueCount > 0) {
-    parts.push(`${args.overdueCount} concept${args.overdueCount === 1 ? "" : "s"} slipping out of memory`);
+    attention = `${args.overdueCount} concept${args.overdueCount === 1 ? "" : "s"} need review`;
   } else if (args.weakCount > 0) {
-    parts.push(`${args.weakCount} weak concept${args.weakCount === 1 ? "" : "s"} in ${args.className}`);
+    attention = `${args.weakCount} concept${args.weakCount === 1 ? "" : "s"} need practice`;
   } else {
-    parts.push(`keep ${args.className} sharp`);
+    attention = `Keep ${args.className} sharp`;
   }
-  if (args.exam) parts.push(`${args.exam.title} is in ${args.exam.days} days`);
-  const impact = args.readinessDelta > 0 ? ` — ~+${args.readinessDelta}% readiness` : "";
-  return `${parts.join(" and ")}${impact}.`;
+  return args.exam
+    ? `${attention} · ${args.exam.title} in ${args.exam.days} days.`
+    : `${attention}.`;
 }

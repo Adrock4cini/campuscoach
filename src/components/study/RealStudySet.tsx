@@ -13,7 +13,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info } from "lucide-react";
 import { RealStudyRunner } from "@/components/study/RealStudyRunner";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
@@ -45,9 +46,17 @@ const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
 function targetButtonLabel(target: StudyScope) {
   if (target.id.startsWith("coach-")) return "Coach picks";
   if (target.id.startsWith("capture-")) return "This capture";
-  if (target.type === "recent") return "What I just learned";
-  if (target.type === "class") return "Everything in this class";
-  return `Prepare for ${target.label}`;
+  if (target.type === "recent") return "Recent";
+  if (target.type === "class") return "All";
+  return `Test · ${target.label}`;
+}
+
+function formatUpdatedAt(value: string) {
+  const day = value.slice(0, 10);
+  return new Date(`${day}T00:00:00`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function RealStudySet({
@@ -168,14 +177,34 @@ export function RealStudySet({
   ]);
 
   const KindIcon = KIND_META[kind].icon;
+  const targetDetail = isCoachTarget
+    ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
+    : isCaptureTarget
+    ? "Only concepts extracted from this capture will be included."
+    : studyScope.type === "exam"
+    ? `Only material for ${studyScope.label} will be included.`
+    : studyScope.type === "recent"
+      ? "A quick review of the newest material you added."
+      : "A broader review that mixes older and newer material.";
+  const sourceDetail = artifact
+    ? `Built from ${artifact.concept_ids.length} concept${artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and professor hints. Your answers update mastery and future recommendations.`
+    : "Practice is generated from this class’s notes and professor hints.";
+  const itemLabel = kind === "flashcards"
+    ? count === 1 ? "card" : "cards"
+    : count === 1 ? "question" : "questions";
 
   return (
     <Card className="border-border/40">
       <CardContent className="p-4 sm:p-5 space-y-4">
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Target className="h-4 w-4 text-primary" />
-            <span>Choose what to study</span>
+          <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              <span>Focus</span>
+            </span>
+            <InfoPopover label={`About ${studyScope.type === "exam" ? studyScope.label : targetButtonLabel(studyScope)}`}>
+              {targetDetail}
+            </InfoPopover>
           </div>
           <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {studyTargets.map((target) => (
@@ -188,7 +217,7 @@ export function RealStudySet({
                   setStudying(false);
                   reloadAfterStudy.current = false;
                 }}
-                className={`shrink-0 rounded-full border px-3 py-2 text-xs transition-colors ${
+                className={`max-w-[12rem] shrink-0 truncate rounded-full border px-3 py-2 text-xs transition-colors ${
                   studyScope.type === target.type && studyScope.id === target.id
                     ? "border-primary bg-primary/15 text-primary"
                     : "border-border/60 text-muted-foreground hover:text-foreground"
@@ -203,26 +232,16 @@ export function RealStudySet({
             {examsLoading && <span className="shrink-0 px-2 py-2 text-xs text-muted-foreground">Loading exams…</span>}
             {examsError && <span className="shrink-0 px-2 py-2 text-xs text-danger">Exams unavailable</span>}
           </div>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            {isCoachTarget
-              ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
-              : isCaptureTarget
-              ? "Only concepts extracted from this capture will be included."
-              : studyScope.type === "exam"
-              ? `Only material for ${studyScope.label} will be included.`
-              : studyScope.type === "recent"
-                ? "A quick review of the newest material you added."
-                : "A broader review that mixes older and newer material."}
-          </p>
         </div>
 
         <div className="space-y-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <KindIcon className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground">Your study set</span>
+            <span className="text-sm font-medium text-foreground">Study set</span>
             <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-              Built from your notes
+              Your notes
             </Badge>
+            <InfoPopover label="About this study set">{sourceDetail}</InfoPopover>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             {(Object.keys(KIND_META) as Kind[]).map((k) => (
@@ -244,23 +263,13 @@ export function RealStudySet({
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading study set…</p>
         ) : needsRefresh ? (
-          <div className="space-y-2">
+          <div>
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              These questions were created by an older generator. Refresh them from your original notes so they stay faithful to what you captured.
-            </p>
           </div>
         ) : artifact ? (
-          <div className="space-y-2">
-            <p className="text-sm text-foreground">
-              {count} {KIND_META[kind].label.toLowerCase()} ready · updated{" "}
-              {new Date(artifact.updated_at).toLocaleDateString()}
-            </p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Built from {artifact.concept_ids.length} concept
-              {artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and professor hints. Your answers update mastery and future recommendations.
-            </p>
-          </div>
+          <p className="text-sm text-foreground">
+            {count} {itemLabel} · {formatUpdatedAt(artifact.updated_at)}
+          </p>
         ) : (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
@@ -272,15 +281,11 @@ export function RealStudySet({
                 ? `Build a study set for ${studyScope.label}`
                 : `No ${KIND_META[kind].label.toLowerCase()} here yet`}
             </p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {isCoachTarget
-                ? "These cards focus only on the concepts your coach recommended right now."
-                : isCaptureTarget
-                ? "We’ll turn this captured material into grounded practice questions."
-                : studyScope.type === "exam"
-                ? `We’ll look through your notes for material that matches this test and turn it into practice questions.`
-                : "Add a quick note or professor hint, then come back to build practice questions from it."}
-            </p>
+            {!isCoachTarget && !isCaptureTarget && studyScope.type !== "exam" && (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Add a note or professor hint first.
+              </p>
+            )}
           </div>
         )}
 
@@ -297,6 +302,7 @@ export function RealStudySet({
             onClick={() => { void startGeneration(Boolean(artifact)); }}
             className="w-full sm:w-auto"
             disabled={generating}
+            aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
             {generating ? (
               <>
@@ -306,12 +312,12 @@ export function RealStudySet({
             ) : needsRefresh ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Refresh from notes
+                Refresh
               </>
             ) : artifact ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Rebuild from notes
+                Refresh
               </>
             ) : (
               <>
@@ -321,9 +327,9 @@ export function RealStudySet({
             )}
           </Button>
           {artifact && count > 0 && !needsRefresh && (
-            <Button className="w-full sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
+            <Button aria-label="Start study session" className="w-full sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
               <Play className="h-3.5 w-3.5 mr-1.5" />
-              Study now
+              Start
             </Button>
           )}
         </div>
@@ -346,5 +352,24 @@ export function RealStudySet({
         />
       )}
     </Card>
+  );
+}
+
+function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="-my-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 text-xs leading-relaxed text-muted-foreground">
+        {children}
+      </PopoverContent>
+    </Popover>
   );
 }

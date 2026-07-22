@@ -3,10 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { getDaysUntil, getReadinessColor, getReadinessLabel } from "@/data/demo";
+import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2, Sparkles } from "lucide-react";
+import { MapPin, Clock, User, BookOpen, ArrowRight, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
@@ -49,13 +49,30 @@ export default function MyClasses() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">My Classes</h1>
-        <p className="text-muted-foreground mt-1">Your semester at a glance. Tap a class to dive deeper.</p>
+        <Link
+          to="/path-to-graduation"
+          aria-label="Degree path preview"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+        >
+          <Map className="h-4 w-4 text-primary" />
+          <span>Degree path</span>
+          <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
+            Preview
+          </Badge>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {classes.map((c, i) => (
+        {classes.map((c, i) => {
+          const hasProfessor = Boolean(c.professor && c.professor !== "TBD");
+          const hasSchedule = c.days.length > 0 || Boolean(c.time);
+          const hasLocation = Boolean(c.location);
+          const hasCurrentTopic = Boolean(c.currentTopic && c.currentTopic !== "Getting started");
+
+          return (
           <motion.div
             key={c.id}
             initial={{ opacity: 0, y: 12 }}
@@ -70,15 +87,22 @@ export default function MyClasses() {
                       <div className={`h-3 w-3 rounded-full ${c.color}`} />
                       <h3 className="font-display font-semibold text-foreground text-lg">{c.name}</h3>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity" />
                   </div>
 
-                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                    <div className="flex items-center gap-2"><User className="h-3.5 w-3.5" /><span>{c.professor}</span></div>
-                    <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5" /><span>{c.days.join("/")} · {c.time}</span></div>
-                    <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /><span>{c.location}</span></div>
-                    <div className="flex items-center gap-2"><BookOpen className="h-3.5 w-3.5" /><span>Current: {c.currentTopic}</span></div>
-                  </div>
+                  {(hasProfessor || hasSchedule || hasLocation || hasCurrentTopic) && (
+                    <div className="space-y-2 text-sm text-muted-foreground mb-4">
+                      {hasProfessor && <div className="flex items-center gap-2"><User className="h-3.5 w-3.5" /><span>{c.professor}</span></div>}
+                      {hasSchedule && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>{[c.days.join("/"), c.time].filter(Boolean).join(" · ")}</span>
+                        </div>
+                      )}
+                      {hasLocation && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /><span>{c.location}</span></div>}
+                      {hasCurrentTopic && <div className="flex items-center gap-2"><BookOpen className="h-3.5 w-3.5" /><span>Current: {c.currentTopic}</span></div>}
+                    </div>
+                  )}
 
                   {c.nextExamDate && (
                     <div className="flex items-center gap-2 mb-3">
@@ -94,19 +118,20 @@ export default function MyClasses() {
                       <span className={`text-sm font-bold ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
                     </div>
                     <Progress value={c.readiness} className="h-2" />
-                    <p className="text-xs text-muted-foreground mt-1">{getReadinessLabel(c.readiness)}</p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 mb-3">
-                    {c.chapters.map(ch => (
-                      <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>
-                        {ch.status === 'completed' ? <CheckCircle2 className="h-4 w-4 text-success" /> :
-                         ch.status === 'in-progress' ? <Loader2 className="h-4 w-4 text-warning" /> :
-                         <Circle className="h-4 w-4 text-muted-foreground/30" />}
-                      </div>
-                    ))}
-                    <span className="text-xs text-muted-foreground ml-1">chapters</span>
-                  </div>
+                  {c.chapters.length > 0 && (
+                    <div className="flex items-center gap-1.5 mb-3">
+                      {c.chapters.map(ch => (
+                        <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>
+                          {ch.status === 'completed' ? <CheckCircle2 className="h-4 w-4 text-success" /> :
+                           ch.status === 'in-progress' ? <Loader2 className="h-4 w-4 text-warning" /> :
+                           <Circle className="h-4 w-4 text-muted-foreground/30" />}
+                        </div>
+                      ))}
+                      <span className="text-xs text-muted-foreground ml-1">chapters</span>
+                    </div>
+                  )}
 
                   <div className="pt-2 border-t border-border">
                     <p className="text-xs text-primary font-medium">💡 {c.suggestedAction}</p>
@@ -115,7 +140,8 @@ export default function MyClasses() {
               </Card>
             </Link>
           </motion.div>
-        ))}
+          );
+        })}
       </div>
 
       <Button variant="outline" className="w-full border-dashed" onClick={() => navigate("/onboarding")}>
