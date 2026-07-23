@@ -70,7 +70,7 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "queued", label: "Saving private photos…", duration: 350 },
   { id: "class-detected", label: "Checking class and test links", duration: 300 },
   { id: "concepts-found", label: "Reading skills and concepts", duration: 350 },
-  { id: "added-to-brain", label: "Adding to Class Memory", duration: 300 },
+  { id: "added-to-brain", label: "Building concepts and study memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
@@ -213,14 +213,15 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md"
+          className="capture-backdrop fixed inset-0 z-[80] flex max-w-[100dvw] touch-pan-y items-end justify-center overflow-x-hidden overscroll-contain bg-black/60 backdrop-blur-md sm:items-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="relative w-full sm:max-w-lg max-h-[calc(100dvh-0.5rem)] sm:max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl glass-strong border border-border/60 shadow-elevated"
+            data-testid="capture-sheet"
+            className="capture-sheet relative box-border max-h-[calc(100dvh-0.5rem)] w-full max-w-[100dvw] min-w-0 overflow-x-hidden overflow-y-auto rounded-t-3xl border border-border/60 glass-strong shadow-elevated sm:max-h-[90vh] sm:max-w-lg sm:rounded-3xl"
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -233,7 +234,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               <div className="absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-accent/20 blur-[100px]" />
             </div>
 
-            <div className="relative p-4 sm:p-5 md:p-6">
+            <div className="relative min-w-0 p-4 sm:p-5 md:p-6">
               {/* Header */}
               <div className="flex items-center gap-2 mb-4">
                 {stage !== "menu" && stage !== "done" && (
@@ -291,7 +292,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                             <button
                               key={m.kind}
                               onClick={() => chooseKind(m.kind)}
-                              className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[92px] flex flex-col"
+                              className="flex min-h-[92px] touch-manipulation flex-col rounded-2xl border border-border/50 bg-background/30 p-3 text-left transition-[transform,border-color,background-color] active:scale-[0.985] hover:border-primary/40 hover:bg-primary/5"
                             >
                               <m.icon className="h-5 w-5 text-primary mb-1.5" />
                               <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
@@ -329,7 +330,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                         <button
                           key={m.kind}
                           onClick={() => chooseKind(m.kind)}
-                          className="text-left p-3 rounded-2xl border border-border/50 bg-background/30 hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[84px] flex flex-col"
+                          className="flex min-h-[84px] touch-manipulation flex-col rounded-2xl border border-border/50 bg-background/30 p-3 text-left transition-[transform,border-color,background-color] active:scale-[0.985] hover:border-primary/40 hover:bg-primary/5"
                         >
                           <m.icon className="h-5 w-5 text-primary mb-1.5" />
                           <p className="text-sm font-medium text-foreground leading-tight">{CAPTURE_LABELS[m.kind]}</p>
@@ -343,7 +344,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
               {/* CONTEXT FORM */}
               {stage === "context" && meta && (
-                <div className="space-y-3">
+                <div className="min-w-0 space-y-3">
                   {classesError && !classesLoading ? (
                     <div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Class</span>
@@ -383,7 +384,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                           }));
                           setImages([]);
                         }}
-                        className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                        className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
                       >
                         {realMode && (
                           <option value="" disabled>Choose a class</option>
@@ -404,7 +405,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                           type="date"
                           value={ctx.date}
                           onChange={(e) => setCtx((c) => ({ ...c, date: e.target.value }))}
-                          className="w-full h-11 pl-9 pr-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                          className="h-11 w-full rounded-xl border border-border/50 bg-background/40 pl-9 pr-3 text-base text-foreground sm:text-sm"
                         />
                       </div>
                     </Field>
@@ -414,7 +415,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                         value={ctx.topic ?? ""}
                         placeholder="Auto-detect if empty"
                         onChange={(e) => setCtx((c) => ({ ...c, topic: e.target.value }))}
-                        className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground placeholder:text-muted-foreground/60"
+                        className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
                       />
                     </Field>
                   </div>
@@ -429,7 +430,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                         value={ctx.text ?? ""}
                         onChange={(e) => setCtx((c) => ({ ...c, text: e.target.value }))}
                         rows={3}
-                        className="w-full px-3 py-2.5 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground resize-none"
+                        className="w-full resize-none rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-base text-foreground sm:text-sm"
                         placeholder="Type here…"
                       />
                     </Field>
@@ -447,7 +448,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                                 ...current,
                                 assignmentId: event.target.value || undefined,
                               }))}
-                              className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                              className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
                             >
                               <option value="">New assignment</option>
                               {captureTargets.assignments.map((assignment) => (
@@ -469,7 +470,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                                     assignmentTitle: event.target.value,
                                   }))}
                                   placeholder="Chapter 4 homework"
-                                  className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground placeholder:text-muted-foreground/60"
+                                  className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
                                 />
                               </Field>
                               <Field label="Due date (optional)">
@@ -481,7 +482,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                                     ...current,
                                     assignmentDueDate: event.target.value || undefined,
                                   }))}
-                                  className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                                  className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
                                 />
                               </Field>
                             </div>
@@ -497,7 +498,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                             ...current,
                             examId: event.target.value || undefined,
                           }))}
-                          className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                          className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
                         >
                           <option value="">No specific test</option>
                           {captureTargets.exams.map((exam) => (
@@ -578,7 +579,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   <button
                     onClick={startProcessing}
                     disabled={!canContinue}
-                    className="btn-glow w-full h-12 rounded-2xl text-sm font-medium inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-glow inline-flex h-12 w-full touch-manipulation items-center justify-center gap-1.5 rounded-2xl text-sm font-medium transition-transform active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {kind === "scan-assignment"
                       ? "Save assignment"
@@ -597,6 +598,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   steps={realMode
                     ? (meta?.requiresImages ? IMAGE_PROCESSING_STEPS : REAL_PROCESSING_STEPS)
                     : PROCESSING_STEPS}
+                  expectation={realMode && meta?.requiresImages
+                    ? "Clear photos usually finish in about 15–30 seconds."
+                    : undefined}
                 />
               )}
 
@@ -654,43 +658,58 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</span>
-      <div className="mt-1">{children}</div>
+      <div className="mt-1 min-w-0">{children}</div>
     </label>
   );
 }
 
-function ProcessingTimeline({ stepIndex, steps }: { stepIndex: number; steps: ProcessingStep[] }) {
+function ProcessingTimeline({
+  stepIndex,
+  steps,
+  expectation,
+}: {
+  stepIndex: number;
+  steps: ProcessingStep[];
+  expectation?: string;
+}) {
   return (
-    <ol className="space-y-2.5">
-      {steps.map((s: ProcessingStep, i) => {
-        const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
-        return (
-          <li
-            key={s.id}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors",
-              state === "done"    && "border-success/30 bg-success/5",
-              state === "active"  && "border-primary/40 bg-primary/10",
-              state === "pending" && "border-border/40 bg-background/20 opacity-60",
-            )}
-          >
-            <div className={cn(
-              "h-7 w-7 rounded-full flex items-center justify-center shrink-0",
-              state === "done"    && "bg-success/20 text-success",
-              state === "active"  && "bg-primary/20 text-primary",
-              state === "pending" && "bg-background/40 text-muted-foreground",
-            )}>
-              {state === "done"    && <Check className="h-4 w-4" />}
-              {state === "active"  && <Loader2 className="h-4 w-4 animate-spin" />}
-              {state === "pending" && <span className="h-2 w-2 rounded-full bg-current opacity-60" />}
-            </div>
-            <span className="text-sm text-foreground">{s.label}</span>
-          </li>
-        );
-      })}
-    </ol>
+    <div aria-busy="true" aria-live="polite">
+      <ol className="space-y-2.5">
+        {steps.map((s: ProcessingStep, i) => {
+          const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
+          return (
+            <li
+              key={s.id}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors",
+                state === "done"    && "border-success/30 bg-success/5",
+                state === "active"  && "border-primary/40 bg-primary/10",
+                state === "pending" && "border-border/40 bg-background/20 opacity-60",
+              )}
+            >
+              <div className={cn(
+                "h-7 w-7 rounded-full flex items-center justify-center shrink-0",
+                state === "done"    && "bg-success/20 text-success",
+                state === "active"  && "bg-primary/20 text-primary",
+                state === "pending" && "bg-background/40 text-muted-foreground",
+              )}>
+                {state === "done"    && <Check className="h-4 w-4" />}
+                {state === "active"  && <Loader2 className="h-4 w-4 animate-spin" />}
+                {state === "pending" && <span className="h-2 w-2 rounded-full bg-current opacity-60" />}
+              </div>
+              <span className="text-sm text-foreground">{s.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {expectation && (
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          {expectation}
+        </p>
+      )}
+    </div>
   );
 }
 
