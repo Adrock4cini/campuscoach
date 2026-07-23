@@ -101,6 +101,8 @@ export function recommendStudyModeForCapture(item: MemoryItem): {
           "You already heard it — a short quiz confirms what actually stuck.",
       };
     case "scan-textbook":
+    case "scan-assignment":
+    case "scan-material":
       return {
         mode: "practice",
         reason:
@@ -115,6 +117,7 @@ export function recommendStudyModeForCapture(item: MemoryItem): {
             : "Small file — a quick recall pass will do.",
       };
     case "scan-board":
+    case "scan-syllabus":
       return {
         mode: "explain",
         reason:

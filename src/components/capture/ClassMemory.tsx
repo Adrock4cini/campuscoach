@@ -44,6 +44,7 @@ import {
 import {
   getCapturesForClass,
   retryCaptureConcepts,
+  retryCaptureImages,
   type PersistedCapture,
 } from "@/lib/supabase/capturePersistence";
 import { listCaptures, CAPTURE_LABELS } from "@/lib/capture/processor";
@@ -64,6 +65,9 @@ const KIND_ICON: Record<CaptureKind, typeof Mic> = {
   "record-lecture": Mic,
   "scan-board": Camera,
   "scan-textbook": BookOpen,
+  "scan-assignment": BookOpen,
+  "scan-material": Camera,
+  "scan-syllabus": BookOpen,
   "upload-file": Upload,
   "quick-note": StickyNote,
   "professor-hint": MessageSquareQuote,
@@ -104,6 +108,7 @@ function fromLocal(classId: string): MemoryItem[] {
       rawText: c.context.text ?? null,
       source: "local" as const,
       isPlaceholder: PLACEHOLDER_KINDS.has(c.kind),
+      materials: [],
     }));
 }
 
@@ -116,11 +121,15 @@ function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
     // Repair captures created by the older client that marked the row ready
     // before the extractor returned. A real text capture with no real concept
     // is not study-ready, regardless of the legacy status value.
+    const hasProcessableSource = (
+      (kind === "quick-note" || kind === "professor-hint")
+      && Boolean(r.rawText?.trim())
+    ) || (
+      (kind === "scan-assignment" || kind === "scan-material")
+      && (r.materials?.length ?? 0) > 0
+    );
     const processingStatus =
-      storedStatus === "ready" &&
-      (kind === "quick-note" || kind === "professor-hint") &&
-      Boolean(r.rawText?.trim()) &&
-      keyConcepts.length === 0
+      storedStatus === "ready" && hasProcessableSource && keyConcepts.length === 0
         ? "failed"
         : storedStatus;
     return ({
@@ -136,6 +145,11 @@ function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
     rawText: r.rawText,
     source: "supabase" as const,
     isPlaceholder: PLACEHOLDER_KINDS.has(kind),
+    materials: (r.materials ?? []).map((material) => ({
+      id: material.id,
+      storagePath: material.storagePath,
+      originalName: material.originalName,
+    })),
   });
   });
 }
@@ -227,7 +241,10 @@ export function ClassMemory({ classId, className }: Props) {
   }, [refresh]);
 
   const retryProcessing = async (item: MemoryItem) => {
-    if (!item.rawText?.trim()) return;
+    const imageRetry = (
+      item.kind === "scan-assignment" || item.kind === "scan-material"
+    ) && !!item.materials?.length;
+    if (!imageRetry && !item.rawText?.trim()) return;
     setRetryingId(item.id);
     setItems((current) => current.map((candidate) => (
       candidate.id === item.id
@@ -235,13 +252,20 @@ export function ClassMemory({ classId, className }: Props) {
         : candidate
     )));
     try {
-      await retryCaptureConcepts({
-        id: item.id,
-        kind: item.kind,
-        clientClassId: classId,
-        topic: item.topic,
-        rawText: item.rawText,
-      });
+      if (
+        imageRetry
+        && item.materials
+      ) {
+        await retryCaptureImages(item.id, item.materials.map((material) => material.id));
+      } else {
+        await retryCaptureConcepts({
+          id: item.id,
+          kind: item.kind,
+          clientClassId: classId,
+          topic: item.topic,
+          rawText: item.rawText,
+        });
+      }
       await refresh();
     } catch {
       setItems((current) => current.map((candidate) => (
@@ -427,7 +451,13 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
       </button>
 
       <div className="flex items-center gap-1 shrink-0">
-        {failed && item.rawText?.trim() ? (
+        {failed && (
+          item.rawText?.trim()
+          || (
+            (item.kind === "scan-assignment" || item.kind === "scan-material")
+            && item.materials?.length
+          )
+        ) ? (
           <Button
             size="sm"
             variant="ghost"

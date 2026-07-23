@@ -153,6 +153,7 @@ export type Database = {
       captures: {
         Row: {
           anonymized: boolean
+          assignment_id: string | null
           captured_on: string
           chapter: string | null
           class_id: string | null
@@ -160,6 +161,7 @@ export type Database = {
           concept_extraction_claim_id: string | null
           concept_extraction_started_at: string | null
           created_at: string
+          exam_id: string | null
           flashcards_ready: boolean
           id: string
           kind: string
@@ -174,6 +176,7 @@ export type Database = {
         }
         Insert: {
           anonymized?: boolean
+          assignment_id?: string | null
           captured_on?: string
           chapter?: string | null
           class_id?: string | null
@@ -181,6 +184,7 @@ export type Database = {
           concept_extraction_claim_id?: string | null
           concept_extraction_started_at?: string | null
           created_at?: string
+          exam_id?: string | null
           flashcards_ready?: boolean
           id?: string
           kind: string
@@ -195,6 +199,7 @@ export type Database = {
         }
         Update: {
           anonymized?: boolean
+          assignment_id?: string | null
           captured_on?: string
           chapter?: string | null
           class_id?: string | null
@@ -202,6 +207,7 @@ export type Database = {
           concept_extraction_claim_id?: string | null
           concept_extraction_started_at?: string | null
           created_at?: string
+          exam_id?: string | null
           flashcards_ready?: boolean
           id?: string
           kind?: string
@@ -216,10 +222,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "captures_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "captures_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
             referencedColumns: ["id"]
           },
         ]
@@ -718,11 +738,14 @@ export type Database = {
         Row: {
           anonymized: boolean
           capture_id: string | null
+          content_hash: string | null
           created_at: string
           duration_seconds: number | null
           id: string
           kind: string
           mime_type: string | null
+          original_name: string | null
+          page_index: number | null
           size_bytes: number | null
           storage_path: string | null
           user_id: string
@@ -731,11 +754,14 @@ export type Database = {
         Insert: {
           anonymized?: boolean
           capture_id?: string | null
+          content_hash?: string | null
           created_at?: string
           duration_seconds?: number | null
           id?: string
           kind: string
           mime_type?: string | null
+          original_name?: string | null
+          page_index?: number | null
           size_bytes?: number | null
           storage_path?: string | null
           user_id: string
@@ -744,11 +770,14 @@ export type Database = {
         Update: {
           anonymized?: boolean
           capture_id?: string | null
+          content_hash?: string | null
           created_at?: string
           duration_seconds?: number | null
           id?: string
           kind?: string
           mime_type?: string | null
+          original_name?: string | null
+          page_index?: number | null
           size_bytes?: number | null
           storage_path?: string | null
           user_id?: string

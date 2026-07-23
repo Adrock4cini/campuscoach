@@ -6,6 +6,7 @@
  * extracted concepts, a Campus Brain insight, and next study actions.
  */
 
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sheet,
@@ -17,9 +18,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ArrowRight, Brain, Sparkles } from "lucide-react";
+import { ArrowRight, Brain, Image as ImageIcon, Sparkles } from "lucide-react";
 import { CAPTURE_LABELS } from "@/lib/capture/processor";
 import type { CaptureKind } from "@/lib/capture/types";
+import { createCaptureSourceUrls } from "@/lib/supabase/capturePersistence";
 
 export interface MemoryItem {
   id: string;
@@ -35,6 +37,11 @@ export interface MemoryItem {
   source: "local" | "supabase";
   /** True when the original capture used a not-yet-connected media pipeline. */
   isPlaceholder?: boolean;
+  materials?: Array<{
+    id: string;
+    storagePath: string;
+    originalName: string | null;
+  }>;
 }
 
 interface Props {
@@ -56,6 +63,24 @@ export function CaptureDetailDrawer({
   onStudy,
 }: Props) {
   const navigate = useNavigate();
+  const [sourceUrls, setSourceUrls] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const paths = item?.materials?.map((material) => material.storagePath) ?? [];
+    if (!open || !paths.length) {
+      setSourceUrls([]);
+      return () => { cancelled = true; };
+    }
+    void createCaptureSourceUrls(paths)
+      .then((urls) => {
+        if (!cancelled) setSourceUrls(urls);
+      })
+      .catch(() => {
+        if (!cancelled) setSourceUrls([]);
+      });
+    return () => { cancelled = true; };
+  }, [item?.id, item?.materials, open]);
+
   if (!item) return null;
 
   const insight = buildInsight(item);
@@ -108,6 +133,38 @@ export function CaptureDetailDrawer({
               <p className="text-sm text-foreground/90 leading-relaxed">
                 {item.summary}
               </p>
+            </div>
+          )}
+
+          {item.materials && item.materials.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                Original pages
+              </p>
+              {sourceUrls.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {sourceUrls.map((url, index) => (
+                    <a
+                      key={item.materials?.[index]?.id ?? url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block overflow-hidden rounded-xl border border-border/60 bg-muted/20"
+                    >
+                      <img
+                        src={url}
+                        alt={item.materials?.[index]?.originalName ?? `Captured page ${index + 1}`}
+                        className="h-32 w-full object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-xl border border-border/50 p-3 text-xs text-muted-foreground">
+                  <ImageIcon className="h-4 w-4" />
+                  Private pages are available while you are signed in.
+                </div>
+              )}
             </div>
           )}
 
@@ -207,6 +264,7 @@ function buildInsight(item: MemoryItem): string {
         ? `Board scans are strong signal — "${c}" is worth two quick recall passes today.`
         : "Board content captured. Try a 5-minute recall pass before you forget it.";
     case "scan-textbook":
+    case "scan-material":
       return c
         ? `Anchor "${c}" with one practice problem before reviewing the rest of the chapter.`
         : "Chapter captured. Skim the section headings, then hit one recall pass.";
@@ -217,6 +275,14 @@ function buildInsight(item: MemoryItem): string {
     case "ask-brain":
       return "Saved to your memory so Campus Brain can revisit this the next time it matters.";
     case "upload-file":
+      return c
+        ? `File added. Start with "${c}" — it's the highest-yield concept here.`
+        : "File added to Class Memory.";
+    case "scan-assignment":
+      return c
+        ? `This assignment practices "${c}". Use it in your next test-prep set.`
+        : "Assignment saved. Campus Brain will identify the skills it practices.";
+    case "scan-syllabus":
     default:
       return c
         ? `File added. Start with "${c}" — it's the highest-yield concept here.`

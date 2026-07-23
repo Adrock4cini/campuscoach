@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
   X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Calendar,
+  ClipboardList, Images, FileText,
 } from "lucide-react";
 import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
@@ -22,6 +23,11 @@ import type {
   ProcessingStep,
 } from "@/lib/capture/types";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { useRealAssignments, useRealExams } from "@/lib/realData/hooks";
+import {
+  filterCaptureTargets,
+  validateCaptureImages,
+} from "@/lib/capture/imageCapture";
 
 interface Props {
   open: boolean;
@@ -37,11 +43,16 @@ const MENU: {
   icon: typeof Mic;
   hint: string;
   requiresText?: boolean;
+  requiresImages?: boolean;
   availableForRealUsers?: boolean;
+  action?: "syllabus";
 }[] = [
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
+  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into test practice", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-material",   icon: Images,        hint: "Save pages to Class Memory", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-syllabus",   icon: FileText,      hint: "Build classes and calendar", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the professor emphasized", requiresText: true, availableForRealUsers: true },
@@ -53,6 +64,13 @@ const REAL_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "class-detected", label: "Linked to your class", duration: 300 },
   { id: "concepts-found", label: "Concept extraction queued", duration: 350 },
   { id: "added-to-brain", label: "Added to Class Memory", duration: 300 },
+];
+
+const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
+  { id: "queued", label: "Saving private photos…", duration: 350 },
+  { id: "class-detected", label: "Checking class and test links", duration: 300 },
+  { id: "concepts-found", label: "Reading skills and concepts", duration: 350 },
+  { id: "added-to-brain", label: "Adding to Class Memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
@@ -90,6 +108,21 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<CaptureResult | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const imageKind = kind === "scan-assignment" || kind === "scan-material";
+  const {
+    items: assignmentItems,
+    loading: assignmentsLoading,
+  } = useRealAssignments(ctx.classId || "__no-class__", realMode && imageKind);
+  const {
+    items: examItems,
+    loading: examsLoading,
+  } = useRealExams(ctx.classId || "__no-class__", realMode && imageKind);
+  const captureTargets = useMemo(
+    () => filterCaptureTargets(ctx.classId, assignmentItems, examItems),
+    [assignmentItems, ctx.classId, examItems],
+  );
+  const imageValidation = useMemo(() => validateCaptureImages(images), [images]);
 
   // Reset every open
   useEffect(() => {
@@ -101,6 +134,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setStepIndex(0);
     setResult(null);
     setCaptureError(null);
+    setImages([]);
     setCtx({
       classId: defaultClassId,
       date: new Date().toISOString().slice(0, 10),
@@ -112,6 +146,12 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
 
   const chooseKind = (k: CaptureKind) => {
+    const selected = MENU.find((item) => item.kind === k);
+    if (selected?.action === "syllabus") {
+      onClose();
+      navigate("/onboarding?import=syllabus");
+      return;
+    }
     setKind(k);
     setStage("context");
   };
@@ -128,13 +168,16 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     const commitPromise = commitCapture(kind, ctx, {
       simulateDerivedContent: !realMode,
       requireRemotePersistence: realMode,
+      attachments: images,
     })
       .then((value) => ({ value, error: null as Error | null }))
       .catch((error: unknown) => ({
         value: null,
         error: error instanceof Error ? error : new Error(String(error)),
       }));
-    const processingSteps = realMode ? REAL_PROCESSING_STEPS : PROCESSING_STEPS;
+    const processingSteps = realMode
+      ? (meta?.requiresImages ? IMAGE_PROCESSING_STEPS : REAL_PROCESSING_STEPS)
+      : PROCESSING_STEPS;
 
     for (let i = 0; i < processingSteps.length; i++) {
       setStepIndex(i);
@@ -158,7 +201,13 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     !classesLoading &&
     classes.some((classInfo) => classInfo.id === ctx.classId) &&
     !!ctx.date &&
-    (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0);
+    (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0) &&
+    (!meta?.requiresImages || (
+      imageValidation.ok &&
+      !assignmentsLoading &&
+      !examsLoading &&
+      (kind !== "scan-assignment" || !!ctx.assignmentId || !!ctx.assignmentTitle?.trim())
+    ));
 
   return (
     <AnimatePresence>
@@ -323,7 +372,17 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                       <select
                         aria-label="Class"
                         value={ctx.classId}
-                        onChange={(e) => setCtx((c) => ({ ...c, classId: e.target.value }))}
+                        onChange={(e) => {
+                          setCtx((c) => ({
+                            ...c,
+                            classId: e.target.value,
+                            assignmentId: undefined,
+                            assignmentTitle: undefined,
+                            assignmentDueDate: undefined,
+                            examId: undefined,
+                          }));
+                          setImages([]);
+                        }}
                         className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
                       >
                         {realMode && (
@@ -376,7 +435,138 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     </Field>
                   )}
 
-                  {!meta.requiresText && (
+                  {meta.requiresImages && (
+                    <div className="space-y-3">
+                      {meta.kind === "scan-assignment" && (
+                        <>
+                          <Field label="Assignment">
+                            <select
+                              aria-label="Assignment"
+                              value={ctx.assignmentId ?? ""}
+                              onChange={(event) => setCtx((current) => ({
+                                ...current,
+                                assignmentId: event.target.value || undefined,
+                              }))}
+                              className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                            >
+                              <option value="">New assignment</option>
+                              {captureTargets.assignments.map((assignment) => (
+                                <option key={assignment.id} value={assignment.id}>
+                                  {assignment.title}
+                                  {assignment.due_date ? ` · due ${assignment.due_date}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          {!ctx.assignmentId && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <Field label="Assignment name">
+                                <input
+                                  aria-label="Assignment name"
+                                  value={ctx.assignmentTitle ?? ""}
+                                  onChange={(event) => setCtx((current) => ({
+                                    ...current,
+                                    assignmentTitle: event.target.value,
+                                  }))}
+                                  placeholder="Chapter 4 homework"
+                                  className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground placeholder:text-muted-foreground/60"
+                                />
+                              </Field>
+                              <Field label="Due date (optional)">
+                                <input
+                                  aria-label="Due date"
+                                  type="date"
+                                  value={ctx.assignmentDueDate ?? ""}
+                                  onChange={(event) => setCtx((current) => ({
+                                    ...current,
+                                    assignmentDueDate: event.target.value || undefined,
+                                  }))}
+                                  className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                                />
+                              </Field>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <Field label="Preparing for (optional)">
+                        <select
+                          aria-label="Preparing for"
+                          value={ctx.examId ?? ""}
+                          onChange={(event) => setCtx((current) => ({
+                            ...current,
+                            examId: event.target.value || undefined,
+                          }))}
+                          className="w-full h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-foreground"
+                        >
+                          <option value="">No specific test</option>
+                          {captureTargets.exams.map((exam) => (
+                            <option key={exam.id} value={exam.id}>
+                              {exam.title}
+                              {exam.exam_date ? ` · ${exam.exam_date}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      <div className="rounded-2xl border border-dashed border-primary/35 bg-primary/5 p-3">
+                        <p className="text-sm font-medium text-foreground">
+                          {meta.kind === "scan-assignment" ? "Photograph every problem page" : "Photograph notes or book pages"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          1–4 photos. Campus Brain reads the material and keeps the originals private.
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <label className="h-10 rounded-xl bg-primary text-primary-foreground text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                            <Camera className="h-4 w-4" />
+                            Take photo
+                            <input
+                              aria-label={meta.kind === "scan-assignment" ? "Assignment camera" : "Notes or book camera"}
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              onChange={(event) => {
+                                const next = Array.from(event.target.files ?? []);
+                                setImages((current) => [...current, ...next]);
+                                event.target.value = "";
+                              }}
+                              className="sr-only"
+                            />
+                          </label>
+                          <label className="h-10 rounded-xl border border-border/60 bg-background/30 text-foreground text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                            <Images className="h-4 w-4" />
+                            Choose photos
+                          <input
+                            aria-label={meta.kind === "scan-assignment" ? "Assignment photos" : "Notes or book photos"}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                            multiple
+                            onChange={(event) => setImages(Array.from(event.target.files ?? []))}
+                            className="sr-only"
+                          />
+                          </label>
+                        </div>
+                        {images.length > 0 && (
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <p className={`text-xs ${imageValidation.ok ? "text-primary" : "text-danger"}`}>
+                              {imageValidation.ok
+                                ? `${images.length} ${images.length === 1 ? "photo" : "photos"} ready`
+                                : imageValidation.message}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setImages([])}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!meta.requiresText && !meta.requiresImages && (
                     <div className="rounded-xl border border-dashed border-border/60 bg-background/20 px-4 py-6 text-center text-xs text-muted-foreground">
                       {meta.kind === "record-lecture" && "Tap Start to begin recording (simulated)"}
                       {meta.kind === "scan-board" && "Tap Start to open camera (simulated)"}
@@ -390,7 +580,11 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     disabled={!canContinue}
                     className="btn-glow w-full h-12 rounded-2xl text-sm font-medium inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Start
+                    {kind === "scan-assignment"
+                      ? "Save assignment"
+                      : kind === "scan-material"
+                        ? "Add to class"
+                        : "Start"}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -400,7 +594,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               {stage === "processing" && (
                 <ProcessingTimeline
                   stepIndex={stepIndex}
-                  steps={realMode ? REAL_PROCESSING_STEPS : PROCESSING_STEPS}
+                  steps={realMode
+                    ? (meta?.requiresImages ? IMAGE_PROCESSING_STEPS : REAL_PROCESSING_STEPS)
+                    : PROCESSING_STEPS}
                 />
               )}
 
@@ -421,7 +617,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               {stage === "error" && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
-                    <p className="text-sm font-medium text-foreground">Your note is still here.</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {meta?.requiresImages ? "Your photos and choices are still here." : "Your note is still here."}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {captureError ?? "We couldn't save it yet. Check your connection and try again."}
                     </p>
@@ -432,7 +630,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                       onClick={() => setStage("context")}
                       className="flex-1 h-11 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground"
                     >
-                      Review note
+                      {meta?.requiresImages ? "Review capture" : "Review note"}
                     </button>
                     <button
                       type="button"

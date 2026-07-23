@@ -12,6 +12,9 @@ export type CaptureKind =
   | "record-lecture"
   | "scan-board"
   | "scan-textbook"
+  | "scan-assignment"
+  | "scan-material"
+  | "scan-syllabus"
   | "upload-file"
   | "quick-note"
   | "professor-hint"
@@ -26,6 +29,12 @@ export interface CaptureContext {
   topic?: string;
   /** Free-form text: quick note body, professor hint, or brain question. */
   text?: string;
+  /** Optional existing assignment. New assignment scans may instead supply a title. */
+  assignmentId?: string;
+  assignmentTitle?: string;
+  assignmentDueDate?: string;
+  /** Optional exam this source should explicitly prepare the student for. */
+  examId?: string;
 }
 
 export type ProcessingStepId =

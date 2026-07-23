@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Upload, Sparkles, Loader2 } from "lucide-react";
+import { Camera, Upload, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { parseSyllabusFile, type ParsedSyllabus } from "@/lib/onboarding/parseSyllabus";
@@ -17,7 +17,8 @@ export function SyllabusImport({
   onMerge: (patch: Partial<OnboardingData>) => void;
   onParsed?: (parsed: ParsedSyllabus) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<ParsedSyllabus | null>(null);
 
@@ -70,7 +71,8 @@ export function SyllabusImport({
       });
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (photoInputRef.current) photoInputRef.current.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -85,9 +87,20 @@ export function SyllabusImport({
           <p className="text-xs text-muted-foreground mt-0.5">
             Upload a PDF or photo. Campus Brain fills in classes, professors, and dates — you just confirm.
           </p>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <input
-              ref={inputRef}
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handle(f);
+              }}
+            />
+            <input
+              ref={fileInputRef}
               type="file"
               accept={ACCEPT}
               className="hidden"
@@ -99,7 +112,7 @@ export function SyllabusImport({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => photoInputRef.current?.click()}
               disabled={busy}
             >
               {busy ? (
@@ -109,10 +122,19 @@ export function SyllabusImport({
                 </>
               ) : (
                 <>
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  Upload file
+                  <Camera className="h-3.5 w-3.5 mr-1.5" />
+                  Take photo
                 </>
               )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+            >
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Choose PDF or photo
             </Button>
           </div>
           {preview?.classes.length ? (
