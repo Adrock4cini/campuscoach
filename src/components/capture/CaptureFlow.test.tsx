@@ -193,6 +193,40 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
   });
 
+  it("keeps the mobile assignment sheet inside the viewport without iOS form zoom", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("capture-sheet")).toHaveClass(
+      "max-w-[100dvw]",
+      "min-w-0",
+      "overflow-x-hidden",
+    );
+
+    [
+      screen.getByRole("combobox", { name: "Class" }),
+      screen.getByLabelText("Date"),
+      screen.getByLabelText("Topic / Chapter"),
+      screen.getByRole("combobox", { name: "Assignment" }),
+      screen.getByLabelText("Assignment name"),
+      screen.getByLabelText("Due date"),
+      screen.getByRole("combobox", { name: "Preparing for" }),
+    ].forEach((control) => {
+      expect(control).toHaveClass("text-base", "sm:text-sm");
+    });
+  });
+
   it("opens the existing confirm-before-save syllabus importer", () => {
     mocks.classes = [math, science];
     mocks.loading = false;

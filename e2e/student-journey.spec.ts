@@ -31,6 +31,26 @@ test("a student can enter the demo, open capture, and reach Study Lab", async ({
   await expect(page.getByRole("heading", { name: "What are you capturing?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Quick Note Save a typed note" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
+
+  await page.getByRole("button", { name: /Scan Assignment/i }).click();
+  await expect(page.getByRole("heading", { name: "Scan Assignment" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  const captureMetrics = await page.evaluate(() => {
+    const sheet = document.querySelector('[data-testid="capture-sheet"]');
+    const controls = Array.from(
+      sheet?.querySelectorAll('select, input:not([type="file"]), textarea') ?? [],
+    );
+    return {
+      sheetWidth: sheet?.getBoundingClientRect().width ?? 0,
+      viewportWidth: window.innerWidth,
+      smallestControlFont: Math.min(
+        ...controls.map((control) => Number.parseFloat(getComputedStyle(control).fontSize)),
+      ),
+    };
+  });
+  expect(captureMetrics.sheetWidth).toBeLessThanOrEqual(captureMetrics.viewportWidth);
+  expect(captureMetrics.smallestControlFont).toBeGreaterThanOrEqual(16);
+
   await page.getByRole("button", { name: "Close" }).click();
 
   await page.goto("/study-lab");
