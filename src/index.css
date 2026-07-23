@@ -97,6 +97,9 @@
 
   html, body, #root {
     min-height: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
@@ -128,6 +131,26 @@
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); background-clip: padding-box; }
+}
+
+/*
+ * iOS Safari can repaint large stacked backdrop filters slowly while a
+ * bottom sheet animates. Keep the same glass treatment on phones with a
+ * smaller blur radius, then use the full cinematic treatment on larger
+ * screens. This also prevents the capture sheet from becoming its own
+ * horizontally pannable surface.
+ */
+@media (max-width: 639px) {
+  .capture-backdrop {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .capture-sheet {
+    contain: paint;
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
 }
 
 @layer utilities {
