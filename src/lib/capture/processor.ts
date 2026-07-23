@@ -41,6 +41,9 @@ export const CAPTURE_LABELS: Record<CaptureKind, string> = {
   "record-lecture":  "Record Lecture",
   "scan-board":      "Scan Board",
   "scan-textbook":   "Scan Textbook",
+  "scan-assignment": "Scan Assignment",
+  "scan-material":   "Scan Notes or Book",
+  "scan-syllabus":   "Scan Syllabus",
   "upload-file":     "Upload File",
   "quick-note":      "Quick Note",
   "professor-hint":  "Professor Hint",
@@ -72,6 +75,12 @@ function simulateSummary(kind: CaptureKind, ctx: CaptureContext): string {
       return `Board notes on ${topic} — diagrams extracted, terms indexed.`;
     case "scan-textbook":
       return `Textbook pages on ${topic} — summary + practice hooks generated.`;
+    case "scan-assignment":
+      return `Assignment saved for ${cls?.name} — skills and problem types are being identified.`;
+    case "scan-material":
+      return `Pages saved to ${cls?.name} — concepts are being added to Class Memory.`;
+    case "scan-syllabus":
+      return `Syllabus ready to build your classes and calendar.`;
     case "upload-file":
       return `File processed for ${cls?.name} — content added to your study set.`;
     case "quick-note":
@@ -110,6 +119,7 @@ export async function commitCapture(
   options: {
     simulateDerivedContent?: boolean;
     requireRemotePersistence?: boolean;
+    attachments?: File[];
   } = {},
 ): Promise<CaptureResult> {
   const cls = classes.find((c) => c.id === context.classId);
@@ -133,7 +143,9 @@ export async function commitCapture(
     const { persistCaptureResult } = await import(
       "@/lib/supabase/capturePersistence"
     );
-    return persistCaptureResult(result);
+    return options.attachments?.length
+      ? persistCaptureResult(result, options.attachments)
+      : persistCaptureResult(result);
   };
 
   if (options.requireRemotePersistence) {

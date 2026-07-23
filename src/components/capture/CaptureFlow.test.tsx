@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
 import * as captureProcessor from "@/lib/capture/processor";
@@ -10,6 +10,34 @@ const mocks = vi.hoisted(() => ({
   loading: true,
   error: null as string | null,
   reload: vi.fn(),
+  assignments: [
+    {
+      id: "assignment-math",
+      client_class_id: "math",
+      title: "Math homework",
+      due_date: "2026-07-25",
+    },
+    {
+      id: "assignment-science",
+      client_class_id: "science",
+      title: "Science lab",
+      due_date: "2026-07-26",
+    },
+  ],
+  exams: [
+    {
+      id: "exam-math",
+      client_class_id: "math",
+      title: "Math test",
+      exam_date: "2026-07-30",
+    },
+    {
+      id: "exam-science",
+      client_class_id: "science",
+      title: "Science test",
+      exam_date: "2026-08-01",
+    },
+  ],
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -26,6 +54,21 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({
     loading: mocks.loading,
     error: mocks.error,
     reload: mocks.reload,
+  }),
+}));
+
+vi.mock("@/lib/realData/hooks", () => ({
+  useRealAssignments: () => ({
+    items: mocks.assignments,
+    loading: false,
+    error: null,
+    reload: vi.fn(),
+  }),
+  useRealExams: () => ({
+    items: mocks.exams,
+    loading: false,
+    error: null,
+    reload: vi.fn(),
   }),
 }));
 
@@ -50,6 +93,11 @@ function renderCapture(initialClassId?: string) {
       />
     </MemoryRouter>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
 describe("CaptureFlow class boundaries", () => {
@@ -101,11 +149,99 @@ describe("CaptureFlow class boundaries", () => {
 
     expect(screen.getByRole("button", { name: /Quick Note/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Professor Hint/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Scan Assignment/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Scan Notes or Book/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Scan Syllabus/i })).toBeEnabled();
     expect(screen.getByRole("list", { name: "Coming next" })).toBeInTheDocument();
     expect(screen.getByText("Record Lecture")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Record Lecture/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Scan Board/i })).not.toBeInTheDocument();
     expect(screen.getByText("Not tappable yet")).toBeInTheDocument();
+  });
+
+  it("requires a photo and only shows assignment and exam targets from the chosen class", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const assignmentPicker = screen.getByRole("combobox", { name: "Assignment" });
+    const examPicker = screen.getByRole("combobox", { name: "Preparing for" });
+    expect(screen.getByRole("option", { name: /Science lab/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Math homework/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Science test/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Math test/i })).not.toBeInTheDocument();
+
+    fireEvent.change(assignmentPicker, { target: { value: "assignment-science" } });
+    fireEvent.change(examPicker, { target: { value: "exam-science" } });
+    expect(screen.getByRole("button", { name: "Save assignment" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Assignment photos"), {
+      target: {
+        files: [new File([new Uint8Array(100)], "homework.jpg", { type: "image/jpeg" })],
+      },
+    });
+    expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
+  });
+
+  it("opens the existing confirm-before-save syllabus importer", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    const onClose = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <CaptureFlow open onClose={onClose} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Scan Syllabus/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("location")).toHaveTextContent("/onboarding?import=syllabus");
+  });
+
+  it("keeps assignment photos and links available when the upload is not confirmed", async () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    vi.spyOn(captureProcessor, "commitCapture").mockRejectedValueOnce(
+      new Error("We couldn't upload these photos."),
+    );
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Assignment" }), {
+      target: { value: "assignment-science" },
+    });
+    fireEvent.change(screen.getByLabelText("Assignment photos"), {
+      target: {
+        files: [new File([new Uint8Array(100)], "homework.jpg", { type: "image/jpeg" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
+
+    expect(await screen.findByText("Capture wasn't saved", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText("Your photos and choices are still here.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Review capture" }));
+    expect(screen.getByText("1 photo ready")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue("assignment-science");
   });
 
   it("preserves the class supplied by a class-scoped capture action", () => {

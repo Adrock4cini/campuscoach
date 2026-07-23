@@ -64,6 +64,7 @@ interface ResolvedStudyScope {
   topics: string[];
   examDate?: string | null;
   previousExamDate?: string | null;
+  clientClassId?: string | null;
 }
 
 interface Flashcard {
@@ -152,6 +153,17 @@ Deno.serve(async (req) => {
 
   const resolvedScope = await resolveStudyScope(supabase, userId, body);
   if (resolvedScope instanceof Response) return resolvedScope;
+  if (
+    resolvedScope.type === "exam"
+    && body.classId
+    && resolvedScope.clientClassId
+    && body.classId !== resolvedScope.clientClassId
+  ) {
+    return json({ error: "That test does not belong to the selected class" }, 409);
+  }
+  const resolvedClientClassId = resolvedScope.type === "exam"
+    ? resolvedScope.clientClassId ?? body.classId ?? null
+    : body.classId ?? null;
 
   // 1. Load concepts. Explicit IDs/captures remain supported for direct
   // actions. Study Lab requests are scoped to recent material, one exam, or
@@ -167,8 +179,8 @@ Deno.serve(async (req) => {
     conceptQuery = conceptQuery.in("id", body.conceptIds);
   } else if (body.captureId) {
     conceptQuery = conceptQuery.eq("capture_id", body.captureId);
-  } else if (body.classId) {
-    conceptQuery = conceptQuery.eq("client_class_id", body.classId);
+  } else if (resolvedClientClassId) {
+    conceptQuery = conceptQuery.eq("client_class_id", resolvedClientClassId);
   }
 
   const { data: concepts, error: cErr } = await conceptQuery;
@@ -177,12 +189,25 @@ Deno.serve(async (req) => {
     return json({ error: "No concepts found for this request" }, 404);
   }
 
+  const explicitExamCaptureIds = resolvedScope.type === "exam"
+    ? await loadExplicitExamCaptureIds(
+      supabase,
+      userId,
+      resolvedScope.examId!,
+      resolvedClientClassId,
+    )
+    : new Set<string>();
   let typedConcepts = selectScopedConcepts(
     concepts as ConceptRow[],
     resolvedScope,
     Boolean(body.conceptIds?.length || body.captureId),
+    explicitExamCaptureIds,
   );
-  typedConcepts = await enforceClassBoundary(supabase, typedConcepts, body.classId);
+  typedConcepts = await enforceClassBoundary(
+    supabase,
+    typedConcepts,
+    resolvedClientClassId ?? undefined,
+  );
   if (!typedConcepts.length) {
     return json({
       error: resolvedScope.type === "exam"
@@ -298,7 +323,7 @@ Deno.serve(async (req) => {
     // used by the app (for example, "math"). Never put the latter in a UUID
     // column; that caused the production UUID parsing failure.
     class_id: typedConcepts[0].class_id ?? null,
-    client_class_id: body.classId ?? typedConcepts[0].client_class_id ?? null,
+    client_class_id: resolvedClientClassId ?? typedConcepts[0].client_class_id ?? null,
     kind: body.kind,
     concept_ids: generatedConceptIds,
     capture_id: body.captureId ?? typedConcepts[0].capture_id ?? null,
@@ -340,11 +365,11 @@ Deno.serve(async (req) => {
         .eq("study_scope_type", resolvedScope.type)
         .eq("study_scope_id", resolvedScope.id)
         .neq("id", inserted.id);
-    } else if (body.classId) {
+    } else if (resolvedClientClassId) {
       await supabase.from("learning_artifacts")
         .update({ stale: true })
         .eq("user_id", userId).eq("kind", body.kind)
-        .eq("client_class_id", body.classId)
+        .eq("client_class_id", resolvedClientClassId)
         .eq("study_scope_type", resolvedScope.type)
         .eq("study_scope_id", resolvedScope.id)
         .neq("id", inserted.id);
@@ -410,6 +435,7 @@ async function resolveStudyScope(
     topics: Array.isArray(exam.topics) ? exam.topics : [],
     examDate: exam.exam_date,
     previousExamDate,
+    clientClassId: exam.client_class_id,
   };
 }
 
@@ -417,15 +443,22 @@ function selectScopedConcepts(
   concepts: ConceptRow[],
   scope: ResolvedStudyScope,
   directSelection: boolean,
+  explicitExamCaptureIds: Set<string> = new Set(),
 ) {
   if (directSelection || scope.type === "class") return concepts.slice(0, MAX_CONCEPTS);
   if (scope.type === "recent") return concepts.slice(0, Math.min(5, MAX_CONCEPTS));
 
+  const explicitMatches = concepts.filter(
+    (concept) => !!concept.capture_id && explicitExamCaptureIds.has(concept.capture_id),
+  );
+  const remaining = concepts.filter(
+    (concept) => !concept.capture_id || !explicitExamCaptureIds.has(concept.capture_id),
+  );
   const topicTerms = scope.topics
     .flatMap(expandStudyTopic)
     .filter(Boolean);
   const topicMatches = topicTerms.length
-    ? concepts.filter((concept) => {
+    ? remaining.filter((concept) => {
       const haystack = [concept.name, concept.definition, ...(concept.examples ?? [])]
         .filter(Boolean)
         .join(" ")
@@ -434,18 +467,37 @@ function selectScopedConcepts(
       return topicTerms.some((topic) => searchable.includes(topic));
     })
     : [];
-  if (topicMatches.length) return topicMatches.slice(0, MAX_CONCEPTS);
+  if (topicMatches.length) {
+    return [...explicitMatches, ...topicMatches].slice(0, MAX_CONCEPTS);
+  }
 
   const end = scope.examDate ? new Date(`${scope.examDate}T23:59:59.999Z`).getTime() : Infinity;
   const start = scope.previousExamDate
     ? new Date(`${scope.previousExamDate}T23:59:59.999Z`).getTime()
     : -Infinity;
-  return concepts
+  const datedMatches = remaining
     .filter((concept) => {
       const created = new Date(concept.created_at).getTime();
       return created > start && created <= end;
-    })
-    .slice(0, MAX_CONCEPTS);
+    });
+  return [...explicitMatches, ...datedMatches].slice(0, MAX_CONCEPTS);
+}
+
+async function loadExplicitExamCaptureIds(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  examId: string,
+  clientClassId?: string | null,
+) {
+  let query = supabase
+    .from("captures")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("exam_id", examId);
+  if (clientClassId) query = query.eq("client_class_id", clientClassId);
+  const { data, error } = await query;
+  if (error) return new Set<string>();
+  return new Set((data ?? []).map((capture) => capture.id as string));
 }
 
 const STUDY_TOPIC_ALIASES: Record<string, string[]> = {

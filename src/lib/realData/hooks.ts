@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listAssignments, type RealAssignment } from "./assignments";
 import { listExams, type RealExam } from "./exams";
 
-export function useRealAssignments(clientClassId?: string) {
+export function useRealAssignments(clientClassId?: string, enabled = true) {
   const { user } = useAuth();
   const userId = user?.id;
   const [items, setItems] = useState<RealAssignment[]>([]);
@@ -17,6 +17,7 @@ export function useRealAssignments(clientClassId?: string) {
 
   const reload = useCallback(async () => {
     const request = ++requestVersion.current;
+    if (!enabled) { setItems([]); setLoading(false); setError(null); return; }
     if (!userId) { setItems([]); setLoading(false); setError(null); return; }
     setLoading(true);
     setError(null);
@@ -30,7 +31,7 @@ export function useRealAssignments(clientClassId?: string) {
     } finally {
       if (request === requestVersion.current) setLoading(false);
     }
-  }, [userId, clientClassId]);
+  }, [userId, clientClassId, enabled]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -42,7 +43,7 @@ export function useRealAssignments(clientClassId?: string) {
   return { items, loading, error, reload };
 }
 
-export function useRealExams(clientClassId?: string) {
+export function useRealExams(clientClassId?: string, enabled = true) {
   const { user } = useAuth();
   const userId = user?.id;
   const [items, setItems] = useState<RealExam[]>([]);
@@ -52,6 +53,7 @@ export function useRealExams(clientClassId?: string) {
 
   const reload = useCallback(async () => {
     const request = ++requestVersion.current;
+    if (!enabled) { setItems([]); setLoading(false); setError(null); return; }
     if (!userId) { setItems([]); setLoading(false); setError(null); return; }
     setLoading(true);
     setError(null);
@@ -65,7 +67,7 @@ export function useRealExams(clientClassId?: string) {
     } finally {
       if (request === requestVersion.current) setLoading(false);
     }
-  }, [userId, clientClassId]);
+  }, [userId, clientClassId, enabled]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
