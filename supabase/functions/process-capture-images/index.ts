@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
     .select("id, client_class_id")
     .eq("user_id", userId)
     .eq("client_class_id", capture.client_class_id)
+    .is("source_archived_at", null)
     .maybeSingle();
   if (classError) return json({ error: "Class lookup failed" }, 500);
   if (!ownedClass) return json({ error: "Class not found" }, 404);
@@ -483,6 +484,7 @@ async function validateLinkedTargets(
       .eq("id", input.assignmentId)
       .eq("user_id", input.userId)
       .eq("client_class_id", input.clientClassId)
+      .is("source_archived_at", null)
       .maybeSingle();
     if (error || !data || (data.class_id && data.class_id !== input.classId)) {
       return "Assignment does not belong to the capture class";
@@ -495,6 +497,7 @@ async function validateLinkedTargets(
       .eq("id", input.examId)
       .eq("user_id", input.userId)
       .eq("client_class_id", input.clientClassId)
+      .is("source_archived_at", null)
       .maybeSingle();
     if (error || !data || (data.class_id && data.class_id !== input.classId)) {
       return "Exam does not belong to the capture class";
