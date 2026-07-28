@@ -19,6 +19,9 @@ export interface RealAssignment {
   priority: AssignmentPriority;
   status: AssignmentStatus;
   notes: string | null;
+  source?: "manual" | "canvas";
+  source_url?: string | null;
+  source_archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,7 +38,8 @@ export interface NewAssignmentInput {
 }
 
 export async function listAssignments(userId: string, clientClassId?: string): Promise<RealAssignment[]> {
-  let q = supabase.from("assignments").select("*").eq("user_id", userId);
+  let q = supabase.from("assignments").select("*").eq("user_id", userId)
+    .is("source_archived_at", null);
   if (clientClassId) q = q.eq("client_class_id", clientClassId);
   const { data, error } = await q.order("due_date", { ascending: true, nullsFirst: false });
   if (error) {
