@@ -8,3 +8,12 @@ verify_jwt = true
 
 [functions.process-capture-images]
 verify_jwt = true
+
+[functions.canvas-connect]
+verify_jwt = true
+
+[functions.canvas-oauth-callback]
+verify_jwt = false
+
+[functions.canvas-sync]
+verify_jwt = true
