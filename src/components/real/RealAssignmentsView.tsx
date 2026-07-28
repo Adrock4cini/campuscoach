@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Clock, ListChecks, CheckCircle2, Trash2 } from "lucide-react";
+import { Plus, Clock, ListChecks, CheckCircle2, Trash2, ExternalLink } from "lucide-react";
 import { AddAssignmentDialog } from "@/components/real/AddAssignmentDialog";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useRealAssignments, daysUntil } from "@/lib/realData/hooks";
@@ -113,6 +113,7 @@ export function RealAssignmentsView() {
       ) : (
         <div className="space-y-2">
           {items.map((a) => {
+            const fromCanvas = a.source === "canvas";
             const days = daysUntil(a.due_date);
             const dueChip =
               days === null ? "No date" :
@@ -128,9 +129,12 @@ export function RealAssignmentsView() {
               <Card key={a.id} className={`shadow-card ${a.id === selectedAssignmentId ? "border-primary/50 ring-1 ring-primary/20" : ""}`}>
                 <CardContent className="p-4 flex items-start gap-3">
                   <button
-                    onClick={() => toggleStatus(a.id, a.status === "complete" ? "not_started" : "complete")}
+                    onClick={() => {
+                      if (!fromCanvas) void toggleStatus(a.id, a.status === "complete" ? "not_started" : "complete");
+                    }}
                     className="mt-0.5 shrink-0"
                     aria-label="Toggle complete"
+                    disabled={fromCanvas}
                   >
                     <CheckCircle2 className={`h-5 w-5 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
                   </button>
@@ -142,6 +146,7 @@ export function RealAssignmentsView() {
                       <Badge variant="secondary" className={`text-[10px] ${PRIORITY_TONE[a.priority] ?? ""}`}>
                         {a.priority}
                       </Badge>
+                      {fromCanvas && <Badge variant="outline" className="text-[10px]">Canvas</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{classNameFor(a.client_class_id)}</p>
                     <div className="mt-2 flex items-center gap-3 text-xs">
@@ -150,17 +155,29 @@ export function RealAssignmentsView() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Select value={a.status} onValueChange={(v: AssignmentStatus) => toggleStatus(a.id, v)}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(STATUS_LABEL) as AssignmentStatus[]).map((s) => (
-                          <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(a.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {fromCanvas ? (
+                      a.source_url && (
+                        <Button variant="ghost" size="sm" className="h-8" asChild>
+                          <a href={a.source_url} target="_blank" rel="noreferrer">
+                            Open <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )
+                    ) : (
+                      <>
+                        <Select value={a.status} onValueChange={(v: AssignmentStatus) => toggleStatus(a.id, v)}>
+                          <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(STATUS_LABEL) as AssignmentStatus[]).map((s) => (
+                              <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(a.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
