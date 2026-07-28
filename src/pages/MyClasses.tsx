@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus } from "lucide-react";
+import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
@@ -38,8 +38,13 @@ export default function MyClasses() {
                 Add your real classes to unlock captures, assignments, exams, and study sessions built from your actual coursework.
               </p>
             </div>
-            <div className="pt-2">
-              <Button onClick={() => navigate("/onboarding")}>Add your first class</Button>
+            <div className="flex flex-col justify-center gap-2 pt-2 sm:flex-row">
+              <Button onClick={() => navigate("/integrations/canvas")}>
+                <Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/onboarding")}>
+                Add manually
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -156,6 +161,11 @@ export default function MyClasses() {
         <Plus className="h-4 w-4" />
         Add class
       </Button>
+      {isReal && (
+        <Button variant="ghost" className="h-11 w-full" onClick={() => navigate("/integrations/canvas")}>
+          <Link2 className="mr-2 h-4 w-4" /> Canvas
+        </Button>
+      )}
     </div>
   );
 }
