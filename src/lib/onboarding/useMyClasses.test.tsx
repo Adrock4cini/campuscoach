@@ -18,7 +18,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => ({
       select: () => ({
         eq: () => table === "classes"
-          ? { order: async () => mocks.classResult }
+          ? { is: () => ({ order: async () => mocks.classResult }) }
           : Promise.resolve(mocks.readinessResult),
       }),
     }),
