@@ -49,6 +49,12 @@ export type Database = {
           meta: Json
           notes: string | null
           priority: string
+          source: string
+          source_archived_at: string | null
+          source_due_at: string | null
+          source_updated_at: string | null
+          source_url: string | null
+          external_id: string | null
           status: string
           title: string
           updated_at: string
@@ -64,6 +70,12 @@ export type Database = {
           meta?: Json
           notes?: string | null
           priority?: string
+          source?: string
+          source_archived_at?: string | null
+          source_due_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -79,6 +91,12 @@ export type Database = {
           meta?: Json
           notes?: string | null
           priority?: string
+          source?: string
+          source_archived_at?: string | null
+          source_due_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -257,6 +275,11 @@ export type Database = {
           name: string
           professor: string | null
           readiness: number | null
+          source: string
+          source_archived_at: string | null
+          source_updated_at: string | null
+          source_url: string | null
+          external_id: string | null
           updated_at: string
           user_id: string
         }
@@ -272,6 +295,11 @@ export type Database = {
           name: string
           professor?: string | null
           readiness?: number | null
+          source?: string
+          source_archived_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -287,6 +315,11 @@ export type Database = {
           name?: string
           professor?: string | null
           readiness?: number | null
+          source?: string
+          source_archived_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -559,6 +592,12 @@ export type Database = {
           meta: Json
           notes: string | null
           readiness: number
+          source: string
+          source_archived_at: string | null
+          source_due_at: string | null
+          source_updated_at: string | null
+          source_url: string | null
+          external_id: string | null
           title: string
           topics: string[]
           updated_at: string
@@ -573,6 +612,12 @@ export type Database = {
           meta?: Json
           notes?: string | null
           readiness?: number
+          source?: string
+          source_archived_at?: string | null
+          source_due_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           title: string
           topics?: string[]
           updated_at?: string
@@ -587,6 +632,12 @@ export type Database = {
           meta?: Json
           notes?: string | null
           readiness?: number
+          source?: string
+          source_archived_at?: string | null
+          source_due_at?: string | null
+          source_updated_at?: string | null
+          source_url?: string | null
+          external_id?: string | null
           title?: string
           topics?: string[]
           updated_at?: string
