@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
       .select("id, client_class_id")
       .eq("user_id", userId)
       .eq("client_class_id", resolvedClientClassId)
+      .is("source_archived_at", null)
       .maybeSingle();
     if (classErr) return json({ error: "class lookup failed", details: classErr.message }, 500);
     if (!ownedClass) return json({ error: "class not found" }, 404);
