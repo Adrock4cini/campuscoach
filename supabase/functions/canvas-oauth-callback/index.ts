@@ -80,6 +80,12 @@ Deno.serve(async (req) => {
     last_sync_status: "never",
     last_sync_error: null,
   }, { onConflict: "user_id,canvas_base_url" });
+  if (!error) {
+    // Full OAuth supersedes the limited calendar fallback. Remove the encrypted
+    // feed credential so only one background importer remains active.
+    await admin.from("canvas_calendar_connections").delete()
+      .eq("user_id", stateRow.user_id);
+  }
   return redirect(error ? "error" : "connected");
 });
 

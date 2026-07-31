@@ -8,6 +8,7 @@ export interface CanvasSyncCounts {
 export interface CanvasConnectionStatus {
   connected: boolean;
   status: "disconnected" | "connected" | "needs_reauth" | "error";
+  method?: "oauth" | "calendar";
   canvasBaseUrl?: string;
   canvasUserName?: string | null;
   lastSyncStatus?: "never" | "syncing" | "success" | "partial" | "error";
@@ -22,7 +23,10 @@ export class CanvasIntegrationError extends Error {
   }
 }
 export async function getCanvasStatus() {
-  return invoke<CanvasConnectionStatus>("status");
+  const oauth = await invoke<CanvasConnectionStatus>("status");
+  if (oauth.connected) return { ...oauth, method: "oauth" as const };
+  const calendar = await invokeCalendar<CanvasConnectionStatus>("status");
+  return calendar.connected ? calendar : oauth;
 }
 export async function beginCanvasConnection(canvasBaseUrl: string) {
   const { data, error } = await supabase.functions.invoke("canvas-connect", {
@@ -44,7 +48,26 @@ export async function syncCanvas() {
   }>("sync");
 }
 export async function disconnectCanvas() {
-  return invoke<{ ok: boolean; connected: false }>("disconnect");
+  const status = await getCanvasStatus();
+  return status.method === "calendar"
+    ? invokeCalendar<{ ok: boolean; connected: false }>("disconnect")
+    : invoke<{ ok: boolean; connected: false }>("disconnect");
+}
+export async function connectCanvasCalendar(feedUrl: string) {
+  return invokeCalendar<{
+    ok: boolean;
+    connected: true;
+    lastSyncedAt: string;
+    counts?: CanvasSyncCounts;
+  }>("connect", { feedUrl: feedUrl.trim() });
+}
+export async function syncCanvasCalendar() {
+  return invokeCalendar<{
+    ok: boolean;
+    partial?: boolean;
+    lastSyncedAt?: string;
+    counts?: CanvasSyncCounts;
+  }>("sync");
 }
 export function notifyCanvasDataChanged() {
   window.dispatchEvent(new CustomEvent("coach:refresh"));
@@ -54,6 +77,16 @@ export function notifyCanvasDataChanged() {
 async function invoke<T>(action: "status" | "sync" | "disconnect"): Promise<T> {
   const { data, error } = await supabase.functions.invoke("canvas-sync", {
     body: { action },
+  });
+  if (error) throw await parseError(error);
+  return data as T;
+}
+async function invokeCalendar<T>(
+  action: "status" | "connect" | "sync" | "disconnect",
+  extra: Record<string, unknown> = {},
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("canvas-calendar-sync", {
+    body: { action, ...extra },
   });
   if (error) throw await parseError(error);
   return data as T;

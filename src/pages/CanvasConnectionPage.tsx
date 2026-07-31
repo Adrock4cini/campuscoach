@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, Link2, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ExternalLink,
+  Link2,
+  RefreshCw,
+  ShieldCheck,
+  Unplug,
+} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +17,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   beginCanvasConnection,
+  connectCanvasCalendar,
   disconnectCanvas,
   getCanvasStatus,
   notifyCanvasDataChanged,
   syncCanvas,
+  syncCanvasCalendar,
   type CanvasConnectionStatus,
 } from "@/lib/canvas/integration";
 
@@ -22,8 +32,11 @@ export default function CanvasConnectionPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const callbackHandled = useRef(false);
+  const statusRef = useRef<CanvasConnectionStatus | null>(null);
   const [status, setStatus] = useState<CanvasConnectionStatus | null>(null);
   const [canvasUrl, setCanvasUrl] = useState(DEFAULT_CANVAS_URL);
+  const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
+  const [showCalendarFallback, setShowCalendarFallback] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<"connect" | "sync" | "disconnect" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +45,7 @@ export default function CanvasConnectionPage() {
     try {
       const next = await getCanvasStatus();
       setStatus(next);
+      statusRef.current = next;
       if (next.canvasBaseUrl) setCanvasUrl(next.canvasBaseUrl);
       setError(next.lastSyncError || null);
       return next;
@@ -47,7 +61,10 @@ export default function CanvasConnectionPage() {
     setWorking("sync");
     setError(null);
     try {
-      const result = await syncCanvas();
+      const current = statusRef.current ?? await getCanvasStatus();
+      const result = current.method === "calendar"
+        ? await syncCanvasCalendar()
+        : await syncCanvas();
       notifyCanvasDataChanged();
       await loadStatus();
       if (!quiet) toast.success(result.partial ? "Canvas mostly synced" : "Canvas is up to date");
@@ -109,6 +126,23 @@ export default function CanvasConnectionPage() {
     }
   };
 
+  const connectCalendar = async () => {
+    setWorking("connect");
+    setError(null);
+    try {
+      await connectCanvasCalendar(calendarFeedUrl);
+      notifyCanvasDataChanged();
+      await loadStatus();
+      toast.success("School calendar connected", {
+        description: "Your classes and deadlines were imported.",
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Calendar connection could not start.");
+    } finally {
+      setWorking(null);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div>
@@ -135,13 +169,14 @@ export default function CanvasConnectionPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-display text-lg font-semibold">Canvas connected</h2>
+                    <h2 className="font-display text-lg font-semibold">School connected</h2>
                     <Badge variant="outline" className="border-success/30 text-[10px] text-success">
                       Read only
                     </Badge>
                   </div>
                   <p className="truncate text-sm text-muted-foreground">
-                    {status.canvasUserName || "Your school account"}
+                    {status.canvasUserName ||
+                      (status.method === "calendar" ? "Canvas calendar" : "Your school account")}
                   </p>
                 </div>
               </div>
@@ -209,6 +244,55 @@ export default function CanvasConnectionPage() {
                   : <Link2 className="mr-2 h-4 w-4" />}
                 Continue to Canvas
               </Button>
+              <div className="border-t border-border/40 pt-4">
+                <button
+                  type="button"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCalendarFallback((value) => !value)}
+                  aria-expanded={showCalendarFallback}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Can’t connect automatically?
+                </button>
+                {showCalendarFallback && (
+                  <div className="mt-3 space-y-3 rounded-2xl border border-border/50 bg-background/20 p-4">
+                    <div>
+                      <h3 className="text-sm font-medium">Use your Canvas calendar</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        In Canvas, open Calendar → Calendar Feed, copy the link, and paste it here.
+                        This imports deadlines without giving us your password.
+                      </p>
+                    </div>
+                    <Label htmlFor="calendar-feed-url" className="sr-only">
+                      Private Canvas calendar link
+                    </Label>
+                    <Input
+                      id="calendar-feed-url"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      value={calendarFeedUrl}
+                      onChange={(event) => setCalendarFeedUrl(event.target.value)}
+                      placeholder="Paste private Canvas calendar link"
+                      className="h-12 rounded-xl"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-11 w-full rounded-xl"
+                      onClick={() => void connectCalendar()}
+                      disabled={working !== null || !calendarFeedUrl.trim()}
+                    >
+                      {working === "connect"
+                        ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        : <CalendarDays className="mr-2 h-4 w-4" />}
+                      Import my calendar
+                    </Button>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Keep this link private. Campus Companion encrypts it and only uses it to
+                      refresh your coursework.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {error && (

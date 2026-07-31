@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.canvas-sync]
 verify_jwt = true
+
+[functions.canvas-calendar-sync]
+verify_jwt = true

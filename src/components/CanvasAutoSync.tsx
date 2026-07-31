@@ -5,6 +5,7 @@ import {
   getCanvasStatus,
   notifyCanvasDataChanged,
   syncCanvas,
+  syncCanvasCalendar,
 } from "@/lib/canvas/integration";
 
 const AUTO_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -25,7 +26,8 @@ export function CanvasAutoSync() {
       ) return;
       const lastSync = status.lastSyncedAt ? Date.parse(status.lastSyncedAt) : Number.NaN;
       if (Number.isFinite(lastSync) && Date.now() - lastSync < AUTO_SYNC_INTERVAL_MS) return;
-      await syncCanvas();
+      if (status.method === "calendar") await syncCanvasCalendar();
+      else await syncCanvas();
       if (!cancelled) notifyCanvasDataChanged();
     })().catch(() => {
       // Background sync never interrupts study; the Canvas page has retry controls.

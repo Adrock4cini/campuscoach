@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CanvasConnectionPage from "./CanvasConnectionPage";
-import { beginCanvasConnection, getCanvasStatus, syncCanvas } from "@/lib/canvas/integration";
+import {
+  beginCanvasConnection,
+  connectCanvasCalendar,
+  getCanvasStatus,
+  syncCanvas,
+} from "@/lib/canvas/integration";
 
 const navigate = vi.fn();
 vi.mock("react-router-dom", () => ({
@@ -10,10 +15,12 @@ vi.mock("react-router-dom", () => ({
 }));
 vi.mock("@/lib/canvas/integration", () => ({
   beginCanvasConnection: vi.fn(),
+  connectCanvasCalendar: vi.fn(),
   disconnectCanvas: vi.fn(),
   getCanvasStatus: vi.fn(),
   notifyCanvasDataChanged: vi.fn(),
   syncCanvas: vi.fn(),
+  syncCanvasCalendar: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -42,9 +49,32 @@ describe("Canvas connection", () => {
     });
     vi.mocked(syncCanvas).mockRejectedValue(new Error("Canvas timed out. Try again."));
     render(<CanvasConnectionPage />);
-    expect(await screen.findByText("Canvas connected")).toBeInTheDocument();
+    expect(await screen.findByText("School connected")).toBeInTheDocument();
     expect(screen.getByText("Bentley")).toBeInTheDocument();
     expect(screen.getByText("18")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Canvas timed out");
+  });
+  it("offers a simple calendar fallback without asking for a token", async () => {
+    vi.mocked(getCanvasStatus).mockResolvedValue({ connected: false, status: "disconnected" });
+    vi.mocked(connectCanvasCalendar).mockResolvedValue({
+      ok: true,
+      connected: true,
+      lastSyncedAt: "2026-07-30T12:00:00Z",
+    });
+    render(<CanvasConnectionPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /can’t connect automatically/i }));
+    const input = screen.getByPlaceholderText(/private Canvas calendar link/i);
+    fireEvent.change(input, {
+      target: {
+        value: "https://usu.instructure.com/feeds/calendars/user_secret.ics",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Import my calendar/i }));
+    await waitFor(() =>
+      expect(connectCanvasCalendar).toHaveBeenCalledWith(
+        "https://usu.instructure.com/feeds/calendars/user_secret.ics",
+      )
+    );
+    expect(screen.queryByLabelText(/access token/i)).not.toBeInTheDocument();
   });
 });
