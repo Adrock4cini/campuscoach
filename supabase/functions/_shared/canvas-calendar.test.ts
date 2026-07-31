@@ -1,4 +1,3 @@
-import { assertEquals, assertThrows } from "jsr:@std/assert";
 import {
   parseCanvasCalendar,
   validateCanvasFeedUrl,
@@ -42,3 +41,19 @@ END:VCALENDAR`);
   assertEquals(items[1].kind, "exam");
 });
 
+function assertEquals(actual: unknown, expected: unknown) {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(
+      `Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
+    );
+  }
+}
+function assertThrows(callback: () => unknown) {
+  let threw = false;
+  try {
+    callback();
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error("Expected callback to throw");
+}
