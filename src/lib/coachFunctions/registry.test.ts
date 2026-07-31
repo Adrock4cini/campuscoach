@@ -18,6 +18,10 @@ function fakeSupabase(tables: Record<string, Row[]>) {
     const b = {
       select(_c?: string) { return b; },
       eq(k: string, v: unknown) { predicates.push((r) => r[k] === v); return b; },
+      is(k: string, v: unknown) {
+        predicates.push((r) => (r[k] ?? null) === v);
+        return b;
+      },
       overlaps(k: string, v: unknown[]) {
         predicates.push((r) => {
           const arr = (r[k] as unknown[]) ?? [];

@@ -44,7 +44,8 @@ export async function loadClasses(ctx: CoachFunctionContext): Promise<LoadedClas
   const { data, error } = await ctx.supabase
     .from("classes")
     .select("client_class_id, name")
-    .eq("user_id", ctx.userId);
+    .eq("user_id", ctx.userId)
+    .is("source_archived_at", null);
   if (error) throw new Error(`classes: ${error.message}`);
   const rows = (data ?? []) as { client_class_id: string | null; name: string }[];
   const classes = rows
@@ -99,7 +100,8 @@ export async function loadExams(ctx: CoachFunctionContext): Promise<LoadedExam[]
   const { data, error } = await ctx.supabase
     .from("exams")
     .select("id, client_class_id, title, exam_date, weight")
-    .eq("user_id", ctx.userId);
+    .eq("user_id", ctx.userId)
+    .is("source_archived_at", null);
   if (error) throw new Error(`exams: ${error.message}`);
   return ((data ?? []) as {
     id: string; client_class_id: string | null; title: string; exam_date: string | null; weight: number | null;
@@ -118,7 +120,8 @@ export async function loadAssignments(ctx: CoachFunctionContext): Promise<Loaded
   const { data, error } = await ctx.supabase
     .from("assignments")
     .select("id, client_class_id, title, due_date")
-    .eq("user_id", ctx.userId);
+    .eq("user_id", ctx.userId)
+    .is("source_archived_at", null);
   if (error) throw new Error(`assignments: ${error.message}`);
   return ((data ?? []) as {
     id: string; client_class_id: string | null; title: string; due_date: string | null;

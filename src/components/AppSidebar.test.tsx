@@ -60,6 +60,10 @@ describe("signed-in product navigation", () => {
     expect(screen.getByRole("link", { name: /Exam Debrief Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Progress Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Settings Preview/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
+      "href",
+      "/integrations/canvas",
+    );
     expect(screen.getByRole("link", { name: "College Algebra" })).toHaveAttribute(
       "href",
       "/classes/math-1",

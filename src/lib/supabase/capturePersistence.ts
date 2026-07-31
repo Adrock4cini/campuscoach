@@ -458,6 +458,7 @@ async function assertCaptureTargets(input: {
       .eq("id", input.assignmentId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
+      .is("source_archived_at", null)
       .maybeSingle();
     if (error || !data) throw new Error("That assignment does not belong to this class.");
   }
@@ -468,6 +469,7 @@ async function assertCaptureTargets(input: {
       .eq("id", input.examId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
+      .is("source_archived_at", null)
       .maybeSingle();
     if (error || !data) throw new Error("That test does not belong to this class.");
   }

@@ -406,6 +406,7 @@ async function resolveStudyScope(
     .select("id, title, exam_date, topics, client_class_id")
     .eq("user_id", userId)
     .eq("id", examId)
+    .is("source_archived_at", null)
     .maybeSingle();
   if (error) return json({ error: "exam load failed", details: error.message }, 500);
   if (!exam) return json({ error: "Study target exam not found" }, 404);
@@ -420,6 +421,7 @@ async function resolveStudyScope(
       .select("exam_date")
       .eq("user_id", userId)
       .eq("client_class_id", exam.client_class_id)
+      .is("source_archived_at", null)
       .lt("exam_date", exam.exam_date)
       .order("exam_date", { ascending: false })
       .limit(1)

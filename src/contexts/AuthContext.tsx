@@ -76,7 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase
           .from("classes")
           .select("id", { count: "exact", head: true })
-          .eq("user_id", userId),
+          .eq("user_id", userId)
+          .is("source_archived_at", null),
       ]);
       if (classResult.error) throw classResult.error;
       if (profileResult.error) {

@@ -10,6 +10,7 @@ import { CommandPalette, useCommandPalette } from "@/components/CommandPalette";
 import { Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
+import { CanvasAutoSync } from "@/components/CanvasAutoSync";
 
 function HeaderSearchButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -76,6 +77,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
         <MobileBottomNav />
         <OnboardingDialog />
         <CommandPalette open={open} onOpenChange={setOpen} />
+        <CanvasAutoSync />
       </div>
     </SidebarProvider>
   );

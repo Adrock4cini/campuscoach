@@ -13,6 +13,9 @@ export interface RealExam {
   topics: string[];
   readiness: number;
   notes: string | null;
+  source?: "manual" | "canvas";
+  source_url?: string | null;
+  source_archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -28,7 +31,8 @@ export interface NewExamInput {
 }
 
 export async function listExams(userId: string, clientClassId?: string): Promise<RealExam[]> {
-  let q = supabase.from("exams").select("*").eq("user_id", userId);
+  let q = supabase.from("exams").select("*").eq("user_id", userId)
+    .is("source_archived_at", null);
   if (clientClassId) q = q.eq("client_class_id", clientClassId);
   const { data, error } = await q.order("exam_date", { ascending: true, nullsFirst: false });
   if (error) {

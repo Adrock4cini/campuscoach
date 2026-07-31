@@ -82,6 +82,7 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
           .from("classes")
           .select("id, client_class_id, name, professor, location, color, current_topic, readiness, meta")
           .eq("user_id", userId)
+          .is("source_archived_at", null)
           .order("created_at", { ascending: true }),
         supabase
           .from("readiness_scores")

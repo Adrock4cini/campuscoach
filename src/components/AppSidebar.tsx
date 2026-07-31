@@ -15,6 +15,7 @@ import {
   User,
   LogOut,
   LogIn,
+  Link2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -112,6 +113,7 @@ function buildGroups(
     {
       label: "Account",
       items: [
+        { title: "Canvas", url: "/integrations/canvas", icon: Link2 },
         { title: "Settings", url: "/settings", icon: Settings },
         { title: "Profile", url: "/settings", icon: User },
       ],

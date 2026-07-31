@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Calendar, GraduationCap, Trash2, Sparkles } from "lucide-react";
+import { Plus, Calendar, GraduationCap, Trash2, Sparkles, ExternalLink } from "lucide-react";
 import { AddExamDialog } from "@/components/real/AddExamDialog";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useRealExams, daysUntil } from "@/lib/realData/hooks";
@@ -79,6 +79,7 @@ export function RealExamsView() {
       ) : (
         <div className="space-y-3">
           {items.map((e) => {
+            const fromCanvas = e.source === "canvas";
             const days = daysUntil(e.exam_date);
             const dueChip =
               days === null ? "Date TBD" :
@@ -92,11 +93,22 @@ export function RealExamsView() {
                     <div className="flex-1 min-w-0">
                       <p className="font-display font-semibold text-foreground">{e.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{classNameFor(e.client_class_id)}</p>
+                      {fromCanvas && <Badge variant="outline" className="mt-1 text-[10px]">Canvas</Badge>}
                     </div>
                     <Badge variant="outline" className="text-xs"><Calendar className="h-3 w-3 mr-1" />{dueChip}</Badge>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(e.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {fromCanvas ? (
+                      e.source_url && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                          <a href={e.source_url} target="_blank" rel="noreferrer" aria-label="Open in Canvas">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )
+                    ) : (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(e.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
