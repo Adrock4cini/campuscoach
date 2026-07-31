@@ -45,6 +45,7 @@ export type Database = {
           created_at: string
           due_date: string | null
           estimated_minutes: number
+          external_id: string | null
           id: string
           meta: Json
           notes: string | null
@@ -54,7 +55,6 @@ export type Database = {
           source_due_at: string | null
           source_updated_at: string | null
           source_url: string | null
-          external_id: string | null
           status: string
           title: string
           updated_at: string
@@ -66,6 +66,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           estimated_minutes?: number
+          external_id?: string | null
           id?: string
           meta?: Json
           notes?: string | null
@@ -75,7 +76,6 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -87,6 +87,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           estimated_minutes?: number
+          external_id?: string | null
           id?: string
           meta?: Json
           notes?: string | null
@@ -96,7 +97,6 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -167,6 +167,132 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      canvas_calendar_connections: {
+        Row: {
+          canvas_base_url: string
+          created_at: string
+          feed_url_ciphertext: string
+          id: string
+          last_sync_error: string | null
+          last_sync_status: string
+          last_synced_at: string | null
+          status: string
+          sync_counts: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canvas_base_url: string
+          created_at?: string
+          feed_url_ciphertext: string
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string
+          last_synced_at?: string | null
+          status?: string
+          sync_counts?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canvas_base_url?: string
+          created_at?: string
+          feed_url_ciphertext?: string
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string
+          last_synced_at?: string | null
+          status?: string
+          sync_counts?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      canvas_connections: {
+        Row: {
+          access_token_ciphertext: string
+          canvas_base_url: string
+          canvas_user_id: string | null
+          canvas_user_name: string | null
+          created_at: string
+          id: string
+          last_sync_error: string | null
+          last_sync_status: string
+          last_synced_at: string | null
+          refresh_token_ciphertext: string | null
+          status: string
+          sync_counts: Json
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_ciphertext: string
+          canvas_base_url: string
+          canvas_user_id?: string | null
+          canvas_user_name?: string | null
+          created_at?: string
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string
+          last_synced_at?: string | null
+          refresh_token_ciphertext?: string | null
+          status?: string
+          sync_counts?: Json
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_ciphertext?: string
+          canvas_base_url?: string
+          canvas_user_id?: string | null
+          canvas_user_name?: string | null
+          created_at?: string
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string
+          last_synced_at?: string | null
+          refresh_token_ciphertext?: string | null
+          status?: string
+          sync_counts?: Json
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      canvas_oauth_states: {
+        Row: {
+          canvas_base_url: string
+          created_at: string
+          expires_at: string
+          redirect_path: string
+          state_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          canvas_base_url: string
+          created_at?: string
+          expires_at: string
+          redirect_path?: string
+          state_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          canvas_base_url?: string
+          created_at?: string
+          expires_at?: string
+          redirect_path?: string
+          state_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       captures: {
         Row: {
@@ -269,6 +395,7 @@ export type Database = {
           course_instance_id: string | null
           created_at: string
           current_topic: string | null
+          external_id: string | null
           id: string
           location: string | null
           meta: Json
@@ -279,7 +406,6 @@ export type Database = {
           source_archived_at: string | null
           source_updated_at: string | null
           source_url: string | null
-          external_id: string | null
           updated_at: string
           user_id: string
         }
@@ -289,6 +415,7 @@ export type Database = {
           course_instance_id?: string | null
           created_at?: string
           current_topic?: string | null
+          external_id?: string | null
           id?: string
           location?: string | null
           meta?: Json
@@ -299,7 +426,6 @@ export type Database = {
           source_archived_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -309,6 +435,7 @@ export type Database = {
           course_instance_id?: string | null
           created_at?: string
           current_topic?: string | null
+          external_id?: string | null
           id?: string
           location?: string | null
           meta?: Json
@@ -319,7 +446,6 @@ export type Database = {
           source_archived_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -588,6 +714,7 @@ export type Database = {
           client_class_id: string | null
           created_at: string
           exam_date: string | null
+          external_id: string | null
           id: string
           meta: Json
           notes: string | null
@@ -597,7 +724,6 @@ export type Database = {
           source_due_at: string | null
           source_updated_at: string | null
           source_url: string | null
-          external_id: string | null
           title: string
           topics: string[]
           updated_at: string
@@ -608,6 +734,7 @@ export type Database = {
           client_class_id?: string | null
           created_at?: string
           exam_date?: string | null
+          external_id?: string | null
           id?: string
           meta?: Json
           notes?: string | null
@@ -617,7 +744,6 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           title: string
           topics?: string[]
           updated_at?: string
@@ -628,6 +754,7 @@ export type Database = {
           client_class_id?: string | null
           created_at?: string
           exam_date?: string | null
+          external_id?: string | null
           id?: string
           meta?: Json
           notes?: string | null
@@ -637,7 +764,6 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
-          external_id?: string | null
           title?: string
           topics?: string[]
           updated_at?: string
