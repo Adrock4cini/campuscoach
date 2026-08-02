@@ -81,6 +81,20 @@ describe("real dashboard agenda", () => {
       className: "Science",
     });
   });
+
+  it("clearly elevates overdue work without hiding the calendar", () => {
+    mocks.assignments.push(assignmentInfo("assignment-1", "math", "Fractions", "2026-07-20"));
+
+    render(
+      <MemoryRouter>
+        <RealTodaysPlan classes={[classInfo("math", "Math")]} now={new Date("2026-07-21T08:00:00")} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByText(/1d overdue/i).parentElement).toHaveClass("text-danger");
+    expect(screen.getByRole("link", { name: /view calendar/i })).toHaveAttribute("href", "/calendar");
+  });
 });
 
 function classInfo(id: string, name: string, days: string[] = [], time = ""): ClassInfo {

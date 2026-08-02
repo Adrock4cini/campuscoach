@@ -101,4 +101,29 @@ describe("coach.recommend", () => {
     expect(rec.why).not.toMatch(/readiness/i);
     expect(rec.impact.readinessDelta).toBeGreaterThan(0);
   });
+
+  it("uses calm, grammatical review language for one or many concepts", () => {
+    const one = base();
+    one.mastery = [
+      { concept_id: "p1", class_id: "psych101", strength: 0.2, next_review_at: "2026-07-08T12:00:00Z", attempts: 2 },
+    ];
+    expect(recommend(one)[0].why).toBe("1 concept is ready for review.");
+
+    const many = base();
+    many.mastery = many.mastery.map((concept) => ({
+      ...concept,
+      next_review_at: "2026-07-08T12:00:00Z",
+    }));
+    expect(recommend(many)[0].why).toBe("2 concepts are ready for review.");
+  });
+
+  it("keeps singular practice language grammatical", () => {
+    const inputs = base();
+    inputs.classes = [{ id: "psych101", name: "Intro Psych" }];
+    inputs.mastery = [
+      { concept_id: "p1", class_id: "psych101", strength: 0.2, next_review_at: null, attempts: 2 },
+    ];
+
+    expect(recommend(inputs)[0].why).toBe("1 concept needs practice.");
+  });
 });

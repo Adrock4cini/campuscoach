@@ -48,7 +48,7 @@ export function MobileBottomNav() {
           type="button"
           onClick={() => open()}
           aria-label="Capture"
-          className="mx-auto -mt-6 flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-full bg-gradient-calm text-[10px] font-semibold text-primary-foreground shadow-elevated ring-4 ring-background/80 transition-transform active:scale-95"
+          className="mx-auto -mt-4 flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-full bg-gradient-calm text-[9px] font-semibold text-primary-foreground shadow-elevated ring-4 ring-background/80 transition-transform active:scale-95"
         >
           <Camera className="h-5 w-5" />
           <span>Capture</span>

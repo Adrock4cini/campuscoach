@@ -40,6 +40,8 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
   );
   const loading = assignmentsLoading || examsLoading;
   const error = assignmentsError || examsError;
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const hasOverdueWork = agenda.some((item) => item.kind === "assignment" && item.at < startOfToday);
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === "class") {
@@ -60,7 +62,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
     <section className="space-y-2.5" aria-labelledby="dashboard-agenda-title">
       <div className="flex items-center justify-between gap-3 px-1">
         <h2 id="dashboard-agenda-title" className="font-display text-xl font-semibold text-foreground">
-          Up next
+          {hasOverdueWork ? "Needs attention" : "Up next"}
         </h2>
         <Link
           to="/calendar"
@@ -98,6 +100,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
         <ul className="overflow-hidden rounded-3xl border border-border/50 bg-card/55 backdrop-blur-md">
           {agenda.map((item) => {
             const Icon = item.kind === "exam" ? GraduationCap : item.kind === "assignment" ? FileText : BookOpen;
+            const isOverdue = item.kind === "assignment" && item.at < startOfToday;
             const actionLabel = item.kind === "class"
               ? `Capture notes for ${item.className}`
               : item.kind === "exam"
@@ -122,7 +125,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">{item.title}</span>
-                    <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                    <span className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${isOverdue ? "font-medium text-danger" : "text-muted-foreground"}`}>
                       <span className="truncate">{item.className}</span>
                       <span aria-hidden="true">·</span>
                       <Clock className="h-3 w-3 shrink-0" />
