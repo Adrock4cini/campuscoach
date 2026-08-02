@@ -92,7 +92,7 @@ describe("real dashboard agenda", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
-    expect(screen.getByText(/1d overdue/i)).toHaveClass("text-danger");
+    expect(screen.getByText(/1d overdue/i).parentElement).toHaveClass("text-danger");
     expect(screen.getByRole("link", { name: /view calendar/i })).toHaveAttribute("href", "/calendar");
   });
 });
