@@ -95,6 +95,24 @@ describe("real dashboard agenda", () => {
     expect(screen.getByText(/1d overdue/i).parentElement).toHaveClass("text-danger");
     expect(screen.getByRole("link", { name: /view calendar/i })).toHaveAttribute("href", "/calendar");
   });
+
+  it("does not mix upcoming work into the overdue attention zone", () => {
+    mocks.assignments.push(
+      assignmentInfo("overdue", "math", "Fractions", "2026-07-20"),
+      assignmentInfo("upcoming", "math", "Chapter review", "2026-07-22"),
+    );
+    mocks.exams.push(examInfo("exam-1", "math", "Math test", "2026-07-24"));
+
+    render(
+      <MemoryRouter>
+        <RealTodaysPlan classes={[classInfo("math", "Math")]} now={new Date("2026-07-21T08:00:00")} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Fractions")).toBeInTheDocument();
+    expect(screen.queryByText("Chapter review")).not.toBeInTheDocument();
+    expect(screen.queryByText("Math test")).not.toBeInTheDocument();
+  });
 });
 
 function classInfo(id: string, name: string, days: string[] = [], time = ""): ClassInfo {

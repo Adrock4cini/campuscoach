@@ -1,125 +1,87 @@
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { MapPin, Clock, User, ChevronRight, Camera, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronRight } from "lucide-react";
 import type { ClassInfo } from "@/data/demo";
 import { cn } from "@/lib/utils";
-import { useCapture } from "@/contexts/CaptureContext";
 
 /**
- * RealClassCard — a large, tappable class card.
- *
- * Presentation only. Every action inside is a generous tap target
- * so the dashboard feels effortless on mobile. Functionality is
- * unchanged from the previous version.
+ * A compact class summary. Capture and Study remain globally available in the
+ * mobile navigation and inside the class command center; the dashboard row's
+ * one job is to help students scan readiness and open the right class.
  */
 export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }) {
-  const navigate = useNavigate();
-  const { open: openCapture } = useCapture();
-
-  const meta = [
-    c.professor && c.professor !== "TBD" ? { Icon: User, text: c.professor } : null,
-    c.days.length > 0 ? { Icon: Clock, text: `${c.days.join("/")}${c.time ? ` · ${c.time}` : ""}` } : null,
-    c.location ? { Icon: MapPin, text: c.location } : null,
-  ].filter(Boolean) as { Icon: typeof User; text: string }[];
+  const supportingText = c.currentTopic && c.currentTopic !== "Getting started"
+    ? c.currentTopic
+    : c.professor && c.professor !== "TBD"
+      ? c.professor
+      : null;
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.32 }}
-      className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/70 backdrop-blur-md shadow-sm hover:shadow-elegant hover:border-border/80 transition-all"
+      transition={{ delay: index * 0.04, duration: 0.28 }}
+      className="border-b border-border/40 last:border-b-0"
     >
-      {/* Header — the whole row is tappable and opens the class. */}
-      <button
-        onClick={() => navigate(`/classes/${c.id}`)}
-        className="w-full flex items-center gap-3 p-5 md:p-6 text-left"
+      <Link
+        to={`/classes/${c.id}`}
+        aria-label={`Open ${c.name}, ${c.readiness}% ready`}
+        className="group flex min-h-[82px] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 md:px-5"
       >
         <span
           className={cn(
-            "h-10 w-10 rounded-2xl shrink-0 flex items-center justify-center text-primary-foreground font-display font-semibold text-sm",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-base font-semibold text-primary-foreground shadow-sm",
             c.color,
           )}
           aria-hidden
         >
           {c.name.trim().charAt(0)}
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-display text-lg font-semibold text-foreground truncate leading-tight">
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-lg font-semibold leading-tight text-foreground">
             {c.name}
-          </h3>
-          {meta[0] && (() => {
-            const First = meta[0].Icon;
-            return (
-              <p className="mt-0.5 text-[12px] text-muted-foreground truncate flex items-center gap-1.5">
-                <First className="h-3 w-3 shrink-0" />
-                {meta[0].text}
-              </p>
-            );
-          })()}
-        </div>
-        <span className="shrink-0 text-right">
-          <span className="block text-xs font-medium tabular-nums text-primary">{c.readiness}% ready</span>
-          <ChevronRight className="ml-auto mt-1 h-4 w-4 text-muted-foreground" />
+          </span>
+          {supportingText && (
+            <span className="mt-1 block truncate text-xs text-muted-foreground">{supportingText}</span>
+          )}
         </span>
-      </button>
 
-      {meta.length > 1 && (
-        <div className="px-5 md:px-6 -mt-2 pb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          {meta.slice(1).map((m, i) => {
-            const MIcon = m.Icon;
-            return (
-              <span key={i} className="inline-flex items-center gap-1">
-                <MIcon className="h-3 w-3" /> {m.text}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Divider */}
-      <div className="mx-5 md:mx-6 border-t border-border/40" />
-
-      {/* Capture contains note, professor hint, scan, upload, and recording. */}
-      <div className="grid grid-cols-2 gap-1.5 p-3">
-        <ActionTile
-          Icon={Camera}
-          label="Capture"
-          onClick={() => openCapture(undefined, c.id)}
-        />
-        <ActionTile
-          Icon={Sparkles}
-          label="Study"
-          onClick={() => navigate(`/study-lab?classId=${c.id}`)}
-          emphasized
-        />
-      </div>
+        <ReadinessRing value={c.readiness} />
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+      </Link>
     </motion.article>
   );
 }
 
-function ActionTile({
-  Icon,
-  label,
-  onClick,
-  emphasized = false,
-}: {
-  Icon: typeof Camera;
-  label: string;
-  onClick: () => void;
-  emphasized?: boolean;
-}) {
+function ReadinessRing({ value }: { value: number }) {
+  const safeValue = Math.max(0, Math.min(100, Math.round(value)));
+  const radius = 17;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (safeValue / 100) * circumference;
+
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "min-h-[64px] rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-medium transition-colors active:scale-[0.98]",
-        emphasized
-          ? "bg-primary/10 text-primary hover:bg-primary/15"
-          : "bg-background/50 text-foreground/80 hover:bg-background/80 hover:text-foreground",
-      )}
+    <span
+      className="relative flex h-12 w-12 shrink-0 items-center justify-center"
+      role="img"
+      aria-label={`${safeValue}% ready`}
     >
-      <Icon className="h-[18px] w-[18px]" />
-      <span>{label}</span>
-    </button>
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44" aria-hidden>
+        <circle cx="22" cy="22" r={radius} fill="none" stroke="currentColor" strokeWidth="4" className="text-muted/70" />
+        <circle
+          cx="22"
+          cy="22"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="text-primary"
+        />
+      </svg>
+      <span className="text-[10px] font-semibold tabular-nums text-foreground">{safeValue}%</span>
+    </span>
   );
 }

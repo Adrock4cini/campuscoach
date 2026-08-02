@@ -1,14 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { RealClassCard } from "./RealClassCard";
 import type { ClassInfo } from "@/data/demo";
-
-const openCapture = vi.fn();
-
-vi.mock("@/contexts/CaptureContext", () => ({
-  useCapture: () => ({ open: openCapture }),
-}));
 
 const math: ClassInfo = {
   id: "math-101",
@@ -27,16 +21,14 @@ const math: ClassInfo = {
 };
 
 describe("real class dashboard card", () => {
-  it("shows readiness and funnels every capture type through a class-bound action", () => {
+  it("keeps each compact class row identifiable and class-bound", () => {
     render(
       <MemoryRouter>
         <RealClassCard c={math} />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("61% ready")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Capture" }));
-    expect(openCapture).toHaveBeenCalledWith(undefined, "math-101");
-    expect(screen.getByRole("button", { name: "Study" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "61% ready" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Math, 61% ready" })).toHaveAttribute("href", "/classes/math-101");
   });
 });

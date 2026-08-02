@@ -13,6 +13,7 @@ import {
   FileText,
   GraduationCap,
   ScanLine,
+  AlertTriangle,
 } from "lucide-react";
 import { useRealAssignments, useRealExams } from "@/lib/realData/hooks";
 import type { ClassInfo } from "@/data/demo";
@@ -42,6 +43,9 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
   const error = assignmentsError || examsError;
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const hasOverdueWork = agenda.some((item) => item.kind === "assignment" && item.at < startOfToday);
+  const visibleAgenda = hasOverdueWork
+    ? agenda.filter((item) => item.kind === "assignment" && item.at < startOfToday)
+    : agenda;
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === "class") {
@@ -61,7 +65,17 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
   return (
     <section className="space-y-2.5" aria-labelledby="dashboard-agenda-title">
       <div className="flex items-center justify-between gap-3 px-1">
-        <h2 id="dashboard-agenda-title" className="font-display text-xl font-semibold text-foreground">
+        <h2
+          id="dashboard-agenda-title"
+          className={hasOverdueWork
+            ? "inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-danger"
+            : "font-display text-xl font-semibold text-foreground"}
+        >
+          {hasOverdueWork && (
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-danger/10" aria-hidden>
+              <AlertTriangle className="h-3.5 w-3.5" />
+            </span>
+          )}
           {hasOverdueWork ? "Needs attention" : "Up next"}
         </h2>
         <Link
@@ -98,7 +112,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
         </div>
       ) : (
         <ul className="overflow-hidden rounded-3xl border border-border/50 bg-card/55 backdrop-blur-md">
-          {agenda.map((item) => {
+          {visibleAgenda.map((item) => {
             const Icon = item.kind === "exam" ? GraduationCap : item.kind === "assignment" ? FileText : BookOpen;
             const isOverdue = item.kind === "assignment" && item.at < startOfToday;
             const actionLabel = item.kind === "class"
@@ -107,7 +121,10 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
                 ? `Study for ${item.title}`
                 : `Open ${item.title}`;
             return (
-              <li key={`${item.kind}-${item.id}`} className="border-b border-border/40 last:border-b-0">
+              <li
+                key={`${item.kind}-${item.id}`}
+                className={`relative border-b border-border/40 last:border-b-0 ${isOverdue ? "border-l-4 border-l-danger" : ""}`}
+              >
                 <button
                   type="button"
                   aria-label={actionLabel}
@@ -118,7 +135,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
                     item.kind === "exam"
                       ? "bg-accent/15 text-accent"
                       : item.kind === "assignment"
-                        ? "bg-primary/10 text-primary"
+                        ? isOverdue ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary"
                         : "bg-muted text-muted-foreground"
                   }`}>
                     <Icon className="h-5 w-5" />

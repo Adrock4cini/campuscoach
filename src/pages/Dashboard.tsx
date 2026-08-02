@@ -46,7 +46,7 @@ export default function Dashboard() {
   const hasNoRealData = realMode && !loading && ordered.length === 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 md:space-y-6">
+    <div className="max-w-6xl mx-auto space-y-7 md:space-y-8">
       <TopStrip />
 
       {realMode && !loading && classesError ? (
@@ -81,18 +81,24 @@ export default function Dashboard() {
           {/* Demo-derived widgets: ONLY when explicitly in demo mode. Never during auth loading. */}
           {demoMode && <DoThisNowHero />}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] gap-5">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:gap-6">
+            {realMode && (
+              <aside className="order-1 self-start lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4">
+                <RealTodaysPlan classes={ordered} />
+              </aside>
+            )}
+
             <motion.section
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.05 }}
-              className={`space-y-2 ${realMode ? "order-2 lg:order-1" : ""}`}
+              className={`space-y-3 ${realMode ? "order-2 lg:col-start-1 lg:row-start-1" : ""}`}
             >
               <div className="flex items-baseline justify-between px-1">
-                <h2 className="text-sm font-medium text-foreground/80">Your classes</h2>
+                <h2 className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Your classes</h2>
                 <span className="text-[11px] text-muted-foreground">{ordered.length}</span>
               </div>
-              <div className="space-y-2">
+              <div className={realMode ? "overflow-hidden rounded-3xl border border-border/50 bg-card/65 shadow-sm backdrop-blur-md" : "space-y-2"}>
                 {ordered.map((c, i) =>
                   realMode ? (
                     <RealClassCard key={c.id} c={c} index={i} />
@@ -113,11 +119,12 @@ export default function Dashboard() {
               )}
             </motion.section>
 
-            <aside className={`space-y-4 lg:sticky lg:top-4 self-start ${realMode ? "order-1 lg:order-2" : ""}`}>
-              {demoMode && <TodaysChecklist />}
-              {demoMode && <BrainOneLiner insight={insight} />}
-              {realMode && <RealTodaysPlan classes={ordered} />}
-            </aside>
+            {demoMode && (
+              <aside className="space-y-4 self-start lg:sticky lg:top-4">
+                <TodaysChecklist />
+                <BrainOneLiner insight={insight} />
+              </aside>
+            )}
           </div>
 
           {demoMode && <BottomBar />}
