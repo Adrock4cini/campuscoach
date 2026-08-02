@@ -275,9 +275,13 @@ function buildWhy(args: {
 }): string {
   let attention: string;
   if (args.action === "review" && args.overdueCount > 0) {
-    attention = `${args.overdueCount} concept${args.overdueCount === 1 ? "" : "s"} need review`;
+    attention = args.overdueCount === 1
+      ? "1 concept is ready for review"
+      : `${args.overdueCount} concepts are ready for review`;
   } else if (args.weakCount > 0) {
-    attention = `${args.weakCount} concept${args.weakCount === 1 ? "" : "s"} need practice`;
+    attention = args.weakCount === 1
+      ? "1 concept needs practice"
+      : `${args.weakCount} concepts need practice`;
   } else {
     attention = `Keep ${args.className} sharp`;
   }

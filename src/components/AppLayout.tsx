@@ -69,7 +69,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
               <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70 hidden lg:inline ml-2">AI Academic OS</span>
             </div>
           </header>
-          <main className="flex-1 min-w-0 max-w-full p-4 pb-28 md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden">
+          <main className="flex-1 min-w-0 max-w-full p-4 pb-[calc(9rem+env(safe-area-inset-bottom))] md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden">
             {children}
           </main>
         </div>

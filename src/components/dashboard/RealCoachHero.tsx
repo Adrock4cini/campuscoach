@@ -84,7 +84,7 @@ export function RealCoachHero() {
                 </span>
                 {top.impact.readinessDelta > 0 && (
                   <span className="inline-flex items-center text-[11px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">
-                    +{top.impact.readinessDelta}% readiness
+                    Est. +{top.impact.readinessDelta} points
                   </span>
                 )}
               </div>
@@ -97,7 +97,7 @@ export function RealCoachHero() {
                     className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/90 hover:text-foreground transition-colors"
                   >
                     <Info className="h-3 w-3" />
-                    {showWhy ? "Hide why" : "Why this?"}
+                    {showWhy ? "Hide reason" : "Why this is first"}
                   </button>
                   <AnimatePresence initial={false}>
                     {showWhy && (
@@ -128,7 +128,7 @@ export function RealCoachHero() {
         </Link>
       </motion.div>
 
-      {/* What am I forgetting? — runs a coach function directly, in-place. */}
+      {/* A quieter optional confidence check — runs the coach function in-place. */}
       <div className="px-1">
         <button
           type="button"
@@ -137,7 +137,7 @@ export function RealCoachHero() {
           className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
         >
           {forgetting.loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Brain className="h-3 w-3" />}
-          What am I forgetting?
+          Check weak spots
         </button>
         {forgetting.result?.status === "ok" && forgetting.result.payload && (
           <div className="mt-2 rounded-2xl border border-border/40 bg-card/50 p-3">
@@ -164,7 +164,7 @@ export function RealCoachHero() {
       {recommendations.length > 1 && (
         <div className="space-y-1.5">
           <p className="px-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-            Then
+            More study options
           </p>
           <ul className="space-y-1.5">
             {recommendations.slice(1, 4).map((r) => {
@@ -189,7 +189,7 @@ export function RealCoachHero() {
                     </span>
                     {r.impact.readinessDelta > 0 && (
                       <span className="text-[11px] tabular-nums text-primary shrink-0">
-                        +{r.impact.readinessDelta}%
+                        +{r.impact.readinessDelta} pts
                       </span>
                     )}
                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
