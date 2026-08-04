@@ -55,6 +55,12 @@ const multipleChoiceArtifact: LearningArtifact<"multiple_choice"> = {
   },
 };
 
+function rateKnewIt() {
+  fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+  fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+  fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+}
+
 describe("real flashcard runner", () => {
   it("explains the mastery loop and waits to grade until the answer is revealed", () => {
     render(
@@ -78,8 +84,12 @@ describe("real flashcard runner", () => {
     expect(screen.getByText("2 + 2 equals 4.")).toBeInTheDocument();
     expect(screen.getByText(/addition facts/i)).toBeInTheDocument();
     expect(screen.getByText(/source from your notes/i)).toHaveTextContent("2+2 = 4");
-    expect(screen.getByRole("button", { name: /review again/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /i knew it/i })).toBeInTheDocument();
+    expect(screen.getByText(/how sure were you/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /i knew it/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /review again/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /somewhat sure/i }));
+    expect(screen.getByRole("button", { name: /i knew it/i })).toBeEnabled();
   });
 
   it("waits for an explicit finish after the final card is rated", async () => {
@@ -90,8 +100,7 @@ describe("real flashcard runner", () => {
 
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
 
-    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    rateKnewIt();
 
     expect(screen.getByText(/last card rated/i)).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
@@ -114,8 +123,7 @@ describe("real flashcard runner", () => {
     });
     render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    rateKnewIt();
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
 
     expect(await screen.findByText(/readiness/i)).toHaveTextContent("+15 points · now 61%");
@@ -125,8 +133,7 @@ describe("real flashcard runner", () => {
     invoke.mockRejectedValueOnce(new Error("offline"));
     render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    rateKnewIt();
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
 
     await waitFor(() => {
@@ -151,6 +158,7 @@ describe("real flashcard runner", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "4" }));
+    fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still here/i);
 
@@ -178,8 +186,7 @@ describe("real flashcard runner", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    rateKnewIt();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(onOpenChange).not.toHaveBeenCalled();
