@@ -18,7 +18,7 @@ import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
 import { TimePicker } from "@/components/onboarding/TimePicker";
-
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   "You",
@@ -30,6 +30,25 @@ const STEPS = [
   "Reminders",
   "Goal",
 ];
+
+/** Presets stored as human-readable work_schedule strings (no schema change). */
+const WORK_PRESETS = [
+  { id: "none", label: "I don't work", value: "" },
+  { id: "evenings", label: "Weekday evenings", value: "Weekday evenings" },
+  { id: "weekends", label: "Weekends", value: "Weekends" },
+  { id: "mixed", label: "Evenings + weekends", value: "Evenings and weekends" },
+  { id: "custom", label: "Something else", value: "__custom__" },
+] as const;
+
+type WorkPresetId = (typeof WORK_PRESETS)[number]["id"];
+
+function matchWorkPreset(schedule: string): WorkPresetId {
+  const s = schedule.trim();
+  if (!s) return "none";
+  const exact = WORK_PRESETS.find((p) => p.id !== "custom" && p.id !== "none" && p.value === s);
+  if (exact) return exact.id;
+  return "custom";
+}
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -110,9 +129,6 @@ export default function Onboarding() {
       setSaving(false);
     }
   };
-
-  // Demo mode is entered from the login screen; onboarding is only reached
-  // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
   const next = () => (
     importSyllabusMode && step === 0 && syllabusImported
@@ -280,7 +296,7 @@ export default function Onboarding() {
                     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                       {data.classes
                         .filter((c) => c.name.trim())
-                        .map((c, i) => {
+                        .map((c) => {
                           const realIdx = data.classes.indexOf(c);
                           return (
                             <div key={realIdx} className="rounded-lg border border-border/60 p-3 space-y-2">
@@ -330,12 +346,13 @@ export default function Onboarding() {
                   </StepShell>
                 )}
                 {step === 5 && (
-                  <StepShell title="Work schedule" hint="Optional — helps plan study time.">
-                    <Textarea
+                  <StepShell
+                    title="When do you work?"
+                    hint="Optional. Helps us suggest study times that don't fight your job."
+                  >
+                    <WorkScheduleStep
                       value={data.workSchedule || ""}
-                      onChange={(e) => update({ workSchedule: e.target.value })}
-                      placeholder="e.g. Tue/Thu 4–8pm, Sat 10–4"
-                      className="min-h-[80px]"
+                      onChange={(workSchedule) => update({ workSchedule })}
                     />
                   </StepShell>
                 )}
@@ -391,6 +408,94 @@ export default function Onboarding() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function WorkScheduleStep({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const selected = matchWorkPreset(value);
+  const showDetail = selected === "custom" || (selected !== "none" && value.length > 0 && selected !== "none");
+
+  const pick = (id: WorkPresetId) => {
+    const preset = WORK_PRESETS.find((p) => p.id === id)!;
+    if (id === "none") {
+      onChange("");
+      return;
+    }
+    if (id === "custom") {
+      // Keep existing free text if they already typed; otherwise empty for detail.
+      if (matchWorkPreset(value) === "custom") return;
+      onChange("");
+      return;
+    }
+    onChange(preset.value);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div
+        role="group"
+        aria-label="Work pattern"
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+      >
+        {WORK_PRESETS.map((preset) => {
+          const active = selected === preset.id;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => pick(preset.id)}
+              className={cn(
+                "min-h-11 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border/60 text-foreground hover:border-primary/40",
+              )}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {(selected === "custom" || (selected !== "none" && selected !== "custom")) && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            {selected === "custom" ? "Your hours (optional)" : "More detail (optional)"}
+          </Label>
+          <Input
+            value={selected === "custom" ? value : (value.includes("—") || value.includes(":") || /\d/.test(value) ? value : "")}
+            onChange={(e) => {
+              const text = e.target.value;
+              if (selected === "custom") {
+                onChange(text);
+                return;
+              }
+              // Keep preset label + optional detail in one string for storage simplicity.
+              const base = WORK_PRESETS.find((p) => p.id === selected)?.value ?? "";
+              onChange(text.trim() ? `${base} — ${text.trim()}` : base);
+            }}
+            placeholder="e.g. Tue/Thu 4–8pm"
+            className="min-h-11"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Skip anytime — you can change this later in settings.
+          </p>
+        </div>
+      )}
+
+      {selected === "none" && (
+        <p className="text-xs text-muted-foreground">
+          No problem. Tap Next — we won't assume any work hours.
+        </p>
+      )}
     </div>
   );
 }
