@@ -30,6 +30,27 @@ describe("mastery feedback loop", () => {
     expect(r3.correct).toBe(2);
   });
 
+  it("drops strength more when the student was confidently wrong", () => {
+    const t0 = new Date("2026-07-09T12:00:00Z");
+    const base = applyMasteryUpdate({ prev: null, correct: true, confidence: "medium", now: t0 });
+    const uncertainMiss = applyMasteryUpdate({
+      prev: base,
+      correct: false,
+      confidence: "low",
+      now: t0,
+    });
+    const confidentMiss = applyMasteryUpdate({
+      prev: base,
+      correct: false,
+      confidence: "high",
+      now: t0,
+    });
+    expect(confidentMiss.strength).toBeLessThan(uncertainMiss.strength);
+    expect(new Date(confidentMiss.next_review_at!).getTime()).toBeLessThan(
+      new Date(uncertainMiss.next_review_at!).getTime(),
+    );
+  });
+
   it("readiness averages strengths to a 0-100 integer", () => {
     expect(computeReadiness([])).toBe(0);
     expect(computeReadiness([0, 0.5, 1])).toBe(50);

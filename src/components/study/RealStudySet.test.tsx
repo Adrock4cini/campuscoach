@@ -74,6 +74,14 @@ function artifact(promptVersion: string): LearningArtifact<"flashcards"> {
   };
 }
 
+function rateFlashcardKnewIt() {
+  fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+  fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+  const knewIt = screen.getByRole("button", { name: /i knew it/i });
+  expect(knewIt).toBeEnabled();
+  fireEvent.click(knewIt);
+}
+
 describe("real study set freshness", () => {
   beforeEach(() => {
     mocks.generate.mockReset().mockResolvedValue(null);
@@ -222,8 +230,7 @@ describe("real study set freshness", () => {
     render(<RealStudySet classId="math" />);
 
     fireEvent.click(screen.getByRole("button", { name: /start study session/i }));
-    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+    rateFlashcardKnewIt();
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
 
     expect(await screen.findByText("Session saved")).toBeInTheDocument();

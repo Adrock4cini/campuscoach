@@ -1,15 +1,6 @@
 /**
- * RealStudyRunner — minimal in-place study runner for a real
- * `learning_artifacts` row (flashcards or multiple_choice).
- *
- * On finish it calls the `record-study-result` edge function, which
- * writes the study_sessions row, upserts user_concept_mastery for
- * every concept the artifact was built from, and recomputes/inserts
- * readiness_scores. Concepts remain the permanent memory; this UI
- * never edits them directly.
- *
- * Intentionally unstyled beyond the existing tokens — Sprint C is a
- * behavior change, not a UI redesign.
+ * RealStudyRunner — real learning_artifacts study runner (flashcards / MCQ).
+ * Saves via record-study-result. Confidence rating calibrates mastery priority.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +25,7 @@ import type {
   FlashcardsPayload,
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
+import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
 
 interface Props {
   open: boolean;
@@ -50,6 +42,7 @@ interface Props {
 interface AnswerResult {
   conceptId: string;
   correct: boolean;
+  confidence: ConfidenceLevel | null;
 }
 
 interface PendingFinalResult {
@@ -71,6 +64,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [incorrect, setIncorrect] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
+  const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -93,6 +87,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setIncorrect(0);
     setFlipped(false);
     setPicked(null);
+    setConfidence(null);
     setDone(false);
     setReadiness(null);
     setReadinessDelta(null);
@@ -106,14 +101,13 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   }, [open, artifact.id]);
 
   const record = async (wasCorrect: boolean) => {
+    if (!confidence) return;
     const item = items[idx] as { conceptId?: string };
-    // v2 artifacts carry explicit attribution. This positional fallback
-    // keeps existing v1 artifacts useful when they have one item per concept.
     const conceptId = item.conceptId
       ?? (items.length === artifact.concept_ids.length ? artifact.concept_ids[idx] : undefined)
       ?? (artifact.concept_ids.length === 1 ? artifact.concept_ids[0] : undefined);
     const nextResults = conceptId
-      ? [...answerResults, { conceptId, correct: wasCorrect }]
+      ? [...answerResults, { conceptId, correct: wasCorrect, confidence }]
       : answerResults;
     setAnswerResults(nextResults);
     if (wasCorrect) setCorrect((c) => c + 1);
@@ -124,9 +118,6 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
         incorrect: wasCorrect ? incorrect : incorrect + 1,
         results: nextResults,
       };
-      // Keep an immutable final score for both study modes. If the save fails,
-      // the retry must submit this same result instead of grading the last
-      // multiple-choice answer a second time.
       setPendingFinal(finalResult);
       if (artifact.kind !== "flashcards") {
         await finish(finalResult.correct, finalResult.incorrect, finalResult.results);
@@ -135,6 +126,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       setIdx((i) => i + 1);
       setFlipped(false);
       setPicked(null);
+      setConfidence(null);
     }
   };
 
@@ -163,7 +155,6 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       const r = data as { readiness?: number | null; readinessDelta?: number | null };
       setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
       setReadinessDelta(typeof r?.readinessDelta === "number" ? r.readinessDelta : null);
-      // Nudge the Dashboard coach to re-rank now that mastery has changed.
       window.dispatchEvent(new CustomEvent("coach:refresh"));
       onCompleted?.({
         readiness: r?.readiness ?? 0,
@@ -182,7 +173,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   const reset = () => {
     setIdx(0); setCorrect(0); setIncorrect(0);
-    setFlipped(false); setPicked(null); setDone(false);
+    setFlipped(false); setPicked(null); setConfidence(null); setDone(false);
     setReadiness(null); setReadinessDelta(null); setStartedAt(Date.now());
     setAnswerResults([]);
     setPendingFinal(null);
@@ -214,7 +205,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           {!done && (
             <DialogDescription className="text-xs leading-relaxed">
               {artifact.study_scope_label ? `Reviewing: ${studentScopeLabel(artifact.study_scope_label)}. ` : ""}
-              Answer from memory first. Your results help choose what to review next.
+              Answer from memory first, then rate how sure you were. Results guide what to review next.
             </DialogDescription>
           )}
           {done && <DialogDescription>Your answers were saved to concept memory.</DialogDescription>}
@@ -234,7 +225,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                 return (
                   <div className="min-w-0 space-y-3">
                     <button
-                      onClick={() => setFlipped((f) => !f)}
+                      type="button"
+                      onClick={() => { if (!flipped) setFlipped(true); }}
                       className="w-full min-w-0 min-h-44 overflow-hidden rounded-2xl border border-border/60 p-4 text-left hover:border-primary/40 transition-colors sm:p-5"
                     >
                       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
@@ -252,7 +244,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-5">
-                        Tap card to {flipped ? "see the question" : "reveal the answer"}
+                        {flipped ? "Rate your confidence, then how you did" : "Tap card or Reveal to see the answer"}
                       </p>
                     </button>
                     {pendingFinal ? (
@@ -260,17 +252,18 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         Last card rated. Finish to save your progress.
                       </p>
                     ) : !flipped ? (
-                      <Button className="w-full" onClick={() => setFlipped(true)}>
-                        Reveal answer
-                      </Button>
+                      <Button className="w-full" onClick={() => setFlipped(true)}>Reveal answer</Button>
                     ) : (
-                      <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
-                        <Button variant="outline" onClick={() => record(false)}>
-                          <X className="h-4 w-4 mr-1.5" /> Review again
-                        </Button>
-                        <Button onClick={() => record(true)}>
-                          <Check className="h-4 w-4 mr-1.5" /> I knew it
-                        </Button>
+                      <div className="space-y-3">
+                        <ConfidencePicker value={confidence} onChange={setConfidence} />
+                        <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
+                          <Button variant="outline" disabled={!confidence} onClick={() => void record(false)}>
+                            <X className="h-4 w-4 mr-1.5" /> Review again
+                          </Button>
+                          <Button disabled={!confidence} onClick={() => void record(true)}>
+                            <Check className="h-4 w-4 mr-1.5" /> I knew it
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -297,6 +290,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         return (
                           <button
                             key={i}
+                            type="button"
                             disabled={revealed}
                             onClick={() => setPicked(i)}
                             className={`w-full text-left px-3 py-2 rounded-lg border transition-colors text-sm ${cls}`}
@@ -307,13 +301,16 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                       })}
                     </div>
                     {revealed && (
-                      <p className="text-xs text-muted-foreground">{q.rationale}</p>
+                      <>
+                        <p className="text-xs text-muted-foreground">{q.rationale}</p>
+                        <ConfidencePicker value={confidence} onChange={setConfidence} />
+                      </>
                     )}
                     {!pendingFinal && (
                       <div className="flex justify-end">
                         <Button
-                          disabled={!revealed}
-                          onClick={() => record(picked === q.answerIndex)}
+                          disabled={!revealed || !confidence}
+                          onClick={() => void record(picked === q.answerIndex)}
                         >
                           {isLast ? "Finish" : "Next"}
                         </Button>
@@ -416,6 +413,44 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   );
 }
 
+function ConfidencePicker({
+  value,
+  onChange,
+}: {
+  value: ConfidenceLevel | null;
+  onChange: (v: ConfidenceLevel) => void;
+}) {
+  const options: { id: ConfidenceLevel; label: string }[] = [
+    { id: "low", label: "Guessing" },
+    { id: "medium", label: "Somewhat sure" },
+    { id: "high", label: "Very sure" },
+  ];
+  return (
+    <div className="space-y-2" role="group" aria-label="How sure were you?">
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        How sure were you before checking?
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            aria-pressed={value === opt.id}
+            className={`min-h-11 rounded-xl border px-2 text-xs font-medium transition-colors ${
+              value === opt.id
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function studentScopeLabel(label: string) {
   if (label.toLowerCase() === "recent material") return "what you just learned";
   if (label.toLowerCase() === "mixed class review") return "everything in this class";
@@ -423,16 +458,18 @@ function studentScopeLabel(label: string) {
 }
 
 function summarizeByConcept(results: AnswerResult[]) {
-  const byConcept = new Map<string, { correct: number; total: number }>();
+  const byConcept = new Map<string, { correct: number; total: number; highWrong: number }>();
   for (const result of results) {
-    const current = byConcept.get(result.conceptId) ?? { correct: 0, total: 0 };
+    const current = byConcept.get(result.conceptId) ?? { correct: 0, total: 0, highWrong: 0 };
     current.total += 1;
     if (result.correct) current.correct += 1;
+    if (!result.correct && result.confidence === "high") current.highWrong += 1;
     byConcept.set(result.conceptId, current);
   }
   return [...byConcept].map(([conceptId, score]) => ({
     conceptId,
     correct: score.correct / score.total >= 0.5,
+    confidentlyWrong: score.highWrong > 0,
   }));
 }
 
