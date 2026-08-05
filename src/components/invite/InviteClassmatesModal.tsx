@@ -71,7 +71,6 @@ export function InviteClassmatesModal({
   );
   const confidence = describeInviteConfidence(studentCount);
 
-  // Fire invite_created the first time the modal opens for this class.
   useEffect(() => {
     if (open) {
       trackInviteEvent("invite_created", { classId, className });
@@ -132,11 +131,11 @@ export function InviteClassmatesModal({
             Invite classmates to {className}
           </DialogTitle>
           <DialogDescription>
-            More classmates = smarter study insights.
+            Works alone. With classmates, the class brain sees what this course
+            emphasizes — so study time hits the right topics.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Confidence tier */}
         <div className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
             <Users className="h-4 w-4 text-primary" />
@@ -163,7 +162,6 @@ export function InviteClassmatesModal({
           </Badge>
         </div>
 
-        {/* Share link */}
         <div className="space-y-1.5">
           <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Share link
@@ -181,7 +179,6 @@ export function InviteClassmatesModal({
           </div>
         </div>
 
-        {/* Invite message */}
         <div className="space-y-1.5">
           <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Message
@@ -189,12 +186,11 @@ export function InviteClassmatesModal({
           <Textarea
             value={customMessage}
             onChange={(e) => setCustomMessage(e.target.value)}
-            rows={3}
+            rows={4}
             className="text-sm resize-none"
           />
         </div>
 
-        {/* Actions */}
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" size="sm" onClick={smsShare}>
             <MessageSquare className="h-4 w-4 mr-1.5" /> SMS
@@ -213,7 +209,6 @@ export function InviteClassmatesModal({
           </Button>
         </div>
 
-        {/* QR placeholder */}
         <div className="rounded-xl border border-dashed border-border/50 bg-muted/10 p-4 flex items-center gap-3">
           <div className="h-16 w-16 rounded-lg border border-border/50 bg-background/60 flex items-center justify-center">
             <QrCode className="h-8 w-8 text-muted-foreground/60" />
@@ -229,10 +224,12 @@ export function InviteClassmatesModal({
           </div>
         </div>
 
-        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-          <CheckCircle2 className="h-3 w-3 text-success" />
-          Notes, scans, and recordings stay private. Only anonymous class
-          signals are shared.
+        <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+          <CheckCircle2 className="h-3 w-3 text-success mt-0.5 shrink-0" />
+          <span>
+            Notes, scans, and recordings stay private. Only anonymous class
+            signals are shared — never your raw notes or grades.
+          </span>
         </p>
       </DialogContent>
     </Dialog>
