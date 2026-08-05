@@ -58,7 +58,17 @@ const multipleChoiceArtifact: LearningArtifact<"multiple_choice"> = {
 function rateKnewIt() {
   fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
   fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
-  fireEvent.click(screen.getByRole("button", { name: /i knew it/i }));
+  const knewIt = screen.getByRole("button", { name: /i knew it/i });
+  expect(knewIt).toBeEnabled();
+  fireEvent.click(knewIt);
+}
+
+async function rateMcCorrectAndFinish() {
+  fireEvent.click(screen.getByRole("button", { name: "4" }));
+  fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+  const finish = screen.getByRole("button", { name: "Finish" });
+  expect(finish).toBeEnabled();
+  fireEvent.click(finish);
 }
 
 describe("real flashcard runner", () => {
@@ -157,9 +167,7 @@ describe("real flashcard runner", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "4" }));
-    fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    await rateMcCorrectAndFinish();
     expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still here/i);
 
     fireEvent.click(screen.getByRole("button", { name: /try saving again/i }));
