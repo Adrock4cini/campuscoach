@@ -45,9 +45,22 @@ type WorkPresetId = (typeof WORK_PRESETS)[number]["id"];
 function matchWorkPreset(schedule: string): WorkPresetId {
   const s = schedule.trim();
   if (!s) return "none";
-  const exact = WORK_PRESETS.find((p) => p.id !== "custom" && p.id !== "none" && p.value === s);
-  if (exact) return exact.id;
+  for (const p of WORK_PRESETS) {
+    if (p.id === "none" || p.id === "custom") continue;
+    if (s === p.value || s.startsWith(`${p.value} — `) || s.startsWith(`${p.value} - `)) {
+      return p.id;
+    }
+  }
   return "custom";
+}
+
+function detailFromSchedule(schedule: string, presetId: WorkPresetId): string {
+  if (presetId === "none") return "";
+  if (presetId === "custom") return schedule;
+  const base = WORK_PRESETS.find((p) => p.id === presetId)?.value ?? "";
+  if (schedule === base) return "";
+  const sep = schedule.startsWith(`${base} — `) ? `${base} — ` : schedule.startsWith(`${base} - `) ? `${base} - ` : null;
+  return sep ? schedule.slice(sep.length) : "";
 }
 
 export default function Onboarding() {
@@ -83,7 +96,6 @@ export default function Onboarding() {
       workSchedule: profile?.work_schedule || cached?.workSchedule || "",
     });
 
-    // Do not ask returning students to re-enter information already stored.
     if (importSyllabusMode) setStep(0);
     else if (name && school && term) setStep(3);
     else if (name && school) setStep(2);
@@ -142,7 +154,6 @@ export default function Onboarding() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        {/* Progress */}
         <div className="flex items-center gap-1.5 mb-6">
           {STEPS.map((_, i) => (
             <div
@@ -338,7 +349,6 @@ export default function Onboarding() {
                                   ))}
                                 </div>
                               )}
-
                             </div>
                           );
                         })}
@@ -420,30 +430,34 @@ function WorkScheduleStep({
   onChange: (next: string) => void;
 }) {
   const selected = matchWorkPreset(value);
-  const showDetail = selected === "custom" || (selected !== "none" && value.length > 0 && selected !== "none");
+  const detail = detailFromSchedule(value, selected);
 
   const pick = (id: WorkPresetId) => {
-    const preset = WORK_PRESETS.find((p) => p.id === id)!;
     if (id === "none") {
       onChange("");
       return;
     }
     if (id === "custom") {
-      // Keep existing free text if they already typed; otherwise empty for detail.
-      if (matchWorkPreset(value) === "custom") return;
-      onChange("");
+      onChange(matchWorkPreset(value) === "custom" ? value : "");
       return;
     }
-    onChange(preset.value);
+    const base = WORK_PRESETS.find((p) => p.id === id)!.value;
+    onChange(base);
+  };
+
+  const setDetail = (text: string) => {
+    const trimmed = text.trim();
+    if (selected === "custom") {
+      onChange(text);
+      return;
+    }
+    const base = WORK_PRESETS.find((p) => p.id === selected)?.value ?? "";
+    onChange(trimmed ? `${base} — ${trimmed}` : base);
   };
 
   return (
     <div className="space-y-4">
-      <div
-        role="group"
-        aria-label="Work pattern"
-        className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-      >
+      <div role="group" aria-label="Work pattern" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {WORK_PRESETS.map((preset) => {
           const active = selected === preset.id;
           return (
@@ -465,37 +479,26 @@ function WorkScheduleStep({
         })}
       </div>
 
-      {(selected === "custom" || (selected !== "none" && selected !== "custom")) && (
+      {selected !== "none" && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">
-            {selected === "custom" ? "Your hours (optional)" : "More detail (optional)"}
+            {selected === "custom" ? "Your hours" : "More detail (optional)"}
           </Label>
           <Input
-            value={selected === "custom" ? value : (value.includes("—") || value.includes(":") || /\d/.test(value) ? value : "")}
-            onChange={(e) => {
-              const text = e.target.value;
-              if (selected === "custom") {
-                onChange(text);
-                return;
-              }
-              // Keep preset label + optional detail in one string for storage simplicity.
-              const base = WORK_PRESETS.find((p) => p.id === selected)?.value ?? "";
-              onChange(text.trim() ? `${base} — ${text.trim()}` : base);
-            }}
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
             placeholder="e.g. Tue/Thu 4–8pm"
             className="min-h-11"
+            autoFocus={selected === "custom"}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Skip anytime — you can change this later in settings.
-          </p>
         </div>
       )}
 
-      {selected === "none" && (
-        <p className="text-xs text-muted-foreground">
-          No problem. Tap Next — we won't assume any work hours.
-        </p>
-      )}
+      <p className="text-[11px] text-muted-foreground">
+        {selected === "none"
+          ? "No problem — tap Next. You can add this later."
+          : "Skip the detail anytime. You can change this later."}
+      </p>
     </div>
   );
 }
