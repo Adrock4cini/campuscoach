@@ -51,7 +51,7 @@ const MENU: {
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
   { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into test practice", requiresImages: true, availableForRealUsers: true },
-  { kind: "scan-material",   icon: Images,        hint: "Save pages to Class Memory", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-material",   icon: Images,        hint: "Photo pages → study cards & games", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Build classes and calendar", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
