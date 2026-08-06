@@ -68,9 +68,9 @@ const REAL_PROCESSING_STEPS: ProcessingStep[] = [
 
 const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "queued", label: "Saving private photos…", duration: 350 },
-  { id: "class-detected", label: "Checking class and test links", duration: 300 },
-  { id: "concepts-found", label: "Reading skills and concepts", duration: 350 },
-  { id: "added-to-brain", label: "Building concepts and study memory", duration: 300 },
+  { id: "class-detected", label: "Linking to your class", duration: 300 },
+  { id: "concepts-found", label: "Reading the pages for concepts", duration: 350 },
+  { id: "added-to-brain", label: "Building study cards & memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
