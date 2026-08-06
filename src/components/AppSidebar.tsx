@@ -16,11 +16,19 @@ import {
   LogOut,
   LogIn,
   Link2,
+  ScanFace,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
+import {
+  humanizePasskeyError,
+  isPasskeySupported,
+  registerPasskey,
+} from "@/lib/auth/passkeys";
 import {
   Sidebar,
   SidebarContent,
@@ -127,12 +135,27 @@ export function AppSidebar() {
   const { user, isDemoMode, signOut, mode } = useAuth();
   const nav = useNavigate();
   const { classes: myClasses } = useMyClasses();
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   // Single source of truth: mode drives which class list we show.
   // "real" → user's Supabase classes only (empty if none yet).
   // "demo" → demo tour classes. Loading stays neutral in AppLayout.
   const realMode = mode === "real";
   const classList = realMode ? myClasses : mode === "demo" ? demoClasses : [];
   const groups = buildGroups(classList);
+  const canSavePasskey = !!user && realMode && isPasskeySupported();
+
+  async function onSavePasskey() {
+    setPasskeyBusy(true);
+    const { error } = await registerPasskey("This device");
+    setPasskeyBusy(false);
+    if (error) {
+      toast.error("Couldn't save Face ID", { description: humanizePasskeyError(error) });
+      return;
+    }
+    toast.success("Face ID saved", {
+      description: "Next sign-in can use Continue with Face ID.",
+    });
+  }
 
 
 
@@ -202,7 +225,20 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        <div className="mt-auto p-2 border-t border-border/60">
+        <div className="mt-auto p-2 border-t border-border/60 space-y-1">
+          {canSavePasskey && (
+            <button
+              type="button"
+              disabled={passkeyBusy}
+              onClick={() => void onSavePasskey()}
+              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <ScanFace className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && (
+                <span className="truncate">{passkeyBusy ? "Saving Face ID\u2026" : "Save Face ID"}</span>
+              )}
+            </button>
+          )}
           {user ? (
             <button
               onClick={async () => {
@@ -220,7 +256,7 @@ export function AppSidebar() {
               className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-primary hover:bg-sidebar-accent/60 transition-colors"
             >
               <LogIn className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span className="truncate">Sign in · demo mode</span>}
+              {!collapsed && <span className="truncate">Sign in \u00b7 demo mode</span>}
             </button>
           ) : null}
         </div>
