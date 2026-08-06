@@ -13,5 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    // Fail closed until the permanent production domain and Supabase RP ID are ready.
+    experimental: { passkey: import.meta.env.VITE_PASSKEYS_ENABLED === "true" },
   }
 });

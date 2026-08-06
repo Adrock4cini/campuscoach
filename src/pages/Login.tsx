@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -6,9 +6,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sparkles } from "lucide-react";
+import { ScanFace, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  armOAuthPasskeyOffer,
+  canUsePasskeys,
+  clearOAuthPasskeyOffer,
+  humanizePasskeyError,
+  markPasskeyOfferPending,
+  signInWithPasskey,
+} from "@/lib/auth/passkeys";
 
 export default function Login() {
   const nav = useNavigate();
@@ -17,23 +25,66 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
+  const passkeyOk = useMemo(() => canUsePasskeys(), []);
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) return toast.error("Sign in failed", { description: error.message });
-    nav(next, { replace: true });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast.error("Sign in failed", { description: error.message });
+        return;
+      }
+      if (data.user?.id) markPasskeyOfferPending(data.user.id);
+      nav(next, { replace: true });
+    } catch {
+      toast.error("Sign in failed", {
+        description: "Please check your connection and try again.",
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onGoogle() {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) toast.error("Google sign-in failed", { description: String(result.error) });
-    // On success the popup/redirect finishes and onAuthStateChange takes over.
+    setBusy(true);
+    armOAuthPasskeyOffer();
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        clearOAuthPasskeyOffer();
+        toast.error("Google sign-in failed", { description: String(result.error) });
+      }
+      // A successful SIGNED_IN event completes the user-scoped setup offer.
+    } catch {
+      clearOAuthPasskeyOffer();
+      toast.error("Google sign-in failed", {
+        description: "Please check your connection and try again.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onPasskey() {
+    setPasskeyBusy(true);
+    try {
+      const { error } = await signInWithPasskey();
+      if (error) {
+        toast.error("Passkey sign-in failed", { description: humanizePasskeyError(error) });
+        return;
+      }
+      nav(next, { replace: true });
+    } catch (error) {
+      toast.error("Passkey sign-in failed", { description: humanizePasskeyError(error) });
+    } finally {
+      setPasskeyBusy(false);
+    }
   }
 
   return (
@@ -45,9 +96,21 @@ export default function Login() {
         </div>
         <Card className="shadow-elevated">
           <CardContent className="p-6 space-y-4">
-            <Button variant="outline" className="w-full" onClick={onGoogle}>
+            <Button variant="outline" className="w-full" onClick={onGoogle} disabled={busy || passkeyBusy}>
               Continue with Google
             </Button>
+            {passkeyOk && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11"
+                onClick={() => void onPasskey()}
+                disabled={passkeyBusy || busy}
+              >
+                <ScanFace className="h-4 w-4 mr-2" />
+                {passkeyBusy ? "Waiting for your device\u2026" : "Use Face ID or a passkey"}
+              </Button>
+            )}
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
               <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
             </div>
@@ -60,8 +123,8 @@ export default function Login() {
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
               </div>
-              <Button type="submit" className="w-full bg-gradient-calm border-0 text-primary-foreground" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
+              <Button type="submit" className="w-full" variant="secondary" disabled={busy || passkeyBusy}>
+                {busy ? "Signing in\u2026" : "Sign in with password"}
               </Button>
             </form>
             <div className="flex items-center justify-between text-xs">

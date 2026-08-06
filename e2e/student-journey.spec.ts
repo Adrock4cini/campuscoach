@@ -19,6 +19,9 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
 test("a student can enter the demo, open capture, and reach Study Lab", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in with password" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Face ID|passkey/i })).toHaveCount(0);
 
   await page.getByRole("button", { name: /Continue as demo/i }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
