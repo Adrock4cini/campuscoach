@@ -13,5 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    // Required for Face ID / passkey APIs (signInWithPasskey, registerPasskey).
+    experimental: { passkey: true },
   }
 });
