@@ -25,8 +25,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import {
+  canUsePasskeys,
   humanizePasskeyError,
-  isPasskeySupported,
   registerPasskey,
 } from "@/lib/auth/passkeys";
 import {
@@ -142,19 +142,24 @@ export function AppSidebar() {
   const realMode = mode === "real";
   const classList = realMode ? myClasses : mode === "demo" ? demoClasses : [];
   const groups = buildGroups(classList);
-  const canSavePasskey = !!user && realMode && isPasskeySupported();
+  const canSavePasskey = !!user && realMode && canUsePasskeys();
 
   async function onSavePasskey() {
     setPasskeyBusy(true);
-    const { error } = await registerPasskey("This device");
-    setPasskeyBusy(false);
-    if (error) {
-      toast.error("Couldn't save Face ID", { description: humanizePasskeyError(error) });
-      return;
+    try {
+      const { error } = await registerPasskey();
+      if (error) {
+        toast.error("Couldn't set up faster sign-in", { description: humanizePasskeyError(error) });
+        return;
+      }
+      toast.success("Faster sign-in is ready", {
+        description: "Next time, use Face ID, Touch ID, or your device passkey.",
+      });
+    } catch (error) {
+      toast.error("Couldn't set up faster sign-in", { description: humanizePasskeyError(error) });
+    } finally {
+      setPasskeyBusy(false);
     }
-    toast.success("Face ID saved", {
-      description: "Next sign-in can use Continue with Face ID.",
-    });
   }
 
 
@@ -235,7 +240,7 @@ export function AppSidebar() {
             >
               <ScanFace className="h-4 w-4 flex-shrink-0" />
               {!collapsed && (
-                <span className="truncate">{passkeyBusy ? "Saving Face ID\u2026" : "Save Face ID"}</span>
+                <span className="truncate">{passkeyBusy ? "Setting up\u2026" : "Faster sign-in"}</span>
               )}
             </button>
           )}

@@ -14,6 +14,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setAuthUserId } from "@/hooks/useClassIntelligence";
+import { completeOAuthPasskeyOffer } from "@/lib/auth/passkeys";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
@@ -103,25 +104,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setAuthUserId(s?.user?.id ?? null);
-      if (s) {
+    let active = true;
+    let authRevision = 0;
+
+    const applySession = (nextSession: Session | null) => {
+      if (!active) return;
+      setSession(nextSession);
+      setAuthUserId(nextSession?.user?.id ?? null);
+      if (nextSession) {
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
-        setTimeout(() => loadProfile(s.user.id), 0);
+        setTimeout(() => {
+          if (active) void loadProfile(nextSession.user.id);
+        }, 0);
       } else {
         setOnboarded(null);
         setProfile(null);
       }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthUserId(data.session?.user?.id ?? null);
+    };
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!active) return;
+      authRevision += 1;
+      applySession(nextSession);
       setLoading(false);
-      if (data.session?.user?.id) loadProfile(data.session.user.id);
+      if (event === "SIGNED_IN" && nextSession?.user?.id) {
+        completeOAuthPasskeyOffer(nextSession.user.id);
+      }
     });
-    return () => sub.subscription.unsubscribe();
+
+    const bootstrapRevision = authRevision;
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!active || authRevision !== bootstrapRevision) return;
+        if (error) {
+          console.warn("[auth] session restore failed", error);
+          return;
+        }
+        applySession(data.session);
+      })
+      .catch((error) => {
+        if (active) console.warn("[auth] session restore failed", error);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const mode: DataMode = loading

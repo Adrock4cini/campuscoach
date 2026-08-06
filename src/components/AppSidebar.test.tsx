@@ -68,5 +68,6 @@ describe("signed-in product navigation", () => {
       "href",
       "/classes/math-1",
     );
+    expect(screen.queryByRole("button", { name: /faster sign-in/i })).not.toBeInTheDocument();
   });
 });

@@ -4,10 +4,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  canUsePasskeys,
   consumePasskeyOfferPending,
   dismissPasskeyOffer,
   humanizePasskeyError,
-  isPasskeySupported,
   registerPasskey,
   shouldOfferPasskeySetup,
 } from "@/lib/auth/passkeys";
@@ -22,12 +22,12 @@ export function SavePasskeyBanner() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!user || isDemoMode || !isPasskeySupported() || !shouldOfferPasskeySetup()) {
+    if (!user || isDemoMode || !canUsePasskeys() || !shouldOfferPasskeySetup(user.id)) {
       setOpen(false);
       return;
     }
     // Show after password/OAuth sign-in when we flagged the offer.
-    if (consumePasskeyOfferPending()) {
+    if (consumePasskeyOfferPending(user.id)) {
       setOpen(true);
     }
   }, [user, isDemoMode]);
@@ -36,21 +36,26 @@ export function SavePasskeyBanner() {
 
   async function onSave() {
     setBusy(true);
-    const { error } = await registerPasskey("This device");
-    setBusy(false);
-    if (error) {
-      toast.error("Couldn't save Face ID", { description: humanizePasskeyError(error) });
-      return;
+    try {
+      const { error } = await registerPasskey();
+      if (error) {
+        toast.error("Couldn't set up faster sign-in", { description: humanizePasskeyError(error) });
+        return;
+      }
+      dismissPasskeyOffer(user.id);
+      setOpen(false);
+      toast.success("Faster sign-in is ready", {
+        description: "Next time, use Face ID, Touch ID, or your device passkey.",
+      });
+    } catch (error) {
+      toast.error("Couldn't set up faster sign-in", { description: humanizePasskeyError(error) });
+    } finally {
+      setBusy(false);
     }
-    dismissPasskeyOffer();
-    setOpen(false);
-    toast.success("Face ID saved", {
-      description: "Next time, open Campus Companion and tap Continue with Face ID.",
-    });
   }
 
   function onDismiss() {
-    dismissPasskeyOffer();
+    dismissPasskeyOffer(user.id);
     setOpen(false);
   }
 
@@ -62,9 +67,9 @@ export function SavePasskeyBanner() {
             <ScanFace className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">Sign in faster with Face ID</p>
+            <p className="text-sm font-medium text-foreground">Set up faster sign-in</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Save a passkey on this phone. Next visit: Face ID instead of your password.
+              Use Face ID, Touch ID, or a device passkey. Your biometric information stays on your device.
             </p>
           </div>
         </div>
@@ -79,7 +84,7 @@ export function SavePasskeyBanner() {
             onClick={() => void onSave()}
             disabled={busy}
           >
-            {busy ? "Saving\u2026" : "Save Face ID"}
+            {busy ? "Setting up\u2026" : "Set up"}
           </Button>
         </div>
       </div>

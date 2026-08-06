@@ -16,7 +16,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
-import { SavePasskeyBanner } from "@/components/auth/SavePasskeyBanner";
 
 /**
  * Dashboard — the intelligent home screen.
@@ -49,7 +48,6 @@ export default function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto space-y-7 md:space-y-8">
       <TopStrip />
-      <SavePasskeyBanner />
 
       {realMode && !loading && classesError ? (
         <ClassesLoadError onRetry={() => void reloadClasses()} />

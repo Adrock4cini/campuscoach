@@ -12,16 +12,29 @@ import { commitCapture, listCaptures } from "@/lib/capture/processor";
 
 const mocks = vi.hoisted(() => ({
   persistCaptureResult: vi.fn(),
+  contributeStudySignal: vi.fn(),
+  updateCampusBrainAggregate: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/capturePersistence", () => ({
   persistCaptureResult: mocks.persistCaptureResult,
 }));
 
+vi.mock("@/hooks/useClassIntelligence", () => ({
+  contributeStudySignal: mocks.contributeStudySignal,
+}));
+
+vi.mock("@/lib/intelligence/aggregateSignals", () => ({
+  extractAggregateSignalFromCapture: vi.fn(() => ({ classId: "psych101" })),
+  updateCampusBrainAggregate: mocks.updateCampusBrainAggregate,
+}));
+
 describe("capture journey", () => {
   beforeEach(() => {
     localStorage.clear();
     mocks.persistCaptureResult.mockReset().mockResolvedValue("remote-capture-id");
+    mocks.contributeStudySignal.mockReset().mockResolvedValue(undefined);
+    mocks.updateCampusBrainAggregate.mockReset().mockResolvedValue(undefined);
   });
 
   it("commits a quick note and surfaces it in Class Memory", async () => {
