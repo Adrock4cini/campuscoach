@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -6,9 +6,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sparkles } from "lucide-react";
+import { ScanFace, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  humanizePasskeyError,
+  isPasskeySupported,
+  markPasskeyOfferPending,
+  signInWithPasskey,
+} from "@/lib/auth/passkeys";
 
 export default function Login() {
   const nav = useNavigate();
@@ -17,7 +23,9 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
+  const passkeyOk = useMemo(() => isPasskeySupported(), []);
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +33,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return toast.error("Sign in failed", { description: error.message });
+    markPasskeyOfferPending();
     nav(next, { replace: true });
   }
 
@@ -34,6 +43,19 @@ export default function Login() {
     });
     if (result.error) toast.error("Google sign-in failed", { description: String(result.error) });
     // On success the popup/redirect finishes and onAuthStateChange takes over.
+    // Offer Face ID setup after OAuth lands back in the app.
+    markPasskeyOfferPending();
+  }
+
+  async function onPasskey() {
+    setPasskeyBusy(true);
+    const { error } = await signInWithPasskey();
+    setPasskeyBusy(false);
+    if (error) {
+      toast.error("Face ID sign-in failed", { description: humanizePasskeyError(error) });
+      return;
+    }
+    nav(next, { replace: true });
   }
 
   return (
@@ -45,7 +67,24 @@ export default function Login() {
         </div>
         <Card className="shadow-elevated">
           <CardContent className="p-6 space-y-4">
-            <Button variant="outline" className="w-full" onClick={onGoogle}>
+            {passkeyOk && (
+              <>
+                <Button
+                  type="button"
+                  className="w-full h-11 bg-gradient-calm border-0 text-primary-foreground"
+                  onClick={() => void onPasskey()}
+                  disabled={passkeyBusy || busy}
+                >
+                  <ScanFace className="h-4 w-4 mr-2" />
+                  {passkeyBusy ? "Waiting for Face ID\u2026" : "Continue with Face ID"}
+                </Button>
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
+                </div>
+              </>
+            )}
+
+            <Button variant="outline" className="w-full" onClick={onGoogle} disabled={busy || passkeyBusy}>
               Continue with Google
             </Button>
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -60,8 +99,8 @@ export default function Login() {
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
               </div>
-              <Button type="submit" className="w-full bg-gradient-calm border-0 text-primary-foreground" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
+              <Button type="submit" className="w-full" variant="secondary" disabled={busy || passkeyBusy}>
+                {busy ? "Signing in\u2026" : "Sign in with password"}
               </Button>
             </form>
             <div className="flex items-center justify-between text-xs">
