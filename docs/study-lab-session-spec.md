@@ -303,13 +303,13 @@ unaided retrieval on the assessment date and must include uncertainty.
 
 ## 10. Current implementation versus target
 
-| Capability | August 8 separate local Phase 0 prototype — unmerged and not database-verified |
+| Capability | August 8 implementation status — unmerged and not database-verified |
 | --- | --- |
 | Flashcards and grounded MCQ | Built locally |
 | Exact study target snapshot | Built locally for recent, exam, class, and capture scopes; Coach scope is not reliable across reload |
 | Confidence before feedback | Local prototype only; not part of PR #35 |
-| Server-derived MCQ correctness and item attribution | Local prototype only; v1/v2 endpoint separation and database/RLS acceptance remain open |
-| Positive flashcard self-report protected from secure mastery inflation | Local prototype only; the independent v1/v2 split must be fixed before deployment |
+| Server-derived MCQ correctness and item attribution | Additive server foundation in draft PR #37; database/RLS acceptance and client cutover remain open |
+| Positive flashcard self-report protected from secure mastery inflation | Additive server foundation in draft PR #37; deployment and client cutover remain open |
 | New concept begins unassessed | Not built; extraction still seeds `0.15`, which Phase 0 must remove from readiness |
 | Real-session time budget | Not built; the existing duration control is demo-only |
 | Coach-ranked concept order | Not reliably preserved through server artifact generation |

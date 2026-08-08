@@ -7,10 +7,10 @@
 
 **Implementation status:** This is the canonical product plan, not a release
 manifest. The focused PR #35 corrections passed Campus Companion CI #129 at
-`a7123b1` but remain unmerged. Separate Phase 0 item-level-result work exists
-only as an unmerged local prototype. It is not part of PR #35,
-database-verified, deployed, or outcome-validated. Deployed state remains
-`[UNKNOWN]`.
+`a7123b1` but remain unmerged. Draft PR #37 contains the separate additive
+Phase 0 item-level server foundation; its client cutover remains only a local
+prototype. Neither effort is database-verified, deployed, or
+outcome-validated. Deployed state remains `[UNKNOWN]`.
 
 **Status key:** `[BUILT]` exists in the named code snapshot; `[PR]` is committed
 to an open pull request; `[LOCAL PROTOTYPE]` exists only in an unmerged local
@@ -107,9 +107,9 @@ The full loop is:
 ### Target durable memory versus disposable views
 
 This table describes the target architecture, not deployed field completeness.
-A separate unmerged Phase 0 prototype adds item-level confidence history, but
-its endpoint split is not yet safe and its migration is not database-verified
-or deployed. The deployed environment may still retain only aggregate
+Draft PR #37 adds an item-level ledger and an independent v2 result endpoint,
+but its migration is not database-verified or deployed and no production
+client calls it. The deployed environment may still retain only aggregate
 concept-level boolean outcomes. Verified
 professor-emphasis evidence, exact assessment-concept relevance, prerequisites,
 and stability remain Phase 1–2 work.
@@ -257,7 +257,7 @@ claim about current behavior.
 | Concept | `[BUILT]`; deployment `[UNKNOWN]` | Edge functions extract concepts and preserve capture/class provenance |
 | Artifact | `[BUILT]`; deployment `[UNKNOWN]` | Concept-backed flashcards and multiple-choice sets |
 | Study | `[BUILT]` legacy path; `[LOCAL PROTOTYPE]` item path | The committed path collapses item outcomes by concept and submits client-derived correctness. A separate local prototype captures confidence before feedback and sends raw item responses without client-owned concept IDs or correctness |
-| Mastery | `[BUILT]` legacy path; `[LOCAL PROTOTYPE]` item path | The committed RPC accepts concept-level booleans. A separate local migration prototype derives item concepts and MCQ correctness from the stored artifact, applies confidence-aware updates, and treats positive flashcard self-report as practice rather than secure mastery |
+| Mastery | `[BUILT]` legacy path; `[PR]` item-level server foundation | The committed RPC accepts concept-level booleans. Draft PR #37 derives item concepts and MCQ correctness from the stored artifact, applies confidence-aware updates, and treats positive flashcard self-report as practice rather than secure mastery; staging database acceptance remains open |
 | Coach | `[BUILT]`; deployment `[UNKNOWN]` | Dashboard recommendation ranks weak, overdue concepts and nearby exams |
 | Refresh | `[BUILT]`; deployment `[UNKNOWN]` | Completing study triggers a Coach refresh and re-ranking |
 | Canvas | `[BUILT]` code; deployment `[UNKNOWN]` | Read-only OAuth and encrypted calendar-feed fallback code exist; institution configuration and deployment remain `[UNKNOWN]`. No password storage, submission, grade, or LMS writeback |
@@ -284,14 +284,16 @@ Important code paths:
 1. Concept extraction currently seeds a new mastery row at `0.15`. That is a
    bootstrap implementation detail, not demonstrated learning, and must not be
    presented as earned readiness.
-2. A separate local Phase 0 prototype repairs the discarded-confidence and
-   majority-collapse path. It has not yet passed a real Postgres/RLS acceptance
-   test, and the deployed legacy `apply_study_concept_result` RPC remains a
-   caller-controlled boolean bypass until it is revoked after cutover.
-3. The local `record-study-result-v2` entry currently imports the modified
-   `record-study-result` implementation. The prototype therefore does not
-   preserve an independent legacy v1 implementation. Do not deploy the proposed
-   side-by-side cutover until v1 and v2 are separated.
+2. Draft PR #37 repairs the server-side discarded-confidence and
+   majority-collapse path while preserving an independent legacy v1 endpoint.
+   Its client cutover remains a local prototype, it has not passed a real
+   Postgres/RLS acceptance test, and the deployed legacy
+   `apply_study_concept_result` RPC remains a caller-controlled boolean bypass
+   until it is revoked after cutover.
+3. PR #37 is an additive staging foundation, not a deploy authorization. Do not
+   begin the side-by-side rollout until its migration, generated types, RPC
+   privileges, RLS, idempotency, and concurrency behavior pass against a real
+   staging database.
 4. Syllabus import parses one PDF or photo into class and deadline fields, but
    does not retain a reopenable source file or field-level provenance.
    Confirmation is summary-level; safe merge and reconciliation, correction,
@@ -374,15 +376,15 @@ PR #35 remains open and unmerged.
 
 - `[LOCAL PROTOTYPE]` Capture confidence before feedback and send raw item
   responses without a client-owned correctness or concept field.
-- `[LOCAL PROTOTYPE]` Add an item-level ledger and RPC that derives concept
+- `[PR]` Draft PR #37 adds an item-level ledger and RPC that derives concept
   attribution and MCQ correctness from the stored artifact.
-- `[LOCAL PROTOTYPE]` Treat a positive flashcard self-rating as practice that
+- `[PR]` Draft PR #37 treats a positive flashcard self-rating as practice that
   does not raise secure mastery or postpone an earlier review.
-- `[LOCAL PROTOTYPE]` Make exact retries idempotent, reject changed retries,
-  preserve repeated items for one concept, and bind finalization to the active
-  worker lease.
-- `[PROPOSED]` Restore the legacy v1 implementation and isolate the item-level
-  handler in `record-study-result-v2` before opening its server PR.
+- `[PR]` Draft PR #37 makes exact retries idempotent, rejects changed retries,
+  preserves repeated items for one concept, and binds finalization to the
+  active worker lease.
+- `[PR]` Draft PR #37 preserves the legacy v1 implementation and isolates the
+  item-level handler in `record-study-result-v2`.
 - `[PROPOSED]` Apply the migration in a staging Supabase database and pass the
   full database/RLS acceptance suite; static SQL assertions are not enough.
 - `[PROPOSED]` After the new edge function is live, revoke authenticated
@@ -401,8 +403,8 @@ externally trusted outcome data.
 **Required cutover order:**
 
 0. Preserve the legacy implementation in `record-study-result` and place the
-   independent item-level implementation in `record-study-result-v2`. The
-   current local import arrangement does not satisfy this requirement.
+   independent item-level implementation in `record-study-result-v2`. Draft PR
+   #37 satisfies this source-level split; staging must verify it before cutover.
 1. Apply `20260807200000_item_level_study_results.sql` to staging.
 2. Deploy `record-study-result-v2` alongside the unchanged deployed v1 endpoint.
 3. Deploy the web client that invokes v2. Existing open tabs may finish on v1
