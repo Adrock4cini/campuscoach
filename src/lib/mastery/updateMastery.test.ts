@@ -51,6 +51,30 @@ describe("mastery feedback loop", () => {
     );
   });
 
+  it("records a positive flashcard self-report without raising secure mastery", () => {
+    const t0 = new Date("2026-07-09T12:00:00Z");
+    const previous = applyMasteryUpdate({
+      prev: null,
+      correct: true,
+      confidence: "medium",
+      now: t0,
+    });
+    const earlierReview = new Date(t0.getTime() + 2 * 60 * 60 * 1000).toISOString();
+    const result = applyMasteryUpdate({
+      prev: { ...previous, next_review_at: earlierReview },
+      correct: true,
+      confidence: "high",
+      evidenceType: "self_report",
+      now: t0,
+    });
+
+    expect(result.attempts).toBe(previous.attempts + 1);
+    expect(result.correct).toBe(previous.correct + 1);
+    expect(result.strength).toBe(previous.strength);
+    expect(result.streak).toBe(previous.streak);
+    expect(result.next_review_at).toBe(earlierReview);
+  });
+
   it("readiness averages strengths to a 0-100 integer", () => {
     expect(computeReadiness([])).toBe(0);
     expect(computeReadiness([0, 0.5, 1])).toBe(50);

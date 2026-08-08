@@ -1213,6 +1213,89 @@ export type Database = {
         }
         Relationships: []
       }
+      study_item_results: {
+        Row: {
+          answer_confidence: string
+          answer_correct: boolean
+          applied_at: string
+          artifact_id: string | null
+          class_id: string | null
+          client_attempt_id: string
+          concept_id: string
+          evidence_type: string
+          item_index: number
+          previous_strength: number
+          resulting_strength: number | null
+          selected_choice_index: number | null
+          self_reported_correct: boolean | null
+          study_session_id: string
+          user_id: string
+        }
+        Insert: {
+          answer_confidence: string
+          answer_correct: boolean
+          applied_at?: string
+          artifact_id?: string | null
+          class_id?: string | null
+          client_attempt_id: string
+          concept_id: string
+          evidence_type: string
+          item_index: number
+          previous_strength: number
+          resulting_strength?: number | null
+          selected_choice_index?: number | null
+          self_reported_correct?: boolean | null
+          study_session_id: string
+          user_id: string
+        }
+        Update: {
+          answer_confidence?: string
+          answer_correct?: boolean
+          applied_at?: string
+          artifact_id?: string | null
+          class_id?: string | null
+          client_attempt_id?: string
+          concept_id?: string
+          evidence_type?: string
+          item_index?: number
+          previous_strength?: number
+          resulting_strength?: number | null
+          selected_choice_index?: number | null
+          self_reported_correct?: boolean | null
+          study_session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_item_results_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "learning_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_item_results_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_item_results_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_item_results_study_session_id_fkey"
+            columns: ["study_session_id"]
+            isOneToOne: false
+            referencedRelation: "study_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_result_concept_updates: {
         Row: {
           answer_correct: boolean
@@ -1550,6 +1633,16 @@ export type Database = {
       }
     }
     Functions: {
+      apply_study_item_result: {
+        Args: {
+          p_attempt_id: string
+          p_confidence: string
+          p_item_index: number
+          p_selected_choice_index?: number | null
+          p_self_reported_correct?: boolean | null
+        }
+        Returns: Json
+      }
       apply_study_concept_result: {
         Args: {
           p_attempt_id: string
