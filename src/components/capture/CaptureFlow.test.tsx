@@ -193,6 +193,28 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
   });
 
+  it("preselects the assignment supplied by an assignment help action", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          initialAssignmentId="assignment-science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue(
+      "assignment-science",
+    );
+    expect(screen.queryByLabelText("Assignment name")).not.toBeInTheDocument();
+  });
+
   it("keeps the mobile assignment sheet inside the viewport without iOS form zoom", () => {
     mocks.classes = [math, science];
     mocks.loading = false;

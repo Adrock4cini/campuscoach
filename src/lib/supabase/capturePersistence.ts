@@ -79,6 +79,11 @@ export interface PersistedMaterial {
   pageIndex: number | null;
 }
 
+export interface AssignmentScanTarget {
+  id: string;
+  processingStatus: string;
+}
+
 /* ------------------------------------------------------------------ */
 /* Internal                                                            */
 /* ------------------------------------------------------------------ */
@@ -292,6 +297,37 @@ export async function getCapturesForClass(
     warn("getCapturesForClass.catch", err);
     throw err;
   }
+}
+
+/**
+ * Find the newest photographed source for one assignment. Assignment-linked
+ * quick notes are intentionally excluded: Study Lab needs the exact scanned
+ * source, not merely the latest capture that mentions the assignment.
+ */
+export async function getLatestAssignmentScan(
+  clientClassId: string,
+  assignmentId: string,
+): Promise<AssignmentScanTarget | null> {
+  const { data, error } = await supabase
+    .from("captures")
+    .select("id, processing_status")
+    .eq("user_id", getAnonUserId())
+    .eq("client_class_id", clientClassId)
+    .eq("assignment_id", assignmentId)
+    .eq("kind", "scan-assignment")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    warn("getLatestAssignmentScan", error);
+    throw error;
+  }
+  if (!data) return null;
+  return {
+    id: data.id,
+    processingStatus: data.processing_status,
+  };
 }
 
 export async function getRecentCaptures(

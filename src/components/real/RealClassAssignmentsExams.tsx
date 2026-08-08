@@ -2,7 +2,7 @@
  * Class-scoped assignments & exams strip — shown on real class detail pages.
  * Complete checkbox + Help me actions keep students moving without leaving the class.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { AddExamDialog } from "./AddExamDialog";
 import { AssignmentHelpDialog } from "./AssignmentHelpDialog";
 import { updateAssignment, type RealAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { useCapture } from "@/contexts/CaptureContext";
+import { getLatestAssignmentScan } from "@/lib/supabase/capturePersistence";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,11 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
   const [addA, setAddA] = useState(false);
   const [addE, setAddE] = useState(false);
   const [helpTarget, setHelpTarget] = useState<RealAssignment | null>(null);
+  const practiceRequest = useRef(0);
+
+  useEffect(() => () => {
+    practiceRequest.current += 1;
+  }, [classId]);
 
   const toggle = async (assignment: RealAssignment) => {
     const next: AssignmentStatus =
@@ -46,6 +52,37 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
     }
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
     toast.success(next === "complete" ? "Marked complete" : "Marked not done");
+  };
+
+  const practiceAssignment = async (assignment: RealAssignment) => {
+    const scopedClassId = assignment.client_class_id || classId;
+    const requestId = ++practiceRequest.current;
+    try {
+      const scan = await getLatestAssignmentScan(scopedClassId, assignment.id);
+      if (requestId !== practiceRequest.current) return;
+      if (scan?.processingStatus === "ready") {
+        const query = new URLSearchParams({
+          classId: scopedClassId,
+          captureId: scan.id,
+        });
+        navigate(`/study-lab?${query.toString()}`);
+        return;
+      }
+      if (scan && scan.processingStatus !== "failed") {
+        toast.message("Your assignment is still being prepared", {
+          description: "Campus Brain is reading the pages. Try Practice again shortly.",
+        });
+        return;
+      }
+
+      openCapture("scan-assignment", scopedClassId, { assignmentId: assignment.id });
+      toast.message("Photograph the assignment first", {
+        description: "Practice will stay focused on these exact pages.",
+      });
+    } catch {
+      if (requestId !== practiceRequest.current) return;
+      toast.error("Couldn’t open assignment practice. Try again.");
+    }
   };
 
   return (
@@ -190,19 +227,23 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
         }}
         assignment={helpTarget}
         onPhotograph={(assignment) => {
-          openCapture("scan-assignment", assignment.client_class_id || classId);
+          openCapture("scan-assignment", assignment.client_class_id || classId, {
+            assignmentId: assignment.id,
+          });
           toast.message("Photograph the pages", {
             description: "We’ll turn the problems into practice when processing finishes.",
           });
         }}
         onDontGetIt={(assignment) => {
-          openCapture("professor-hint", assignment.client_class_id || classId);
-          toast.message("What doesn’t make sense?", {
-            description: "Save the topic or what the professor said — Campus Brain will hang onto it.",
+          openCapture("quick-note", assignment.client_class_id || classId, {
+            assignmentId: assignment.id,
+          });
+          toast.message("Describe where you’re stuck", {
+            description: "We’ll use this note to focus help on this assignment.",
           });
         }}
         onPractice={(assignment) => {
-          navigate(`/study-lab?classId=${assignment.client_class_id || classId}`);
+          void practiceAssignment(assignment);
         }}
         onToggleComplete={(assignment) => {
           void toggle(assignment);

@@ -33,6 +33,7 @@ interface Props {
   open: boolean;
   initialKind?: CaptureKind;
   initialClassId?: string;
+  initialAssignmentId?: string;
   onClose: () => void;
 }
 
@@ -73,7 +74,13 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "added-to-brain", label: "Building study cards & memory", duration: 300 },
 ];
 
-export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
+export function CaptureFlow({
+  open,
+  initialKind,
+  initialClassId,
+  initialAssignmentId,
+  onClose,
+}: Props) {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
   const {
@@ -103,6 +110,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     date: new Date().toISOString().slice(0, 10),
     topic: detected?.currentTopic ?? "",
     text: "",
+    assignmentId: initialAssignmentId,
   }));
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -140,8 +148,17 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       date: new Date().toISOString().slice(0, 10),
       topic: detected?.currentTopic ?? "",
       text: "",
+      assignmentId: initialAssignmentId,
     });
-  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic]);
+  }, [
+    open,
+    initialKind,
+    initialClassId,
+    initialAssignmentId,
+    realMode,
+    defaultClassId,
+    detected?.currentTopic,
+  ]);
 
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
 

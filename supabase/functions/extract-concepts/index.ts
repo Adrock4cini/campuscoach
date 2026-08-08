@@ -7,6 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { extractExactThinSource } from "../_shared/thin-source.ts";
 import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import { resolveCaptureKind } from "../_shared/capture-kind.ts";
 
 interface Body {
   captureId?: string;
@@ -82,12 +83,13 @@ Deno.serve(async (req) => {
     id: string;
     class_id: string | null;
     client_class_id: string | null;
+    kind: string | null;
     raw_text: string | null;
   } | null = null;
   if (body.captureId) {
     const { data: ownedCapture, error: captureErr } = await supabase
       .from("captures")
-      .select("id, class_id, client_class_id, raw_text")
+      .select("id, class_id, client_class_id, kind, raw_text")
       .eq("id", body.captureId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -97,6 +99,7 @@ Deno.serve(async (req) => {
   }
 
   const rawText = (capture?.raw_text ?? body.rawText ?? "").trim();
+  const resolvedKind = resolveCaptureKind(capture?.kind, body.kind);
   if (!rawText) return json({ error: "rawText required" }, 400);
   if (!assessSourceSufficiency(rawText).sufficient) {
     return insufficientSource();
@@ -185,8 +188,8 @@ Deno.serve(async (req) => {
           user_id: userId,
           summary: recoveredSummary,
           key_concepts: existingConcepts.map((concept) => concept.name),
-          transcript: body.kind === "record-lecture" ? rawText : null,
-          ocr_text: (body.kind === "scan-board" || body.kind === "scan-textbook") ? rawText : null,
+          transcript: resolvedKind === "record-lecture" ? rawText : null,
+          ocr_text: (resolvedKind === "scan-board" || resolvedKind === "scan-textbook") ? rawText : null,
           model: "google/gemini-2.5-flash",
         });
         if (processedRecoveryErr) {
@@ -271,7 +274,7 @@ Deno.serve(async (req) => {
   const userPrompt = [
     body.className ? `Class: ${body.className}` : null,
     body.topic ? `Topic: ${body.topic}` : null,
-    body.kind ? `Source kind: ${body.kind}` : null,
+    resolvedKind ? `Source kind: ${resolvedKind}` : null,
     "---",
     rawText.slice(0, 12000),
   ].filter(Boolean).join("\n");
@@ -281,7 +284,7 @@ Deno.serve(async (req) => {
   // invented concepts such as "Addition Fact".
   const exactThinSource = extractExactThinSource(
     rawText,
-    body.kind === "professor-hint",
+    resolvedKind === "professor-hint",
   );
   let summary = exactThinSource?.summary ?? "";
   let concepts: ExtractedConcept[] = exactThinSource?.concepts ?? [];
@@ -360,9 +363,9 @@ Deno.serve(async (req) => {
     slug: slugify(c.name),
     definition: c.definition ?? null,
     examples: c.examples ?? [],
-    professor_emphasis: !!c.professor_emphasis || body.kind === "professor-hint",
+    professor_emphasis: !!c.professor_emphasis || resolvedKind === "professor-hint",
     embedding: embeddings[i] ? (embeddings[i] as unknown as string) : null,
-    source_kind: body.kind ?? null,
+    source_kind: resolvedKind,
   }));
 
   let insertedIds: string[] = [];
@@ -407,8 +410,8 @@ Deno.serve(async (req) => {
       user_id: userId,
       summary,
       key_concepts: concepts.map((c) => c.name),
-      transcript: body.kind === "record-lecture" ? rawText : null,
-      ocr_text: (body.kind === "scan-board" || body.kind === "scan-textbook") ? rawText : null,
+      transcript: resolvedKind === "record-lecture" ? rawText : null,
+      ocr_text: (resolvedKind === "scan-board" || resolvedKind === "scan-textbook") ? rawText : null,
       model: "google/gemini-2.5-flash",
     });
     if (processedErr) {
