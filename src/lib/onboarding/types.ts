@@ -15,12 +15,18 @@ export interface OnboardingScheduleItem {
 }
 
 export interface OnboardingClass {
+  /** Permanent routing key generated once; never derived from the editable name. */
+  clientClassId?: string;
   name: string;
   code?: string;
+  section?: string;
   professor?: string;
   days: string[];       // ["Mon","Wed"]
   time?: string;        // "10:00 AM"
   endTime?: string;
+  semesterStartDate?: string;
+  semesterEndDate?: string;
+  timeZone?: string;
   location?: string;
   textbook?: string;
   examDates?: OnboardingExam[];

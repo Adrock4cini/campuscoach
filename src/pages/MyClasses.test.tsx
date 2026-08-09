@@ -42,6 +42,18 @@ describe("My Classes data trust", () => {
     expect(screen.queryByText("Set up your semester")).not.toBeInTheDocument();
   });
 
+  it("uses the compact class editor instead of restarting onboarding", () => {
+    mocks.error = null;
+    render(
+      <MemoryRouter>
+        <MyClasses />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Add manually" })).toHaveAttribute("href", "/classes/new");
+    expect(screen.queryByRole("link", { name: /add manually/i })).not.toHaveAttribute("href", "/onboarding");
+  });
+
   it("hides unknown class metadata instead of presenting placeholders", () => {
     mocks.error = null;
     mocks.classes = [{
@@ -77,5 +89,6 @@ describe("My Classes data trust", () => {
       "href",
       "/path-to-graduation",
     );
+    expect(screen.getByRole("link", { name: "Add class" })).toHaveAttribute("href", "/classes/new");
   });
 });

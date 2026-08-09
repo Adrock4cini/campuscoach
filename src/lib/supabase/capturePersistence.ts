@@ -24,6 +24,7 @@ import {
   hashCaptureImage,
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
+import { todayDateKey } from "@/lib/calendar/dateKey";
 
 const CAPTURE_SOURCE_BUCKET = "capture-sources";
 
@@ -65,6 +66,7 @@ export interface PersistedCapture {
   processingStatus: string;
   flashcardsReady: boolean;
   createdAt: string;
+  capturedOn: string;
   summary: string | null;
   keyConcepts: string[];
   rawText: string | null;
@@ -82,10 +84,6 @@ export interface PersistedMaterial {
 /* ------------------------------------------------------------------ */
 /* Internal                                                            */
 /* ------------------------------------------------------------------ */
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function warn(scope: string, err: unknown) {
   // Never throw from persistence — the UI must keep working.
@@ -116,7 +114,7 @@ export async function saveCapture(
         kind: input.kind,
         topic: input.topic ?? null,
         chapter: input.chapter ?? null,
-        captured_on: input.capturedOn ?? todayISO(),
+        captured_on: input.capturedOn ?? todayDateKey(),
         raw_text: input.rawText ?? null,
         processing_status: input.processingStatus ?? "ready",
         flashcards_ready: input.flashcardsReady ?? false,
@@ -204,6 +202,7 @@ interface CaptureQueryRow {
   processing_status: string;
   flashcards_ready: boolean;
   created_at: string;
+  captured_on: string;
   raw_text: string | null;
   processed_content:
     | ProcessedContentRow
@@ -256,6 +255,7 @@ function rowToCapture(row: CaptureQueryRow): PersistedCapture {
     processingStatus: row.processing_status,
     flashcardsReady: !!row.flashcards_ready,
     createdAt: row.created_at,
+    capturedOn: row.captured_on,
     summary: processed?.summary ?? null,
     keyConcepts,
     rawText: row.raw_text,

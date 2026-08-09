@@ -1,7 +1,8 @@
 import type { ClassInfo } from "@/data/demo";
 import type { RealAssignment } from "@/lib/realData/assignments";
 import type { RealExam } from "@/lib/realData/exams";
-import { toDateKey } from "./dateKey";
+import { parseDateKey, toDateKey } from "./dateKey";
+import { isDateWithinTerm, normalizeTimeKey, weekdayForDate } from "./classSchedule";
 
 export type DashboardAgendaItem =
   | {
@@ -33,8 +34,6 @@ export type DashboardAgendaItem =
       readiness: number;
     };
 
-const DAY_LABELS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-
 function startOfDay(value: Date) {
   const date = new Date(value);
   date.setHours(0, 0, 0, 0);
@@ -42,19 +41,17 @@ function startOfDay(value: Date) {
 }
 
 function dateFromKey(key: string, endOfDay = false) {
-  const date = new Date(`${key}T${endOfDay ? "23:59:59" : "12:00:00"}`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const date = parseDateKey(key);
+  if (!date) return null;
+  date.setHours(endOfDay ? 23 : 12, endOfDay ? 59 : 0, endOfDay ? 59 : 0, 0);
+  return date;
 }
 
 function dateWithClassTime(key: string, time: string) {
-  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  const normalized = normalizeTimeKey(time);
   const date = dateFromKey(key);
-  if (!date || !match) return date;
-  let hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const period = match[3]?.toUpperCase();
-  if (period === "AM" && hour === 12) hour = 0;
-  if (period === "PM" && hour !== 12) hour += 12;
+  if (!date || !normalized) return date;
+  const [hour, minute] = normalized.split(":").map(Number);
   date.setHours(hour, minute, 0, 0);
   return date;
 }
@@ -76,14 +73,15 @@ function nextClassDate(item: ClassInfo, now: Date) {
     .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
   let recurring: { date: Date; topic?: string } | undefined;
-  const normalizedDays = new Set(item.days.map((day) => day.trim().slice(0, 3).toLowerCase()));
+  const normalizedDays = new Set(item.days);
   if (normalizedDays.size) {
     for (let offset = 0; offset <= 7; offset += 1) {
       const date = new Date(now);
       date.setDate(now.getDate() + offset);
-      const day = DAY_LABELS[date.getDay()];
-      if (!normalizedDays.has(day)) continue;
-      const candidate = dateWithClassTime(toDateKey(date), item.time);
+      const dateKey = toDateKey(date);
+      if (!isDateWithinTerm(dateKey, item.semesterStartDate, item.semesterEndDate)) continue;
+      if (!normalizedDays.has(weekdayForDate(date))) continue;
+      const candidate = dateWithClassTime(dateKey, item.time);
       if (candidate && candidate >= now) {
         recurring = { date: candidate };
         break;

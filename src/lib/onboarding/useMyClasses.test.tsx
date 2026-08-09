@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveLatestReadiness, useMyClasses } from "./useMyClasses";
 
@@ -51,6 +51,57 @@ describe("useMyClasses data integrity", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.classes).toEqual([]);
     expect(result.current.error).toMatch(/saved classes were not deleted/i);
+  });
+
+  it("prefers normalized schedule fields and returns weekdays in calendar order", async () => {
+    mocks.mode = "real";
+    mocks.user = { id: "student-1" };
+    mocks.classResult = {
+      data: [{
+        id: "math-uuid",
+        client_class_id: "math-route",
+        name: "Math",
+        professor: null,
+        location: null,
+        color: "bg-primary",
+        current_topic: null,
+        readiness: 0,
+        meta: { days: ["Fri"], time: "4:00 PM", term: "Legacy term" },
+        source: "manual",
+        term: "Fall 2026",
+        section: "001",
+        semester_start_date: "2026-08-24",
+        semester_end_date: "2026-12-12",
+        weekdays: ["Thu", "Mon", "Mon"],
+        start_time: "09:00:00",
+        end_time: "10:15:00",
+        time_zone: "America/Denver",
+      }],
+      error: null,
+    };
+
+    const { result } = renderHook(() => useMyClasses());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.classes[0]).toMatchObject({
+      uuid: "math-uuid",
+      id: "math-route",
+      days: ["Mon", "Thu"],
+      term: "Fall 2026",
+      section: "001",
+      semesterStartDate: "2026-08-24",
+      semesterEndDate: "2026-12-12",
+      timeZone: "America/Denver",
+      startTimeKey: "09:00",
+      endTimeKey: "10:15",
+    });
+    expect(result.current.classes[0].time).toMatch(/9:00/);
+    expect(result.current.classes[0].endTime).toMatch(/10:15/);
+
+    mocks.classResult = { data: null, error: new Error("refresh offline") };
+    act(() => window.dispatchEvent(new CustomEvent("coach:refresh")));
+    await waitFor(() => expect(result.current.error).toMatch(/couldn’t load/i));
+    expect(result.current.classes[0].id).toBe("math-route");
   });
 
   it("uses the newest readiness snapshot without crossing class boundaries", () => {

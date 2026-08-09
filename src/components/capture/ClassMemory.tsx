@@ -136,7 +136,7 @@ function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
     id: r.id,
     kind,
     topic: r.topic || CAPTURE_LABELS[kind],
-    date: r.createdAt.slice(0, 10),
+    date: r.capturedOn,
     keyConcepts,
     summary: r.summary ?? "",
     processingStatus,

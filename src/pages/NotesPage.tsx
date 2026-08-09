@@ -132,7 +132,7 @@ export function RealNotesPage() {
               <p className="font-medium text-foreground">Add a class before capturing notes</p>
               <p className="text-sm text-muted-foreground mt-1">That keeps every note and study set in the right place.</p>
             </div>
-            <Button size="sm" onClick={() => navigate("/onboarding")}>Set up classes</Button>
+            <Button size="sm" onClick={() => navigate("/classes/new")}>Set up classes</Button>
           </CardContent>
         </Card>
       ) : (

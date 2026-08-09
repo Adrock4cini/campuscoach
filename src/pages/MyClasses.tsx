@@ -42,8 +42,8 @@ export default function MyClasses() {
               <Button onClick={() => navigate("/integrations/canvas")}>
                 <Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas
               </Button>
-              <Button variant="outline" onClick={() => navigate("/onboarding")}>
-                Add manually
+              <Button variant="outline" asChild>
+                <Link to="/classes/new">Add manually</Link>
               </Button>
             </div>
           </CardContent>
@@ -99,6 +99,11 @@ export default function MyClasses() {
                           {c.professor}
                         </p>
                       )}
+                      {(c.courseCode || c.term || c.section) && (
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {[c.courseCode, c.term, c.section ? `Sec. ${c.section}` : ""].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
                     </div>
                     <div className="shrink-0 text-right">
                       <span className={`block text-sm font-bold tabular-nums ${getReadinessColor(c.readiness)}`}>{c.readiness}%</span>
@@ -112,7 +117,10 @@ export default function MyClasses() {
                       {hasSchedule && (
                         <div className="flex items-center gap-1.5">
                           <Clock className="h-3 w-3" />
-                          <span>{[c.days.join("/"), c.time].filter(Boolean).join(" · ")}</span>
+                          <span>{[
+                            c.days.join(", "),
+                            c.time ? `${c.time}${c.endTime ? `–${c.endTime}` : ""}` : "",
+                          ].filter(Boolean).join(" · ")}</span>
                         </div>
                       )}
                       {hasLocation && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /><span>{c.location}</span></div>}
@@ -157,9 +165,8 @@ export default function MyClasses() {
         })}
       </div>
 
-      <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" onClick={() => navigate("/onboarding")}>
-        <Plus className="h-4 w-4" />
-        Add class
+      <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" asChild>
+        <Link to="/classes/new"><Plus className="h-4 w-4" /> Add class</Link>
       </Button>
       {isReal && (
         <Button variant="ghost" className="h-11 w-full" onClick={() => navigate("/integrations/canvas")}>

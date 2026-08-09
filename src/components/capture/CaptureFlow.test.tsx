@@ -216,11 +216,11 @@ describe("CaptureFlow class boundaries", () => {
 
     [
       screen.getByRole("combobox", { name: "Class" }),
-      screen.getByLabelText("Date"),
+      screen.getByLabelText("Capture date"),
       screen.getByLabelText("Topic / Chapter"),
       screen.getByRole("combobox", { name: "Assignment" }),
       screen.getByLabelText("Assignment name"),
-      screen.getByLabelText("Due date"),
+      screen.getByLabelText(/Due date/),
       screen.getByRole("combobox", { name: "Preparing for" }),
     ].forEach((control) => {
       expect(control).toHaveClass("text-base", "sm:text-sm");

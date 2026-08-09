@@ -33,6 +33,7 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { RealComingSoon } from "@/components/real/RealComingSoon";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
+import ClassEditorPage from "./pages/ClassEditorPage";
 
 
 function DemoOnly({
@@ -94,6 +95,8 @@ const App = () => (
                     <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
+                    <Route path="/classes/new" element={<Protected><ClassEditorPage /></Protected>} />
+                    <Route path="/classes/:classId/edit" element={<Protected><ClassEditorPage /></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
                     <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
                     <Route path="/integrations/canvas" element={<Protected><CanvasConnectionPage /></Protected>} />

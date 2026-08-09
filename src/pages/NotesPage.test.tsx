@@ -47,6 +47,7 @@ describe("real notes and recordings", () => {
         processingStatus: "ready",
         flashcardsReady: true,
         createdAt: "2026-07-20T10:00:00.000Z",
+        capturedOn: "2026-07-20",
         summary: "Use the discriminant to predict the number of solutions.",
         keyConcepts: ["Discriminant"],
         rawText: "b squared minus four ac",

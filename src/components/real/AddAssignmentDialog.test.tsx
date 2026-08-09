@@ -30,7 +30,7 @@ describe("AddAssignmentDialog save recovery", () => {
   });
 
   it("keeps the form usable when the save request rejects", async () => {
-    render(<AddAssignmentDialog open onOpenChange={vi.fn()} />);
+    render(<AddAssignmentDialog open defaultClientClassId="math" onOpenChange={vi.fn()} />);
 
     const title = screen.getByPlaceholderText("Problem set 3");
     fireEvent.change(title, { target: { value: "Problem set 3" } });
@@ -38,6 +38,18 @@ describe("AddAssignmentDialog save recovery", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Add assignment" })).toBeEnabled());
     expect(title).toHaveValue("Problem set 3");
+  });
+
+  it("requires an explicit class when opened globally", () => {
+    render(<AddAssignmentDialog open onOpenChange={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Problem set 3"), {
+      target: { value: "Chapter review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add assignment" }));
+
+    expect(mocks.createAssignment).not.toHaveBeenCalled();
+    expect(screen.getByRole("combobox", { name: "Class" })).toHaveTextContent("Pick a class");
   });
 
   it("does not erase typed work when the class list refreshes", () => {

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { classes as demoClasses, type ClassInfo } from "@/data/demo";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatTimeKey, normalizeTimeKey, normalizeWeekdays } from "@/lib/calendar/classSchedule";
 
 interface ReadinessSnapshot {
   class_id: string | null;
@@ -80,7 +81,7 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
       const [classResult, readinessResult] = await Promise.all([
         supabase
           .from("classes")
-          .select("id, client_class_id, name, professor, location, color, current_topic, readiness, meta")
+          .select("id, client_class_id, name, professor, location, color, current_topic, readiness, meta, source, term, section, semester_start_date, semester_end_date, weekdays, start_time, end_time, time_zone")
           .eq("user_id", userId)
           .is("source_archived_at", null)
           .order("created_at", { ascending: true }),
@@ -103,20 +104,27 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
       const readinessRows = (readinessResult.data ?? []) as ReadinessSnapshot[];
       const mapped: ClassInfo[] = data.map((row, i) => {
         const meta = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
-          ? row.meta
-          : {};
+          ? row.meta as Record<string, unknown>
+          : {} as Record<string, unknown>;
+        const legacyDays = Array.isArray(meta.days)
+          ? meta.days.filter((day): day is string => typeof day === "string")
+          : [];
+        const days = normalizeWeekdays(row.weekdays?.length ? row.weekdays : legacyDays);
+        const startTime = normalizeTimeKey(row.start_time || (typeof meta.time === "string" ? meta.time : ""));
+        const endTime = normalizeTimeKey(row.end_time || (typeof meta.endTime === "string" ? meta.endTime : ""));
         return {
           uuid: row.id,
-          id: row.client_class_id || row.id,
+          id: row.client_class_id,
           name: row.name,
           professor: row.professor || "TBD",
           location: row.location || "",
-          days: Array.isArray(meta.days)
-            ? meta.days.filter((day): day is string => typeof day === "string")
-            : [],
-          time: typeof meta.time === "string" ? meta.time : "",
+          days,
+          time: formatTimeKey(startTime),
+          endTime: formatTimeKey(endTime),
+          startTimeKey: startTime,
+          endTimeKey: endTime,
           color: row.color || palette[i % palette.length],
-          currentTopic: row.current_topic || "Getting started",
+          currentTopic: row.current_topic || "",
           nextExamDate: "",
           readiness: resolveLatestReadiness(
             row.id,
@@ -127,6 +135,13 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
           suggestedAction: "Add your first capture for this class",
           gradingWeights: [],
           chapters: [],
+          courseCode: typeof meta.code === "string" ? meta.code : "",
+          section: row.section || (typeof meta.section === "string" ? meta.section : ""),
+          term: row.term || (typeof meta.term === "string" ? meta.term : ""),
+          semesterStartDate: row.semester_start_date || (typeof meta.semesterStartDate === "string" ? meta.semesterStartDate : ""),
+          semesterEndDate: row.semester_end_date || (typeof meta.semesterEndDate === "string" ? meta.semesterEndDate : ""),
+          timeZone: row.time_zone || (typeof meta.timeZone === "string" ? meta.timeZone : ""),
+          source: row.source,
           schedule: Array.isArray(meta.schedule)
             ? meta.schedule.flatMap((item) => {
                 if (!item || typeof item !== "object" || Array.isArray(item)) return [];
@@ -147,12 +162,12 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
     } catch (e) {
       if (request !== requestVersion.current) return;
       console.warn("[useMyClasses] load failed; preserving an explicit error state", e);
-      setState({
-        classes: [],
+      setState((current) => ({
+        classes: current.classes,
         isReal: true,
         loading: false,
         error: "Couldn’t load your classes. Your saved classes were not deleted.",
-      });
+      }));
     }
   }, [mode, userId]);
 

@@ -67,7 +67,7 @@ export default function Dashboard() {
             Add your first class so Campus Brain can start building your dashboard, plan, and readiness scores from your real coursework.
           </p>
           <Link
-            to="/onboarding"
+            to="/classes/new"
             className="mt-6 inline-flex items-center gap-2 h-12 px-6 rounded-2xl bg-gradient-calm text-primary-foreground font-semibold shadow-elegant hover:opacity-95"
           >
             <Plus className="h-4 w-4" />
@@ -110,7 +110,7 @@ export default function Dashboard() {
               {realMode && (
                 <div className="pt-2">
                   <Link
-                    to="/onboarding"
+                    to="/classes/new"
                     className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
                   >
                     <Plus className="h-3 w-3" /> Add another class

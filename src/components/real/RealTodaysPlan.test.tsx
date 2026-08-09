@@ -82,6 +82,23 @@ describe("real dashboard agenda", () => {
     });
   });
 
+  it("does not repeat weekly class meetings outside the saved semester", () => {
+    const beforeTerm = {
+      ...classInfo("biology", "Biology", ["Tue"], "10:00 AM"),
+      semesterStartDate: "2026-08-24",
+      semesterEndDate: "2026-12-12",
+    };
+
+    const agenda = buildDashboardAgenda(
+      [beforeTerm],
+      [],
+      [],
+      new Date("2026-07-21T08:00:00"),
+    );
+
+    expect(agenda).toEqual([]);
+  });
+
   it("clearly elevates overdue work without hiding the calendar", () => {
     mocks.assignments.push(assignmentInfo("assignment-1", "math", "Fractions", "2026-07-20"));
 
