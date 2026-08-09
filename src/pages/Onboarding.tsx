@@ -18,7 +18,7 @@ import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
 import { TimePicker } from "@/components/onboarding/TimePicker";
-
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   "You",
@@ -30,6 +30,38 @@ const STEPS = [
   "Reminders",
   "Goal",
 ];
+
+/** Presets stored as human-readable work_schedule strings (no schema change). */
+const WORK_PRESETS = [
+  { id: "none", label: "I don't work", value: "" },
+  { id: "evenings", label: "Weekday evenings", value: "Weekday evenings" },
+  { id: "weekends", label: "Weekends", value: "Weekends" },
+  { id: "mixed", label: "Evenings + weekends", value: "Evenings and weekends" },
+  { id: "custom", label: "Something else", value: "__custom__" },
+] as const;
+
+type WorkPresetId = (typeof WORK_PRESETS)[number]["id"];
+
+function matchWorkPreset(schedule: string): WorkPresetId {
+  const s = schedule.trim();
+  if (!s) return "none";
+  for (const p of WORK_PRESETS) {
+    if (p.id === "none" || p.id === "custom") continue;
+    if (s === p.value || s.startsWith(`${p.value} — `) || s.startsWith(`${p.value} - `)) {
+      return p.id;
+    }
+  }
+  return "custom";
+}
+
+function detailFromSchedule(schedule: string, presetId: WorkPresetId): string {
+  if (presetId === "none") return "";
+  if (presetId === "custom") return schedule;
+  const base = WORK_PRESETS.find((p) => p.id === presetId)?.value ?? "";
+  if (schedule === base) return "";
+  const sep = schedule.startsWith(`${base} — `) ? `${base} — ` : schedule.startsWith(`${base} - `) ? `${base} - ` : null;
+  return sep ? schedule.slice(sep.length) : "";
+}
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -64,7 +96,6 @@ export default function Onboarding() {
       workSchedule: profile?.work_schedule || cached?.workSchedule || "",
     });
 
-    // Do not ask returning students to re-enter information already stored.
     if (importSyllabusMode) setStep(0);
     else if (name && school && term) setStep(3);
     else if (name && school) setStep(2);
@@ -111,9 +142,6 @@ export default function Onboarding() {
     }
   };
 
-  // Demo mode is entered from the login screen; onboarding is only reached
-  // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
-
   const next = () => (
     importSyllabusMode && step === 0 && syllabusImported
       ? finish()
@@ -126,7 +154,6 @@ export default function Onboarding() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        {/* Progress */}
         <div className="flex items-center gap-1.5 mb-6">
           {STEPS.map((_, i) => (
             <div
@@ -280,7 +307,7 @@ export default function Onboarding() {
                     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                       {data.classes
                         .filter((c) => c.name.trim())
-                        .map((c, i) => {
+                        .map((c) => {
                           const realIdx = data.classes.indexOf(c);
                           return (
                             <div key={realIdx} className="rounded-lg border border-border/60 p-3 space-y-2">
@@ -322,7 +349,6 @@ export default function Onboarding() {
                                   ))}
                                 </div>
                               )}
-
                             </div>
                           );
                         })}
@@ -330,12 +356,13 @@ export default function Onboarding() {
                   </StepShell>
                 )}
                 {step === 5 && (
-                  <StepShell title="Work schedule" hint="Optional — helps plan study time.">
-                    <Textarea
+                  <StepShell
+                    title="When do you work?"
+                    hint="Optional. Helps us suggest study times that don't fight your job."
+                  >
+                    <WorkScheduleStep
                       value={data.workSchedule || ""}
-                      onChange={(e) => update({ workSchedule: e.target.value })}
-                      placeholder="e.g. Tue/Thu 4–8pm, Sat 10–4"
-                      className="min-h-[80px]"
+                      onChange={(workSchedule) => update({ workSchedule })}
                     />
                   </StepShell>
                 )}
@@ -391,6 +418,87 @@ export default function Onboarding() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function WorkScheduleStep({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const selected = matchWorkPreset(value);
+  const detail = detailFromSchedule(value, selected);
+
+  const pick = (id: WorkPresetId) => {
+    if (id === "none") {
+      onChange("");
+      return;
+    }
+    if (id === "custom") {
+      onChange(matchWorkPreset(value) === "custom" ? value : "");
+      return;
+    }
+    const base = WORK_PRESETS.find((p) => p.id === id)!.value;
+    onChange(base);
+  };
+
+  const setDetail = (text: string) => {
+    const trimmed = text.trim();
+    if (selected === "custom") {
+      onChange(text);
+      return;
+    }
+    const base = WORK_PRESETS.find((p) => p.id === selected)?.value ?? "";
+    onChange(trimmed ? `${base} — ${trimmed}` : base);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div role="group" aria-label="Work pattern" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {WORK_PRESETS.map((preset) => {
+          const active = selected === preset.id;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => pick(preset.id)}
+              className={cn(
+                "min-h-11 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border/60 text-foreground hover:border-primary/40",
+              )}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected !== "none" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            {selected === "custom" ? "Your hours" : "More detail (optional)"}
+          </Label>
+          <Input
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="e.g. Tue/Thu 4–8pm"
+            className="min-h-11"
+            autoFocus={selected === "custom"}
+          />
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted-foreground">
+        {selected === "none"
+          ? "No problem — tap Next. You can add this later."
+          : "Skip the detail anytime. You can change this later."}
+      </p>
     </div>
   );
 }
