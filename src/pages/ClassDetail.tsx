@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic, CalendarRange,
+  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic, CalendarRange, FileText,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -114,6 +114,28 @@ export default function ClassDetail() {
                   .join(" – ")}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card border-primary/20">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <FileText className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-display font-semibold text-foreground">Syllabus & class calendar</h2>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Upload or replace this class’s syllabus, then review every date before it is saved.
+                </p>
+              </div>
+            </div>
+            <Button className="h-11 shrink-0" asChild>
+              <Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`}>
+                Add or replace syllabus
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 

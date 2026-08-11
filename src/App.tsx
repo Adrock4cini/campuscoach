@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import MyClasses from "./pages/MyClasses";
 import ClassDetail from "./pages/ClassDetail";
+import ClassSyllabusPage from "./pages/ClassSyllabusPage";
 import CalendarPage from "./pages/CalendarPage";
 import StudyLab from "./pages/StudyLab";
 import StudySession from "./pages/StudySession";
@@ -97,6 +98,7 @@ const App = () => (
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
                     <Route path="/classes/new" element={<Protected><ClassEditorPage /></Protected>} />
                     <Route path="/classes/:classId/edit" element={<Protected><ClassEditorPage /></Protected>} />
+                    <Route path="/classes/:classId/syllabus" element={<Protected><ClassSyllabusPage /></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
                     <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
                     <Route path="/integrations/canvas" element={<Protected><CanvasConnectionPage /></Protected>} />

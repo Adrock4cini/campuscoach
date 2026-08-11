@@ -54,7 +54,7 @@ const MENU: {
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
   { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into test practice", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-material",   icon: Images,        hint: "Photo pages → study cards & games", requiresImages: true, availableForRealUsers: true },
-  { kind: "scan-syllabus",   icon: FileText,      hint: "Build classes and calendar", availableForRealUsers: true, action: "syllabus" },
+  { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the professor emphasized", requiresText: true, availableForRealUsers: true },
@@ -151,7 +151,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     const selected = MENU.find((item) => item.kind === k);
     if (selected?.action === "syllabus") {
       onClose();
-      navigate("/onboarding?import=syllabus");
+      navigate("/classes?intent=syllabus");
       return;
     }
     setKind(k);

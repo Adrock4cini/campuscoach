@@ -91,4 +91,36 @@ describe("My Classes data trust", () => {
     );
     expect(screen.getByRole("link", { name: "Add class" })).toHaveAttribute("href", "/classes/new");
   });
+
+  it("makes the class owner explicit before importing a syllabus", () => {
+    mocks.error = null;
+    mocks.classes = [{
+      id: "math-1",
+      name: "Math",
+      professor: "Professor Rivera",
+      location: "Room 10",
+      days: ["Tue"],
+      time: "10:00 AM",
+      color: "bg-primary",
+      currentTopic: "Fractions",
+      nextExamDate: "",
+      readiness: 25,
+      suggestedAction: "Add notes",
+      gradingWeights: [],
+      chapters: [],
+    }];
+
+    render(
+      <MemoryRouter initialEntries={["/classes?intent=syllabus"]}>
+        <MyClasses />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: /which class is this syllabus for/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose Math for syllabus" })).toHaveAttribute(
+      "href",
+      "/classes/math-1/syllabus",
+    );
+    expect(screen.queryByRole("link", { name: "Open Math" })).not.toBeInTheDocument();
+  });
 });
