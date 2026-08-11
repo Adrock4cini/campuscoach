@@ -852,6 +852,7 @@ BEGIN
       SET class_id = p_class_id, client_class_id = p_client_class_id,
           syllabus_id = v_syllabus.id, title = btrim(v_item->>'title'),
           exam_date = (v_item->>'examDate')::date,
+          topics = ARRAY(SELECT jsonb_array_elements_text(coalesce(v_item->'topics', '[]'::jsonb))),
           source_updated_at = now(), source_due_at = ((v_item->>'examDate') || 'T12:00:00Z')::timestamptz,
           external_id = v_external_id, source_archived_at = NULL,
           meta = meta || jsonb_build_object(

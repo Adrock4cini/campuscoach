@@ -49,7 +49,7 @@ Return ONLY JSON matching this schema, no prose:
       "semesterStartDate": string|null,     // ISO YYYY-MM-DD when stated
       "semesterEndDate": string|null,       // ISO YYYY-MM-DD when stated
       "textbook": string|null,
-      "examDates": [ { "label": string, "date": string } ],     // ISO YYYY-MM-DD
+      "examDates": [ { "label": string, "date": string, "topics": string[] } ], // ISO YYYY-MM-DD; include stated exam topics
       "assignments": [ { "label": string, "dueDate": string } ], // ISO YYYY-MM-DD
       "schedule": [
         { "date": string, "topic": string, "dueItems": string[] }

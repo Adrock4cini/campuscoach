@@ -6,6 +6,10 @@ const migration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260810120000_class_owned_syllabi.sql"),
   "utf8",
 );
+const parser = readFileSync(
+  resolve(process.cwd(), "supabase/functions/parse-syllabus/index.ts"),
+  "utf8",
+);
 
 describe("class-owned syllabus migration contract", () => {
   it("keeps the source private, class-owned, and transaction-only", () => {
@@ -37,5 +41,22 @@ describe("class-owned syllabus migration contract", () => {
     expect(migration).toContain("A syllabus request id cannot be reused with different input");
     expect(migration).toContain("'cleanupPath'");
     expect(migration).not.toContain("DELETE FROM storage.objects");
+  });
+
+  it("updates the real exam topics column when a syllabus exam is reconciled", () => {
+    const existingExamUpdate = migration.match(
+      /IF FOUND THEN\s+UPDATE public\.exams\s+SET([\s\S]*?)\s+WHERE id = v_existing_exam\.id;/,
+    )?.[1];
+
+    expect(existingExamUpdate).toContain(
+      "topics = ARRAY(SELECT jsonb_array_elements_text(coalesce(v_item->'topics', '[]'::jsonb)))",
+    );
+  });
+
+  it("asks syllabus extraction for exam topics that the sanitizer preserves", () => {
+    expect(parser).toContain(
+      '"examDates": [ { "label": string, "date": string, "topics": string[] } ]',
+    );
+    expect(parser).toContain("topics: textArray(exam.topics, 100, 200)");
   });
 });
