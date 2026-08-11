@@ -10,6 +10,7 @@ import { getAnonUserId } from "@/hooks/useClassIntelligence";
 import type { OnboardingData } from "./types";
 import { canonicalizeSchoolName } from "./options";
 import { buildSyllabusDeadlineRows } from "./syllabusDeadlines";
+import { browserTimeZone, normalizeTimeKey, normalizeWeekdays } from "@/lib/calendar/classSchedule";
 
 const ONBOARDED_KEY = "cc_onboarded_real_v1";
 const DEMO_MODE_KEY = "cc_demo_mode_v1";
@@ -44,8 +45,8 @@ export function loadCachedOnboarding(): OnboardingData | null {
   }
 }
 
-export async function saveOnboarding(data: OnboardingData): Promise<void> {
-  const userId = getAnonUserId();
+export async function saveOnboarding(data: OnboardingData, explicitUserId?: string): Promise<void> {
+  const userId = explicitUserId || getAnonUserId();
   localStorage.setItem(CACHE_KEY, JSON.stringify(data));
 
   // school (dedupe by lowercase name)
@@ -92,28 +93,47 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
   // classes + enrollments
   for (const c of data.classes) {
     if (!c.name.trim()) continue;
-    const clientClassId = `u-${userId.slice(0, 8)}-${slugify(c.name)}`;
+    // New onboarding drafts always carry a random UUID. The legacy fallback
+    // only keeps older cached drafts retry-safe during the rollout.
+    const clientClassId = c.clientClassId || `u-${userId.slice(0, 8)}-${slugify(c.name)}`;
+    const rowId = isUuid(clientClassId) ? clientClassId : undefined;
+    const weekdays = normalizeWeekdays(c.days);
+    const startTime = normalizeTimeKey(c.time);
+    const endTime = normalizeTimeKey(c.endTime);
     const { data: inserted, error } = await supabase
       .from("classes")
       .upsert(
           {
+            ...(rowId ? { id: rowId } : {}),
             user_id: userId,
             client_class_id: clientClassId,
             name: c.name,
             professor: c.professor || null,
             location: c.location || null,
+            term: data.term || null,
+            section: c.section || null,
+            semester_start_date: c.semesterStartDate || null,
+            semester_end_date: c.semesterEndDate || null,
+            weekdays,
+            start_time: startTime || null,
+            end_time: endTime || null,
+            time_zone: c.timeZone || browserTimeZone(),
             color: "bg-primary",
             current_topic: null,
             meta: ({
-              days: c.days,
-              time: c.time || null,
-              endTime: c.endTime || null,
+              days: weekdays,
+              time: startTime || null,
+              endTime: endTime || null,
               code: c.code || null,
+              section: c.section || null,
               textbook: c.textbook || null,
               examDates: c.examDates ?? [],
               assignments: c.assignments ?? [],
               schedule: c.schedule ?? [],
               term: data.term,
+              semesterStartDate: c.semesterStartDate || null,
+              semesterEndDate: c.semesterEndDate || null,
+              timeZone: c.timeZone || browserTimeZone(),
               school: schoolName || null,
               schoolId,
               work_schedule: data.workSchedule || null,
@@ -122,7 +142,7 @@ export async function saveOnboarding(data: OnboardingData): Promise<void> {
             } as never),
 
           },
-          { onConflict: "client_class_id" }
+          { onConflict: rowId ? "id" : "client_class_id" }
       )
       .select("id")
       .single();
@@ -197,4 +217,8 @@ export async function saveSyllabusDeadlines(
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

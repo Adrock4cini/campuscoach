@@ -68,6 +68,7 @@ const realCapture = {
   processingStatus: "ready",
   flashcardsReady: false,
   createdAt: "2026-07-20T11:00:00.000Z",
+  capturedOn: "2026-07-20",
   summary: "My real math note",
   keyConcepts: ["Discriminant"],
   rawText: "x equals negative b plus or minus...",

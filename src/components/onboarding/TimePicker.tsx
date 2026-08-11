@@ -24,11 +24,13 @@ function to12(v: string): string {
 }
 
 export function TimePicker({
+  id,
   value,
   onChange,
   placeholder = "Time",
   className,
 }: {
+  id?: string;
   value: string | undefined;
   onChange: (v: string) => void;
   placeholder?: string;
@@ -36,8 +38,10 @@ export function TimePicker({
 }) {
   return (
     <Input
+      id={id}
       type="time"
-      className={className}
+      aria-label={id ? undefined : placeholder}
+      className={`min-h-11 text-base sm:text-sm ${className ?? ""}`}
       value={to24(value)}
       onChange={(e) => onChange(e.target.value ? to12(e.target.value) : "")}
       placeholder={placeholder}

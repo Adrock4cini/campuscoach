@@ -18,6 +18,13 @@ import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
 import { TimePicker } from "@/components/onboarding/TimePicker";
+import { DatePickerField } from "@/components/forms/DatePickerField";
+import {
+  hydrateCachedOnboardingClass,
+  prepareNewOnboardingClass,
+} from "@/lib/onboarding/classIdentity";
+import { normalizeTimeKey } from "@/lib/calendar/classSchedule";
+import { isDateKey } from "@/lib/calendar/dateKey";
 
 
 const STEPS = [
@@ -37,7 +44,10 @@ export default function Onboarding() {
   const importSyllabusMode = searchParams.get("import") === "syllabus";
   const { refreshOnboarded, profile, user } = useAuth();
   const [step, setStep] = useState(0);
-  const [data, setData] = useState<OnboardingData>(emptyOnboarding);
+  const [data, setData] = useState<OnboardingData>(() => ({
+    ...emptyOnboarding,
+    classes: emptyOnboarding.classes.map(prepareNewOnboardingClass),
+  }));
   const [saving, setSaving] = useState(false);
   const [syllabusImported, setSyllabusImported] = useState(false);
   const initialized = useRef(false);
@@ -54,7 +64,7 @@ export default function Onboarding() {
     const school = profile?.schools?.name || cached?.school || "";
     const term = profile?.term || cached?.term || "";
 
-    setData({
+    const merged = {
       ...emptyOnboarding,
       ...cached,
       name,
@@ -62,6 +72,12 @@ export default function Onboarding() {
       term,
       learnerType: (profile?.learner_type as OnboardingData["learnerType"]) || cached?.learnerType || "college",
       workSchedule: profile?.work_schedule || cached?.workSchedule || "",
+    };
+    setData({
+      ...merged,
+      classes: (cached?.classes ?? emptyOnboarding.classes).map(
+        cached ? hydrateCachedOnboardingClass : prepareNewOnboardingClass,
+      ),
     });
 
     // Do not ask returning students to re-enter information already stored.
@@ -84,10 +100,14 @@ export default function Onboarding() {
       case 1: return data.school.trim().length > 0;
       case 2: return data.term.trim().length > 0;
       case 3: return data.classes.some((c) => c.name.trim().length > 0);
+      case 4: return data.classes.filter((c) => c.name.trim()).every(isOnboardingClassScheduleValid);
       default: return true;
     }
   })();
   const canContinue = importSyllabusMode && step === 0 ? syllabusImported : canNext;
+  const importedScheduleNeedsReview = importSyllabusMode && data.classes
+    .filter((classInfo) => classInfo.name.trim())
+    .some((classInfo) => !isOnboardingClassScheduleValid(classInfo));
 
   const finish = async () => {
     setSaving(true);
@@ -95,7 +115,7 @@ export default function Onboarding() {
       await saveOnboarding({
         ...data,
         classes: data.classes.filter((c) => c.name.trim()),
-      });
+      }, user?.id);
       toast.success(importSyllabusMode ? "Syllabus added" : "You're set up!", {
         description: importSyllabusMode
           ? "Your classes and detected deadlines are ready to review."
@@ -114,17 +134,26 @@ export default function Onboarding() {
   // Demo mode is entered from the login screen; onboarding is only reached
   // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
-  const next = () => (
-    importSyllabusMode && step === 0 && syllabusImported
-      ? finish()
-      : step < STEPS.length - 1
-      ? setStep(step + 1)
-      : finish()
-  );
-  const back = () => setStep((s) => Math.max(0, s - 1));
+  const next = () => {
+    if (importSyllabusMode && step === 0 && syllabusImported) {
+      if (importedScheduleNeedsReview) {
+        setStep(4);
+        return;
+      }
+      void finish();
+      return;
+    }
+    if (importSyllabusMode && step === 4) {
+      void finish();
+      return;
+    }
+    if (step < STEPS.length - 1) setStep(step + 1);
+    else void finish();
+  };
+  const back = () => setStep((s) => (importSyllabusMode && s === 4 ? 0 : Math.max(0, s - 1)));
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-4">
+    <div className="min-h-[80vh] flex items-start justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] md:items-center">
       <div className="w-full max-w-lg">
         {/* Progress */}
         <div className="flex items-center gap-1.5 mb-6">
@@ -187,7 +216,10 @@ export default function Onboarding() {
                       </div>
                       <SyllabusImport
                         data={data}
-                        onMerge={update}
+                        onMerge={(patch) => update({
+                          ...patch,
+                          ...(patch.classes ? { classes: patch.classes.map(prepareNewOnboardingClass) } : {}),
+                        })}
                         onParsed={(parsed) => setSyllabusImported(parsed.classes.length > 0)}
                       />
                     </div>
@@ -221,7 +253,7 @@ export default function Onboarding() {
                   <StepShell title="Add your classes" hint="Start with the class name. Course code and professor are optional.">
                     <div className="space-y-3">
                       {data.classes.map((c, i) => (
-                        <div key={i} className="rounded-xl border border-border/60 bg-background/20 p-3 space-y-2">
+                        <div key={c.clientClassId || i} className="rounded-xl border border-border/60 bg-background/20 p-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs text-muted-foreground">Class {i + 1}</Label>
                             {data.classes.length > 1 && (
@@ -266,7 +298,7 @@ export default function Onboarding() {
                         onClick={() =>
                           setData((d) => ({
                             ...d,
-                            classes: [...d.classes, { name: "", professor: "", days: [], time: "" }],
+                            classes: [...d.classes, prepareNewOnboardingClass({ name: "", professor: "", days: [], time: "" })],
                           }))
                         }
                       >
@@ -277,7 +309,7 @@ export default function Onboarding() {
                 )}
                 {step === 4 && (
                   <StepShell title="Professor & schedule" hint="Optional but makes Campus Companion smarter.">
-                    <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                    <div className="space-y-4 pr-1">
                       {data.classes
                         .filter((c) => c.name.trim())
                         .map((c, i) => {
@@ -295,17 +327,52 @@ export default function Onboarding() {
                                 onChange={(days) => updateClass(realIdx, { days })}
                               />
                               <div className="grid grid-cols-2 gap-2">
-                                <TimePicker
-                                  value={c.time}
-                                  onChange={(v) => updateClass(realIdx, { time: v })}
-                                  placeholder="Start time"
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`class-${realIdx}-start-time`}>Starts <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+                                  <TimePicker
+                                    id={`class-${realIdx}-start-time`}
+                                    value={c.time}
+                                    onChange={(v) => updateClass(realIdx, { time: v })}
+                                    placeholder="Start time"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`class-${realIdx}-end-time`}>Ends <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+                                  <TimePicker
+                                    id={`class-${realIdx}-end-time`}
+                                    value={c.endTime}
+                                    onChange={(v) => updateClass(realIdx, { endTime: v })}
+                                    placeholder="End time"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <DatePickerField
+                                  id={`class-${realIdx}-term-start`}
+                                  label="Term starts"
+                                  value={c.semesterStartDate ?? ""}
+                                  onChange={(semesterStartDate) => updateClass(realIdx, { semesterStartDate })}
+                                  required={c.days.length > 0}
                                 />
-                                <Input
-                                  value={c.textbook || ""}
-                                  onChange={(e) => updateClass(realIdx, { textbook: e.target.value })}
-                                  placeholder="Textbook (optional)"
+                                <DatePickerField
+                                  id={`class-${realIdx}-term-end`}
+                                  label="Term ends"
+                                  value={c.semesterEndDate ?? ""}
+                                  onChange={(semesterEndDate) => updateClass(realIdx, { semesterEndDate })}
+                                  min={c.semesterStartDate || undefined}
+                                  required={c.days.length > 0}
                                 />
                               </div>
+                              {!isOnboardingClassScheduleValid(c) && (
+                                <p role="alert" className="text-xs font-medium text-destructive">
+                                  Choose class days with matching term dates, and make sure end dates and times come after their start.
+                                </p>
+                              )}
+                              <Input
+                                value={c.textbook || ""}
+                                onChange={(e) => updateClass(realIdx, { textbook: e.target.value })}
+                                placeholder="Textbook (optional)"
+                              />
                               {((c.examDates?.length ?? 0) > 0 || (c.assignments?.length ?? 0) > 0) && (
                                 <div className="pt-1 flex flex-wrap gap-1.5">
                                   {c.examDates?.map((e, ei) => (
@@ -380,7 +447,9 @@ export default function Onboarding() {
               >
                 {saving
                   ? (importSyllabusMode ? "Saving…" : "Setting up…")
-                  : importSyllabusMode && step === 0 && syllabusImported
+                  : importSyllabusMode && step === 0 && syllabusImported && importedScheduleNeedsReview
+                  ? "Review schedule"
+                  : importSyllabusMode && syllabusImported && (step === 0 || step === 4)
                   ? "Save syllabus"
                   : step === STEPS.length - 1
                   ? "Finish"
@@ -393,6 +462,28 @@ export default function Onboarding() {
       </div>
     </div>
   );
+}
+
+export function isOnboardingClassScheduleValid(classInfo: OnboardingClass) {
+  const hasDays = classInfo.days.length > 0;
+  const hasStartDate = Boolean(classInfo.semesterStartDate);
+  const hasEndDate = Boolean(classInfo.semesterEndDate);
+  if (hasStartDate !== hasEndDate) return false;
+  if (hasDays && (!hasStartDate || !hasEndDate)) return false;
+  if (hasStartDate && (!isDateKey(classInfo.semesterStartDate) || !isDateKey(classInfo.semesterEndDate))) return false;
+  if (
+    classInfo.semesterStartDate
+    && classInfo.semesterEndDate
+    && classInfo.semesterEndDate < classInfo.semesterStartDate
+  ) return false;
+
+  const startTime = normalizeTimeKey(classInfo.time);
+  const endTime = normalizeTimeKey(classInfo.endTime);
+  if ((classInfo.time && !startTime) || (classInfo.endTime && !endTime)) return false;
+  if ((startTime || endTime) && !hasDays) return false;
+  if (endTime && !startTime) return false;
+  if (startTime && endTime && endTime <= startTime) return false;
+  return true;
 }
 
 function StepShell({

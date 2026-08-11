@@ -57,7 +57,7 @@ export const whatShouldIDoNow: CoachFunctionDefinition<Input, WhatShouldIDoNowPa
         title: "Add your first class",
         summary: "Campus Brain needs at least one class to plan your day.",
         evidence: [],
-        actions: [{ label: "Add a class", to: "/onboarding", kind: "capture" }],
+        actions: [{ label: "Add a class", to: "/classes/new", kind: "capture" }],
         payload: {
           classId: "", className: "", action: "capture", conceptIds: [], why: "", minutes: 0, runnerUp: [],
         },

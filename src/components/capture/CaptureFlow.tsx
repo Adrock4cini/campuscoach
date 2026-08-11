@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
-  X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Calendar,
+  X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2,
   ClipboardList, Images, FileText,
 } from "lucide-react";
 import { classes as demoClasses } from "@/data/demo";
@@ -28,6 +28,8 @@ import {
   filterCaptureTargets,
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
+import { DatePickerField } from "@/components/forms/DatePickerField";
+import { todayDateKey } from "@/lib/calendar/dateKey";
 
 interface Props {
   open: boolean;
@@ -100,7 +102,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     // every downstream concept, artifact, mastery score, and recommendation.
     // Class-scoped entry points still pass initialClassId and stay one-tap.
     classId: defaultClassId,
-    date: new Date().toISOString().slice(0, 10),
+    date: todayDateKey(),
     topic: detected?.currentTopic ?? "",
     text: "",
   }));
@@ -137,7 +139,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setImages([]);
     setCtx({
       classId: defaultClassId,
-      date: new Date().toISOString().slice(0, 10),
+      date: todayDateKey(),
       topic: detected?.currentTopic ?? "",
       text: "",
     });
@@ -363,7 +365,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                         <p className="text-sm text-foreground">Add a class before saving a professor hint.</p>
                         <button
                           type="button"
-                          onClick={() => { onClose(); navigate("/onboarding"); }}
+                          onClick={() => { onClose(); navigate("/classes/new"); }}
                           className="mt-2 text-xs font-medium text-primary"
                         >
                           Set up classes →
@@ -398,17 +400,13 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Date">
-                      <div className="relative">
-                        <Calendar className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="date"
-                          value={ctx.date}
-                          onChange={(e) => setCtx((c) => ({ ...c, date: e.target.value }))}
-                          className="h-11 w-full rounded-xl border border-border/50 bg-background/40 pl-9 pr-3 text-base text-foreground sm:text-sm"
-                        />
-                      </div>
-                    </Field>
+                    <DatePickerField
+                      id="capture-date"
+                      label="Capture date"
+                      value={ctx.date}
+                      onChange={(date) => setCtx((current) => ({ ...current, date }))}
+                      required
+                    />
                     <Field label="Topic / Chapter">
                       <input
                         type="text"
@@ -473,18 +471,15 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                                   className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
                                 />
                               </Field>
-                              <Field label="Due date (optional)">
-                                <input
-                                  aria-label="Due date"
-                                  type="date"
-                                  value={ctx.assignmentDueDate ?? ""}
-                                  onChange={(event) => setCtx((current) => ({
-                                    ...current,
-                                    assignmentDueDate: event.target.value || undefined,
-                                  }))}
-                                  className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
-                                />
-                              </Field>
+                              <DatePickerField
+                                id="captured-assignment-due-date"
+                                label="Due date"
+                                value={ctx.assignmentDueDate ?? ""}
+                                onChange={(assignmentDueDate) => setCtx((current) => ({
+                                  ...current,
+                                  assignmentDueDate: assignmentDueDate || undefined,
+                                }))}
+                              />
                             </div>
                           )}
                         </>

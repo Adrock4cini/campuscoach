@@ -34,3 +34,9 @@ export function academicTermOptions(now = new Date()): string[] {
   const currentIndex = all.indexOf(current);
   return all.slice(Math.max(0, currentIndex - 2), currentIndex + 6);
 }
+
+export function currentAcademicTerm(now = new Date()) {
+  const month = now.getMonth();
+  const season = month < 4 ? "Spring" : month < 7 ? "Summer" : "Fall";
+  return `${season} ${now.getFullYear()}`;
+}

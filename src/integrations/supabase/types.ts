@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -390,11 +390,12 @@ export type Database = {
       }
       classes: {
         Row: {
-          client_class_id: string | null
+          client_class_id: string
           color: string | null
           course_instance_id: string | null
           created_at: string
           current_topic: string | null
+          end_time: string | null
           external_id: string | null
           id: string
           location: string | null
@@ -402,19 +403,27 @@ export type Database = {
           name: string
           professor: string | null
           readiness: number | null
+          section: string | null
+          semester_end_date: string | null
+          semester_start_date: string | null
           source: string
           source_archived_at: string | null
           source_updated_at: string | null
           source_url: string | null
+          start_time: string | null
+          term: string | null
+          time_zone: string | null
           updated_at: string
           user_id: string
+          weekdays: string[]
         }
         Insert: {
-          client_class_id?: string | null
+          client_class_id: string
           color?: string | null
           course_instance_id?: string | null
           created_at?: string
           current_topic?: string | null
+          end_time?: string | null
           external_id?: string | null
           id?: string
           location?: string | null
@@ -422,19 +431,27 @@ export type Database = {
           name: string
           professor?: string | null
           readiness?: number | null
+          section?: string | null
+          semester_end_date?: string | null
+          semester_start_date?: string | null
           source?: string
           source_archived_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
+          start_time?: string | null
+          term?: string | null
+          time_zone?: string | null
           updated_at?: string
           user_id: string
+          weekdays?: string[]
         }
         Update: {
-          client_class_id?: string | null
+          client_class_id?: string
           color?: string | null
           course_instance_id?: string | null
           created_at?: string
           current_topic?: string | null
+          end_time?: string | null
           external_id?: string | null
           id?: string
           location?: string | null
@@ -442,12 +459,19 @@ export type Database = {
           name?: string
           professor?: string | null
           readiness?: number | null
+          section?: string | null
+          semester_end_date?: string | null
+          semester_start_date?: string | null
           source?: string
           source_archived_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
+          start_time?: string | null
+          term?: string | null
+          time_zone?: string | null
           updated_at?: string
           user_id?: string
+          weekdays?: string[]
         }
         Relationships: [
           {

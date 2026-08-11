@@ -7,6 +7,11 @@ export interface ClassInfo {
   location: string;
   days: string[];
   time: string;
+  /** Display value for the primary meeting's end time. */
+  endTime?: string;
+  /** Canonical HH:mm values used when editing; never parse localized display text. */
+  startTimeKey?: string;
+  endTimeKey?: string;
   color: string;
   currentTopic: string;
   nextExamDate: string;
@@ -16,6 +21,14 @@ export interface ClassInfo {
   chapters: Chapter[];
   /** Dated class topics extracted from a real student's syllabus. */
   schedule?: { date: string; topic: string; dueItems?: string[] }[];
+  /** Stable, editable class foundation fields for real classes. */
+  courseCode?: string;
+  section?: string;
+  term?: string;
+  semesterStartDate?: string;
+  semesterEndDate?: string;
+  timeZone?: string;
+  source?: "manual" | "canvas" | string;
 }
 
 export interface Chapter {

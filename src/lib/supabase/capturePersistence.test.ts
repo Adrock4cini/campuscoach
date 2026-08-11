@@ -85,6 +85,7 @@ describe("real capture processing integrity", () => {
 
     expect(mocks.captureInsert).toHaveBeenCalledWith(expect.objectContaining({
       processing_status: "processing",
+      captured_on: "2026-07-20",
     }));
     expect(mocks.captureUpdate).toHaveBeenCalledWith({ processing_status: "failed" });
     expect(capture.processingStatus).toBe("failed");

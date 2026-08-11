@@ -18,7 +18,7 @@ const actions: Array<{
   route?: string;
   captureKind?: CaptureKind;
 }> = [
-  { label: "Add Class", icon: BookOpen, desc: "Set up a new class", route: "/onboarding" },
+  { label: "Add Class", icon: BookOpen, desc: "Set up a new class", route: "/classes/new" },
   { label: "Add Assignment", icon: ClipboardList, desc: "Track a new assignment", route: "/assignments" },
   { label: "Add Exam", icon: GraduationCap, desc: "Add an upcoming exam", route: "/exams" },
   { label: "Open Calendar", icon: Calendar, desc: "See tests and assignments", route: "/calendar" },

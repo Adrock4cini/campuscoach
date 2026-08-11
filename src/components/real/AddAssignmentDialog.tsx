@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { createAssignment, type AssignmentPriority, type AssignmentStatus } from "@/lib/realData/assignments";
+import { DatePickerField } from "@/components/forms/DatePickerField";
 
 interface Props {
   open: boolean;
@@ -43,12 +44,6 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
     setStatus("not_started");
     setNotes("");
   }, [open, defaultClientClassId]); // initialize once per opening
-
-  useEffect(() => {
-    if (open && !classId && myClasses[0]?.id) {
-      setClassId(defaultClientClassId || myClasses[0].id);
-    }
-  }, [classId, defaultClientClassId, myClasses, open]);
 
   const submit = async () => {
     if (!user) return;
@@ -95,13 +90,13 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Problem set 3" autoFocus />
+            <Label htmlFor="assignment-title">Title</Label>
+            <Input id="assignment-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Problem set 3" autoFocus />
           </div>
           <div>
-            <Label>Class</Label>
+            <Label htmlFor="assignment-class">Class</Label>
             <Select value={classId} onValueChange={setClassId}>
-              <SelectTrigger><SelectValue placeholder="Pick a class" /></SelectTrigger>
+              <SelectTrigger id="assignment-class"><SelectValue placeholder="Pick a class" /></SelectTrigger>
               <SelectContent>
                 {myClasses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -109,21 +104,18 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <DatePickerField id="assignment-due-date" label="Due date" value={dueDate} onChange={setDueDate} />
             <div>
-              <Label>Due date</Label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Estimated min</Label>
-              <Input type="number" min="5" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+              <Label htmlFor="assignment-minutes">Estimated minutes</Label>
+              <Input id="assignment-minutes" type="number" min="5" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Priority</Label>
+              <Label htmlFor="assignment-priority">Priority</Label>
               <Select value={priority} onValueChange={(v: AssignmentPriority) => setPriority(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="assignment-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
@@ -132,9 +124,9 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
               </Select>
             </div>
             <div>
-              <Label>Status</Label>
+              <Label htmlFor="assignment-status">Status</Label>
               <Select value={status} onValueChange={(v: AssignmentStatus) => setStatus(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="assignment-status"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="not_started">Not started</SelectItem>
                   <SelectItem value="in_progress">In progress</SelectItem>
@@ -144,8 +136,8 @@ export function AddAssignmentDialog({ open, onOpenChange, defaultClientClassId, 
             </div>
           </div>
           <div>
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional" />
+            <Label htmlFor="assignment-notes">Notes</Label>
+            <Textarea id="assignment-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional" />
           </div>
         </div>
         <DialogFooter>

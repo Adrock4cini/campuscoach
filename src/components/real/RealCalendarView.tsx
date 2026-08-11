@@ -21,13 +21,12 @@ import type { RealExam } from "@/lib/realData/exams";
 import type { ClassInfo } from "@/data/demo";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { toDateKey } from "@/lib/calendar/dateKey";
+import { isDateWithinTerm, weekdayForDate } from "@/lib/calendar/classSchedule";
 
 type CalendarItem =
   | { kind: "class"; id: string; classId: string; className: string; title: string; time: string }
   | { kind: "assignment"; id: string; classId: string; className: string; title: string; time: string }
   | { kind: "exam"; id: string; classId: string; className: string; title: string; time: string; readiness: number };
-
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function itemsForDate(
   date: Date,
@@ -40,14 +39,16 @@ function itemsForDate(
 
   const classItems: CalendarItem[] = classes.flatMap((item) => {
     const datedTopic = item.schedule?.find((entry) => entry.date === dateKey);
-    if (!datedTopic && !item.days.includes(DAY_LABELS[date.getDay()])) return [];
+    const recurringMeeting = item.days.includes(weekdayForDate(date))
+      && isDateWithinTerm(dateKey, item.semesterStartDate, item.semesterEndDate);
+    if (!datedTopic && !recurringMeeting) return [];
     return [{
       kind: "class" as const,
       id: `class-${item.id}-${dateKey}`,
       classId: item.id,
       className: item.name,
       title: datedTopic?.topic ? `${item.name}: ${datedTopic.topic}` : `${item.name} class`,
-      time: item.time || "Class meeting",
+      time: item.time ? `${item.time}${item.endTime ? `–${item.endTime}` : ""}` : "Class meeting",
     }];
   });
 

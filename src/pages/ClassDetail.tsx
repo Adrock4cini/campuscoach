@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic,
+  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic, CalendarRange,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -25,6 +25,7 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
 import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { formatDateKey } from "@/lib/calendar/dateKey";
 
 export default function ClassDetail() {
   const { classId } = useParams();
@@ -43,11 +44,11 @@ export default function ClassDetail() {
   const [classHints, setClassHints] = useState<ProfessorHint[]>([]);
   const [editOpen, setEditOpen] = useState(false);
 
-  if (realMode && classesLoading) {
+  if (realMode && classesLoading && !c) {
     return <p className="py-20 text-center text-sm text-muted-foreground">Loading your class…</p>;
   }
 
-  if (realMode && classesError) {
+  if (realMode && classesError && !c) {
     return (
       <div className="max-w-3xl mx-auto py-12">
         <ClassesLoadError onRetry={() => void reloadClasses()} />
@@ -68,8 +69,13 @@ export default function ClassDetail() {
   if (realClass) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
+        {classesError && (
+          <div role="status" className="rounded-xl border border-warning/25 bg-warning/5 p-3 text-sm text-muted-foreground">
+            We couldn’t refresh this class. Showing the last details loaded; nothing was deleted.
+          </div>
+        )}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/classes")}>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Back to classes" onClick={() => navigate("/classes")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
@@ -78,6 +84,11 @@ export default function ClassDetail() {
               <p className="text-muted-foreground text-sm">Current topic: {c.currentTopic}</p>
             )}
           </div>
+          <Button variant="outline" size="sm" className="h-11 shrink-0" onClick={() => navigate(`/classes/${c.id}/edit`)}>
+            <Pencil className="mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">Edit class</span>
+            <span className="sm:hidden">Edit</span>
+          </Button>
         </div>
 
         <Card className="shadow-card">
@@ -85,11 +96,23 @@ export default function ClassDetail() {
             {c.professor && c.professor !== "TBD" && (
               <div className="flex items-center gap-2"><User className="h-4 w-4" /> {c.professor}</div>
             )}
-            {c.days.length > 0 && (
-              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {c.days.join("/")}{c.time ? ` · ${c.time}` : ""}</div>
+            {(c.days.length > 0 || c.time) && (
+              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {c.days.join(", ")}{c.time ? `${c.days.length ? " · " : ""}${c.time}${c.endTime ? `–${c.endTime}` : ""}` : ""}</div>
             )}
             {c.location && (
               <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {c.location}</div>
+            )}
+            {(c.courseCode || c.term || c.section) && (
+              <div className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> {[c.courseCode, c.term, c.section ? `Section ${c.section}` : ""].filter(Boolean).join(" · ")}</div>
+            )}
+            {(c.semesterStartDate || c.semesterEndDate) && (
+              <div className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4" />
+                {[c.semesterStartDate, c.semesterEndDate]
+                  .filter(Boolean)
+                  .map((date) => formatDateKey(date, { month: "short", day: "numeric" }))
+                  .join(" – ")}
+              </div>
             )}
           </CardContent>
         </Card>
