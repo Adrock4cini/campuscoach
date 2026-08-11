@@ -27,4 +27,3 @@ export function hydrateCachedOnboardingClass(classInfo: OnboardingClass): Onboar
   if (value.clientClassId || value.name.trim()) return value;
   return prepareNewOnboardingClass(value);
 }
-

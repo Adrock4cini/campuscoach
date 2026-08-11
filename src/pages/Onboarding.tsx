@@ -105,6 +105,9 @@ export default function Onboarding() {
     }
   })();
   const canContinue = importSyllabusMode && step === 0 ? syllabusImported : canNext;
+  const importedScheduleNeedsReview = importSyllabusMode && data.classes
+    .filter((classInfo) => classInfo.name.trim())
+    .some((classInfo) => !isOnboardingClassScheduleValid(classInfo));
 
   const finish = async () => {
     setSaving(true);
@@ -131,14 +134,23 @@ export default function Onboarding() {
   // Demo mode is entered from the login screen; onboarding is only reached
   // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
-  const next = () => (
-    importSyllabusMode && step === 0 && syllabusImported
-      ? finish()
-      : step < STEPS.length - 1
-      ? setStep(step + 1)
-      : finish()
-  );
-  const back = () => setStep((s) => Math.max(0, s - 1));
+  const next = () => {
+    if (importSyllabusMode && step === 0 && syllabusImported) {
+      if (importedScheduleNeedsReview) {
+        setStep(4);
+        return;
+      }
+      void finish();
+      return;
+    }
+    if (importSyllabusMode && step === 4) {
+      void finish();
+      return;
+    }
+    if (step < STEPS.length - 1) setStep(step + 1);
+    else void finish();
+  };
+  const back = () => setStep((s) => (importSyllabusMode && s === 4 ? 0 : Math.max(0, s - 1)));
 
   return (
     <div className="min-h-[80vh] flex items-start justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] md:items-center">
@@ -435,7 +447,9 @@ export default function Onboarding() {
               >
                 {saving
                   ? (importSyllabusMode ? "Saving…" : "Setting up…")
-                  : importSyllabusMode && step === 0 && syllabusImported
+                  : importSyllabusMode && step === 0 && syllabusImported && importedScheduleNeedsReview
+                  ? "Review schedule"
+                  : importSyllabusMode && syllabusImported && (step === 0 || step === 4)
                   ? "Save syllabus"
                   : step === STEPS.length - 1
                   ? "Finish"

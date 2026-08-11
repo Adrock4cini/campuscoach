@@ -53,9 +53,11 @@ export function AddExamDialog({ open, onOpenChange, defaultClientClassId, onCrea
         .split(/[,\n]/)
         .map((t) => t.trim())
         .filter(Boolean);
+      const selectedClass = myClasses.find((item) => item.id === classId);
       const row = await createExam(user.id, {
         title: title.trim(),
         clientClassId: classId,
+        classUuid: selectedClass?.uuid ?? null,
         examDate: examDate || null,
         topics,
         // Readiness is earned from concept mastery, never self-reported.

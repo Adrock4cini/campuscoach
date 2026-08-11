@@ -41,6 +41,7 @@ describe("AddExamDialog readiness integrity", () => {
       expect.objectContaining({
         title: "Calculus Midterm",
         clientClassId: "math",
+        classUuid: "math-uuid",
         examDate: "2026-10-10",
         readiness: 0,
       }),

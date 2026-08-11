@@ -65,9 +65,10 @@ function relativeDay(date: Date, now: Date) {
 }
 
 function nextClassDate(item: ClassInfo, now: Date) {
+  const calculationTime = item.startTimeKey || item.time;
   const dated = (item.schedule ?? [])
     .flatMap((entry) => {
-      const candidate = dateWithClassTime(entry.date, item.time);
+      const candidate = dateWithClassTime(entry.date, calculationTime);
       return candidate && candidate >= now ? [{ date: candidate, topic: entry.topic }] : [];
     })
     .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
@@ -81,7 +82,7 @@ function nextClassDate(item: ClassInfo, now: Date) {
       const dateKey = toDateKey(date);
       if (!isDateWithinTerm(dateKey, item.semesterStartDate, item.semesterEndDate)) continue;
       if (!normalizedDays.has(weekdayForDate(date))) continue;
-      const candidate = dateWithClassTime(dateKey, item.time);
+      const candidate = dateWithClassTime(dateKey, calculationTime);
       if (candidate && candidate >= now) {
         recurring = { date: candidate };
         break;
