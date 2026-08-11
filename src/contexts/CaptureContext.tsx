@@ -3,7 +3,11 @@ import { CaptureFlow } from "@/components/capture/CaptureFlow";
 import type { CaptureKind } from "@/lib/capture/types";
 
 interface CaptureContextValue {
-  open: (kind?: CaptureKind, classId?: string) => void;
+  open: (
+    kind?: CaptureKind,
+    classId?: string,
+    options?: { assignmentId?: string },
+  ) => void;
   close: () => void;
 }
 
@@ -13,10 +17,16 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   const [isOpen, setOpen] = useState(false);
   const [initial, setInitial] = useState<CaptureKind | undefined>(undefined);
   const [initialClassId, setInitialClassId] = useState<string | undefined>(undefined);
+  const [initialAssignmentId, setInitialAssignmentId] = useState<string | undefined>(undefined);
 
-  const open = useCallback((kind?: CaptureKind, classId?: string) => {
+  const open = useCallback((
+    kind?: CaptureKind,
+    classId?: string,
+    options?: { assignmentId?: string },
+  ) => {
     setInitial(kind);
     setInitialClassId(classId);
+    setInitialAssignmentId(options?.assignmentId);
     setOpen(true);
   }, []);
   const close = useCallback(() => setOpen(false), []);
@@ -28,6 +38,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         open={isOpen}
         initialKind={initial}
         initialClassId={initialClassId}
+        initialAssignmentId={initialAssignmentId}
         onClose={close}
       />
     </Ctx.Provider>

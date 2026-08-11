@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
 import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
+import { ClassSetupCard } from "@/components/real/ClassSetupCard";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { formatDateKey } from "@/lib/calendar/dateKey";
 
@@ -117,13 +118,15 @@ export default function ClassDetail() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
+        <ClassSetupCard classInfo={realClass} />
+
+        <Card className="shadow-card border-border/50 overflow-hidden">
           <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
             <div>
-              <p className="text-xs font-medium text-primary mb-1">🎯 Start capturing</p>
-              <h3 className="font-display font-semibold text-foreground">Teach Campus Brain about this class</h3>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Keep teaching the brain</p>
+              <h3 className="font-display font-semibold text-foreground">Quick actions</h3>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Add a quick note or save something your professor emphasized. Campus Brain extracts concepts first, then uses them to build study sets.
+                Capture notes, save what the professor stressed, or jump into Study Lab.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
@@ -180,7 +183,6 @@ export default function ClassDetail() {
         </Button>
       </div>
 
-      {/* Info row */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="shadow-card">
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -197,7 +199,6 @@ export default function ClassDetail() {
         </Card>
       </motion.div>
 
-      {/* Readiness */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
         <Card className="shadow-card">
           <CardContent className="p-5">
@@ -211,7 +212,6 @@ export default function ClassDetail() {
         </Card>
       </motion.div>
 
-      {/* 1. What to Study */}
       <Card className="shadow-soft border-primary/20 bg-primary/5">
         <CardContent className="p-5">
           <p className="text-xs font-medium text-primary mb-1">1. 🎯 What to Study</p>
@@ -258,7 +258,6 @@ export default function ClassDetail() {
         </Card>
       </div>
 
-      {/* 3. Notes & Insights */}
       <Card className="shadow-card">
         <CardContent className="p-5">
           <div className="mb-4">
@@ -278,14 +277,9 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
-      {/* Invite classmates */}
       <InviteClassmatesButton classId={c.id} className={c.name} />
-
-      {/* Class Memory */}
       <ClassMemory classId={c.id} className={c.name} />
 
-
-      {/* Chapter Progress */}
       <Card className="shadow-card">
         <CardHeader><CardTitle className="text-lg font-display">Chapter Progress</CardTitle></CardHeader>
         <CardContent className="space-y-2">
@@ -311,7 +305,6 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
-      {/* Upcoming Assignments */}
       {classAssignments.length > 0 && (
         <Card className="shadow-card">
           <CardHeader>
@@ -334,7 +327,6 @@ export default function ClassDetail() {
         </Card>
       )}
 
-      {/* Exams */}
       {classExams.length > 0 && (
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-lg font-display">Exams</CardTitle></CardHeader>
@@ -352,7 +344,6 @@ export default function ClassDetail() {
         </Card>
       )}
 
-      {/* Lectures */}
       {classLectures.length > 0 && (
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Mic className="h-5 w-5 text-primary" /> Lectures</CardTitle></CardHeader>
@@ -370,7 +361,6 @@ export default function ClassDetail() {
         </Card>
       )}
 
-      {/* Grading Weights */}
       <Card className="shadow-card">
         <CardHeader><CardTitle className="text-lg font-display">Grading Breakdown</CardTitle></CardHeader>
         <CardContent className="space-y-2">
@@ -383,7 +373,6 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
-      {/* Chapter Detail Drawer */}
       <ChapterDetailDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
@@ -392,7 +381,6 @@ export default function ClassDetail() {
         className={c.name}
       />
 
-      {/* Edit Class Modal */}
       <EditItemModal
         open={editOpen}
         onOpenChange={setEditOpen}

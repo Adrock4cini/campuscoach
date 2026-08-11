@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaptureResult } from "@/lib/capture/types";
 import {
+  getLatestAssignmentScan,
   persistCaptureResult,
   selectTrustworthyProcessedContent,
 } from "./capturePersistence";
@@ -128,5 +129,37 @@ describe("real capture processing integrity", () => {
         created_at: "2026-07-20T10:01:00.000Z",
       },
     ])?.summary).toBe("Grounded summary");
+  });
+
+  it("finds only the newest assignment scan inside the owner and class boundary", async () => {
+    const chain = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: "scan-1", processing_status: "ready" },
+        error: null,
+      }),
+    };
+    chain.select.mockReturnValue(chain);
+    chain.eq.mockReturnValue(chain);
+    chain.order.mockReturnValue(chain);
+    chain.limit.mockReturnValue(chain);
+    mocks.from.mockReturnValue(chain);
+
+    await expect(getLatestAssignmentScan("math", "assignment-1")).resolves.toEqual({
+      id: "scan-1",
+      processingStatus: "ready",
+    });
+
+    expect(mocks.from).toHaveBeenCalledWith("captures");
+    expect(chain.select).toHaveBeenCalledWith("id, processing_status");
+    expect(chain.eq).toHaveBeenNthCalledWith(1, "user_id", "user-1");
+    expect(chain.eq).toHaveBeenNthCalledWith(2, "client_class_id", "math");
+    expect(chain.eq).toHaveBeenNthCalledWith(3, "assignment_id", "assignment-1");
+    expect(chain.eq).toHaveBeenNthCalledWith(4, "kind", "scan-assignment");
+    expect(chain.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(chain.limit).toHaveBeenCalledWith(1);
   });
 });
