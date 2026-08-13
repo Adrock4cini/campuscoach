@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getCapturesForClass: vi.fn(),
   retryCaptureConcepts: vi.fn(),
   navigate: vi.fn(),
+  invite: vi.fn(() => null),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -42,7 +43,7 @@ vi.mock("@/components/intelligence/ClassBrainAggregateStrip", () => ({
 }));
 
 vi.mock("@/components/invite/InviteClassmatesButton", () => ({
-  InviteClassmatesButton: () => null,
+  InviteClassmatesButton: mocks.invite,
 }));
 
 const localSample: CaptureResult = {
@@ -81,6 +82,7 @@ describe("Class Memory data boundaries", () => {
     mocks.getCapturesForClass.mockReset().mockResolvedValue([realCapture]);
     mocks.retryCaptureConcepts.mockReset().mockResolvedValue(undefined);
     mocks.navigate.mockReset();
+    mocks.invite.mockClear();
   });
 
   it("never mixes browser-local demo captures into a signed-in student's memory", async () => {
@@ -99,6 +101,17 @@ describe("Class Memory data boundaries", () => {
 
     expect(await screen.findByText("Atomic Composition")).toBeInTheDocument();
     expect(mocks.getCapturesForClass).not.toHaveBeenCalled();
+    expect(mocks.invite).not.toHaveBeenCalled();
+  });
+
+  it("keeps class invitations available in the real class memory surface", async () => {
+    render(<ClassMemory classId="math" className="Math" />);
+
+    await screen.findByText("Quadratic Formula");
+    expect(mocks.invite).toHaveBeenCalledWith(
+      expect.objectContaining({ classId: "math", className: "Math" }),
+      expect.anything(),
+    );
   });
 
   it("routes a signed-in capture into the concept-backed study lab", async () => {

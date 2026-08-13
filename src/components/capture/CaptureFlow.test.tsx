@@ -3,7 +3,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
 import * as captureProcessor from "@/lib/capture/processor";
-import { CaptureFlow } from "./CaptureFlow";
+import { CaptureDoneSummary, CaptureFlow } from "./CaptureFlow";
 
 const mocks = vi.hoisted(() => ({
   classes: [] as ClassInfo[],
@@ -110,6 +110,33 @@ describe("CaptureFlow class boundaries", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("labels a device-only demo capture without implying an account update", () => {
+    render(
+      <MemoryRouter>
+        <CaptureDoneSummary
+          sample
+          result={{
+            id: "demo-capture",
+            kind: "record-lecture",
+            context: { classId: "psych101", date: "2026-08-13", topic: "Memory models" },
+            createdAt: "2026-08-13T12:00:00.000Z",
+            keyConcepts: ["Working memory"],
+            summary: "Sample lecture summary",
+            flashcardCount: 6,
+          }}
+          className="Intro to Psychology"
+          onClose={vi.fn()}
+          onOpenClass={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Saved in this demo for Intro to Psychology")).toBeInTheDocument();
+    expect(screen.getByText(/stored on this device for the demo only/i)).toBeInTheDocument();
+    expect(screen.getByText(/sample flashcards created for this demo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Campus Brain updated/i)).not.toBeInTheDocument();
   });
 
   it("does not silently choose the first class after global capture loads", () => {

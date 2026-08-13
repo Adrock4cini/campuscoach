@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { UserPlus, Sparkles } from "lucide-react";
 import { InviteClassmatesModal } from "./InviteClassmatesModal";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   classId: string;
@@ -27,7 +28,12 @@ export function InviteClassmatesButton({
   variant = "strip",
   wrapperClassName,
 }: Props) {
+  const { mode } = useAuth();
   const [open, setOpen] = useState(false);
+
+  // Demo classes are fixtures and have no joinable class behind them. Never
+  // expose SMS/share controls that would send a dead invite for sample data.
+  if (mode !== "real") return null;
 
   if (variant === "inline") {
     return (

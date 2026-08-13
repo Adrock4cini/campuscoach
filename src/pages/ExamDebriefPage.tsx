@@ -15,7 +15,12 @@ import { classes, exams } from "@/data/demo";
 import { type ExamFormat } from "@/data/courseIntelligence";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useClassIntelligence, getAnonUserId } from "@/hooks/useClassIntelligence";
+import {
+  useClassIntelligence,
+  getAnonUserId,
+  type AggregatedDebrief,
+} from "@/hooks/useClassIntelligence";
+import { useAuth } from "@/contexts/AuthContext";
 
 const FORMAT_OPTIONS: { value: ExamFormat; label: string }[] = [
   { value: "multiple-choice", label: "Multiple Choice" },
@@ -42,6 +47,7 @@ function RatingBar({ value, label, color }: { value: number; label: string; colo
 }
 
 export default function ExamDebriefPage() {
+  const { mode } = useAuth();
   const [tab, setTab] = useState("submit");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -55,8 +61,9 @@ export default function ExamDebriefPage() {
   const [advice, setAdvice] = useState("");
   const [insightsClassId, setInsightsClassId] = useState(classes[0]?.id || "");
   const [submitting, setSubmitting] = useState(false);
+  const [localDemoDebriefs, setLocalDemoDebriefs] = useState<AggregatedDebrief[]>([]);
 
-  const intel = useClassIntelligence(insightsClassId);
+  const intel = useClassIntelligence(insightsClassId, mode, localDemoDebriefs);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const classExams = exams.filter(e => e.classId === selectedClassId);
@@ -71,6 +78,32 @@ export default function ExamDebriefPage() {
       return;
     }
     const exam = exams.find(e => e.id === selectedExamId);
+    if (mode !== "real") {
+      const createdAt = new Date().toISOString();
+      const localDebrief: AggregatedDebrief = {
+        id: `demo-local-${Date.now()}`,
+        class_id: selectedClassId,
+        exam_name: exam?.title || "Exam",
+        date_taken: createdAt.split("T")[0],
+        topics_mentioned: emphasizedTopics.split(",").map(s => s.trim()).filter(Boolean),
+        format_tags: formatTags,
+        study_more_tags: studyMore.split(",").map(s => s.trim()).filter(Boolean),
+        difficulty,
+        time_pressure: timePressure,
+        confidence,
+        advice_notes: advice || null,
+        created_at: createdAt,
+      };
+      setLocalDemoDebriefs((current) => [localDebrief, ...current]);
+      toast.success("Added to this demo screen", {
+        description: "This reflection was not saved to an account or shared with a class.",
+      });
+      setTab("insights");
+      setInsightsClassId(selectedClassId);
+      setSelectedClassId(""); setSelectedExamId(""); setDifficulty(3); setTimePressure(3); setConfidence(3);
+      setFormatTags([]); setEmphasizedTopics(""); setStudyMore(""); setSurprises(""); setAdvice("");
+      return;
+    }
     setSubmitting(true);
     const { error } = await supabase.from("exam_debriefs").insert({
       user_id: getAnonUserId(),
@@ -109,13 +142,27 @@ export default function ExamDebriefPage() {
     difficultyTrend: intel.averageDifficulty,
     adviceTrends: intel.adviceTrends,
   } : null;
+  const maxTopicContributors = Math.max(
+    1,
+    ...(insights?.topicEmphasis.map((topic) => topic.mentions) ?? []),
+  );
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-semibold text-foreground">Exam Debrief</h1>
-        <p className="text-muted-foreground text-sm mt-1">Share study insights and learn from peer experiences</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          {mode === "demo"
+            ? "Try a post-exam reflection and explore sample peer patterns."
+            : "Share study insights and learn from peer experiences"}
+        </p>
       </div>
+
+      {mode === "demo" && (
+        <p className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-foreground/80">
+          Demo preview · Peer insights are sample data. A reflection you submit stays only on this screen and is not saved or shared.
+        </p>
+      )}
 
       {/* Ethics notice */}
       <Card className="border-primary/20 bg-primary/5 shadow-soft">
@@ -130,7 +177,7 @@ export default function ExamDebriefPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="submit" className="gap-1.5"><Send className="h-3.5 w-3.5" /> Submit Debrief</TabsTrigger>
+          <TabsTrigger value="submit" className="gap-1.5"><Send className="h-3.5 w-3.5" /> {mode === "demo" ? "Try a Debrief" : "Submit Debrief"}</TabsTrigger>
           <TabsTrigger value="insights" className="gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Community Insights</TabsTrigger>
         </TabsList>
 
@@ -243,7 +290,9 @@ export default function ExamDebriefPage() {
               </div>
 
               <Button className="w-full bg-gradient-calm border-0 text-primary-foreground" onClick={handleSubmit} disabled={submitting}>
-                <Send className="h-4 w-4 mr-1.5" /> {submitting ? "Submitting…" : "Submit Debrief"}
+                <Send className="h-4 w-4 mr-1.5" /> {submitting
+                  ? mode === "demo" ? "Adding…" : "Submitting…"
+                  : mode === "demo" ? "Add to demo" : "Submit Debrief"}
               </Button>
             </CardContent>
           </Card>
@@ -265,6 +314,12 @@ export default function ExamDebriefPage() {
           <p className="text-xs text-muted-foreground">
             Based on <strong>{intel.totalContributors}</strong> student{intel.totalContributors !== 1 ? "s" : ""} · {intel.weeklyContributions} new this week
           </p>
+
+          {mode === "demo" && localDemoDebriefs.some((row) => row.class_id === insightsClassId) && (
+            <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground/80" aria-live="polite">
+              Your demo reflection is included in these on-screen totals for this visit only. It was not saved or shared.
+            </p>
+          )}
 
           {/* AI Summary */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -295,8 +350,8 @@ export default function ExamDebriefPage() {
                     <div key={t.topic} className="flex items-center justify-between">
                       <span className="text-sm">{t.topic}</span>
                       <div className="flex items-center gap-2">
-                        <Progress value={(t.mentions / classDebriefs.length) * 100} className="h-2 w-24" />
-                        <span className="text-xs text-muted-foreground">{t.mentions}x</span>
+                        <Progress value={(t.mentions / maxTopicContributors) * 100} className="h-2 w-24" />
+                        <span className="text-xs text-muted-foreground">{t.mentions} students</span>
                       </div>
                     </div>
                   ))}

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
   setAuthUserId: vi.fn(),
   completeOAuthPasskeyOffer: vi.fn(),
+  setSupabaseNetworkMode: vi.fn(),
   profileMaybeSingle: vi.fn(),
   classesIs: vi.fn(),
 }));
@@ -43,6 +44,10 @@ vi.mock("@/hooks/useClassIntelligence", () => ({
 
 vi.mock("@/lib/auth/passkeys", () => ({
   completeOAuthPasskeyOffer: mocks.completeOAuthPasskeyOffer,
+}));
+
+vi.mock("@/lib/demo/supabaseNetworkPolicy", () => ({
+  setSupabaseNetworkMode: mocks.setSupabaseNetworkMode,
 }));
 
 import { AuthProvider, useAuth } from "./AuthContext";
@@ -98,6 +103,7 @@ describe("AuthProvider session restoration", () => {
 
     expect(await screen.findByText("student-1")).toBeInTheDocument();
     expect(mocks.setAuthUserId).toHaveBeenCalledWith("student-1");
+    expect(mocks.setSupabaseNetworkMode).toHaveBeenCalledWith("real");
   });
 
   it("never enables sample mode while an authenticated session is active", async () => {
@@ -117,6 +123,7 @@ describe("AuthProvider session restoration", () => {
 
     expect(screen.getByRole("status", { name: "Data mode" })).toHaveTextContent("real");
     expect(localStorage.getItem("cc_demo_mode_v1")).toBeNull();
+    expect(mocks.setSupabaseNetworkMode).not.toHaveBeenCalledWith("demo");
   });
 
   it("does not let a stale startup result overwrite a newer sign-in", async () => {
@@ -186,6 +193,7 @@ describe("AuthProvider session restoration", () => {
 
     await waitFor(() => expect(screen.getByText("signed-out")).toBeInTheDocument());
     expect(screen.queryByText("loading")).not.toBeInTheDocument();
+    expect(mocks.setSupabaseNetworkMode).toHaveBeenCalledWith("loading");
     warn.mockRestore();
   });
 
@@ -197,6 +205,7 @@ describe("AuthProvider session restoration", () => {
       </AuthProvider>,
     );
     expect(await screen.findByText("signed-out")).toBeInTheDocument();
+    expect(mocks.setSupabaseNetworkMode).toHaveBeenCalledWith("demo");
 
     await act(async () => {
       mocks.authCallback?.("INITIAL_SESSION", null);

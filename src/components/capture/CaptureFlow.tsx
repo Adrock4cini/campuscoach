@@ -259,7 +259,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
                     {stage === "done" && (
-                      result?.processingStatus === "failed"
+                      !realMode
+                        ? "Saved in this demo"
+                        : result?.processingStatus === "failed"
                         ? "Saved to Class Memory"
                         : "Added to Campus Brain"
                     )}
@@ -601,8 +603,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
               {/* DONE */}
               {stage === "done" && result && (
-                <DoneSummary
+                <CaptureDoneSummary
                   result={result}
+                  sample={!realMode}
                   className={classes.find((c) => c.id === result.context.classId)?.name}
                   onClose={onClose}
                   onOpenClass={() => {
@@ -708,10 +711,11 @@ function ProcessingTimeline({
   );
 }
 
-function DoneSummary({
-  result, onClose, onOpenClass, className,
+export function CaptureDoneSummary({
+  result, sample, onClose, onOpenClass, className,
 }: {
   result: CaptureResult;
+  sample: boolean;
   onClose: () => void;
   onOpenClass: () => void;
   className?: string;
@@ -731,9 +735,13 @@ function DoneSummary({
           <Check className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Saved to {cls?.name}</p>
+          <p className="text-sm font-medium text-foreground">
+            {sample ? `Saved in this demo for ${cls.name}` : `Saved to ${cls.name}`}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {processingFailed
+            {sample
+              ? "Stored on this device for the demo only. It wasn’t uploaded or shared."
+              : processingFailed
               ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
               : result.summary}
           </p>
@@ -761,7 +769,9 @@ function DoneSummary({
 
       {result.flashcardCount > 0 && (
         <div className="text-xs text-muted-foreground">
-          {result.flashcardCount} flashcards generated · Campus Brain updated.
+          {sample
+            ? `${result.flashcardCount} sample flashcards created for this demo.`
+            : `${result.flashcardCount} flashcards generated · Campus Brain updated.`}
         </div>
       )}
 

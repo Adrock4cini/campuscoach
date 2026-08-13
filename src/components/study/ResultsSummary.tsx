@@ -7,6 +7,7 @@ import { Trophy, RotateCcw, ArrowRight, Sparkles, TrendingUp, Wifi } from "lucid
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { contributeStudySignal } from "@/hooks/useClassIntelligence";
+import type { StudyPersistenceMode } from "@/lib/intelligence/readinessEngine";
 import { toast } from "sonner";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   incorrect: number;
   skipped: number;
   elapsed: number;
+  persistence: StudyPersistenceMode;
   onRetryMissed: () => void;
   onReplay: () => void;
   onSwitchMode: () => void;
@@ -31,6 +33,7 @@ function formatTime(s: number) {
 
 export default function ResultsSummary({
   classId, topic, mode, correct, incorrect, skipped, elapsed,
+  persistence,
   onRetryMissed, onReplay, onSwitchMode, onBackToLab,
 }: Props) {
   const [confidence, setConfidence] = useState<string>("");
@@ -40,10 +43,18 @@ export default function ResultsSummary({
   const cls = classes.find(c => c.id === classId);
   const readinessGain = Math.max(1, Math.round(score / 20));
   const newReadiness = Math.min(100, (cls?.readiness ?? 50) + readinessGain);
+  const sample = persistence === "local-only";
 
   // Auto-contribute the session result to the crowdsourced layer once
   useEffect(() => {
-    if (contributed || total === 0 || !classId || !topic || topic === "all") return;
+    if (
+      persistence !== "remote" ||
+      contributed ||
+      total === 0 ||
+      !classId ||
+      !topic ||
+      topic === "all"
+    ) return;
     contributeStudySignal({
       classId,
       topicId: topic,
@@ -54,13 +65,18 @@ export default function ResultsSummary({
       incorrectCount: incorrect,
       sourceType: "study-session",
       sourceId: mode,
-    }).then(({ error }) => { if (!error) setContributed(true); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    })
+      .then(({ error }) => { if (!error) setContributed(true); })
+      .catch(() => undefined);
+  }, [classId, contributed, elapsed, incorrect, mode, persistence, score, topic, total]);
 
   const saveConfidence = async (val: string) => {
     setConfidence(val);
     if (!classId || !topic || topic === "all") return;
+    if (persistence === "local-only") {
+      toast.success("Saved for this demo session.");
+      return;
+    }
     await contributeStudySignal({
       classId, topicId: topic, topicName: topic,
       confidence: Number(val), timeSpentMinutes: 0,
@@ -102,9 +118,15 @@ export default function ResultsSummary({
           <TrendingUp className="h-5 w-5 text-primary flex-shrink-0" />
           <div>
             <p className="text-sm font-medium text-foreground">
-              {cls?.name} readiness: {cls?.readiness}% → {newReadiness}%
+              {sample
+                ? `Demo practice estimate: ${score}%`
+                : `${cls?.name} readiness: ${cls?.readiness}% → ${newReadiness}%`}
             </p>
-            <p className="text-xs text-muted-foreground">+{readinessGain}% from this session</p>
+            <p className="text-xs text-muted-foreground">
+              {sample
+                ? "This result stays in the demo session and does not update an account."
+                : `+${readinessGain}% from this session`}
+            </p>
           </div>
         </CardContent>
       </Card>
