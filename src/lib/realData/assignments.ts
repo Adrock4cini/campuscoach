@@ -19,7 +19,7 @@ export interface RealAssignment {
   priority: AssignmentPriority;
   status: AssignmentStatus;
   notes: string | null;
-  source?: "manual" | "canvas";
+  source?: "manual" | "canvas" | "syllabus";
   source_url?: string | null;
   source_archived_at?: string | null;
   created_at: string;

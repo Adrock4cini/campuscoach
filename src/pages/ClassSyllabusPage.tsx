@@ -297,7 +297,7 @@ export default function ClassSyllabusPage() {
       window.dispatchEvent(new CustomEvent("real-exams:changed"));
       window.dispatchEvent(new CustomEvent("coach:refresh"));
       toast.success(existing ? "Syllabus replaced" : "Syllabus saved", {
-        description: `Reviewed dates are now connected to ${classInfo.name}.`,
+        description: `Reviewed assignments, exams, dates, and study topics are now connected to ${classInfo.name}.`,
       });
       navigate(destination, { replace: true });
     };
@@ -420,7 +420,7 @@ export default function ClassSyllabusPage() {
         </Button>
         <div className="min-w-0 pt-1">
           <h1 className="font-display text-2xl font-semibold md:text-3xl">{classInfo.name} syllabus</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Review the dates before they reach this class and calendar.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Review assignments, quizzes, exam dates, test topics, and the class schedule before anything is saved.</p>
         </div>
       </div>
 
@@ -486,6 +486,7 @@ export default function ClassSyllabusPage() {
               {existing ? "Replace this class’s syllabus" : "Add this class’s syllabus"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Checked items will appear in this class, your calendar and dashboard. Exam topics help Study Lab focus the notes and captures you save for this class.</p>
           </div>
 
           <input
@@ -535,7 +536,7 @@ export default function ClassSyllabusPage() {
           {workState === "parsing" && (
             <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm" role="status" aria-live="polite">
               <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-primary" />
-              Reading the syllabus and finding dates…
+              Reading the syllabus and finding assignments, dates, and study topics…
             </div>
           )}
 
@@ -652,7 +653,7 @@ export default function ClassSyllabusPage() {
       <AlertDialog open={replaceConfirmOpen} onOpenChange={setReplaceConfirmOpen}>
         <AlertDialogContent className="w-[calc(100vw_-_2rem)] max-w-md rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Replace syllabus dates for {classInfo.name}?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">Replace the syllabus information for {classInfo.name}?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block">Only the previous syllabus import for this class will be reconciled.</span>
               <span className="block">Manual and Canvas deadlines—and your completion status, notes, and study progress—stay intact.</span>

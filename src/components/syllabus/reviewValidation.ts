@@ -69,6 +69,11 @@ export function validateSyllabusReview(draft: SyllabusReviewDraft): SyllabusRevi
     if (!isValidSyllabusDate(row.dueDate)) errors[`assignment-${row.key}-date`] = "Choose a valid due date";
   });
   draft.exams.forEach((row) => {
+    if (row.topics.length > 100) {
+      errors[`exam-${row.key}-topics`] = "Keep the study list to 100 topics or fewer";
+    } else if (row.topics.some((topic) => topic.length > 200)) {
+      errors[`exam-${row.key}-topics`] = "Keep each study topic under 200 characters";
+    }
     if (!row.included) return;
     if (!row.title.trim()) errors[`exam-${row.key}-title`] = "Add an exam name";
     if (!isValidSyllabusDate(row.examDate)) errors[`exam-${row.key}-date`] = "Choose a valid exam date";

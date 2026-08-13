@@ -66,7 +66,16 @@ describe("useMyClasses data integrity", () => {
         color: "bg-primary",
         current_topic: null,
         readiness: 0,
-        meta: { days: ["Fri"], time: "4:00 PM", term: "Legacy term" },
+        meta: {
+          days: ["Fri"],
+          time: "4:00 PM",
+          term: "Legacy term",
+          syllabus: {
+            activeSyllabusId: "syllabus-uuid",
+            revision: 2,
+            reviewedAt: "2026-08-13T09:00:00.000Z",
+          },
+        },
         source: "manual",
         term: "Fall 2026",
         section: "001",
@@ -94,6 +103,9 @@ describe("useMyClasses data integrity", () => {
       timeZone: "America/Denver",
       startTimeKey: "09:00",
       endTimeKey: "10:15",
+      hasSyllabus: true,
+      syllabusRevision: 2,
+      syllabusReviewedAt: "2026-08-13T09:00:00.000Z",
     });
     expect(result.current.classes[0].time).toMatch(/9:00/);
     expect(result.current.classes[0].endTime).toMatch(/10:15/);

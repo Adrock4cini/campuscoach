@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { AlertCircle, CalendarCheck2, ClipboardList, Clock3, GraduationCap } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DatePickerField } from "@/components/forms/DatePickerField";
 import { DayPicker } from "@/components/onboarding/DayPicker";
 import type {
@@ -18,6 +20,7 @@ interface SyllabusDeadlineRow {
   included: boolean;
   title: string;
   date: string;
+  topics?: string[];
 }
 
 interface SyllabusReviewFormProps {
@@ -129,13 +132,13 @@ export function SyllabusReviewForm({
       </section>
 
       <ReviewRowsSection
-        heading="Assignments"
-        description="Keep only deadlines that belong to this class."
+        heading="Assignments & quizzes"
+        description="Review homework, quizzes, papers, labs, readings, and other dated work found in the syllabus."
         icon={<ClipboardList aria-hidden="true" className="h-5 w-5" />}
         kind="assignment"
         rows={value.assignments.map((row) => ({ ...row, date: row.dueDate }))}
         disabled={disabled}
-        emptyText="No assignments were found. You can add them later from the class page."
+        emptyText="No assignments or quizzes were found. You can add them later from the class page."
         errors={validation.errors}
         onChange={(rows) => update("assignments", rows.map((row, index) => ({
           ...value.assignments[index],
@@ -151,7 +154,7 @@ export function SyllabusReviewForm({
         description="Check each test name and date before it reaches your calendar."
         icon={<GraduationCap aria-hidden="true" className="h-5 w-5" />}
         kind="exam"
-        rows={value.exams.map((row) => ({ ...row, date: row.examDate }))}
+        rows={value.exams.map((row) => ({ ...row, date: row.examDate, topics: row.topics }))}
         disabled={disabled}
         emptyText="No exams were found. You can add test dates later from the class page."
         errors={validation.errors}
@@ -161,6 +164,7 @@ export function SyllabusReviewForm({
           included: row.included,
           title: row.title,
           examDate: row.date,
+          topics: row.topics ?? [],
         })))}
       />
 
@@ -226,6 +230,7 @@ function ReviewRowsSection({
             const titleId = `${kind}-${index}-title`;
             const titleError = errors[`${kind}-${row.key}-title`];
             const dateError = errors[`${kind}-${row.key}-date`];
+            const topicsError = errors[`${kind}-${row.key}-topics`];
             return (
               <div key={row.key} className="rounded-xl border border-border/70 bg-card p-3 sm:p-4">
                 <div className="mb-3 flex min-h-11 items-center gap-3 rounded-lg px-1 text-sm font-medium">
@@ -264,6 +269,15 @@ function ReviewRowsSection({
                     disabled={disabled || !row.included}
                     error={dateError}
                   />
+                  {kind === "exam" && (
+                    <ExamTopicsField
+                      id={`${kind}-${index}-topics`}
+                      topics={row.topics ?? []}
+                      disabled={disabled || !row.included}
+                      error={topicsError}
+                      onChange={(topics) => replace(index, { topics })}
+                    />
+                  )}
                 </div>
               </div>
             );
@@ -272,6 +286,58 @@ function ReviewRowsSection({
       )}
     </section>
   );
+}
+
+function ExamTopicsField({
+  id,
+  topics,
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string;
+  topics: string[];
+  disabled: boolean;
+  error?: string;
+  onChange: (topics: string[]) => void;
+}) {
+  const externalValue = topics.join("\n");
+  const [draft, setDraft] = useState(externalValue);
+
+  useEffect(() => {
+    setDraft((current) => normalizeTopicText(current) === externalValue ? current : externalValue);
+  }, [externalValue]);
+
+  return (
+    <div className="space-y-1.5 sm:col-span-2">
+      <Label htmlFor={id}>Topics to study <span className="text-xs font-normal text-muted-foreground">(one per line)</span></Label>
+      <Textarea
+        id={id}
+        value={draft}
+        onChange={(event) => {
+          const next = event.target.value;
+          setDraft(next);
+          onChange(topicLines(next));
+        }}
+        disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : `${id}-help`}
+        className="min-h-24 text-base sm:text-sm"
+        placeholder={"Chapter 4 concepts\nKey vocabulary\nPractice problems"}
+      />
+      {error
+        ? <p id={`${id}-error`} role="alert" className="text-sm font-medium text-destructive">{error}</p>
+        : <p id={`${id}-help`} className="text-xs text-muted-foreground">These help Study Lab focus your notes and captures for this exam.</p>}
+    </div>
+  );
+}
+
+function topicLines(value: string) {
+  return value.split("\n").map((topic) => topic.trim()).filter(Boolean);
+}
+
+function normalizeTopicText(value: string) {
+  return topicLines(value).join("\n");
 }
 
 function ScheduleRowsSection({

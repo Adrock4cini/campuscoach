@@ -124,15 +124,24 @@ export default function ClassDetail() {
                 <FileText className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h2 className="font-display font-semibold text-foreground">Syllabus & class calendar</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display font-semibold text-foreground">Class syllabus</h2>
+                  <Badge variant="outline" className={c.hasSyllabus ? "border-success/30 text-success" : "text-muted-foreground"}>
+                    {c.hasSyllabus ? <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> : <Circle className="mr-1 h-3.5 w-3.5" />}
+                    {c.hasSyllabus ? "Syllabus connected" : "No syllabus added"}
+                  </Badge>
+                </div>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Upload or replace this class’s syllabus, then review every date before it is saved.
+                  {c.hasSyllabus
+                    ? "View the saved source or replace it. Reviewed assignments, quizzes, exam dates, and test topics stay connected to this class, calendar, dashboard, and help Study Lab focus your captured material."
+                    : "Add this class’s PDF or one clear photo. We’ll find assignments, quizzes, exam dates, and topics to study—then let you review everything before it reaches the class, calendar, dashboard, and exam study targets."}
                 </p>
+                {!c.hasSyllabus && <p className="mt-1 text-xs text-muted-foreground">If this class does not use a syllabus, you can skip this.</p>}
               </div>
             </div>
             <Button className="h-11 shrink-0" asChild>
               <Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`}>
-                Add or replace syllabus
+                {c.hasSyllabus ? "View or replace syllabus" : "Add syllabus"}
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>

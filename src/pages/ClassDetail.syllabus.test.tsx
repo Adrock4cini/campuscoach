@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ClassDetail from "./ClassDetail";
+
+const mocks = vi.hoisted(() => ({ hasSyllabus: false }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "student-1" }, isDemoMode: false }),
@@ -28,6 +30,7 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({
       suggestedAction: "Add notes",
       gradingWeights: [],
       chapters: [],
+      hasSyllabus: mocks.hasSyllabus,
     }],
     loading: false,
     error: null,
@@ -44,6 +47,10 @@ vi.mock("@/components/capture/ClassMemory", () => ({
 }));
 
 describe("real class syllabus entry", () => {
+  beforeEach(() => {
+    mocks.hasSyllabus = false;
+  });
+
   it("keeps the syllabus bound to the open class", () => {
     render(
       <MemoryRouter initialEntries={["/classes/math-1"]}>
@@ -53,8 +60,27 @@ describe("real class syllabus entry", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Syllabus & class calendar" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /add or replace syllabus/i })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Class syllabus" })).toBeInTheDocument();
+    expect(screen.getByText("No syllabus added")).toBeInTheDocument();
+    expect(screen.getByText(/assignments, quizzes, exam dates, and topics to study/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^add syllabus/i })).toHaveAttribute(
+      "href",
+      "/classes/math-1/syllabus",
+    );
+  });
+
+  it("shows the saved state and a view-or-replace action", () => {
+    mocks.hasSyllabus = true;
+    render(
+      <MemoryRouter initialEntries={["/classes/math-1"]}>
+        <Routes>
+          <Route path="/classes/:classId" element={<ClassDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Syllabus connected")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /view or replace syllabus/i })).toHaveAttribute(
       "href",
       "/classes/math-1/syllabus",
     );
