@@ -3,8 +3,8 @@
  * assignments, classes) for the signed-in student and runs the pure
  * `recommend()` ranker.
  *
- * Real users only. Anonymous/demo callers get an empty list — they
- * should keep using the demo `DoThisNowHero` path.
+ * Real users only. The faithful demo dashboard uses a hook-free sample adapter
+ * rather than loading authenticated recommendation data.
  *
  * Refreshes when the classes list changes, when assignments/exams
  * change (via existing `real-*:changed` window events), and whenever
