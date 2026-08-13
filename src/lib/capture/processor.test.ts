@@ -51,6 +51,9 @@ describe("capture journey", () => {
 
     const stored = listCaptures();
     expect(stored[0]?.id).toBe(result.id);
+    expect(mocks.persistCaptureResult).not.toHaveBeenCalled();
+    expect(mocks.contributeStudySignal).not.toHaveBeenCalled();
+    expect(mocks.updateCampusBrainAggregate).not.toHaveBeenCalled();
   });
 
   it("produces flashcards for a recorded lecture", async () => {
@@ -95,6 +98,16 @@ describe("capture journey", () => {
 
     expect(mocks.persistCaptureResult).toHaveBeenCalledWith(result);
     expect(listCaptures()).toEqual([]);
+    expect(mocks.contributeStudySignal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        classId: "math",
+        sourceType: "capture:quick-note",
+        sourceId: result.id,
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(mocks.updateCampusBrainAggregate).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("keeps a saved note successful while surfacing a failed AI handoff", async () => {

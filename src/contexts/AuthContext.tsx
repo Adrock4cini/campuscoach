@@ -15,6 +15,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setAuthUserId } from "@/hooks/useClassIntelligence";
 import { completeOAuthPasskeyOffer } from "@/lib/auth/passkeys";
+import { setSupabaseNetworkMode } from "@/lib/demo/supabaseNetworkPolicy";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
@@ -106,9 +107,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     let authRevision = 0;
+    setSupabaseNetworkMode("loading");
 
     const applySession = (nextSession: Session | null) => {
       if (!active) return;
+      setSupabaseNetworkMode(nextSession?.user ? "real" : "demo");
       setSession(nextSession);
       setAuthUserId(nextSession?.user?.id ?? null);
       if (nextSession) {
@@ -153,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      setSupabaseNetworkMode("loading");
       sub.subscription.unsubscribe();
     };
   }, []);

@@ -5,6 +5,7 @@ import type { CampusBrainInsight } from "@/lib/intelligence";
 import { cn } from "@/lib/utils";
 import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 import { classes } from "@/data/demo";
+import { useAuth } from "@/contexts/AuthContext";
 
 const kindMap = {
   noticed:   { verb: "noticed",   Icon: Eye,       tone: "text-primary"  },
@@ -25,6 +26,7 @@ interface Props {
  */
 export function CampusBrainInsightCard({ insight, compact, className }: Props) {
   const navigate = useNavigate();
+  const { mode } = useAuth();
   const meta = kindMap[insight.kind];
   const Icon = meta.Icon;
 
@@ -67,7 +69,7 @@ export function CampusBrainInsightCard({ insight, compact, className }: Props) {
             </button>
           )}
 
-          {!compact && insight.classId && (() => {
+          {mode === "real" && !compact && insight.classId && (() => {
             const cls = classes.find((c) => c.id === insight.classId);
             if (!cls) return null;
             return (

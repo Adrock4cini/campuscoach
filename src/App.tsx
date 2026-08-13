@@ -32,6 +32,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { RealComingSoon } from "@/components/real/RealComingSoon";
+import { RealOnly } from "@/components/real/RealOnly";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
 
@@ -92,14 +93,14 @@ const App = () => (
                 <AppLayout>
                   <Routes>
                     <Route path="/" element={<RootGate />} />
-                    <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+                    <Route path="/onboarding" element={<Protected><RealOnly><Onboarding /></RealOnly></Protected>} />
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
-                    <Route path="/classes/new" element={<Protected><ClassEditorPage /></Protected>} />
-                    <Route path="/classes/:classId/edit" element={<Protected><ClassEditorPage /></Protected>} />
+                    <Route path="/classes/new" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
+                    <Route path="/classes/:classId/edit" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
                     <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-                    <Route path="/integrations/canvas" element={<Protected><CanvasConnectionPage /></Protected>} />
+                    <Route path="/integrations/canvas" element={<Protected><RealOnly><CanvasConnectionPage /></RealOnly></Protected>} />
                     <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
                     <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
                     <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />

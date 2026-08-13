@@ -16,6 +16,13 @@ const GUARDED_CONCEPT_ROUTES = [
   "/scholarships",
 ];
 
+const REAL_ONLY_ROUTES = [
+  "/onboarding",
+  "/classes/new",
+  "/classes/:classId/edit",
+  "/integrations/canvas",
+];
+
 describe("concept route preview safety", () => {
   it("keeps every unreleased interactive page inside the fail-closed boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
@@ -26,6 +33,18 @@ describe("concept route preview safety", () => {
       const nextRoute = source.indexOf("<Route path=", start + 1);
       const routeSource = source.slice(start, nextRoute < 0 ? undefined : nextRoute);
       expect(routeSource, `${path} must remain wrapped by DemoOnly`).toContain("<DemoOnly");
+    }
+  });
+
+  it("keeps setup and account-connected routes out of sample mode", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+
+    for (const path of REAL_ONLY_ROUTES) {
+      const start = source.indexOf(`<Route path="${path}"`);
+      expect(start, `missing route ${path}`).toBeGreaterThanOrEqual(0);
+      const nextRoute = source.indexOf("<Route path=", start + 1);
+      const routeSource = source.slice(start, nextRoute < 0 ? undefined : nextRoute);
+      expect(routeSource, `${path} must remain wrapped by RealOnly`).toContain("<RealOnly>");
     }
   });
 });

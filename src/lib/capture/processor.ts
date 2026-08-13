@@ -34,7 +34,7 @@ export const PROCESSING_STEPS: ProcessingStep[] = [
   { id: "concepts-found",    label: "Key concepts found",          duration: 700 },
   { id: "summary-created",   label: "Summary created",             duration: 700 },
   { id: "flashcards-ready",  label: "Flashcards ready",            duration: 650 },
-  { id: "added-to-brain",    label: "Added to Campus Brain",       duration: 500 },
+  { id: "added-to-brain",    label: "Saved in this demo",          duration: 500 },
 ];
 
 export const CAPTURE_LABELS: Record<CaptureKind, string> = {
@@ -109,9 +109,14 @@ export function listCaptures(): CaptureResult[] {
 }
 
 /**
- * Persist the capture locally + feed the Student Model / Campus
- * Brain via `contributeStudySignal`. Anything more expensive
- * (uploads, transcription) hangs off this seam later.
+ * Persist one capture through an explicit boundary:
+ *   - `requireRemotePersistence: true` is the signed-in path. The durable
+ *     Supabase write must succeed before the capture is reported as complete,
+ *     and remote intelligence signals may follow.
+ *   - otherwise the capture is sample/device-local only. It never attempts a
+ *     Supabase write or contributes to shared intelligence.
+ *
+ * Anything more expensive (uploads, transcription) hangs off this seam later.
  */
 export async function commitCapture(
   kind: CaptureKind,
@@ -125,6 +130,7 @@ export async function commitCapture(
   const cls = classes.find((c) => c.id === context.classId);
   const topicName = context.topic || cls?.currentTopic || "General";
   const simulateDerivedContent = options.simulateDerivedContent ?? true;
+  const remotePersistence = options.requireRemotePersistence === true;
 
   const result: CaptureResult = {
     id: `cap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -148,7 +154,7 @@ export async function commitCapture(
       : persistCaptureResult(result);
   };
 
-  if (options.requireRemotePersistence) {
+  if (remotePersistence) {
     try {
       const persistedId = await persist();
       if (!persistedId) throw new Error("Capture persistence returned no id");
@@ -158,10 +164,9 @@ export async function commitCapture(
     }
   } else {
     // Demo and signed-out captures remain device-local and keep working
-    // offline. Real captures never enter this shared browser store.
+    // offline. Do not even attempt a remote write: sample activity must never
+    // enter Supabase, aggregates, or class-intelligence signals.
     saveStore([result, ...loadStore()]);
-
-    void persist().catch(() => undefined);
   }
 
   // Notify any listening surface (e.g. Class Memory) so newly captured
@@ -175,23 +180,24 @@ export async function commitCapture(
     /* non-browser env */
   }
 
-  // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
-  void (async () => {
-    try {
-      const {
-        extractAggregateSignalFromCapture,
-        updateCampusBrainAggregate,
-      } = await import("@/lib/intelligence/aggregateSignals");
-      await updateCampusBrainAggregate(
-        extractAggregateSignalFromCapture(result),
-      );
-    } catch {
-      /* offline — aggregate layer will backfill later */
-    }
-  })();
+  if (remotePersistence) {
+    // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
+    void (async () => {
+      try {
+        const {
+          extractAggregateSignalFromCapture,
+          updateCampusBrainAggregate,
+        } = await import("@/lib/intelligence/aggregateSignals");
+        await updateCampusBrainAggregate(
+          extractAggregateSignalFromCapture(result),
+        );
+      } catch {
+        /* offline — aggregate layer will backfill later */
+      }
+    })();
 
-  // Feed the topic-level signal used by the aggregate intelligence.
-  void contributeStudySignal({
+    // Feed the topic-level signal used by the aggregate intelligence.
+    void contributeStudySignal({
       classId: context.classId,
       topicId: topicName,
       topicName,
@@ -200,7 +206,8 @@ export async function commitCapture(
       sourceType: `capture:${kind}`,
       sourceId: result.id,
     })
-    .catch(() => undefined); // Offline/anonymous capture still stays local.
+      .catch(() => undefined);
+  }
 
   return result;
 }

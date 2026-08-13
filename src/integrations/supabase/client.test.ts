@@ -14,6 +14,9 @@ describe("Supabase browser session configuration", () => {
       expect.any(String),
       expect.any(String),
       {
+        global: {
+          fetch: expect.any(Function),
+        },
         auth: {
           storage: localStorage,
           persistSession: true,

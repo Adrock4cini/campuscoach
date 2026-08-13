@@ -300,7 +300,7 @@ export function ClassMemory({ classId, className }: Props) {
           </Badge>
         </div>
         <ClassBrainAggregateStrip classId={classId} className="mb-3" />
-        {mode === "demo" && className && (
+        {mode === "real" && className && (
           <InviteClassmatesButton
             classId={classId}
             className={className}
@@ -366,6 +366,7 @@ export function ClassMemory({ classId, className }: Props) {
           classId={classId}
           className={className}
           initialMode={studyMode}
+          persistence="local-only"
         />
       )}
     </Card>
