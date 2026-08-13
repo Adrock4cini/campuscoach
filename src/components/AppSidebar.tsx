@@ -55,10 +55,9 @@ interface SidebarGroupDefinition {
   items: SidebarItemDefinition[];
 }
 
-// These destinations remain part of the product and should stay discoverable.
-// Signed-in students get a guarded preview until each page is backed by their
-// real data, rather than having the feature disappear from navigation.
-const PREVIEW_ONLY_FOR_REAL = new Set<string>([
+// These destinations remain discoverable, but signed-in students get a static
+// coming-soon boundary until each page is backed by their real data.
+const COMING_SOON_FOR_REAL = new Set<string>([
   "/your-week",
   "/path-to-graduation",
   "/scholarships",
@@ -215,9 +214,9 @@ export function AppSidebar() {
                         {!collapsed && (
                           <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
                             <span className="truncate">{item.title}</span>
-                            {realMode && PREVIEW_ONLY_FOR_REAL.has(item.url) && (
+                            {realMode && COMING_SOON_FOR_REAL.has(item.url) && (
                               <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
-                                Preview
+                                Coming soon
                               </span>
                             )}
                           </span>

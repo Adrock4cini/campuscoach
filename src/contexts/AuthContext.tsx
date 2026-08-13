@@ -160,8 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const mode: DataMode = loading
     ? "loading"
     : session?.user
-      ? (isDemoMode ? "demo" : "real")
-      : (isDemoMode ? "demo" : "demo"); // anon = demo tour
+      ? "real"
+      : "demo"; // anonymous visitors use the sample tour
 
   const value = useMemo<AuthState>(
     () => ({
@@ -174,6 +174,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mode,
 
       enableDemoMode: () => {
+        // A sample surface must never coexist with an authenticated Supabase
+        // session. Several legacy demo pages still import write clients
+        // directly, so this is an account-safety invariant—not a UI preference.
+        if (session?.user) {
+          localStorage.removeItem(DEMO_KEY);
+          setDemo(false);
+          return;
+        }
         localStorage.setItem(DEMO_KEY, "1");
         setDemo(true);
       },

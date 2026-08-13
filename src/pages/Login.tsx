@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,13 +21,15 @@ import {
 export default function Login() {
   const nav = useNavigate();
   const loc = useLocation();
-  const { enableDemoMode } = useAuth();
+  const { user, enableDemoMode } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
   const passkeyOk = useMemo(() => canUsePasskeys(), []);
+
+  if (user) return <Navigate to="/" replace />;
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault();

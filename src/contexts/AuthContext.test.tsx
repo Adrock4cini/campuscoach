@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Session } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,6 +62,16 @@ function AuthSnapshot() {
   return <div>{loading ? "loading" : user?.id ?? "signed-out"}</div>;
 }
 
+function AuthModeSnapshot() {
+  const { mode, enableDemoMode } = useAuth();
+  return (
+    <div>
+      <output aria-label="Data mode">{mode}</output>
+      <button type="button" onClick={enableDemoMode}>Enable demo</button>
+    </div>
+  );
+}
+
 describe("AuthProvider session restoration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -88,6 +98,25 @@ describe("AuthProvider session restoration", () => {
 
     expect(await screen.findByText("student-1")).toBeInTheDocument();
     expect(mocks.setAuthUserId).toHaveBeenCalledWith("student-1");
+  });
+
+  it("never enables sample mode while an authenticated session is active", async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: sessionFor("student-1") },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthModeSnapshot />
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole("status", { name: "Data mode" })).toHaveTextContent("real");
+    fireEvent.click(screen.getByRole("button", { name: "Enable demo" }));
+
+    expect(screen.getByRole("status", { name: "Data mode" })).toHaveTextContent("real");
+    expect(localStorage.getItem("cc_demo_mode_v1")).toBeNull();
   });
 
   it("does not let a stale startup result overwrite a newer sign-in", async () => {
