@@ -45,21 +45,21 @@ vi.mock("@/components/ui/sidebar", () => {
 });
 
 describe("signed-in product navigation", () => {
-  it("keeps the complete product map visible and marks guarded pages as previews", () => {
+  it("keeps the complete product map visible and marks guarded pages as coming soon", () => {
     render(<AppSidebar />);
 
-    expect(screen.getByRole("link", { name: /Path to Graduation Preview/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Path to Graduation Coming soon/i })).toHaveAttribute(
       "href",
       "/path-to-graduation",
     );
-    expect(screen.getByRole("link", { name: /Your Week Preview/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Your Week Coming soon/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/calendar");
     expect(screen.getByRole("link", { name: "Notes & Recordings" })).toHaveAttribute("href", "/notes");
-    expect(screen.getByRole("link", { name: /Scholarships Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Class Intelligence Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Exam Debrief Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Progress Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Settings Preview/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Scholarships Coming soon/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Class Intelligence Coming soon/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Exam Debrief Coming soon/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Progress Coming soon/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Settings Coming soon/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
       "href",
       "/integrations/canvas",
