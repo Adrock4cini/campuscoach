@@ -15,6 +15,7 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
+import { ClassShortcutRail } from "@/components/dashboard/ClassShortcutRail";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 /**
@@ -76,8 +77,13 @@ export default function Dashboard() {
         </motion.section>
       ) : (
         <>
-          {/* Coach: for real users, the tutor voice comes from ranked concept memory. */}
-          {realMode && <RealCoachHero />}
+          {realMode && (
+            <div className="space-y-4">
+              <ClassShortcutRail classes={ordered} />
+              {/* The tutor voice stays dominant directly below compact class navigation. */}
+              <RealCoachHero />
+            </div>
+          )}
           {/* Demo-derived widgets: ONLY when explicitly in demo mode. Never during auth loading. */}
           {demoMode && <DoThisNowHero />}
 
