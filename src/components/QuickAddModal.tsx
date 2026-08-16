@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { BookOpen, ClipboardList, GraduationCap, FileText, FileUp, Mic, Calendar, MessageSquare } from "lucide-react";
 import { useCapture } from "@/contexts/CaptureContext";
@@ -23,7 +23,7 @@ const actions: Array<{
   { label: "Add Exam", icon: GraduationCap, desc: "Add an upcoming exam", route: "/exams" },
   { label: "Open Calendar", icon: Calendar, desc: "See tests and assignments", route: "/calendar" },
   { label: "Add Note", icon: FileText, desc: "Create a class note", captureKind: "quick-note" },
-  { label: "Upload Syllabus", icon: FileUp, desc: "Upload & analyze a syllabus", route: "/onboarding?import=syllabus" },
+  { label: "Upload Syllabus", icon: FileUp, desc: "Choose a class, then review its syllabus", route: "/classes?intent=syllabus" },
   { label: "Professor Hint", icon: MessageSquare, desc: "Save what the professor emphasized", captureKind: "professor-hint" },
 ];
 
@@ -36,6 +36,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="font-display">Quick Add</DialogTitle>
+          <DialogDescription>Choose what you want to add to Campus Companion.</DialogDescription>
         </DialogHeader>
         <div className="space-y-1">
           {actions.map(action => (

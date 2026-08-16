@@ -29,6 +29,10 @@ export interface ClassInfo {
   semesterEndDate?: string;
   timeZone?: string;
   source?: "manual" | "canvas" | string;
+  /** True when this real class has an active, reviewed syllabus revision. */
+  hasSyllabus?: boolean;
+  syllabusRevision?: number;
+  syllabusReviewedAt?: string;
 }
 
 export interface Chapter {

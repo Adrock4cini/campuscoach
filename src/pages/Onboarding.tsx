@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/li
 import { loadCachedOnboarding, saveOnboarding } from "@/lib/onboarding/store";
 import { academicTermOptions } from "@/lib/onboarding/options";
 import { useAuth } from "@/contexts/AuthContext";
-import { SyllabusImport } from "@/components/onboarding/SyllabusImport";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
 import { DayPicker } from "@/components/onboarding/DayPicker";
 import { TimePicker } from "@/components/onboarding/TimePicker";
@@ -49,7 +48,6 @@ export default function Onboarding() {
     classes: emptyOnboarding.classes.map(prepareNewOnboardingClass),
   }));
   const [saving, setSaving] = useState(false);
-  const [syllabusImported, setSyllabusImported] = useState(false);
   const initialized = useRef(false);
   const termOptions = useMemo(() => academicTermOptions(), []);
 
@@ -87,6 +85,12 @@ export default function Onboarding() {
     else if (name) setStep(1);
   }, [importSyllabusMode, profile, user]);
 
+  // The returning-student importer used to create or overwrite classes from
+  // an unscoped file. Every syllabus now belongs to one already-chosen class.
+  if (importSyllabusMode) {
+    return <Navigate to="/classes?intent=syllabus" replace />;
+  }
+
   const update = (patch: Partial<OnboardingData>) => setData((d) => ({ ...d, ...patch }));
   const updateClass = (i: number, patch: Partial<OnboardingClass>) =>
     setData((d) => ({
@@ -104,10 +108,7 @@ export default function Onboarding() {
       default: return true;
     }
   })();
-  const canContinue = importSyllabusMode && step === 0 ? syllabusImported : canNext;
-  const importedScheduleNeedsReview = importSyllabusMode && data.classes
-    .filter((classInfo) => classInfo.name.trim())
-    .some((classInfo) => !isOnboardingClassScheduleValid(classInfo));
+  const canContinue = canNext;
 
   const finish = async () => {
     setSaving(true);
@@ -116,13 +117,11 @@ export default function Onboarding() {
         ...data,
         classes: data.classes.filter((c) => c.name.trim()),
       }, user?.id);
-      toast.success(importSyllabusMode ? "Syllabus added" : "You're set up!", {
-        description: importSyllabusMode
-          ? "Your classes and detected deadlines are ready to review."
-          : "Welcome to Campus Companion.",
+      toast.success("You're set up!", {
+        description: "Welcome to Campus Companion.",
       });
       await refreshOnboarded();
-      nav(importSyllabusMode ? "/calendar" : "/dashboard", { replace: true });
+      nav("/dashboard", { replace: true });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Please try again.";
       toast.error("Couldn't finish setup", { description: message });
@@ -135,22 +134,10 @@ export default function Onboarding() {
   // by signed-in users, so we no longer expose a "Skip · use demo" shortcut here.
 
   const next = () => {
-    if (importSyllabusMode && step === 0 && syllabusImported) {
-      if (importedScheduleNeedsReview) {
-        setStep(4);
-        return;
-      }
-      void finish();
-      return;
-    }
-    if (importSyllabusMode && step === 4) {
-      void finish();
-      return;
-    }
     if (step < STEPS.length - 1) setStep(step + 1);
     else void finish();
   };
-  const back = () => setStep((s) => (importSyllabusMode && s === 4 ? 0 : Math.max(0, s - 1)));
+  const back = () => setStep((s) => Math.max(0, s - 1));
 
   return (
     <div className="min-h-[80vh] flex items-start justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] md:items-center">
@@ -187,10 +174,8 @@ export default function Onboarding() {
               >
                 {step === 0 && (
                   <StepShell
-                    title={importSyllabusMode ? "Import a syllabus" : "What's your name?"}
-                    hint={importSyllabusMode
-                      ? "Upload a PDF or photo. Review what Campus Brain found, then save it to your calendar."
-                      : "First name is fine. Have a syllabus? Upload it and we'll fill in everything below."}
+                    title="What's your name?"
+                    hint="First name is fine. After you add your classes, each class will have its own place for its syllabus."
                   >
                     <div className="space-y-3">
                       <Input
@@ -214,14 +199,10 @@ export default function Onboarding() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <SyllabusImport
-                        data={data}
-                        onMerge={(patch) => update({
-                          ...patch,
-                          ...(patch.classes ? { classes: patch.classes.map(prepareNewOnboardingClass) } : {}),
-                        })}
-                        onParsed={(parsed) => setSyllabusImported(parsed.classes.length > 0)}
-                      />
+                      <div className="flex gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+                        <FileText aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                        <p className="text-muted-foreground"><span className="font-medium text-foreground">Syllabi come after class setup.</span> Open any class and tap Add syllabus. We’ll review its assignments, quizzes, exams, and study topics with you.</p>
+                      </div>
                     </div>
                   </StepShell>
                 )}
@@ -446,11 +427,7 @@ export default function Onboarding() {
                 disabled={!canContinue || saving}
               >
                 {saving
-                  ? (importSyllabusMode ? "Saving…" : "Setting up…")
-                  : importSyllabusMode && step === 0 && syllabusImported && importedScheduleNeedsReview
-                  ? "Review schedule"
-                  : importSyllabusMode && syllabusImported && (step === 0 || step === 4)
-                  ? "Save syllabus"
+                  ? "Setting up…"
                   : step === STEPS.length - 1
                   ? "Finish"
                   : "Next"}
