@@ -17,6 +17,25 @@ export interface CaptureImageValidation {
   message: string | null;
 }
 
+export interface CaptureImageAppendResult {
+  files: File[];
+  rejectedCount: number;
+}
+
+export function appendCaptureImages(
+  current: readonly File[],
+  incoming: readonly File[],
+): CaptureImageAppendResult {
+  const keptCurrent = current.slice(0, CAPTURE_IMAGE_LIMITS.maxFiles);
+  const availableSlots = CAPTURE_IMAGE_LIMITS.maxFiles - keptCurrent.length;
+  const acceptedIncoming = incoming.slice(0, availableSlots);
+
+  return {
+    files: [...keptCurrent, ...acceptedIncoming],
+    rejectedCount: incoming.length - acceptedIncoming.length,
+  };
+}
+
 export function validateCaptureImages(files: readonly File[]): CaptureImageValidation {
   if (files.length === 0) {
     return { ok: false, message: "Add at least one photo." };

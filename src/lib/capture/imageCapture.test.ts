@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendCaptureImages,
   buildCaptureStoragePath,
   filterCaptureTargets,
   validateCaptureImages,
@@ -10,6 +11,52 @@ function image(name: string, size: number, type = "image/jpeg") {
 }
 
 describe("assignment image capture guardrails", () => {
+  it("keeps only the first four photos from an oversized selection", () => {
+    const selected = Array.from({ length: 6 }, (_, index) => image(`page-${index + 1}.jpg`, 1));
+
+    const result = appendCaptureImages([], selected);
+
+    expect(result.files.map((file) => file.name)).toEqual([
+      "page-1.jpg",
+      "page-2.jpg",
+      "page-3.jpg",
+      "page-4.jpg",
+    ]);
+    expect(result.rejectedCount).toBe(2);
+  });
+
+  it("fills only the remaining slots when photos are added in more than one step", () => {
+    const current = [
+      image("page-1.jpg", 1),
+      image("page-2.jpg", 1),
+      image("page-3.jpg", 1),
+    ];
+    const incoming = [
+      image("page-4.jpg", 1),
+      image("page-5.jpg", 1),
+      image("page-6.jpg", 1),
+    ];
+
+    const result = appendCaptureImages(current, incoming);
+
+    expect(result.files.map((file) => file.name)).toEqual([
+      "page-1.jpg",
+      "page-2.jpg",
+      "page-3.jpg",
+      "page-4.jpg",
+    ]);
+    expect(result.rejectedCount).toBe(2);
+  });
+
+  it("rejects another camera photo after the capture reaches four", () => {
+    const current = Array.from({ length: 4 }, (_, index) => image(`page-${index + 1}.jpg`, 1));
+
+    const result = appendCaptureImages(current, [image("page-5.jpg", 1)]);
+
+    expect(result.files).toEqual(current);
+    expect(result.rejectedCount).toBe(1);
+  });
+
   it("accepts up to four supported images within the release cost budget", () => {
     const result = validateCaptureImages([
       image("page-1.jpg", 2_000_000),
