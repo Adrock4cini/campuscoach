@@ -82,6 +82,23 @@ const science = {
   name: "Science",
 } as ClassInfo;
 
+function photo(name: string) {
+  return new File([new Uint8Array(100)], name, { type: "image/jpeg" });
+}
+
+function renderMaterialCapture() {
+  return render(
+    <MemoryRouter>
+      <CaptureFlow
+        open
+        initialKind="scan-material"
+        initialClassId="science"
+        onClose={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+}
+
 function renderCapture(initialClassId?: string) {
   return render(
     <MemoryRouter>
@@ -185,12 +202,147 @@ describe("CaptureFlow class boundaries", () => {
     fireEvent.change(examPicker, { target: { value: "exam-science" } });
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Assignment photos"), {
+    fireEvent.change(screen.getByLabelText("Choose photos — assignment"), {
       target: {
         files: [new File([new Uint8Array(100)], "homework.jpg", { type: "image/jpeg" })],
       },
     });
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
+  });
+
+  it("keeps an oversized selection usable and lets the student remove individual photos", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    renderMaterialCapture();
+
+    const libraryInput = screen.getByLabelText("Choose photos — notes or book");
+    fireEvent.change(libraryInput, {
+      target: {
+        files: Array.from({ length: 6 }, (_, index) => photo(`flash-card-${index + 1}.jpg`)),
+      },
+    });
+
+    expect(libraryInput).toHaveValue("");
+    const removeButtons = screen.getAllByRole("button", { name: /Remove photo \d/i });
+    const cameraInput = screen.getByLabelText("Take photo — notes or book");
+    expect(removeButtons).toHaveLength(4);
+    expect(removeButtons[0]).toHaveClass("h-11", "w-11");
+    expect(cameraInput.closest("label")).toHaveClass("min-h-11");
+    expect(libraryInput.closest("label")).toHaveClass("min-h-11");
+    expect(screen.getByRole("button", { name: "Remove all photos" })).toHaveClass("min-h-11");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("4 of 4 photos ready")).toBeInTheDocument();
+    expect(screen.getByText(/Only 4 photos can be added at once/i)).toHaveTextContent(
+      "Only 4 photos can be added at once. 2 photos weren't added. Save these 4, then start another capture.",
+    );
+    expect(cameraInput).toBeDisabled();
+    expect(libraryInput).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add to class" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove photo 2" }));
+
+    expect(screen.getAllByRole("button", { name: /Remove photo \d/i })).toHaveLength(3);
+    expect(screen.getByText("3 of 4 photos ready")).toBeInTheDocument();
+    expect(screen.queryByText(/Only 4 photos can be added at once/i)).not.toBeInTheDocument();
+    expect(cameraInput).toBeEnabled();
+    expect(libraryInput).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove all photos" }));
+
+    expect(screen.queryByRole("button", { name: /Remove photo \d/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to class" })).toBeDisabled();
+  });
+
+  it("appends camera and library photos through the same four-photo limit", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    renderMaterialCapture();
+
+    const libraryInput = screen.getByLabelText("Choose photos — notes or book");
+    const cameraInput = screen.getByLabelText("Take photo — notes or book");
+
+    fireEvent.change(libraryInput, {
+      target: { files: [photo("card-1.jpg"), photo("card-2.jpg")] },
+    });
+    fireEvent.change(cameraInput, {
+      target: { files: [photo("card-3.jpg")] },
+    });
+
+    expect(libraryInput).toHaveValue("");
+    expect(cameraInput).toHaveValue("");
+    expect(screen.getByText("3 of 4 photos ready")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Remove photo \d/i })).toHaveLength(3);
+  });
+
+  it("recovers after the student removes an unsupported photo", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    renderMaterialCapture();
+
+    const libraryInput = screen.getByLabelText("Choose photos — notes or book");
+    const cameraInput = screen.getByLabelText("Take photo — notes or book");
+    fireEvent.change(libraryInput, {
+      target: { files: [new File([new Uint8Array(100)], "card.gif", { type: "image/gif" })] },
+    });
+
+    expect(screen.getByText(/Use a JPG, PNG, WebP, HEIC, or HEIF image/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to class" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove photo 1" }));
+    fireEvent.change(cameraInput, { target: { files: [photo("replacement.jpg")] } });
+
+    expect(cameraInput).toHaveValue("");
+    expect(screen.getByText("1 of 4 photo ready")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to class" })).toBeEnabled();
+  });
+
+  it("releases photo preview URLs when a photo is removed or the capture closes", () => {
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const createObjectUrl = vi.fn((file: Blob) => `blob:${(file as File).name}`);
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
+
+    try {
+      mocks.classes = [math, science];
+      mocks.loading = false;
+      const view = renderMaterialCapture();
+
+      fireEvent.change(screen.getByLabelText("Choose photos — notes or book"), {
+        target: { files: [photo("card-1.jpg"), photo("card-2.jpg")] },
+      });
+      expect(createObjectUrl).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove photo 2" }));
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:card-2.jpg");
+
+      view.unmount();
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:card-1.jpg");
+    } finally {
+      if (originalCreateObjectUrl) {
+        Object.defineProperty(URL, "createObjectURL", {
+          configurable: true,
+          value: originalCreateObjectUrl,
+        });
+      } else {
+        Reflect.deleteProperty(URL, "createObjectURL");
+      }
+      if (originalRevokeObjectUrl) {
+        Object.defineProperty(URL, "revokeObjectURL", {
+          configurable: true,
+          value: originalRevokeObjectUrl,
+        });
+      } else {
+        Reflect.deleteProperty(URL, "revokeObjectURL");
+      }
+    }
   });
 
   it("keeps the mobile assignment sheet inside the viewport without iOS form zoom", () => {
@@ -264,7 +416,7 @@ describe("CaptureFlow class boundaries", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Assignment" }), {
       target: { value: "assignment-science" },
     });
-    fireEvent.change(screen.getByLabelText("Assignment photos"), {
+    fireEvent.change(screen.getByLabelText("Choose photos — assignment"), {
       target: {
         files: [new File([new Uint8Array(100)], "homework.jpg", { type: "image/jpeg" })],
       },
@@ -274,7 +426,7 @@ describe("CaptureFlow class boundaries", () => {
     expect(await screen.findByText("Capture wasn't saved", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText("Your photos and choices are still here.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Review capture" }));
-    expect(screen.getByText("1 photo ready")).toBeInTheDocument();
+    expect(screen.getByText("1 of 4 photo ready")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue("assignment-science");
   });
 

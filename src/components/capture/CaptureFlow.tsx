@@ -25,6 +25,8 @@ import type {
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { useRealAssignments, useRealExams } from "@/lib/realData/hooks";
 import {
+  appendCaptureImages,
+  CAPTURE_IMAGE_LIMITS,
   filterCaptureTargets,
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
@@ -110,7 +112,11 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<CaptureResult | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const [images, setImages] = useState<File[]>([]);
+  const [imageSelection, setImageSelection] = useState<{
+    files: File[];
+    rejectedCount: number;
+  }>({ files: [], rejectedCount: 0 });
+  const images = imageSelection.files;
   const imageKind = kind === "scan-assignment" || kind === "scan-material";
   const {
     items: assignmentItems,
@@ -125,6 +131,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     [assignmentItems, ctx.classId, examItems],
   );
   const imageValidation = useMemo(() => validateCaptureImages(images), [images]);
+  const imageLimitReached = images.length >= CAPTURE_IMAGE_LIMITS.maxFiles;
 
   // Reset every open
   useEffect(() => {
@@ -136,7 +143,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setStepIndex(0);
     setResult(null);
     setCaptureError(null);
-    setImages([]);
+    setImageSelection({ files: [], rejectedCount: 0 });
     setCtx({
       classId: defaultClassId,
       date: todayDateKey(),
@@ -384,7 +391,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                             assignmentDueDate: undefined,
                             examId: undefined,
                           }));
-                          setImages([]);
+                          setImageSelection({ files: [], rejectedCount: 0 });
                         }}
                         className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
                       >
@@ -510,52 +517,111 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                           {meta.kind === "scan-assignment" ? "Photograph every problem page" : "Photograph notes or book pages"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          1–4 photos. Campus Brain reads the material and keeps the originals private.
+                          Add up to 4 photos. Have more than 4? Save the first 4, then start another capture.
+                          Campus Brain keeps the originals private.
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
-                          <label className="h-10 rounded-xl bg-primary text-primary-foreground text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                          <label
+                            aria-disabled={imageLimitReached}
+                            className={cn(
+                              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-primary text-xs font-medium text-primary-foreground ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+                              imageLimitReached
+                                ? "pointer-events-none cursor-not-allowed opacity-50"
+                                : "cursor-pointer",
+                            )}
+                          >
                             <Camera className="h-4 w-4" />
                             Take photo
                             <input
-                              aria-label={meta.kind === "scan-assignment" ? "Assignment camera" : "Notes or book camera"}
+                              aria-label={meta.kind === "scan-assignment" ? "Take photo — assignment" : "Take photo — notes or book"}
                               type="file"
                               accept="image/*"
                               capture="environment"
+                              disabled={imageLimitReached}
                               onChange={(event) => {
-                                const next = Array.from(event.target.files ?? []);
-                                setImages((current) => [...current, ...next]);
-                                event.target.value = "";
+                                const next = Array.from(event.currentTarget.files ?? []);
+                                if (next.length > 0) {
+                                  setImageSelection((current) => appendCaptureImages(current.files, next));
+                                }
+                                event.currentTarget.value = "";
                               }}
                               className="sr-only"
                             />
                           </label>
-                          <label className="h-10 rounded-xl border border-border/60 bg-background/30 text-foreground text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                          <label
+                            aria-disabled={imageLimitReached}
+                            className={cn(
+                              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/30 text-xs font-medium text-foreground ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+                              imageLimitReached
+                                ? "pointer-events-none cursor-not-allowed opacity-50"
+                                : "cursor-pointer",
+                            )}
+                          >
                             <Images className="h-4 w-4" />
                             Choose photos
-                          <input
-                            aria-label={meta.kind === "scan-assignment" ? "Assignment photos" : "Notes or book photos"}
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                            multiple
-                            onChange={(event) => setImages(Array.from(event.target.files ?? []))}
-                            className="sr-only"
-                          />
+                            <input
+                              aria-label={meta.kind === "scan-assignment" ? "Choose photos — assignment" : "Choose photos — notes or book"}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                              multiple
+                              disabled={imageLimitReached}
+                              onChange={(event) => {
+                                const next = Array.from(event.currentTarget.files ?? []);
+                                if (next.length > 0) {
+                                  setImageSelection((current) => appendCaptureImages(current.files, next));
+                                }
+                                event.currentTarget.value = "";
+                              }}
+                              className="sr-only"
+                            />
                           </label>
                         </div>
                         {images.length > 0 && (
-                          <div className="mt-2 flex items-center justify-between gap-3">
-                            <p className={`text-xs ${imageValidation.ok ? "text-primary" : "text-danger"}`}>
-                              {imageValidation.ok
-                                ? `${images.length} ${images.length === 1 ? "photo" : "photos"} ready`
-                                : imageValidation.message}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setImages([])}
-                              className="text-xs text-muted-foreground hover:text-foreground"
-                            >
-                              Clear
-                            </button>
+                          <div className="mt-3 space-y-2">
+                            <div className="grid grid-cols-2 gap-2" role="list" aria-label="Selected photos">
+                              {images.map((file, index) => (
+                                <CapturePhotoPreview
+                                  key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                                  file={file}
+                                  index={index}
+                                  onRemove={() => setImageSelection((current) => ({
+                                    files: current.files.filter((_, currentIndex) => currentIndex !== index),
+                                    rejectedCount: 0,
+                                  }))}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div
+                                className="min-w-0 flex-1 text-xs"
+                                role="status"
+                                aria-live="polite"
+                                aria-atomic="true"
+                              >
+                                <p className={imageValidation.ok ? "text-primary" : "text-danger"}>
+                                  {imageValidation.ok
+                                    ? `${images.length} of ${CAPTURE_IMAGE_LIMITS.maxFiles} ${images.length === 1 ? "photo" : "photos"} ready`
+                                    : `${images.length} of ${CAPTURE_IMAGE_LIMITS.maxFiles} selected. ${imageValidation.message}`}
+                                </p>
+                                {imageSelection.rejectedCount > 0 && (
+                                  <p className="mt-1 text-warning">
+                                    Only {CAPTURE_IMAGE_LIMITS.maxFiles} photos can be added at once. {imageSelection.rejectedCount}{" "}
+                                    {imageSelection.rejectedCount === 1 ? "photo wasn't" : "photos weren't"} added.
+                                    Save these {CAPTURE_IMAGE_LIMITS.maxFiles}, then start another capture.
+                                  </p>
+                                )}
+                                {imageLimitReached && imageSelection.rejectedCount === 0 && (
+                                  <p className="mt-1 text-muted-foreground">Remove one to replace it.</p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setImageSelection({ files: [], rejectedCount: 0 })}
+                                className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-muted-foreground ring-offset-background transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              >
+                                Remove all photos
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -650,6 +716,64 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 }
 
 /* ------------------ subcomponents ------------------ */
+
+function CapturePhotoPreview({
+  file,
+  index,
+  onRemove,
+}: {
+  file: File;
+  index: number;
+  onRemove: () => void;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  useEffect(() => {
+    setPreviewFailed(false);
+    if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      if (typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [file]);
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border/60 bg-background/40" role="listitem">
+      <div className="flex aspect-[4/3] items-center justify-center bg-background/60">
+        {previewUrl && !previewFailed ? (
+          <img
+            src={previewUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setPreviewFailed(true)}
+          />
+        ) : (
+          <Images className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+        )}
+      </div>
+      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-background/85 px-1.5 py-1 text-[10px] font-medium text-foreground backdrop-blur-sm">
+        Photo {index + 1}
+      </span>
+      <button
+        type="button"
+        aria-label={`Remove photo ${index + 1}`}
+        onClick={onRemove}
+        className="absolute right-1 top-1 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-background/90 text-muted-foreground shadow-sm ring-offset-background transition-colors hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
