@@ -274,7 +274,7 @@ BEGIN
       v_now + interval '15 minutes',
       1
     )
-    ON CONFLICT (storage_path) DO UPDATE
+    ON CONFLICT ON CONSTRAINT syllabus_source_cleanup_claims_pkey DO UPDATE
       SET claim_token = EXCLUDED.claim_token,
           claimed_at = EXCLUDED.claimed_at,
           eligible_before = EXCLUDED.eligible_before,

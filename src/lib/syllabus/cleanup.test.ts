@@ -55,6 +55,10 @@ describe("abandoned syllabus source cleanup contract", () => {
     );
     expect(migration).toContain("NOT EXISTS (\n          SELECT 1 FROM storage.objects object");
     expect(migration).toContain("LIMIT 200");
+    expect(migration).toContain(
+      "ON CONFLICT ON CONSTRAINT syllabus_source_cleanup_claims_pkey DO UPDATE",
+    );
+    expect(migration).not.toContain("ON CONFLICT (storage_path) DO UPDATE");
   });
 
   it("blocks a late commit for the full live claim and fences concurrent runs", () => {
