@@ -8,9 +8,21 @@ const migration = readFileSync(
 );
 
 describe("syllabus upload quota migration contract", () => {
-  it("enforces the quota in the authenticated Storage insert policy", () => {
-    expect(migration).toContain("CREATE INDEX IF NOT EXISTS syllabus_sources_owner_class_lookup");
-    expect(migration).toContain("WHERE bucket_id = 'syllabus-sources'");
+  it("enforces quota through the function already referenced by the Storage insert policy", () => {
+    expect(migration).toContain("source_object.bucket_id = 'syllabus-sources'");
+    expect(migration).toContain("FROM pg_catalog.pg_policies policy");
+    expect(migration).toContain("policy.policyname = 'syllabus_sources_owner_insert'");
+    expect(migration).toContain("policy.cmd = 'INSERT'");
+    expect(migration).toContain("policy.permissive = 'PERMISSIVE'");
+    expect(migration).toContain("'authenticated' = ANY(policy.roles)");
+    expect(migration).toContain(
+      "position('owns_active_syllabus_storage_path' IN v_insert_check) = 0",
+    );
+    expect(migration).toContain("position('syllabus-sources' IN v_insert_check) = 0");
+    expect(migration).toContain(
+      "CREATE OR REPLACE FUNCTION public.owns_active_syllabus_storage_path(p_path text)",
+    );
+    expect(migration).toContain("RETURN public.can_upload_uncommitted_syllabus_source(p_path)");
     expect(migration).toContain(
       "CREATE OR REPLACE FUNCTION public.can_upload_uncommitted_syllabus_source(p_path text)",
     );
@@ -19,12 +31,11 @@ describe("syllabus upload quota migration contract", () => {
     expect(migration).toContain("v_max_uncommitted_per_class constant integer := 3");
     expect(migration).toContain("v_user_uncommitted_count < v_max_uncommitted_per_user");
     expect(migration).toContain("v_class_uncommitted_count < v_max_uncommitted_per_class");
-    expect(migration).toContain("DROP POLICY IF EXISTS syllabus_sources_owner_insert ON storage.objects");
-    expect(migration).toContain("public.can_upload_uncommitted_syllabus_source(name)");
   });
 
   it("keeps strict class ownership and serializes concurrent quota checks", () => {
-    expect(migration).toContain("public.owns_active_syllabus_storage_path(p_path)");
+    expect(migration).toContain("public.owns_syllabus_storage_path(p_path)");
+    expect(migration).toContain("owned_class.source_archived_at IS NULL");
     expect(migration).toContain("pg_catalog.pg_advisory_xact_lock(");
     expect(migration).toContain("'syllabus-upload:' || v_user_id::text");
     expect(migration).toContain("split_part(source_object.name, '/', 1) = v_user_id::text");
@@ -47,5 +58,11 @@ describe("syllabus upload quota migration contract", () => {
     expect(migration).toContain("FROM PUBLIC, anon");
     expect(migration).toContain("TO authenticated, service_role");
     expect(migration).toContain("SET search_path = pg_catalog, pg_temp");
+  });
+
+  it("does not alter the Supabase-managed Storage schema", () => {
+    expect(migration).not.toMatch(/CREATE\s+(?:UNIQUE\s+)?INDEX[^;]*\sON\s+storage\.objects/i);
+    expect(migration).not.toMatch(/ALTER\s+TABLE\s+storage\.objects/i);
+    expect(migration).not.toMatch(/(?:CREATE|DROP)\s+POLICY[^;]*\sON\s+storage\.objects/i);
   });
 });

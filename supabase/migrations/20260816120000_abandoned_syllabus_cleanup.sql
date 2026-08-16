@@ -124,11 +124,10 @@ GRANT ALL ON public.syllabus_source_cleanup_claims TO service_role;
 CREATE INDEX syllabus_source_cleanup_claims_lease_lookup
   ON public.syllabus_source_cleanup_claims(lease_expires_at, storage_path);
 
--- Storage metadata remains read-only. Supabase permits custom indexes on this
--- managed table; this partial index keeps the hourly age scan bucket-local.
-CREATE INDEX IF NOT EXISTS syllabus_sources_created_lookup
-  ON storage.objects(created_at, name)
-  WHERE bucket_id = 'syllabus-sources';
+-- storage.objects remains read-only and customer migrations cannot add an
+-- index to this Supabase-managed table. The sweep is bounded to 50 claims per
+-- run; monitor its query plan and move candidate accounting to an
+-- application-owned ledger before broad scale if the bucket becomes large.
 
 COMMENT ON TABLE public.syllabus_source_cleanup_claims IS
   'Short-lived, fenced claims for uncommitted syllabus sources awaiting Storage API deletion.';

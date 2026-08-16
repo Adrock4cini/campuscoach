@@ -20,7 +20,7 @@ describe("abandoned syllabus source cleanup contract", () => {
     expect(edgeFunction).toContain("const BATCH_LIMIT = 50");
     expect(edgeFunction).toContain("admin.storage.from(BUCKET).remove(confirmedPaths)");
     expect(migration).toContain("syllabus_source_cleanup_claims_lease_lookup");
-    expect(migration).toContain("syllabus_sources_created_lookup");
+    expect(migration).not.toMatch(/CREATE\s+(?:UNIQUE\s+)?INDEX[^;]*\sON\s+storage\.objects/i);
     expect(migration).not.toMatch(/DELETE\s+FROM\s+storage\.objects/i);
     expect(edgeFunction).not.toMatch(/from\(["']storage\.objects["']\).*delete/i);
   });
