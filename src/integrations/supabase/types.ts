@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -410,8 +410,8 @@ export type Database = {
           original_name: string
           parsed_data: Json
           request_id: string
-          revision: number
           reviewed_data: Json
+          revision: number
           size_bytes: number
           storage_path: string
           updated_at: string
@@ -428,8 +428,8 @@ export type Database = {
           original_name: string
           parsed_data: Json
           request_id: string
-          revision: number
           reviewed_data: Json
+          revision: number
           size_bytes: number
           storage_path: string
           updated_at?: string
@@ -446,8 +446,8 @@ export type Database = {
           original_name?: string
           parsed_data?: Json
           request_id?: string
-          revision?: number
           reviewed_data?: Json
+          revision?: number
           size_bytes?: number
           storage_path?: string
           updated_at?: string
@@ -1523,63 +1523,6 @@ export type Database = {
           },
         ]
       }
-      syllabus_cleanup_configuration: {
-        Row: {
-          created_at: string
-          invoke_secret_digest: string
-          invoke_secret_id: string
-          project_url_secret_id: string | null
-          singleton: boolean
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          invoke_secret_digest: string
-          invoke_secret_id: string
-          project_url_secret_id?: string | null
-          singleton?: boolean
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          invoke_secret_digest?: string
-          invoke_secret_id?: string
-          project_url_secret_id?: string | null
-          singleton?: boolean
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      syllabus_source_cleanup_claims: {
-        Row: {
-          attempts: number
-          claim_token: string
-          claimed_at: string
-          eligible_before: string
-          lease_expires_at: string
-          object_created_at: string
-          storage_path: string
-        }
-        Insert: {
-          attempts?: number
-          claim_token: string
-          claimed_at?: string
-          eligible_before: string
-          lease_expires_at: string
-          object_created_at: string
-          storage_path: string
-        }
-        Update: {
-          attempts?: number
-          claim_token?: string
-          claimed_at?: string
-          eligible_before?: string
-          lease_expires_at?: string
-          object_created_at?: string
-          storage_path?: string
-        }
-        Relationships: []
-      }
       topic_scores: {
         Row: {
           average_confidence: number
@@ -1792,29 +1735,6 @@ export type Database = {
         }
         Returns: Json
       }
-      can_upload_uncommitted_syllabus_source: {
-        Args: { p_path: string }
-        Returns: boolean
-      }
-      claim_abandoned_syllabus_sources: {
-        Args: {
-          p_before?: string
-          p_claim_token: string
-          p_limit?: number
-        }
-        Returns: {
-          storage_path: string
-        }[]
-      }
-      consume_ai_request_quota: {
-        Args: {
-          p_function_name: string
-          p_limit: number
-          p_user_id: string
-          p_window_seconds: number
-        }
-        Returns: boolean
-      }
       commit_class_syllabus: {
         Args: {
           p_class_id: string
@@ -1830,32 +1750,24 @@ export type Database = {
         }
         Returns: Json
       }
-      confirm_syllabus_cleanup_claims: {
-        Args: { p_claim_token: string; p_storage_paths: string[] }
-        Returns: {
-          storage_path: string
-        }[]
+      consume_ai_request_quota: {
+        Args: {
+          p_function_name: string
+          p_limit: number
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: boolean
       }
-      get_syllabus_cleanup_invocation_digest: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      owns_row: { Args: { _user_id: string }; Returns: boolean }
       owns_active_syllabus_storage_path: {
         Args: { p_path: string }
         Returns: boolean
       }
-      owns_syllabus_storage_path: {
-        Args: { p_path: string }
-        Returns: boolean
-      }
+      owns_row: { Args: { _user_id: string }; Returns: boolean }
+      owns_syllabus_storage_path: { Args: { p_path: string }; Returns: boolean }
       recompute_topic_scores: {
         Args: { _class_id?: string }
         Returns: undefined
-      }
-      release_syllabus_cleanup_claims: {
-        Args: { p_claim_token: string; p_storage_paths: string[] }
-        Returns: number
       }
     }
     Enums: {
