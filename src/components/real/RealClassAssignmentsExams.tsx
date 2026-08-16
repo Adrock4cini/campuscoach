@@ -44,7 +44,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
       <Card className="shadow-card">
         <CardContent className="p-5">
           <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-            <h3 className="font-display font-semibold text-foreground">Assignments</h3>
+            <h3 className="font-display font-semibold text-foreground">Assignments & quizzes</h3>
             <Button size="sm" variant="outline" className="shrink-0" onClick={() => setAddA(true)}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
@@ -56,7 +56,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
               Couldn’t load assignments · Try again
             </button>
           ) : assignments.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No assignments yet.</p>
+            <p className="text-xs text-muted-foreground">No assignments or quizzes yet.</p>
           ) : (
             <ul className="space-y-2">
               {assignments.slice(0, 6).map((a) => {
@@ -73,6 +73,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                     <span className={`flex-1 text-sm truncate ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {a.title}
                     </span>
+                    {a.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
                     <Badge variant="outline" className="text-[10px]"><Clock className="h-3 w-3 mr-0.5" />{chip}</Badge>
                   </li>
                 );
@@ -108,10 +109,16 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                   days < 0 ? `${-days}d ago` :
                   days === 0 ? "Today" : `${days}d`;
                 return (
-                  <li key={e.id} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm truncate text-foreground">{e.title}</span>
-                    <span className="text-[11px] text-muted-foreground tabular-nums">{e.readiness}%</span>
-                    <Badge variant="outline" className="text-[10px]"><Calendar className="h-3 w-3 mr-0.5" />{chip}</Badge>
+                  <li key={e.id} className="rounded-lg border border-border/50 p-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 text-sm truncate text-foreground">{e.title}</span>
+                      {e.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{e.readiness}%</span>
+                      <Badge variant="outline" className="text-[10px]"><Calendar className="h-3 w-3 mr-0.5" />{chip}</Badge>
+                    </div>
+                    {e.topics.length > 0 && (
+                      <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">Study: {e.topics.join(", ")}</p>
+                    )}
                   </li>
                 );
               })}

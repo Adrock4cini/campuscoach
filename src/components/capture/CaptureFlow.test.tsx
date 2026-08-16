@@ -227,7 +227,7 @@ describe("CaptureFlow class boundaries", () => {
     });
   });
 
-  it("opens the existing confirm-before-save syllabus importer", () => {
+  it("asks a returning student to choose the class that owns the syllabus", () => {
     mocks.classes = [math, science];
     mocks.loading = false;
     const onClose = vi.fn();
@@ -241,7 +241,7 @@ describe("CaptureFlow class boundaries", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Scan Syllabus/i }));
     expect(onClose).toHaveBeenCalledOnce();
-    expect(screen.getByTestId("location")).toHaveTextContent("/onboarding?import=syllabus");
+    expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=syllabus");
   });
 
   it("keeps assignment photos and links available when the upload is not confirmed", async () => {

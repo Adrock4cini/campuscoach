@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
 export default function MyClasses() {
@@ -15,6 +15,8 @@ export default function MyClasses() {
   const { user, isDemoMode } = useAuth();
   const realMode = !!user && !isDemoMode;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const choosingSyllabusClass = searchParams.get("intent") === "syllabus";
 
   if (realMode && !loading && error) {
     return (
@@ -33,9 +35,13 @@ export default function MyClasses() {
               <Sparkles className="h-6 w-6 text-primary-foreground" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-display font-semibold text-foreground">Set up your semester</h1>
+              <h1 className="text-2xl font-display font-semibold text-foreground">
+                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your semester"}
+              </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Add your real classes to unlock captures, assignments, exams, and study sessions built from your actual coursework.
+                {choosingSyllabusClass
+                  ? "A syllabus belongs to one class. Add or connect the class first, then upload its syllabus."
+                  : "Add your real classes to unlock captures, assignments, exams, and study sessions built from your actual coursework."}
               </p>
             </div>
             <div className="flex flex-col justify-center gap-2 pt-2 sm:flex-row">
@@ -70,6 +76,22 @@ export default function MyClasses() {
         </Link>
       </div>
 
+      {choosingSyllabusClass && (
+        <Card role="status" className="border-primary/30 bg-primary/5 shadow-card">
+          <CardContent className="flex gap-3 p-4 sm:p-5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FileText className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="font-display font-semibold text-foreground">Which class is this syllabus for?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose the class first so its file, assignments, exams, and calendar dates stay together.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {classes.map((c, i) => {
           const hasProfessor = Boolean(c.professor && c.professor !== "TBD");
@@ -84,7 +106,13 @@ export default function MyClasses() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
           >
-            <Link to={`/classes/${c.id}`} aria-label={`Open ${c.name}`} className="block h-full">
+            <Link
+              to={choosingSyllabusClass
+                ? `/classes/${encodeURIComponent(c.id)}/syllabus`
+                : `/classes/${encodeURIComponent(c.id)}`}
+              aria-label={choosingSyllabusClass ? `Choose ${c.name} for syllabus` : `Open ${c.name}`}
+              className="block h-full"
+            >
               <Card className="group h-full cursor-pointer overflow-hidden rounded-[26px] border-border/50 bg-card/70 shadow-card backdrop-blur-md transition-all hover:border-border/80 hover:shadow-elevated">
                 <CardContent className="p-4 sm:p-5">
                   <div className="flex items-center gap-3">
@@ -154,8 +182,12 @@ export default function MyClasses() {
                   )}
 
                   <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary">
-                    <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span className="line-clamp-2">{c.suggestedAction}</span>
+                    {choosingSyllabusClass
+                      ? <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      : <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                    <span className="line-clamp-2">
+                      {choosingSyllabusClass ? "Select this class for the syllabus" : c.suggestedAction}
+                    </span>
                   </div>
                 </CardContent>
               </Card>

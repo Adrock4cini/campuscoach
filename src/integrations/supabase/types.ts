@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -56,6 +56,7 @@ export type Database = {
           source_updated_at: string | null
           source_url: string | null
           status: string
+          syllabus_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -77,6 +78,7 @@ export type Database = {
           source_updated_at?: string | null
           source_url?: string | null
           status?: string
+          syllabus_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -98,6 +100,7 @@ export type Database = {
           source_updated_at?: string | null
           source_url?: string | null
           status?: string
+          syllabus_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -108,6 +111,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_syllabus_id_fkey"
+            columns: ["syllabus_id"]
+            isOneToOne: false
+            referencedRelation: "class_syllabi"
             referencedColumns: ["id"]
           },
         ]
@@ -384,6 +394,137 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_syllabi: {
+        Row: {
+          archived_at: string | null
+          class_id: string
+          client_class_id: string
+          content_hash: string
+          created_at: string
+          id: string
+          mime_type: string
+          original_name: string
+          parsed_data: Json
+          request_id: string
+          revision: number
+          reviewed_data: Json
+          size_bytes: number
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          class_id: string
+          client_class_id: string
+          content_hash: string
+          created_at?: string
+          id?: string
+          mime_type: string
+          original_name: string
+          parsed_data: Json
+          request_id: string
+          revision: number
+          reviewed_data: Json
+          size_bytes: number
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          class_id?: string
+          client_class_id?: string
+          content_hash?: string
+          created_at?: string
+          id?: string
+          mime_type?: string
+          original_name?: string
+          parsed_data?: Json
+          request_id?: string
+          revision?: number
+          reviewed_data?: Json
+          size_bytes?: number
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_syllabi_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_syllabus_requests: {
+        Row: {
+          class_id: string
+          client_class_id: string
+          content_hash: string
+          created_at: string
+          mime_type: string
+          original_name: string
+          parsed_data: Json
+          request_id: string
+          result: Json
+          reviewed_data: Json
+          size_bytes: number
+          storage_path: string
+          syllabus_id: string | null
+          user_id: string
+        }
+        Insert: {
+          class_id: string
+          client_class_id: string
+          content_hash: string
+          created_at?: string
+          mime_type: string
+          original_name: string
+          parsed_data: Json
+          request_id: string
+          result: Json
+          reviewed_data: Json
+          size_bytes: number
+          storage_path: string
+          syllabus_id?: string | null
+          user_id: string
+        }
+        Update: {
+          class_id?: string
+          client_class_id?: string
+          content_hash?: string
+          created_at?: string
+          mime_type?: string
+          original_name?: string
+          parsed_data?: Json
+          request_id?: string
+          result?: Json
+          reviewed_data?: Json
+          size_bytes?: number
+          storage_path?: string
+          syllabus_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_syllabus_requests_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_syllabus_requests_syllabus_id_fkey"
+            columns: ["syllabus_id"]
+            isOneToOne: false
+            referencedRelation: "class_syllabi"
             referencedColumns: ["id"]
           },
         ]
@@ -748,6 +889,7 @@ export type Database = {
           source_due_at: string | null
           source_updated_at: string | null
           source_url: string | null
+          syllabus_id: string | null
           title: string
           topics: string[]
           updated_at: string
@@ -768,6 +910,7 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
+          syllabus_id?: string | null
           title: string
           topics?: string[]
           updated_at?: string
@@ -788,6 +931,7 @@ export type Database = {
           source_due_at?: string | null
           source_updated_at?: string | null
           source_url?: string | null
+          syllabus_id?: string | null
           title?: string
           topics?: string[]
           updated_at?: string
@@ -799,6 +943,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_syllabus_id_fkey"
+            columns: ["syllabus_id"]
+            isOneToOne: false
+            referencedRelation: "class_syllabi"
             referencedColumns: ["id"]
           },
         ]
@@ -1372,6 +1523,63 @@ export type Database = {
           },
         ]
       }
+      syllabus_cleanup_configuration: {
+        Row: {
+          created_at: string
+          invoke_secret_digest: string
+          invoke_secret_id: string
+          project_url_secret_id: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          invoke_secret_digest: string
+          invoke_secret_id: string
+          project_url_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          invoke_secret_digest?: string
+          invoke_secret_id?: string
+          project_url_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      syllabus_source_cleanup_claims: {
+        Row: {
+          attempts: number
+          claim_token: string
+          claimed_at: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token: string
+          claimed_at?: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string
+          claimed_at?: string
+          eligible_before?: string
+          lease_expires_at?: string
+          object_created_at?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       topic_scores: {
         Row: {
           average_confidence: number
@@ -1584,6 +1792,20 @@ export type Database = {
         }
         Returns: Json
       }
+      can_upload_uncommitted_syllabus_source: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      claim_abandoned_syllabus_sources: {
+        Args: {
+          p_before?: string
+          p_claim_token: string
+          p_limit?: number
+        }
+        Returns: {
+          storage_path: string
+        }[]
+      }
       consume_ai_request_quota: {
         Args: {
           p_function_name: string
@@ -1593,10 +1815,47 @@ export type Database = {
         }
         Returns: boolean
       }
+      commit_class_syllabus: {
+        Args: {
+          p_class_id: string
+          p_client_class_id: string
+          p_content_hash: string
+          p_mime_type: string
+          p_original_name: string
+          p_parsed_data: Json
+          p_request_id: string
+          p_reviewed_data: Json
+          p_size_bytes: number
+          p_storage_path: string
+        }
+        Returns: Json
+      }
+      confirm_syllabus_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: {
+          storage_path: string
+        }[]
+      }
+      get_syllabus_cleanup_invocation_digest: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       owns_row: { Args: { _user_id: string }; Returns: boolean }
+      owns_active_syllabus_storage_path: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      owns_syllabus_storage_path: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
       recompute_topic_scores: {
         Args: { _class_id?: string }
         Returns: undefined
+      }
+      release_syllabus_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: number
       }
     }
     Enums: {

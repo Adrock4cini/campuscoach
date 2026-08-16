@@ -106,7 +106,7 @@ export function RealTodaysPlan({ classes = [], now = new Date() }: { classes?: C
         <div className="rounded-2xl border border-dashed border-border/60 bg-background/30 p-5 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Nothing scheduled yet</p>
           <p className="mt-1">Import a syllabus to turn class dates and deadlines into your daily plan.</p>
-          <Link to="/onboarding?import=syllabus" className="mt-2 inline-flex min-h-11 items-center font-medium text-primary hover:underline">
+          <Link to="/classes?intent=syllabus" className="mt-2 inline-flex min-h-11 items-center font-medium text-primary hover:underline">
             Import syllabus
           </Link>
         </div>

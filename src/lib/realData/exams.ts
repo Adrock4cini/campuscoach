@@ -13,7 +13,7 @@ export interface RealExam {
   topics: string[];
   readiness: number;
   notes: string | null;
-  source?: "manual" | "canvas";
+  source?: "manual" | "canvas" | "syllabus";
   source_url?: string | null;
   source_archived_at?: string | null;
   created_at: string;

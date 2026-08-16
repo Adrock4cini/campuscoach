@@ -113,4 +113,11 @@ describe("real academic calendar", () => {
     fireEvent.click(screen.getByRole("button", { name: /capture notes for math/i }));
     expect(mocks.openCapture).toHaveBeenCalledWith(undefined, "math");
   });
+
+  it("chooses a class before importing a syllabus", () => {
+    renderCalendar();
+
+    fireEvent.click(screen.getByRole("button", { name: /import syllabus/i }));
+    expect(screen.getByText("/classes?intent=syllabus")).toBeInTheDocument();
+  });
 });

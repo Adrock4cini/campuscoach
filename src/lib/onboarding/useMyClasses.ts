@@ -112,6 +112,12 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
         const days = normalizeWeekdays(row.weekdays?.length ? row.weekdays : legacyDays);
         const startTime = normalizeTimeKey(row.start_time || (typeof meta.time === "string" ? meta.time : ""));
         const endTime = normalizeTimeKey(row.end_time || (typeof meta.endTime === "string" ? meta.endTime : ""));
+        const syllabusMeta = meta.syllabus && typeof meta.syllabus === "object" && !Array.isArray(meta.syllabus)
+          ? meta.syllabus as Record<string, unknown>
+          : null;
+        const activeSyllabusId = typeof syllabusMeta?.activeSyllabusId === "string"
+          ? syllabusMeta.activeSyllabusId
+          : "";
         return {
           uuid: row.id,
           id: row.client_class_id,
@@ -142,6 +148,9 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
           semesterEndDate: row.semester_end_date || (typeof meta.semesterEndDate === "string" ? meta.semesterEndDate : ""),
           timeZone: row.time_zone || (typeof meta.timeZone === "string" ? meta.timeZone : ""),
           source: row.source,
+          hasSyllabus: Boolean(activeSyllabusId),
+          syllabusRevision: typeof syllabusMeta?.revision === "number" ? syllabusMeta.revision : undefined,
+          syllabusReviewedAt: typeof syllabusMeta?.reviewedAt === "string" ? syllabusMeta.reviewedAt : undefined,
           schedule: Array.isArray(meta.schedule)
             ? meta.schedule.flatMap((item) => {
                 if (!item || typeof item !== "object" || Array.isArray(item)) return [];

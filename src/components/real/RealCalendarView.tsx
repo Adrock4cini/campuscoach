@@ -161,7 +161,7 @@ export function RealCalendarView() {
           size="sm"
           variant="outline"
           className="h-11 shrink-0 rounded-xl"
-          onClick={() => navigate("/onboarding?import=syllabus")}
+          onClick={() => navigate("/classes?intent=syllabus")}
         >
           <Plus className="h-4 w-4 mr-1" />
           <span className="hidden min-[390px]:inline">Import </span>syllabus

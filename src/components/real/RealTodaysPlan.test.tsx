@@ -47,6 +47,10 @@ describe("real dashboard agenda", () => {
     );
 
     expect(screen.getByRole("link", { name: /view calendar/i })).toHaveAttribute("href", "/calendar");
+    expect(screen.getByRole("link", { name: /import syllabus/i })).toHaveAttribute(
+      "href",
+      "/classes?intent=syllabus",
+    );
   });
 
   it("turns the next real class into a preselected capture action", () => {
