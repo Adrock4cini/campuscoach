@@ -3,6 +3,9 @@ project_id = "norsaaoyppctrvxxgjtg"
 [functions.parse-syllabus]
 verify_jwt = true
 
+[functions.cleanup-abandoned-syllabi]
+verify_jwt = false
+
 [functions.seed-beta-user]
 verify_jwt = true
 

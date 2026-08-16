@@ -159,7 +159,17 @@ export async function uploadSyllabusSource(input: {
     contentType: mimeType,
     upsert: false,
   });
-  if (error) throw error;
+  if (error) {
+    const storageError = error as unknown as { message?: unknown; status?: unknown; statusCode?: unknown };
+    const message = typeof storageError.message === "string" ? storageError.message : "";
+    const status = String(storageError.statusCode ?? storageError.status ?? "");
+    if (status === "403" || /row-level security/i.test(message)) {
+      throw new Error(
+        "This class already has several unfinished syllabus uploads. Retry a pending save, or try again after cleanup runs.",
+      );
+    }
+    throw error;
+  }
   return {
     requestId,
     storagePath,

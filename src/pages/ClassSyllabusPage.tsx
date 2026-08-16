@@ -72,9 +72,24 @@ interface PendingSyllabusCommit {
 }
 
 function readableError(error: unknown, fallback: string) {
-  if (!(error instanceof Error)) return fallback;
-  const message = error.message.trim();
+  const message = errorMessage(error).trim();
   return message && message.length <= 220 ? message : fallback;
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" ? message : "";
+  }
+  return "";
+}
+
+function isExpiredSyllabusUpload(error: unknown) {
+  const message = errorMessage(error);
+  return message.includes("Syllabus source upload expired while it was awaiting review")
+    || message.includes("Uploaded syllabus source was not found")
+    || message.includes("Syllabus source object does not exist");
 }
 
 function isAcceptedSyllabusFile(file: File) {
@@ -334,6 +349,15 @@ export default function ClassSyllabusPage() {
       console.warn("[class-syllabus] save failed", saveError);
       if (!attempt) {
         setPageError(readableError(saveError, "We couldn’t upload this syllabus. Your corrections are still here—please try again."));
+        return;
+      }
+
+      // Cleanup fenced this old, uncommitted source before the save began.
+      // Keep the parsed review, but clear the stale request so the next Save
+      // creates a fresh upload instead of endlessly retrying an expired path.
+      if (isExpiredSyllabusUpload(saveError)) {
+        setPendingCommit(null);
+        setPageError("That upload expired before it was saved. Your review is still here—choose Save again to upload a fresh private copy.");
         return;
       }
 

@@ -262,6 +262,44 @@ describe("ClassSyllabusPage", () => {
     expect(mocks.deleteUncommittedSyllabusSource).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "Syllabus source upload expired while it was awaiting review; upload it again",
+    "Uploaded syllabus source was not found",
+    "Syllabus source object does not exist",
+  ])("keeps the review but creates a fresh upload after cleanup reports: %s", async (databaseMessage) => {
+    vi.spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValueOnce("11111111-1111-4111-8111-111111111111")
+      .mockReturnValueOnce("22222222-2222-4222-8222-222222222222");
+    mocks.parseClassSyllabus.mockResolvedValue(parsed({ name: "Biology 101", code: "BIO 101" }));
+    mocks.commitClassSyllabus
+      .mockRejectedValueOnce({ message: databaseMessage })
+      .mockResolvedValueOnce({ status: "applied" });
+
+    renderPage();
+    choosePdf();
+    const firstSave = await screen.findByRole("button", { name: "Save syllabus" });
+    await waitFor(() => expect(firstSave).toBeEnabled());
+    fireEvent.click(firstSave);
+
+    expect(await screen.findByText(/upload expired before it was saved/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cell lab")).toBeInTheDocument();
+    expect(screen.queryByText(/holding the exact prior upload/i)).not.toBeInTheDocument();
+    expect(mocks.getClassSyllabusRequest).not.toHaveBeenCalled();
+
+    const freshSave = screen.getByRole("button", { name: "Save syllabus" });
+    await waitFor(() => expect(freshSave).toBeEnabled());
+    fireEvent.click(freshSave);
+
+    expect(await screen.findByTestId("class-home")).toBeInTheDocument();
+    expect(mocks.uploadSyllabusSource).toHaveBeenCalledTimes(2);
+    expect(mocks.uploadSyllabusSource.mock.calls[0][0].requestId).toBe(
+      "11111111-1111-4111-8111-111111111111",
+    );
+    expect(mocks.uploadSyllabusSource.mock.calls[1][0].requestId).toBe(
+      "22222222-2222-4222-8222-222222222222",
+    );
+  });
+
   it("treats a request-ledger receipt as success after a dropped commit response", async () => {
     mocks.parseClassSyllabus.mockResolvedValue(parsed({ name: "Biology 101", code: "BIO 101" }));
     mocks.commitClassSyllabus.mockRejectedValueOnce(new Error("response dropped"));

@@ -2,21 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getClassSyllabusRequest,
   parseClassSyllabus,
+  uploadSyllabusSource,
   validateSyllabusFile,
 } from "./repository";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   from: vi.fn(),
+  getUser: vi.fn(),
+  storageFrom: vi.fn(),
+  upload: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     functions: { invoke: mocks.invoke },
     from: mocks.from,
-    auth: { getUser: vi.fn() },
+    auth: { getUser: mocks.getUser },
     rpc: vi.fn(),
-    storage: { from: vi.fn() },
+    storage: { from: mocks.storageFrom },
   },
 }));
 
@@ -24,6 +28,11 @@ describe("class syllabus repository", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
     mocks.from.mockReset();
+    mocks.getUser.mockReset();
+    mocks.storageFrom.mockReset();
+    mocks.upload.mockReset();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    mocks.storageFrom.mockReturnValue({ upload: mocks.upload });
   });
 
   it("sends immutable target context to parsing and runtime-validates the response", async () => {
@@ -64,6 +73,23 @@ describe("class syllabus repository", () => {
     expect(() => validateSyllabusFile(disguisedHtml)).toThrow(/PDF, JPEG/i);
     const noAdvertisedType = new File(["pdf"], "syllabus.pdf", { type: "" });
     expect(validateSyllabusFile(noAdvertisedType)).toBe("application/pdf");
+  });
+
+  it("turns a Storage quota policy denial into a useful retry message", async () => {
+    mocks.upload.mockResolvedValue({
+      data: null,
+      error: { statusCode: "403", message: "new row violates row-level security policy" },
+    });
+    const file = new File(["syllabus"], "biology.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: vi.fn().mockResolvedValue(new TextEncoder().encode("syllabus").buffer),
+    });
+
+    await expect(uploadSyllabusSource({
+      classUuid: "11111111-1111-4111-8111-111111111111",
+      requestId: "22222222-2222-4222-8222-222222222222",
+      file,
+    })).rejects.toThrow(/unfinished syllabus uploads.*pending save.*cleanup/i);
   });
 
   it("reads the request ledger as the authoritative ambiguous-commit result", async () => {
