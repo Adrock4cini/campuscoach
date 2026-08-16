@@ -1523,6 +1523,63 @@ export type Database = {
           },
         ]
       }
+      syllabus_cleanup_configuration: {
+        Row: {
+          created_at: string
+          invoke_secret_digest: string
+          invoke_secret_id: string
+          project_url_secret_id: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          invoke_secret_digest: string
+          invoke_secret_id: string
+          project_url_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          invoke_secret_digest?: string
+          invoke_secret_id?: string
+          project_url_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      syllabus_source_cleanup_claims: {
+        Row: {
+          attempts: number
+          claim_token: string
+          claimed_at: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token: string
+          claimed_at?: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string
+          claimed_at?: string
+          eligible_before?: string
+          lease_expires_at?: string
+          object_created_at?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       topic_scores: {
         Row: {
           average_confidence: number
@@ -1735,6 +1792,16 @@ export type Database = {
         }
         Returns: Json
       }
+      can_upload_uncommitted_syllabus_source: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      claim_abandoned_syllabus_sources: {
+        Args: { p_before?: string; p_claim_token: string; p_limit?: number }
+        Returns: {
+          storage_path: string
+        }[]
+      }
       commit_class_syllabus: {
         Args: {
           p_class_id: string
@@ -1750,6 +1817,12 @@ export type Database = {
         }
         Returns: Json
       }
+      confirm_syllabus_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: {
+          storage_path: string
+        }[]
+      }
       consume_ai_request_quota: {
         Args: {
           p_function_name: string
@@ -1759,6 +1832,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_syllabus_cleanup_invocation_digest: { Args: never; Returns: string }
       owns_active_syllabus_storage_path: {
         Args: { p_path: string }
         Returns: boolean
@@ -1768,6 +1842,10 @@ export type Database = {
       recompute_topic_scores: {
         Args: { _class_id?: string }
         Returns: undefined
+      }
+      release_syllabus_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: number
       }
     }
     Enums: {
