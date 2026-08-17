@@ -1,7 +1,6 @@
 /**
- * Pure mastery-update math. Applied server-side by the
- * `record-study-result` edge function AND used by the vitest to
- * guarantee the feedback loop stays honest.
+ * Reference mastery-update math. The database RPC mirrors these rules, and
+ * these pure functions keep the expected behavior easy to test in Vitest.
  *
  * Concepts are the permanent memory (see mem://constraints/concept-architecture).
  * Every study attempt on a concept nudges strength/streak/next_review_at.
@@ -13,6 +12,7 @@
  */
 
 export type ConfidenceLevel = "low" | "medium" | "high";
+export type MasteryEvidenceType = "objective" | "self_report";
 
 export interface MasteryRow {
   attempts: number;
@@ -28,6 +28,8 @@ export interface MasteryUpdateInput {
   correct: boolean;
   /** Student self-rating before seeing feedback. Affects drop/gain size. */
   confidence?: ConfidenceLevel | null;
+  /** Flashcard self-report is useful evidence, but cannot prove secure recall. */
+  evidenceType?: MasteryEvidenceType;
   now?: Date;
 }
 
@@ -39,6 +41,7 @@ export function applyMasteryUpdate({
   prev,
   correct,
   confidence = null,
+  evidenceType = "objective",
   now = new Date(),
 }: MasteryUpdateInput): MasteryRow {
   const p: MasteryRow = prev ?? {
@@ -53,25 +56,38 @@ export function applyMasteryUpdate({
   const attempts = p.attempts + 1;
   const correctCount = p.correct + (correct ? 1 : 0);
 
-  // Confidently wrong is the most important signal for exam readiness.
+  // Confidently wrong is the most important signal for exam readiness. A
+  // positive flashcard self-report records practice but does not manufacture
+  // objective mastery or extend an already-earlier review.
   let delta = correct ? STRENGTH_UP : -STRENGTH_DOWN;
-  if (confidence === "high" && !correct) delta = -0.22;
+  if (evidenceType === "self_report" && correct) delta = 0;
+  else if (confidence === "high" && !correct) delta = -0.22;
   else if (confidence === "high" && correct) delta = 0.18;
   else if (confidence === "low" && correct) delta = 0.1;
   else if (confidence === "low" && !correct) delta = -0.08;
 
   const strength = clamp(p.strength + delta, 0, 1);
-  const streak = correct ? p.streak + 1 : 0;
+  const streak = evidenceType === "self_report" && correct
+    ? p.streak
+    : correct ? p.streak + 1 : 0;
 
-  let hours: number;
-  if (!correct) {
+  let next: Date;
+  if (evidenceType === "self_report" && correct) {
+    const candidate = new Date(now.getTime() + 12 * 3600 * 1000);
+    const previousReview = p.next_review_at ? new Date(p.next_review_at) : null;
+    next = previousReview && previousReview < candidate ? previousReview : candidate;
+  } else if (!correct) {
     // Confident misses come back sooner than uncertain ones.
-    hours = confidence === "high" ? 2 : 4;
+    const hours = confidence === "high" ? 2 : 4;
+    next = new Date(now.getTime() + hours * 3600 * 1000);
   } else {
     const base = 24 * Math.pow(2, Math.max(0, streak - 1));
-    hours = Math.min(MAX_INTERVAL_HOURS, confidence === "low" ? Math.max(8, base * 0.6) : base);
+    const hours = Math.min(
+      MAX_INTERVAL_HOURS,
+      confidence === "low" ? Math.max(8, base * 0.6) : base,
+    );
+    next = new Date(now.getTime() + hours * 3600 * 1000);
   }
-  const next = new Date(now.getTime() + hours * 3600 * 1000);
 
   return {
     attempts,
