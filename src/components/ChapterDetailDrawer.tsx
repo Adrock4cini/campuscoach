@@ -191,7 +191,7 @@ export function ChapterDetailDrawer({ open, onOpenChange, chapter, classId, clas
               {chapter.aiBreakdown.professorCares && (
                 <Card className="shadow-soft bg-warning/5 border-warning/20">
                   <CardContent className="p-3">
-                    <p className="text-xs font-semibold text-warning mb-1 flex items-center gap-1"><Target className="h-3 w-3" /> What the Professor Cares About</p>
+                    <p className="text-xs font-semibold text-warning mb-1 flex items-center gap-1"><Target className="h-3 w-3" /> What the Teacher Cares About</p>
                     <p className="text-sm text-foreground/80">{chapter.aiBreakdown.professorCares}</p>
                   </CardContent>
                 </Card>

@@ -25,7 +25,7 @@ interface ExtractedConcept {
   professor_emphasis?: boolean;
 }
 
-const SYSTEM = `You extract the concrete concepts a college student needs to remember from a class capture (lecture note, board photo, textbook page, quick note, or professor hint).
+const SYSTEM = `You extract the concrete concepts a student needs to remember from captured class materials (lesson note, board photo, textbook page, quick note, or teacher/instructor emphasis note).
 
 Return ONLY JSON matching:
 {
@@ -35,14 +35,14 @@ Return ONLY JSON matching:
       "name": string,              // 2-6 word concept title, Title Case
       "definition": string|null,   // 1-2 sentence definition in student-friendly language
       "examples": string[],        // 0-3 short worked examples or applications
-      "professor_emphasis": bool   // true if the instructor flagged this as important / on the exam
+      "professor_emphasis": bool   // true if the teacher or instructor flagged this as important / on the test
     }
   ]
 }
 Rules:
 - Return 0-8 concepts. Never invent content not present in the source.
 - If the source does not support a concrete academic concept, return an empty concepts array.
-- If input is a professor hint, mark every concept professor_emphasis=true.
+- If the source kind is "professor-hint", treat it as a teacher/instructor emphasis note and mark every concept professor_emphasis=true.
 - If the source is thin, return fewer concepts rather than padding.
 - A single equation or factual statement should normally become exactly one concept that preserves the source wording.
 - Do not replace a concrete fact with an umbrella label such as "Addition Fact" unless that label appears in the source.

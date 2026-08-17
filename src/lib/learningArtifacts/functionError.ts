@@ -10,7 +10,7 @@ interface ErrorBody {
 }
 
 const FRIENDLY_ERRORS: Record<string, string> = {
-  "No concepts found for this request": "No study concepts were found yet. Add a quick note or professor hint, then try again.",
+  "No concepts found for this request": "No study concepts were found yet. Add a quick note or teacher hint, then try again.",
   "LOVABLE_API_KEY missing": "The study generator is not configured on the server yet.",
   Unauthorized: "Your session expired. Sign in again, then retry.",
 };
@@ -35,7 +35,7 @@ export async function describeFunctionError(error: FunctionInvokeError): Promise
   if (serverMessage && FRIENDLY_ERRORS[serverMessage]) return FRIENDLY_ERRORS[serverMessage];
 
   if (response?.status === 404) {
-    return "No study concepts were found yet. Add a quick note or professor hint, then try again.";
+    return "No study concepts were found yet. Add a quick note or teacher hint, then try again.";
   }
   if (response?.status === 401) {
     return "Your session expired. Sign in again, then retry.";

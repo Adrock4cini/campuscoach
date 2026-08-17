@@ -36,7 +36,7 @@ export default function MyClasses() {
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl font-display font-semibold text-foreground">
-                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your semester"}
+                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your term"}
               </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
                 {choosingSyllabusClass
@@ -62,18 +62,20 @@ export default function MyClasses() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">My Classes</h1>
-        <Link
-          to="/path-to-graduation"
-          aria-label="Degree path preview"
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-        >
-          <Map className="h-4 w-4 text-primary" />
-          <span>Degree path</span>
-          <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
-            Preview
-          </Badge>
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
+        {!realMode && (
+          <Link
+            to="/path-to-graduation"
+            aria-label="Degree path coming soon"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+          >
+            <Map className="h-4 w-4 text-primary" />
+            <span>Degree path</span>
+            <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
+              Coming soon
+            </Badge>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        )}
       </div>
 
       {choosingSyllabusClass && (

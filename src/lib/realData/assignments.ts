@@ -27,6 +27,8 @@ export interface RealAssignment {
 }
 
 export interface NewAssignmentInput {
+  /** Optional client-generated UUID used to reconcile ambiguous mobile retries. */
+  id?: string;
   title: string;
   clientClassId: string;
   classUuid?: string | null;
@@ -50,19 +52,22 @@ export async function listAssignments(userId: string, clientClassId?: string): P
 }
 
 export async function createAssignment(userId: string, input: NewAssignmentInput): Promise<RealAssignment | null> {
-  const { data, error } = await supabase
-    .from("assignments")
-    .insert({
-      user_id: userId,
-      client_class_id: input.clientClassId,
-      class_id: input.classUuid ?? null,
-      title: input.title,
-      due_date: input.dueDate ?? null,
-      estimated_minutes: input.estimatedMinutes ?? 30,
-      priority: input.priority ?? "medium",
-      status: input.status ?? "not_started",
-      notes: input.notes ?? null,
-    })
+  const payload = {
+    ...(input.id ? { id: input.id } : {}),
+    user_id: userId,
+    client_class_id: input.clientClassId,
+    class_id: input.classUuid ?? null,
+    title: input.title,
+    due_date: input.dueDate ?? null,
+    estimated_minutes: input.estimatedMinutes ?? 30,
+    priority: input.priority ?? "medium",
+    status: input.status ?? "not_started",
+    notes: input.notes ?? null,
+  };
+  const query = input.id
+    ? supabase.from("assignments").upsert(payload, { onConflict: "id" })
+    : supabase.from("assignments").insert(payload);
+  const { data, error } = await query
     .select("*")
     .maybeSingle();
   if (error) {

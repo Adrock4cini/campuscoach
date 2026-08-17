@@ -14,7 +14,7 @@ const steps = [
   {
     icon: NotebookPen,
     title: "Save what matters",
-    body: "Add a quick note or professor hint and choose the class it belongs to. Your original words stay connected to what Campus Brain creates.",
+    body: "Add a quick note or teacher hint and choose the class it belongs to. Your original words stay connected to what Campus Brain creates.",
     tint: "from-primary/30 to-accent/20",
   },
   {

@@ -1,7 +1,6 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CaptureButton } from "@/components/CaptureButton";
-import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { CaptureProvider } from "@/contexts/CaptureContext";
 
@@ -75,7 +74,6 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
         </div>
         <CaptureButton />
         <MobileBottomNav />
-        <OnboardingDialog />
         <CommandPalette open={open} onOpenChange={setOpen} />
         <CanvasAutoSync />
       </div>
@@ -84,8 +82,11 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const { mode, user } = useAuth();
+  const ownerKey = `${mode}:${user?.id ?? "anonymous"}`;
+
   return (
-    <FocusModeProvider>
+    <FocusModeProvider key={ownerKey}>
       <CaptureProvider>
         <LayoutShell>{children}</LayoutShell>
       </CaptureProvider>

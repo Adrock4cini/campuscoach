@@ -24,7 +24,7 @@ export function RealClassCard({ c, index = 0 }: { c: ClassInfo; index?: number }
       className="border-b border-border/40 last:border-b-0"
     >
       <Link
-        to={`/classes/${c.id}`}
+        to={`/classes/${encodeURIComponent(c.id)}`}
         aria-label={`Open ${c.name}, ${c.readiness}% ready`}
         className="group flex min-h-[82px] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 md:px-5"
       >

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Flame, TrendingUp, TrendingDown, Minus, Search, Bell, Sparkles } from "lucide-react";
+import { Flame, TrendingUp, TrendingDown, Minus, Search, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { studentName } from "@/data/demo";
 import { useMomentum } from "@/lib/intelligence";
@@ -24,7 +24,7 @@ function todayLabel() {
 
 /**
  * Row 1 — compact top strip. ~76px.
- *   Greeting · Momentum · Weekly trend · Search · Notifications
+ *   Greeting · Momentum · Weekly trend · Search
  * Kept deliberately small so the "Do This Now" hero owns the fold.
  */
 export function TopStrip() {
@@ -96,13 +96,6 @@ export function TopStrip() {
         >
           <Search className="h-4 w-4" />
           <span className="hidden md:inline">Search</span>
-        </button>
-        <button
-          aria-label="Notifications"
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/50 bg-background/40 text-muted-foreground backdrop-blur transition-colors hover:border-border/80 hover:text-foreground"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-3 top-2.5 h-1.5 w-1.5 rounded-full bg-accent" />
         </button>
       </div>
     </motion.header>

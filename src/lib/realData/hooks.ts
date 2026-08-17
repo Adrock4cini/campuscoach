@@ -11,14 +11,20 @@ export function useRealAssignments(clientClassId?: string, enabled = true) {
   const { user } = useAuth();
   const userId = user?.id;
   const [items, setItems] = useState<RealAssignment[]>([]);
+  const scopeKey = enabled && userId ? `${userId}:${clientClassId ?? "*"}` : "none";
+  const [itemsScope, setItemsScope] = useState(scopeKey);
+  const itemsScopeRef = useRef(scopeKey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestVersion = useRef(0);
 
   const reload = useCallback(async () => {
     const request = ++requestVersion.current;
-    if (!enabled) { setItems([]); setLoading(false); setError(null); return; }
-    if (!userId) { setItems([]); setLoading(false); setError(null); return; }
+    if (!enabled) { itemsScopeRef.current = "none"; setItems([]); setItemsScope("none"); setLoading(false); setError(null); return; }
+    if (!userId) { itemsScopeRef.current = "none"; setItems([]); setItemsScope("none"); setLoading(false); setError(null); return; }
+    setItems((current) => itemsScopeRef.current === scopeKey ? current : []);
+    itemsScopeRef.current = scopeKey;
+    setItemsScope(scopeKey);
     setLoading(true);
     setError(null);
     try {
@@ -31,7 +37,7 @@ export function useRealAssignments(clientClassId?: string, enabled = true) {
     } finally {
       if (request === requestVersion.current) setLoading(false);
     }
-  }, [userId, clientClassId, enabled]);
+  }, [userId, clientClassId, enabled, scopeKey]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -40,21 +46,32 @@ export function useRealAssignments(clientClassId?: string, enabled = true) {
     return () => window.removeEventListener("real-assignments:changed", handler);
   }, [reload]);
 
-  return { items, loading, error, reload };
+  return {
+    items: itemsScope === scopeKey ? items : [],
+    loading: itemsScope === scopeKey ? loading : enabled && !!userId,
+    error: itemsScope === scopeKey ? error : null,
+    reload,
+  };
 }
 
 export function useRealExams(clientClassId?: string, enabled = true) {
   const { user } = useAuth();
   const userId = user?.id;
   const [items, setItems] = useState<RealExam[]>([]);
+  const scopeKey = enabled && userId ? `${userId}:${clientClassId ?? "*"}` : "none";
+  const [itemsScope, setItemsScope] = useState(scopeKey);
+  const itemsScopeRef = useRef(scopeKey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestVersion = useRef(0);
 
   const reload = useCallback(async () => {
     const request = ++requestVersion.current;
-    if (!enabled) { setItems([]); setLoading(false); setError(null); return; }
-    if (!userId) { setItems([]); setLoading(false); setError(null); return; }
+    if (!enabled) { itemsScopeRef.current = "none"; setItems([]); setItemsScope("none"); setLoading(false); setError(null); return; }
+    if (!userId) { itemsScopeRef.current = "none"; setItems([]); setItemsScope("none"); setLoading(false); setError(null); return; }
+    setItems((current) => itemsScopeRef.current === scopeKey ? current : []);
+    itemsScopeRef.current = scopeKey;
+    setItemsScope(scopeKey);
     setLoading(true);
     setError(null);
     try {
@@ -67,7 +84,7 @@ export function useRealExams(clientClassId?: string, enabled = true) {
     } finally {
       if (request === requestVersion.current) setLoading(false);
     }
-  }, [userId, clientClassId, enabled]);
+  }, [userId, clientClassId, enabled, scopeKey]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -76,7 +93,12 @@ export function useRealExams(clientClassId?: string, enabled = true) {
     return () => window.removeEventListener("real-exams:changed", handler);
   }, [reload]);
 
-  return { items, loading, error, reload };
+  return {
+    items: itemsScope === scopeKey ? items : [],
+    loading: itemsScope === scopeKey ? loading : enabled && !!userId,
+    error: itemsScope === scopeKey ? error : null,
+    reload,
+  };
 }
 
 export function daysUntil(dateStr: string | null): number | null {

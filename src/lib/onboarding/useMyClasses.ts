@@ -46,12 +46,14 @@ interface MyClassesState {
   isReal: boolean;
   loading: boolean;
   error: string | null;
+  ownerKey: string;
 }
 
 export function useMyClasses(): MyClassesState & { reload: () => Promise<void> } {
   const { user, mode } = useAuth();
   const userId = user?.id;
   const realMode = mode === "real";
+  const expectedOwnerKey = mode === "real" ? `real:${userId ?? "none"}` : mode;
   const requestVersion = useRef(0);
   const [state, setState] = useState<MyClassesState>(() => ({
     // Signed-in real users NEVER see demo classes — start empty while loading.
@@ -59,24 +61,32 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
     isReal: realMode,
     loading: mode !== "demo",
     error: null,
+    ownerKey: expectedOwnerKey,
   }));
 
   const load = useCallback(async () => {
     const request = ++requestVersion.current;
     if (mode === "loading") {
-      setState({ classes: [], isReal: false, loading: true, error: null });
+      setState({ classes: [], isReal: false, loading: true, error: null, ownerKey: "loading" });
       return;
     }
     if (mode === "demo") {
-      setState({ classes: demoClasses, isReal: false, loading: false, error: null });
+      setState({ classes: demoClasses, isReal: false, loading: false, error: null, ownerKey: "demo" });
       return;
     }
     if (!userId) {
-      setState({ classes: [], isReal: false, loading: false, error: null });
+      setState({ classes: [], isReal: false, loading: false, error: null, ownerKey: "real:none" });
       return;
     }
 
-    setState((current) => ({ ...current, isReal: true, loading: true, error: null }));
+    const ownerKey = `real:${userId}`;
+    setState((current) => ({
+      classes: current.ownerKey === ownerKey ? current.classes : [],
+      isReal: true,
+      loading: true,
+      error: null,
+      ownerKey,
+    }));
     try {
       const [classResult, readinessResult] = await Promise.all([
         supabase
@@ -98,7 +108,7 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
       const data = classResult.data;
       if (!data || data.length === 0) {
         // Real signed-in user with no classes yet — return empty (real mode).
-        setState({ classes: [], isReal: true, loading: false, error: null });
+        setState({ classes: [], isReal: true, loading: false, error: null, ownerKey });
         return;
       }
       const readinessRows = (readinessResult.data ?? []) as ReadinessSnapshot[];
@@ -167,7 +177,7 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
             : [],
         };
       });
-      setState({ classes: mapped, isReal: true, loading: false, error: null });
+      setState({ classes: mapped, isReal: true, loading: false, error: null, ownerKey });
     } catch (e) {
       if (request !== requestVersion.current) return;
       console.warn("[useMyClasses] load failed; preserving an explicit error state", e);
@@ -176,6 +186,7 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
         isReal: true,
         loading: false,
         error: "Couldn’t load your classes. Your saved classes were not deleted.",
+        ownerKey,
       }));
     }
   }, [mode, userId]);
@@ -190,7 +201,20 @@ export function useMyClasses(): MyClassesState & { reload: () => Promise<void> }
     return () => window.removeEventListener("coach:refresh", handler);
   }, [load]);
 
-  return { ...state, reload: load };
+  // Effects run after render. Gate the returned data synchronously so an
+  // account switch can never render the previous student's class names while
+  // the new request is starting.
+  const visibleState = state.ownerKey === expectedOwnerKey
+    ? state
+    : {
+        classes: [],
+        isReal: realMode,
+        loading: mode === "loading" || realMode,
+        error: null,
+        ownerKey: expectedOwnerKey,
+      };
+
+  return { ...visibleState, reload: load };
 }
 
 const palette = ["bg-primary", "bg-success", "bg-accent", "bg-warning", "bg-danger"];

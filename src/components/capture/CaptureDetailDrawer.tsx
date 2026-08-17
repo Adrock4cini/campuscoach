@@ -115,7 +115,7 @@ export function CaptureDetailDrawer({
             </div>
             <p className="text-sm text-foreground">
               {item.isPlaceholder
-                ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or professor hint instead."
+                ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or teacher hint instead."
                 : item.processingStatus === "failed"
                   ? "Your source is safe, but concept processing needs another try before study tools can use it."
                   : item.processingStatus !== "ready"
@@ -257,7 +257,7 @@ function buildInsight(item: MemoryItem): string {
   switch (item.kind) {
     case "record-lecture":
       return c
-        ? `Your professor spent the most time on "${c}" — likely fair game on the next exam.`
+        ? `Your teacher or instructor spent the most time on "${c}" — likely fair game on the next test.`
         : "Lecture captured. Campus Brain will surface the sticky concepts once you review.";
     case "scan-board":
       return c
@@ -269,7 +269,7 @@ function buildInsight(item: MemoryItem): string {
         ? `Anchor "${c}" with one practice problem before reviewing the rest of the chapter.`
         : "Chapter captured. Skim the section headings, then hit one recall pass.";
     case "professor-hint":
-      return "Professor hints predict exam questions better than any other signal — starred and boosted.";
+      return "Teacher hints can be strong clues for test questions — starred and boosted.";
     case "quick-note":
       return "Quick notes fade fastest. A 2-minute flashcard pass will lock this in.";
     case "ask-brain":

@@ -210,6 +210,9 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           )}
           {done && <DialogDescription>Your answers were saved to concept memory.</DialogDescription>}
         </DialogHeader>
+        <p role="status" aria-live="polite" className="sr-only">
+          {submitting ? "Saving results" : done ? "Study results saved" : ""}
+        </p>
 
         {!done ? (
           <div className="space-y-4">
@@ -293,9 +296,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                             type="button"
                             disabled={revealed}
                             onClick={() => setPicked(i)}
-                            className={`w-full text-left px-3 py-2 rounded-lg border transition-colors text-sm ${cls}`}
+                            className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${cls}`}
                           >
-                            {choice}
+                            <span>{choice}</span>
+                            {revealed && isAnswer && (
+                              <span className="shrink-0 text-xs font-semibold text-primary">
+                                {isPicked ? "Correct · your answer" : "Correct answer"}
+                              </span>
+                            )}
+                            {revealed && isPicked && !isAnswer && (
+                              <span className="shrink-0 text-xs font-semibold text-destructive">Your answer</span>
+                            )}
                           </button>
                         );
                       })}

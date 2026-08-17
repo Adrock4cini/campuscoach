@@ -22,7 +22,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -53,7 +52,6 @@ import { CaptureDetailDrawer, type MemoryItem } from "./CaptureDetailDrawer";
 import { StudyFromCaptureDrawer } from "./StudyFromCaptureDrawer";
 import type { StudyMode } from "@/lib/study/studyFromCapture";
 import { ClassBrainAggregateStrip } from "@/components/intelligence/ClassBrainAggregateStrip";
-import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -157,7 +155,10 @@ function fromPersisted(rows: PersistedCapture[]): MemoryItem[] {
 function dedupe(items: MemoryItem[]): MemoryItem[] {
   const seen = new Set<string>();
   return items.filter((i) => {
-    const key = `${i.kind}|${i.topic}|${i.date}`;
+    // Two separate captures can legitimately share a kind, topic, and date
+    // (for example, the second half of a six-photo flash-card set). Only the
+    // same persisted record should be collapsed.
+    const key = `${i.source}:${i.id}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -165,10 +166,12 @@ function dedupe(items: MemoryItem[]): MemoryItem[] {
 }
 
 export function ClassMemory({ classId, className }: Props) {
-  const { mode } = useAuth();
+  const { mode, user } = useAuth();
+  const scopeKey = `${mode}:${user?.id ?? "anonymous"}:${classId}`;
   // Never hydrate browser-local demo captures while auth is resolving or for
   // a signed-in student. Supabase is the only source of truth in real mode.
   const [items, setItems] = useState<MemoryItem[]>([]);
+  const [loadedScope, setLoadedScope] = useState(scopeKey);
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [studyItem, setStudyItem] = useState<MemoryItem | null>(null);
@@ -200,6 +203,12 @@ export function ClassMemory({ classId, className }: Props) {
   const refresh = useMemo(
     () => async () => {
       const request = ++requestVersion.current;
+      setLoadedScope(scopeKey);
+      setItems([]);
+      setSelected(null);
+      setDrawerOpen(false);
+      setStudyItem(null);
+      setStudyOpen(false);
       setLoadError(false);
       if (mode === "loading") {
         setItems([]);
@@ -212,7 +221,6 @@ export function ClassMemory({ classId, className }: Props) {
         return;
       }
 
-      setItems([]);
       setLoading(true);
       try {
         const remote = fromPersisted(await getCapturesForClass(classId, 25));
@@ -225,7 +233,7 @@ export function ClassMemory({ classId, className }: Props) {
         if (request === requestVersion.current) setLoading(false);
       }
     },
-    [classId, mode],
+    [classId, mode, scopeKey],
   );
 
   useEffect(() => {
@@ -283,6 +291,11 @@ export function ClassMemory({ classId, className }: Props) {
     setDrawerOpen(true);
   };
 
+  const scopeIsCurrent = loadedScope === scopeKey;
+  const visibleItems = scopeIsCurrent ? items : [];
+  const visibleLoading = scopeIsCurrent ? loading : true;
+  const visibleLoadError = scopeIsCurrent ? loadError : false;
+
   return (
     <Card className="shadow-card">
       <CardContent className="p-5">
@@ -296,24 +309,15 @@ export function ClassMemory({ classId, className }: Props) {
             </h3>
           </div>
           <Badge variant="secondary" className="text-xs">
-            {items.length}
+            {visibleItems.length}
           </Badge>
         </div>
-        <ClassBrainAggregateStrip classId={classId} className="mb-3" />
-        {mode === "demo" && className && (
-          <InviteClassmatesButton
-            classId={classId}
-            className={className}
-            wrapperClassName="mb-3"
-          />
-        )}
-
-
-        {loading ? (
+        <ClassBrainAggregateStrip key={scopeKey} classId={classId} className="mb-3" />
+        {visibleLoading ? (
           <div className="rounded-lg border border-border/40 p-6 text-center text-sm text-muted-foreground">
             Loading Class Memory…
           </div>
-        ) : loadError ? (
+        ) : visibleLoadError ? (
           <div className="rounded-lg border border-danger/30 bg-danger/5 p-5 text-center">
             <p className="text-sm font-medium text-foreground">Couldn’t load Class Memory</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -323,14 +327,14 @@ export function ClassMemory({ classId, className }: Props) {
               Try again
             </Button>
           </div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
             Nothing captured yet. Tap the <span className="font-medium">+</span>{" "}
-            button to add a quick note or professor hint. It will appear here.
+            button to add a quick note or teacher hint. It will appear here.
           </div>
         ) : (
           <div className="space-y-2">
-            {items.slice(0, 8).map((item) => (
+            {visibleItems.map((item) => (
               <MemoryRow
                 key={`${item.source}-${item.id}`}
                 item={item}
@@ -347,9 +351,9 @@ export function ClassMemory({ classId, className }: Props) {
       </CardContent>
 
       <CaptureDetailDrawer
-        open={drawerOpen}
+        open={scopeIsCurrent && drawerOpen}
         onOpenChange={setDrawerOpen}
-        item={selected}
+        item={scopeIsCurrent ? selected : null}
         classId={classId}
         className={className}
         onStudy={(mode) => {
@@ -358,7 +362,7 @@ export function ClassMemory({ classId, className }: Props) {
         }}
       />
 
-      {mode === "demo" && (
+      {mode === "demo" && scopeIsCurrent && (
         <StudyFromCaptureDrawer
           open={studyOpen}
           onOpenChange={setStudyOpen}
@@ -366,6 +370,7 @@ export function ClassMemory({ classId, className }: Props) {
           classId={classId}
           className={className}
           initialMode={studyMode}
+          persistence="local-only"
         />
       )}
     </Card>
@@ -395,7 +400,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
         aria-label="Open capture detail"
       >
         <Icon className="h-4 w-4" />
@@ -404,7 +409,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
       <button
         type="button"
         onClick={onOpen}
-        className="flex-1 min-w-0 text-left"
+        className="min-h-11 flex-1 min-w-0 text-left"
       >
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-foreground truncate">
@@ -461,7 +466,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
           <Button
             size="sm"
             variant="ghost"
-            className="text-warning hover:text-warning hover:bg-warning/10"
+            className="min-h-11 text-warning hover:text-warning hover:bg-warning/10"
             onClick={onRetry}
             disabled={retrying}
           >
@@ -472,7 +477,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
           <Button
             size="sm"
             variant="ghost"
-            className="text-primary hover:text-primary hover:bg-primary/10"
+            className="min-h-11 text-primary hover:text-primary hover:bg-primary/10"
             onClick={onStudy}
           >
             Study <ArrowRight className="h-3.5 w-3.5 ml-1" />
@@ -480,7 +485,7 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Button size="icon" variant="ghost" className="h-11 w-11" aria-label={`More options for ${item.topic}`}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -494,25 +499,6 @@ function MemoryRow({ item, onOpen, onStudy, onFlashcards, onQuiz, onRetry, retry
                 <DropdownMenuItem onClick={onQuiz}>Generate quiz</DropdownMenuItem>
               </>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent("class-memory:add-hint", {
-                    detail: { classId: item.topic },
-                  }),
-                )
-              }
-            >
-              Add professor hint
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onOpen}>
-              Edit class / topic
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-              Delete
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

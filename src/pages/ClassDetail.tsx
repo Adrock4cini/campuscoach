@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,6 @@ import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import type { ProfessorHint, Chapter } from "@/data/demo";
 import { getClassPulse, getPredictedTopics, getRecommendedStudyMode, getTopStudentInsights } from "@/data/courseIntelligence";
 import { ClassMemory } from "@/components/capture/ClassMemory";
-import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
@@ -30,6 +29,7 @@ import { formatDateKey } from "@/lib/calendar/dateKey";
 export default function ClassDetail() {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, isDemoMode } = useAuth();
   const { classes: myClasses, loading: classesLoading, error: classesError, reload: reloadClasses } = useMyClasses();
   const { open: openCapture } = useCapture();
@@ -43,6 +43,14 @@ export default function ClassDetail() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [classHints, setClassHints] = useState<ProfessorHint[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    if (!realClass || searchParams.get("capture") !== "1") return;
+    openCapture(undefined, realClass.id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("capture");
+    setSearchParams(next, { replace: true });
+  }, [openCapture, realClass, searchParams, setSearchParams]);
 
   if (realMode && classesLoading && !c) {
     return <p className="py-20 text-center text-sm text-muted-foreground">Loading your class…</p>;
@@ -134,7 +142,7 @@ export default function ClassDetail() {
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   {c.hasSyllabus
                     ? "View the saved source or replace it. Reviewed assignments, quizzes, exam dates, and test topics stay connected to this class, calendar, dashboard, and help Study Lab focus your captured material."
-                    : "Add this class’s PDF or one clear photo. We’ll find assignments, quizzes, exam dates, and topics to study—then let you review everything before it reaches the class, calendar, dashboard, and exam study targets."}
+                    : "Add this class’s PDF or one clear photo. For several paper pages, scan them into one PDF first. We’ll find assignments, quizzes, exam dates, and topics to study—then let you review everything before it reaches the class, calendar, dashboard, and exam study targets."}
                 </p>
                 {!c.hasSyllabus && <p className="mt-1 text-xs text-muted-foreground">If this class does not use a syllabus, you can skip this.</p>}
               </div>
@@ -154,7 +162,7 @@ export default function ClassDetail() {
               <p className="text-xs font-medium text-primary mb-1">🎯 Start capturing</p>
               <h3 className="font-display font-semibold text-foreground">Teach Campus Brain about this class</h3>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Add a quick note or save something your professor emphasized. Campus Brain extracts concepts first, then uses them to build study sets.
+                Add a quick note or save something your teacher or instructor emphasized. Campus Brain extracts concepts first, then uses them to build study sets.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
@@ -162,7 +170,7 @@ export default function ClassDetail() {
                 <Plus className="h-4 w-4 mr-1" /> Quick Capture
               </Button>
               <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCapture("professor-hint", c.id)}>
-                <MessageSquare className="h-4 w-4 mr-1" /> Professor Hint
+                <MessageSquare className="h-4 w-4 mr-1" /> Teacher Hint
               </Button>
               <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
                 <FlaskConical className="h-4 w-4 mr-1" /> Study Lab
@@ -189,7 +197,7 @@ export default function ClassDetail() {
 
   const editFields: EditField[] = [
     { key: "name", label: "Class Name", type: "text" },
-    { key: "professor", label: "Professor", type: "text" },
+    { key: "professor", label: "Teacher or instructor", type: "text" },
     { key: "location", label: "Location", type: "text" },
     { key: "time", label: "Time", type: "text" },
     { key: "currentTopic", label: "Current Topic", type: "text" },
@@ -308,9 +316,6 @@ export default function ClassDetail() {
           />
         </CardContent>
       </Card>
-
-      {/* Invite classmates */}
-      <InviteClassmatesButton classId={c.id} className={c.name} />
 
       {/* Class Memory */}
       <ClassMemory classId={c.id} className={c.name} />

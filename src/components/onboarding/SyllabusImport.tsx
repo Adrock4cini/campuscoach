@@ -85,7 +85,7 @@ export function SyllabusImport({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Import from a syllabus or schedule</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Upload a PDF or photo. Campus Brain fills in classes, professors, and dates — you just confirm.
+            Upload a PDF or photo. Campus Brain fills in classes, teachers or instructors, and dates — you just confirm.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <input

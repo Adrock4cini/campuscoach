@@ -34,11 +34,11 @@ export interface OnboardingClass {
   schedule?: OnboardingScheduleItem[];
 }
 
-export type LearnerType = "high_school" | "college" | "certification" | "other";
+export type LearnerType = "middle_school" | "high_school" | "college" | "certification" | "other";
 
 export interface OnboardingData {
   name: string;
-  learnerType: LearnerType;
+  learnerType: LearnerType | "";
   school: string;
   term: string;                // "Spring 2026"
   classes: OnboardingClass[];
@@ -49,7 +49,7 @@ export interface OnboardingData {
 
 export const emptyOnboarding: OnboardingData = {
   name: "",
-  learnerType: "college",
+  learnerType: "",
   school: "",
   term: "",
   classes: [{ name: "", professor: "", days: [], time: "" }],

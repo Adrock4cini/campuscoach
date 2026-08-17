@@ -15,12 +15,17 @@ export default function ForgotPassword() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setBusy(false);
-    if (error) return toast.error("Couldn't send reset email", { description: error.message });
-    setSent(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) return toast.error("Couldn't send reset email", { description: error.message });
+      setSent(true);
+    } catch {
+      toast.error("Couldn't send reset email", { description: "Check your connection and try again." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

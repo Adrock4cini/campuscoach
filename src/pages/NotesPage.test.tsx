@@ -86,7 +86,7 @@ describe("real notes and recordings", () => {
     fireEvent.click(screen.getByRole("button", { name: /Quick note/i }));
     expect(mocks.openCapture).toHaveBeenCalledWith("quick-note");
 
-    fireEvent.click(screen.getByRole("button", { name: /Professor hint/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Teacher hint/i }));
     expect(mocks.openCapture).toHaveBeenCalledWith("professor-hint");
   });
 

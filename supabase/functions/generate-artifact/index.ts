@@ -84,7 +84,7 @@ const PROMPTS: Partial<Record<ArtifactKind, {
   describe: (n: number) => string;
 }>> = {
   flashcards: {
-    system: `You author study flashcards for a college student, grounded ONLY in the concepts provided.
+    system: `You author study flashcards for a student, grounded ONLY in the concepts provided.
 Return ONLY JSON matching: { "cards": [ { "front": string, "back": string, "conceptId": string, "conceptName": string } ] }
 Rules:
 - One card per concept unless a concept clearly needs two.
@@ -93,13 +93,13 @@ Rules:
 - "front" is a short question or cue. "back" is 1-2 sentences, plain language.
 - Start with the clearest direct-retrieval question supported by the source. Application comes only after basic recall.
 - Use the student's wording when it is already clear. Do not invent umbrella labels or terminology absent from the source.
-- Avoid awkward phrases such as "as defined in our course materials" or capitalized category names the student never used.
+- Avoid awkward phrases such as "as defined in our class materials" or capitalized category names the student never used.
 - Never invent facts not present in the concept's definition/examples.
 - No prose outside JSON.`,
     describe: (n) => `Generate up to ${n} flashcards covering these concepts.`,
   },
   multiple_choice: {
-    system: `You author multiple-choice questions for a college student, grounded ONLY in the concepts provided.
+    system: `You author multiple-choice questions for a student, grounded ONLY in the concepts provided.
 Return ONLY JSON matching:
 { "questions": [ {
   "prompt": string,
@@ -115,7 +115,7 @@ Rules:
 - conceptName MUST exactly match the supplied concept name.
 - Ask the shortest clear question that directly tests the supplied source or definition before attempting transfer/application.
 - Use the student's wording when it is already clear. Never invent umbrella labels or terminology absent from the source.
-- Avoid awkward phrases such as "as defined in our course materials" and unnecessary capitalization.
+- Avoid awkward phrases such as "as defined in our class materials" and unnecessary capitalization.
 - Distractors must be plausible and grounded in adjacent provided ideas or simple errors — never invent unrelated facts.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,
@@ -689,7 +689,7 @@ async function callGateway(
 Name: ${concept.name}
 Definition: ${concept.definition ?? "(none)"}
 Examples: ${(concept.examples ?? []).join(" | ") || "(none)"}
-Professor emphasis: ${concept.professor_emphasis ? "yes" : "no"}
+Teacher/instructor emphasis: ${concept.professor_emphasis ? "yes" : "no"}
 Source excerpt: ${sourceByConcept.get(concept.id) ?? "(none)"}`
   ).join("\n\n");
   try {

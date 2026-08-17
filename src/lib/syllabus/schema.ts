@@ -189,14 +189,14 @@ export const syllabusReviewDraftSchema = z.object({
       context.addIssue({
         code: "custom",
         path: [value.semesterStartDate ? "semesterEndDate" : "semesterStartDate"],
-        message: "Semester start and end dates are required for recurring class days",
+        message: "Term start and end dates are required for recurring class days",
       });
     }
     if (value.startTime && value.endTime && value.startTime >= value.endTime) {
       context.addIssue({ code: "custom", path: ["endTime"], message: "End time must be after start time" });
     }
     if (value.semesterStartDate && value.semesterEndDate && value.semesterStartDate > value.semesterEndDate) {
-      context.addIssue({ code: "custom", path: ["semesterEndDate"], message: "Semester end must be on or after its start" });
+      context.addIssue({ code: "custom", path: ["semesterEndDate"], message: "Term end must be on or after its start" });
     }
   }),
   assignments: z.array(z.object({
