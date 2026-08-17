@@ -509,7 +509,11 @@ export default function ClassSyllabusPage() {
               <FileText aria-hidden="true" className="h-5 w-5 text-primary" />
               {existing ? "Replace this class’s syllabus" : "Add this class’s syllabus"}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or one clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
+            <p className="mt-2 rounded-xl border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Have several paper pages?</span>{" "}
+              Combine them into one PDF with your phone’s document scanner. On iPhone, open Files, tap More (…), choose Scan Documents, scan every page, tap Done, save the PDF, then choose it here.
+            </p>
             <p className="mt-2 text-sm text-muted-foreground">Checked items will appear in this class, your calendar and dashboard. Exam topics help Study Lab focus the notes and captures you save for this class.</p>
           </div>
 

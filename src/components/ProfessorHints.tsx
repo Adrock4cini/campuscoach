@@ -68,7 +68,7 @@ export function ProfessorHints({ hints, onAdd, onDelete, onTogglePin, compact }:
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
           <MessageSquare className="h-4 w-4 text-primary" />
-          Professor Hints & Notes
+          Teacher Hints & Notes
         </h4>
         {!adding && (
           <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setAdding(true)}>
@@ -99,13 +99,13 @@ export function ProfessorHints({ hints, onAdd, onDelete, onTogglePin, compact }:
       ))}
 
       {hints.length === 0 && !adding && (
-        <p className="text-xs text-muted-foreground italic">No hints yet. Add one to remember what the professor said!</p>
+        <p className="text-xs text-muted-foreground italic">No hints yet. Add one to remember what the teacher or instructor said!</p>
       )}
 
       {adding && (
         <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 space-y-2">
           <Textarea
-            placeholder='e.g., "Professor said this will be on the exam"'
+            placeholder='e.g., "Teacher said this will be on the test"'
             value={newText}
             onChange={e => setNewText(e.target.value)}
             className="min-h-[60px] text-sm bg-background"

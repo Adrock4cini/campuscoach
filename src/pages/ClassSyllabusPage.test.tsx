@@ -134,6 +134,13 @@ describe("ClassSyllabusPage", () => {
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue("11111111-1111-4111-8111-111111111111");
   });
 
+  it("explains how an iPhone family can combine a paper syllabus before upload", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Have several paper pages?")).toBeInTheDocument();
+    expect(screen.getByText(/open Files.*Scan Documents.*scan every page.*save the PDF/i)).toBeInTheDocument();
+  });
+
   it("requires an explicit detected-class choice when a file contains multiple classes", async () => {
     const result = parsed(
       { name: "Biology 101", code: "BIO 101" },

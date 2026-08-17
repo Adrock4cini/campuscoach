@@ -126,4 +126,19 @@ describe("coach.recommend", () => {
 
     expect(recommend(inputs)[0].why).toBe("1 concept needs practice.");
   });
+
+  it("elevates overdue classwork and ignores work already marked complete", () => {
+    const urgent = base();
+    urgent.assignments = [{
+      class_id: "bio220",
+      due_date: "2026-07-08",
+      title: "Lab questions",
+      status: "not_started",
+    }];
+    expect(recommend(urgent)[0]).toMatchObject({ classId: "bio220" });
+    expect(recommend(urgent)[0].why).toMatch(/Lab questions 1 day overdue/i);
+
+    urgent.assignments[0].status = "complete";
+    expect(recommend(urgent)[0].classId).toBe("psych101");
+  });
 });

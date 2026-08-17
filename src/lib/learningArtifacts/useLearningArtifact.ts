@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
 import { describeFunctionError } from "./functionError";
 
@@ -26,31 +27,41 @@ interface UseLearningArtifactState<K extends ArtifactKind> {
   loading: boolean;
   generating: boolean;
   error: string | null;
+  scopeKey: string;
 }
 
 export function useLearningArtifact<K extends ArtifactKind>(
   kind: K,
   scope: LearningArtifactScope,
 ) {
-  const [state, setState] = useState<UseLearningArtifactState<K>>({
-    artifact: null,
-    loading: true,
-    generating: false,
-    error: null,
-  });
-  const requestVersion = useRef(0);
-
+  const { mode, user } = useAuth();
   const scopeKey = JSON.stringify({
+    owner: `${mode}:${user?.id ?? "anonymous"}`,
+    kind,
     captureId: scope.captureId ?? null,
     conceptIds: scope.conceptIds ?? null,
     classId: scope.classId ?? null,
     topic: scope.topic ?? null,
     studyScope: scope.studyScope ?? null,
   });
+  const [state, setState] = useState<UseLearningArtifactState<K>>({
+    artifact: null,
+    loading: true,
+    generating: false,
+    error: null,
+    scopeKey,
+  });
+  const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
     const request = ++requestVersion.current;
-    setState((s) => ({ ...s, loading: true, error: null }));
+    setState((s) => ({
+      artifact: s.scopeKey === scopeKey ? s.artifact : null,
+      loading: true,
+      generating: false,
+      error: null,
+      scopeKey,
+    }));
     try {
       let q = supabase
         .from("learning_artifacts")
@@ -75,7 +86,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       const { data, error } = await q.maybeSingle();
       if (request !== requestVersion.current) return;
       if (error) {
-        setState({ artifact: null, loading: false, generating: false, error: error.message });
+        setState({ artifact: null, loading: false, generating: false, error: error.message, scopeKey });
         return;
       }
       setState({
@@ -83,6 +94,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         loading: false,
         generating: false,
         error: null,
+        scopeKey,
       });
     } catch (error) {
       if (request !== requestVersion.current) return;
@@ -91,6 +103,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         loading: false,
         generating: false,
         error: error instanceof Error ? error.message : "Couldn’t load this study set.",
+        scopeKey,
       });
     }
   }, [kind, scopeKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -103,7 +116,13 @@ export function useLearningArtifact<K extends ArtifactKind>(
   const generate = useCallback(
     async (opts?: { regenerate?: boolean; count?: number }) => {
       const request = ++requestVersion.current;
-      setState((s) => ({ ...s, generating: true, error: null }));
+      setState((s) => ({
+        artifact: s.scopeKey === scopeKey ? s.artifact : null,
+        loading: false,
+        generating: true,
+        error: null,
+        scopeKey,
+      }));
       try {
         const { data, error } = await supabase.functions.invoke("generate-artifact", {
           body: {
@@ -125,7 +144,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
           return null;
         }
         const artifact = ((data as { artifact: unknown } | null)?.artifact ?? null) as LearningArtifact<K> | null;
-        setState({ artifact, loading: false, generating: false, error: null });
+        setState({ artifact, loading: false, generating: false, error: null, scopeKey });
         return artifact;
       } catch (error) {
         if (request !== requestVersion.current) return null;
@@ -140,5 +159,9 @@ export function useLearningArtifact<K extends ArtifactKind>(
     [kind, scopeKey], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  return { ...state, reload: load, generate };
+  const visibleState = state.scopeKey === scopeKey
+    ? state
+    : { artifact: null, loading: true, generating: false, error: null, scopeKey };
+
+  return { ...visibleState, reload: load, generate };
 }

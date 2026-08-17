@@ -67,7 +67,12 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                   days === 0 ? "Today" : `${days}d`;
                 return (
                   <li key={a.id} className="flex items-center gap-2">
-                    <button onClick={() => toggle(a.id, a.status)} aria-label="Toggle">
+                    <button
+                      type="button"
+                      onClick={() => toggle(a.id, a.status)}
+                      aria-label={a.status === "complete" ? `Mark ${a.title} not started` : `Mark ${a.title} complete`}
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                    >
                       <CheckCircle2 className={`h-4 w-4 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
                     </button>
                     <span className={`flex-1 text-sm truncate ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>

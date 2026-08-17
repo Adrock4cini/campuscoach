@@ -3,7 +3,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
 import * as captureProcessor from "@/lib/capture/processor";
-import { CaptureFlow } from "./CaptureFlow";
+import { CaptureDoneSummary, CaptureFlow } from "./CaptureFlow";
 
 const mocks = vi.hoisted(() => ({
   classes: [] as ClassInfo[],
@@ -29,13 +29,25 @@ const mocks = vi.hoisted(() => ({
       id: "exam-math",
       client_class_id: "math",
       title: "Math test",
-      exam_date: "2026-07-30",
+      exam_date: "2099-07-30",
     },
     {
       id: "exam-science",
       client_class_id: "science",
       title: "Science test",
-      exam_date: "2026-08-01",
+      exam_date: "2099-08-01",
+    },
+    {
+      id: "exam-science-past",
+      client_class_id: "science",
+      title: "Old science test",
+      exam_date: "2000-08-01",
+    },
+    {
+      id: "exam-science-tbd",
+      client_class_id: "science",
+      title: "Science test date TBD",
+      exam_date: null,
     },
   ],
 }));
@@ -126,7 +138,35 @@ describe("CaptureFlow class boundaries", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("labels a device-only demo capture without implying an account update", () => {
+    render(
+      <MemoryRouter>
+        <CaptureDoneSummary
+          sample
+          result={{
+            id: "demo-capture",
+            kind: "record-lecture",
+            context: { classId: "psych101", date: "2026-08-13", topic: "Memory models" },
+            createdAt: "2026-08-13T12:00:00.000Z",
+            keyConcepts: ["Working memory"],
+            summary: "Sample lecture summary",
+            flashcardCount: 6,
+          }}
+          className="Intro to Psychology"
+          onClose={vi.fn()}
+          onOpenClass={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Saved in this demo for Intro to Psychology")).toBeInTheDocument();
+    expect(screen.getByText(/stored on this device for the demo only/i)).toBeInTheDocument();
+    expect(screen.getByText(/sample flashcards created for this demo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Campus Brain updated/i)).not.toBeInTheDocument();
   });
 
   it("does not silently choose the first class after global capture loads", () => {
@@ -165,7 +205,7 @@ describe("CaptureFlow class boundaries", () => {
     );
 
     expect(screen.getByRole("button", { name: /Quick Note/i })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Professor Hint/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Teacher Hint/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Scan Assignment/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Scan Notes or Book/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Scan Syllabus/i })).toBeEnabled();
@@ -195,8 +235,10 @@ describe("CaptureFlow class boundaries", () => {
     const examPicker = screen.getByRole("combobox", { name: "Preparing for" });
     expect(screen.getByRole("option", { name: /Science lab/i })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Math homework/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Science test/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Science test · 2099/i })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Math test/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Old science test/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Science test date TBD/i })).toBeInTheDocument();
 
     fireEvent.change(assignmentPicker, { target: { value: "assignment-science" } });
     fireEvent.change(examPicker, { target: { value: "exam-science" } });
@@ -208,6 +250,39 @@ describe("CaptureFlow class boundaries", () => {
       },
     });
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
+  });
+
+  it("keeps an in-flight private photo upload open across close gestures", () => {
+    vi.useFakeTimers();
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    const onClose = vi.fn();
+    vi.spyOn(captureProcessor, "commitCapture").mockReturnValueOnce(new Promise(() => undefined));
+
+    const view = render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-material"
+          initialClassId="science"
+          onClose={onClose}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("Choose photos — notes or book"), {
+      target: { files: [photo("private-page.jpg")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add to class" }));
+
+    expect(screen.getByRole("heading", { name: "Campus Brain is working…" })).toBeInTheDocument();
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close).toBeDisabled();
+    fireEvent.click(close);
+    fireEvent.click(view.container.querySelector(".capture-backdrop") as HTMLElement);
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Campus Brain is working…" })).toBeInTheDocument();
   });
 
   it("keeps an oversized selection usable and lets the student remove individual photos", () => {
@@ -396,12 +471,24 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=syllabus");
   });
 
-  it("keeps assignment photos and links available when the upload is not confirmed", async () => {
+  it("keeps assignment photos, links, and one attempt id across a dropped-response retry", async () => {
     mocks.classes = [math, science];
     mocks.loading = false;
-    vi.spyOn(captureProcessor, "commitCapture").mockRejectedValueOnce(
-      new Error("We couldn't upload these photos."),
-    );
+    const commit = vi.spyOn(captureProcessor, "commitCapture")
+      .mockRejectedValueOnce(new Error("We couldn't upload these photos."))
+      .mockResolvedValueOnce({
+        id: "capture-1",
+        kind: "scan-assignment",
+        context: {
+          classId: "science",
+          date: "2026-08-17",
+          assignmentId: "assignment-science",
+        },
+        createdAt: "2026-08-17T12:00:00.000Z",
+        keyConcepts: [],
+        summary: "Assignment saved",
+        flashcardCount: 0,
+      });
 
     render(
       <MemoryRouter>
@@ -425,9 +512,16 @@ describe("CaptureFlow class boundaries", () => {
 
     expect(await screen.findByText("Capture wasn't saved", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText("Your photos and choices are still here.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Review capture" }));
-    expect(screen.getByText("1 of 4 photo ready")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue("assignment-science");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Saved to Science", {}, { timeout: 3000 })).toBeInTheDocument();
+
+    expect(commit).toHaveBeenCalledTimes(2);
+    const firstOptions = commit.mock.calls[0][2];
+    const retryOptions = commit.mock.calls[1][2];
+    expect(firstOptions?.attemptId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(retryOptions?.attemptId).toBe(firstOptions?.attemptId);
+    expect(retryOptions?.ownerId).toBe("user-1");
+    expect(retryOptions?.attachments).toHaveLength(1);
   });
 
   it("preserves the class supplied by a class-scoped capture action", () => {

@@ -10,11 +10,12 @@
  * into demo mode (from the login screen). All existing localStorage flows
  * keep working.
  */
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setAuthUserId } from "@/hooks/useClassIntelligence";
 import { completeOAuthPasskeyOffer } from "@/lib/auth/passkeys";
+import { setSupabaseNetworkMode } from "@/lib/demo/supabaseNetworkPolicy";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
@@ -57,46 +58,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<Profile>(null);
+  const profileRequestVersion = useRef(0);
   const [isDemoMode, setDemo] = useState<boolean>(
     typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
   );
 
   const loadProfile = async (userId: string | undefined | null) => {
+    const request = ++profileRequestVersion.current;
     if (!userId) {
       setOnboarded(null);
       setProfile(null);
       return;
     }
     try {
-      const [profileResult, classResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("display_name, onboarded_at, learner_type, term, school_id, work_schedule, schools(name)")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabase
-          .from("classes")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .is("source_archived_at", null),
-      ]);
-      if (classResult.error) throw classResult.error;
+      const profileResult = await supabase
+        .from("profiles")
+        .select("display_name, onboarded_at, learner_type, term, school_id, work_schedule, schools(name)")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (request !== profileRequestVersion.current) return;
       if (profileResult.error) {
         console.warn("[auth] profile load failed", profileResult.error);
         setProfile(null);
-        // A successful class lookup is still enough to keep an established
-        // student out of onboarding. Otherwise stay neutral instead of
-        // incorrectly restarting setup because of a temporary profile error.
-        setOnboarded((classResult.count ?? 0) > 0 ? true : null);
+        // Setup completion is an explicit marker. A class may have been saved
+        // just before a later onboarding write failed, so class count alone is
+        // never proof that the whole setup completed.
+        setOnboarded(null);
         return;
       }
 
       const nextProfile = profileResult.data as Profile;
       setProfile(nextProfile ?? null);
-      // Accounts created before `onboarded_at` was introduced may already have
-      // real classes. Treat that durable data as proof setup was completed.
-      setOnboarded(!!nextProfile?.onboarded_at || (classResult.count ?? 0) > 0);
+      setOnboarded(Boolean(nextProfile?.onboarded_at));
     } catch (error) {
+      if (request !== profileRequestVersion.current) return;
       console.warn("[auth] setup status load failed", error);
       setProfile(null);
       setOnboarded(null);
@@ -106,14 +101,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     let authRevision = 0;
+    setSupabaseNetworkMode("loading");
 
     const applySession = (nextSession: Session | null) => {
       if (!active) return;
+      profileRequestVersion.current += 1;
+      setSupabaseNetworkMode(nextSession?.user ? "real" : "demo");
       setSession(nextSession);
       setAuthUserId(nextSession?.user?.id ?? null);
       if (nextSession) {
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
+        setOnboarded(null);
+        setProfile(null);
         setTimeout(() => {
           if (active) void loadProfile(nextSession.user.id);
         }, 0);
@@ -153,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      setSupabaseNetworkMode("loading");
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -160,8 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const mode: DataMode = loading
     ? "loading"
     : session?.user
-      ? (isDemoMode ? "demo" : "real")
-      : (isDemoMode ? "demo" : "demo"); // anon = demo tour
+      ? "real"
+      : "demo"; // anonymous visitors use the sample tour
 
   const value = useMemo<AuthState>(
     () => ({
@@ -174,6 +175,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mode,
 
       enableDemoMode: () => {
+        // A sample surface must never coexist with an authenticated Supabase
+        // session. Several legacy demo pages still import write clients
+        // directly, so this is an account-safety invariant—not a UI preference.
+        if (session?.user) {
+          localStorage.removeItem(DEMO_KEY);
+          setDemo(false);
+          return;
+        }
         localStorage.setItem(DEMO_KEY, "1");
         setDemo(true);
       },

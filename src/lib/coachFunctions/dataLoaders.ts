@@ -38,6 +38,7 @@ export interface LoadedAssignment {
   class_id: string; // client_class_id
   title: string;
   due_date: string | null;
+  status: string;
 }
 
 export async function loadClasses(ctx: CoachFunctionContext): Promise<LoadedClass[]> {
@@ -119,12 +120,12 @@ export async function loadExams(ctx: CoachFunctionContext): Promise<LoadedExam[]
 export async function loadAssignments(ctx: CoachFunctionContext): Promise<LoadedAssignment[]> {
   const { data, error } = await ctx.supabase
     .from("assignments")
-    .select("id, client_class_id, title, due_date")
+    .select("id, client_class_id, title, due_date, status")
     .eq("user_id", ctx.userId)
     .is("source_archived_at", null);
   if (error) throw new Error(`assignments: ${error.message}`);
   return ((data ?? []) as {
-    id: string; client_class_id: string | null; title: string; due_date: string | null;
+    id: string; client_class_id: string | null; title: string; due_date: string | null; status: string;
   }[])
     .filter((a) => a.client_class_id)
     .map((a) => ({
@@ -132,6 +133,7 @@ export async function loadAssignments(ctx: CoachFunctionContext): Promise<Loaded
       class_id: a.client_class_id as string,
       title: a.title,
       due_date: a.due_date,
+      status: a.status,
     }));
 }
 

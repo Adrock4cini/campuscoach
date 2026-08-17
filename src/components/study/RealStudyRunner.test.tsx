@@ -64,7 +64,7 @@ function rateKnewIt() {
 }
 
 async function rateMcCorrectAndFinish() {
-  fireEvent.click(screen.getByRole("button", { name: "4" }));
+  fireEvent.click(screen.getByRole("button", { name: /^4/ }));
   fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
   const finish = screen.getByRole("button", { name: "Finish" });
   expect(finish).toBeEnabled();
@@ -124,6 +124,7 @@ describe("real flashcard runner", () => {
       expect.any(Object),
     ));
     expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Study results saved");
   });
 
   it("shows the readiness gain so the final score is understandable", async () => {
@@ -182,6 +183,17 @@ describe("real flashcard runner", () => {
     for (const call of invoke.mock.calls) {
       expect(call[1].body).toMatchObject({ correct: 1, total: 1 });
     }
+  });
+
+  it("uses mobile-sized choices and labels correctness without relying on color", () => {
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={multipleChoiceArtifact} />);
+
+    const wrong = screen.getByRole("button", { name: "3" });
+    expect(wrong).toHaveClass("min-h-11");
+    fireEvent.click(wrong);
+
+    expect(screen.getByRole("button", { name: /3.*your answer/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /4.*correct answer/i })).toBeInTheDocument();
   });
 
   it("warns before closing a session with unsaved answers", () => {

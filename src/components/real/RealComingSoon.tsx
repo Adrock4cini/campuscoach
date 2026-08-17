@@ -1,19 +1,18 @@
 /**
- * RealComingSoon
+ * Fail-closed boundary for concept pages that are not backed by real data yet.
  *
- * Wraps a page's demo content. For real (signed-in, non-demo) users, renders
- * a polished "Coming soon for your real classes" state by default with a
- * "View demo version" button that reveals the underlying demo content.
- *
- * For anonymous / demo-mode visitors, renders `children` directly so the
- * demo tour is unchanged.
+ * Anonymous demo visitors may use the sample page. A signed-in student never
+ * mounts it: several legacy sample pages still import authenticated data and
+ * write clients directly, so hiding buttons inside those children is not a
+ * sufficient account boundary.
  */
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Eye, ArrowLeft } from "lucide-react";
-import { motion } from "framer-motion";
 
 interface Props {
   title: string;
@@ -22,54 +21,49 @@ interface Props {
 }
 
 export function RealComingSoon({ title, description, children }: Props) {
-  const { user, isDemoMode } = useAuth();
-  const realMode = !!user && !isDemoMode;
-  const [showDemo, setShowDemo] = useState(false);
+  const { mode } = useAuth();
 
-  if (!realMode) return <>{children}</>;
+  if (mode === "demo") return <>{children}</>;
 
-  if (showDemo) {
+  if (mode === "loading") {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2.5 text-sm">
-          <span className="flex items-center gap-2 text-muted-foreground">
-            <Eye className="h-3.5 w-3.5" />
-            Viewing demo preview — not your real data
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => setShowDemo(false)}>
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-          </Button>
-        </div>
-        {children}
+      <div role="status" aria-label="Loading page" className="mx-auto max-w-3xl pt-8">
+        <div className="h-72 animate-pulse rounded-3xl bg-muted/40" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto pt-8">
+    <div className="mx-auto max-w-3xl pt-8">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <Card className="shadow-card border-dashed">
-          <CardContent className="p-10 text-center space-y-4">
-            <div className="mx-auto h-12 w-12 rounded-full bg-gradient-calm flex items-center justify-center">
+        <Card className="border-dashed shadow-card">
+          <CardContent className="space-y-5 p-8 text-center sm:p-10">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-calm">
               <Sparkles className="h-6 w-6 text-primary-foreground" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-display font-semibold text-foreground">
-                {title}
-              </h1>
-              <p className="text-muted-foreground max-w-md mx-auto">
+              <h1 className="font-display text-2xl font-semibold text-foreground">{title}</h1>
+              <p className="mx-auto max-w-md text-muted-foreground">
                 {description ??
-                  "This feature is coming soon for your real classes. We're wiring it up to your actual data — check back shortly."}
+                  "This feature is coming soon for your real classes. We’re connecting it to your actual coursework before turning it on."}
               </p>
             </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setShowDemo(true)}>
-                <Eye className="h-3.5 w-3.5 mr-1.5" /> View demo version
-              </Button>
+
+            <div role="note" className="mx-auto flex max-w-lg items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Your account stays separate from sample data</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Interactive sample pages are hidden while you’re signed in, so sample actions cannot read or change your account.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground/70">
-              The demo version uses sample data and won't affect your account.
-            </p>
+
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/dashboard">
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to dashboard
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </motion.div>

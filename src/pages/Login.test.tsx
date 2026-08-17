@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   markPasskeyOfferPending: vi.fn(),
   armOAuthPasskeyOffer: vi.fn(),
   clearOAuthPasskeyOffer: vi.fn(),
+  publicSignupsEnabled: true,
   toastError: vi.fn(),
+  authUser: null as { id: string } | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -22,7 +24,7 @@ vi.mock("@/integrations/lovable", () => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ enableDemoMode: vi.fn() }),
+  useAuth: () => ({ user: mocks.authUser, enableDemoMode: vi.fn() }),
 }));
 
 vi.mock("@/lib/auth/passkeys", () => ({
@@ -32,6 +34,10 @@ vi.mock("@/lib/auth/passkeys", () => ({
   humanizePasskeyError: () => "Use Google or your password instead.",
   markPasskeyOfferPending: mocks.markPasskeyOfferPending,
   signInWithPasskey: mocks.signInWithPasskey,
+}));
+
+vi.mock("@/lib/legal/familyBeta", () => ({
+  publicSignupsEnabled: () => mocks.publicSignupsEnabled,
 }));
 
 vi.mock("sonner", () => ({
@@ -56,6 +62,16 @@ describe("Login authentication choices", () => {
     vi.clearAllMocks();
     mocks.canUsePasskeys.mockReturnValue(false);
     mocks.signInWithOAuth.mockResolvedValue({ error: null, redirected: false });
+    mocks.publicSignupsEnabled = true;
+    mocks.authUser = null;
+  });
+
+  it("redirects an already signed-in student instead of offering demo mode", async () => {
+    mocks.authUser = { id: "student-1" };
+    renderLogin();
+
+    expect(await screen.findByText("Signed in")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue as demo" })).not.toBeInTheDocument();
   });
 
   it("keeps ordinary sign-in obvious while passkeys are dormant", () => {
@@ -64,6 +80,17 @@ describe("Login authentication choices", () => {
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Sign in with password" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: /passkey|Face ID/i })).not.toBeInTheDocument();
+  });
+
+  it("does not offer account-creating OAuth or demo entry during the closed beta", () => {
+    mocks.publicSignupsEnabled = false;
+    renderLogin();
+
+    expect(screen.getByText(/Invited family beta/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in with password" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue as demo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Invitation info" })).toHaveAttribute("href", "/signup");
   });
 
   it("re-enables every sign-in choice after a passkey exception", async () => {

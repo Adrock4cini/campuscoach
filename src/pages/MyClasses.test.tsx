@@ -39,7 +39,7 @@ describe("My Classes data trust", () => {
 
     expect(screen.getByText("Couldn’t load your classes")).toBeInTheDocument();
     expect(screen.getByText(/saved classes were not deleted/i)).toBeInTheDocument();
-    expect(screen.queryByText("Set up your semester")).not.toBeInTheDocument();
+    expect(screen.queryByText("Set up your term")).not.toBeInTheDocument();
   });
 
   it("uses the compact class editor instead of restarting onboarding", () => {
@@ -52,6 +52,7 @@ describe("My Classes data trust", () => {
 
     expect(screen.getByRole("link", { name: "Add manually" })).toHaveAttribute("href", "/classes/new");
     expect(screen.queryByRole("link", { name: /add manually/i })).not.toHaveAttribute("href", "/onboarding");
+    expect(screen.getByRole("heading", { name: "Set up your term" })).toBeInTheDocument();
   });
 
   it("hides unknown class metadata instead of presenting placeholders", () => {
@@ -85,10 +86,7 @@ describe("My Classes data trust", () => {
       "href",
       "/classes/math-1",
     );
-    expect(screen.getByRole("link", { name: /degree path/i })).toHaveAttribute(
-      "href",
-      "/path-to-graduation",
-    );
+    expect(screen.queryByRole("link", { name: /degree path/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add class" })).toHaveAttribute("href", "/classes/new");
   });
 

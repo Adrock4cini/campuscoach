@@ -25,6 +25,7 @@ import type {
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 import type { StudyScope } from "@/lib/learningArtifacts/types";
 import { useRealExams } from "@/lib/realData/hooks";
+import { isPastDateKey } from "@/lib/calendar/dateKey";
 
 interface Props {
   classId?: string;
@@ -93,9 +94,11 @@ export function RealStudySet({
   }, [classId, initialConceptKey, initialExamId, initialKind, initialTarget?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
-    ...(initialTarget ? [initialTarget] : []),
+    ...(initialTarget && (initialTarget.type !== "exam" || !isPastDateKey(initialTarget.examDate))
+      ? [initialTarget]
+      : []),
     { type: "recent", id: "recent", label: "Recent material" },
-    ...exams.map((exam) => ({
+    ...exams.filter((exam) => !isPastDateKey(exam.exam_date)).map((exam) => ({
       type: "exam" as const,
       id: exam.id,
       examId: exam.id,
@@ -178,7 +181,7 @@ export function RealStudySet({
 
   const KindIcon = KIND_META[kind].icon;
   const targetDetail = isCoachTarget
-    ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
+    ? "Your coach picked these from weak, overdue, and high-impact concepts."
     : isCaptureTarget
     ? "Only concepts extracted from this capture will be included."
     : studyScope.type === "exam"
@@ -187,8 +190,8 @@ export function RealStudySet({
       ? "A quick review of the newest material you added."
       : "A broader review that mixes older and newer material.";
   const sourceDetail = artifact
-    ? `Built from ${artifact.concept_ids.length} concept${artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and professor hints. Your answers update mastery and future recommendations.`
-    : "Practice is generated from this class’s notes and professor hints.";
+    ? `Built from ${artifact.concept_ids.length} concept${artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and teacher hints. Your answers update mastery and future recommendations.`
+    : "Practice is generated from this class’s notes and teacher hints.";
   const itemLabel = kind === "flashcards"
     ? count === 1 ? "card" : "cards"
     : count === 1 ? "question" : "questions";
@@ -289,7 +292,7 @@ export function RealStudySet({
             </p>
             {!isCoachTarget && !isCaptureTarget && studyScope.type !== "exam" && (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add a note or professor hint first.
+                Add a note or teacher hint first.
               </p>
             )}
           </div>

@@ -38,6 +38,18 @@ export function todayDateKey(now = new Date()) {
   return toDateKey(now);
 }
 
+/**
+ * Compare a database date to the student's current local calendar day.
+ * Missing or invalid dates are not considered past, so undated work can stay
+ * available without a UTC conversion moving an assessment across midnight.
+ */
+export function isPastDateKey(value: string | null | undefined, now = new Date()) {
+  const date = parseDateKey(value);
+  if (!date) return false;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return date.getTime() < today.getTime();
+}
+
 export function formatDateKey(
   value: string | null | undefined,
   options: Intl.DateTimeFormatOptions = {

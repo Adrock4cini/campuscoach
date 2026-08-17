@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,6 +15,7 @@ import {
   CAPTURE_LABELS,
   PROCESSING_STEPS,
   commitCapture,
+  createCaptureAttemptId,
 } from "@/lib/capture/processor";
 import type {
   CaptureContext,
@@ -31,7 +32,7 @@ import {
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
 import { DatePickerField } from "@/components/forms/DatePickerField";
-import { todayDateKey } from "@/lib/calendar/dateKey";
+import { isPastDateKey, todayDateKey } from "@/lib/calendar/dateKey";
 
 interface Props {
   open: boolean;
@@ -54,12 +55,12 @@ const MENU: {
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
-  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into test practice", requiresImages: true, availableForRealUsers: true },
-  { kind: "scan-material",   icon: Images,        hint: "Photo pages → study cards & games", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into study material", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
-  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the professor emphasized", requiresText: true, availableForRealUsers: true },
+  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
   { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },
 ];
 
@@ -74,7 +75,7 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "queued", label: "Saving private photos…", duration: 350 },
   { id: "class-detected", label: "Linking to your class", duration: 300 },
   { id: "concepts-found", label: "Reading the pages for concepts", duration: 350 },
-  { id: "added-to-brain", label: "Building study cards & memory", duration: 300 },
+  { id: "added-to-brain", label: "Adding concepts to Class Memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
@@ -88,6 +89,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   } = useMyClasses();
   const realMode = !!user && !isDemoMode;
   const classes = realMode ? myClasses : demoClasses;
+  const attemptIdRef = useRef<string | null>(null);
+  if (!attemptIdRef.current) attemptIdRef.current = createCaptureAttemptId();
+  const draftOwnerIdRef = useRef<string | null>(realMode ? user?.id ?? null : null);
 
   const [stage, setStage] = useState<Stage>("menu");
   const [kind, setKind] = useState<CaptureKind | null>(null);
@@ -126,16 +130,21 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     items: examItems,
     loading: examsLoading,
   } = useRealExams(ctx.classId || "__no-class__", realMode && imageKind);
-  const captureTargets = useMemo(
-    () => filterCaptureTargets(ctx.classId, assignmentItems, examItems),
-    [assignmentItems, ctx.classId, examItems],
-  );
+  const captureTargets = useMemo(() => {
+    const targets = filterCaptureTargets(ctx.classId, assignmentItems, examItems);
+    return {
+      ...targets,
+      exams: targets.exams.filter((exam) => !isPastDateKey(exam.exam_date)),
+    };
+  }, [assignmentItems, ctx.classId, examItems]);
   const imageValidation = useMemo(() => validateCaptureImages(images), [images]);
   const imageLimitReached = images.length >= CAPTURE_IMAGE_LIMITS.maxFiles;
 
   // Reset every open
   useEffect(() => {
     if (!open) return;
+    attemptIdRef.current = createCaptureAttemptId();
+    draftOwnerIdRef.current = realMode ? user?.id ?? null : null;
     const initialMeta = initialKind ? MENU.find((item) => item.kind === initialKind) : null;
     const canOpenInitial = !!initialKind && (!realMode || initialMeta?.availableForRealUsers);
     setStage(canOpenInitial ? "context" : "menu");
@@ -150,9 +159,28 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       topic: detected?.currentTopic ?? "",
       text: "",
     });
-  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic]);
+  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id]);
 
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
+
+  const requestClose = () => {
+    if (stage !== "processing") onClose();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (stage === "processing") {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      onClose();
+    };
+    window.addEventListener("keydown", handleEscape, true);
+    return () => window.removeEventListener("keydown", handleEscape, true);
+  }, [onClose, open, stage]);
 
   const chooseKind = (k: CaptureKind) => {
     const selected = MENU.find((item) => item.kind === k);
@@ -161,12 +189,18 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       navigate("/classes?intent=syllabus");
       return;
     }
+    attemptIdRef.current = createCaptureAttemptId();
+    draftOwnerIdRef.current = realMode ? user?.id ?? null : null;
     setKind(k);
     setStage("context");
   };
 
   const startProcessing = async () => {
     if (!kind) return;
+    const ownerId = realMode ? user?.id : undefined;
+    const attemptId = attemptIdRef.current ?? createCaptureAttemptId();
+    attemptIdRef.current = attemptId;
+    if (realMode && (!ownerId || draftOwnerIdRef.current !== ownerId)) return;
     setStage("processing");
     setStepIndex(0);
     setCaptureError(null);
@@ -178,6 +212,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       simulateDerivedContent: !realMode,
       requireRemotePersistence: realMode,
       attachments: images,
+      attemptId,
+      ownerId,
     })
       .then((value) => ({ value, error: null as Error | null }))
       .catch((error: unknown) => ({
@@ -191,8 +227,10 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     for (let i = 0; i < processingSteps.length; i++) {
       setStepIndex(i);
       await new Promise((r) => setTimeout(r, processingSteps[i].duration));
+      if (realMode && draftOwnerIdRef.current !== ownerId) return;
     }
     const outcome = await commitPromise;
+    if (realMode && draftOwnerIdRef.current !== ownerId) return;
     if (outcome.error || !outcome.value) {
       setCaptureError(
         outcome.error?.message ?? "We couldn't save this capture. Check your connection and try again.",
@@ -226,7 +264,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={requestClose}
         >
           <motion.div
             data-testid="capture-sheet"
@@ -248,9 +286,12 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               <div className="flex items-center gap-2 mb-4">
                 {stage !== "menu" && stage !== "done" && (
                   <button
-                    onClick={() => (stage === "context" ? setStage("menu") : null)}
+                    onClick={() => {
+                      if (stage === "context") setStage("menu");
+                      if (stage === "error") setStage("context");
+                    }}
                     disabled={stage === "processing"}
-                    className="h-8 w-8 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    className="h-11 w-11 shrink-0 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
                     aria-label="Back"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -266,7 +307,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
                     {stage === "done" && (
-                      result?.processingStatus === "failed"
+                      !realMode
+                        ? "Saved in this demo"
+                        : result?.processingStatus === "failed"
                         ? "Saved to Class Memory"
                         : "Added to Campus Brain"
                     )}
@@ -274,8 +317,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   </h2>
                 </div>
                 <button
-                  onClick={onClose}
-                  className="h-8 w-8 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  onClick={requestClose}
+                  disabled={stage === "processing"}
+                  className="h-11 w-11 shrink-0 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" />
@@ -369,7 +413,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                       </div>
                     ) : classes.length === 0 ? (
                       <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
-                        <p className="text-sm text-foreground">Add a class before saving a professor hint.</p>
+                        <p className="text-sm text-foreground">Add a class before saving a teacher hint.</p>
                         <button
                           type="button"
                           onClick={() => { onClose(); navigate("/classes/new"); }}
@@ -428,7 +472,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   {meta.requiresText && (
                     <Field label={
                       meta.kind === "quick-note" ? "Note" :
-                      meta.kind === "professor-hint" ? "What did the professor say?" :
+                      meta.kind === "professor-hint" ? "What did the teacher or instructor say?" :
                       "Your question"
                     }>
                       <textarea
@@ -667,12 +711,13 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
               {/* DONE */}
               {stage === "done" && result && (
-                <DoneSummary
+                <CaptureDoneSummary
                   result={result}
+                  sample={!realMode}
                   className={classes.find((c) => c.id === result.context.classId)?.name}
-                  onClose={onClose}
+                  onClose={requestClose}
                   onOpenClass={() => {
-                    onClose();
+                    requestClose();
                     navigate(`/classes/${result.context.classId}`);
                   }}
                 />
@@ -832,10 +877,11 @@ function ProcessingTimeline({
   );
 }
 
-function DoneSummary({
-  result, onClose, onOpenClass, className,
+export function CaptureDoneSummary({
+  result, sample, onClose, onOpenClass, className,
 }: {
   result: CaptureResult;
+  sample: boolean;
   onClose: () => void;
   onOpenClass: () => void;
   className?: string;
@@ -855,9 +901,13 @@ function DoneSummary({
           <Check className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Saved to {cls?.name}</p>
+          <p className="text-sm font-medium text-foreground">
+            {sample ? `Saved in this demo for ${cls.name}` : `Saved to ${cls.name}`}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {processingFailed
+            {sample
+              ? "Stored on this device for the demo only. It wasn’t uploaded or shared."
+              : processingFailed
               ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
               : result.summary}
           </p>
@@ -885,7 +935,9 @@ function DoneSummary({
 
       {result.flashcardCount > 0 && (
         <div className="text-xs text-muted-foreground">
-          {result.flashcardCount} flashcards generated · Campus Brain updated.
+          {sample
+            ? `${result.flashcardCount} sample flashcards created for this demo.`
+            : `${result.flashcardCount} flashcards generated · Campus Brain updated.`}
         </div>
       )}
 

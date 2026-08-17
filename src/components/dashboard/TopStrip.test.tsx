@@ -21,7 +21,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 describe("dashboard top strip", () => {
-  it("keeps primary icon actions comfortable to tap on mobile", () => {
+  it("keeps search comfortable to tap and does not promise unfinished notifications", () => {
     render(
       <MemoryRouter>
         <TopStrip />
@@ -29,6 +29,6 @@ describe("dashboard top strip", () => {
     );
 
     expect(screen.getByRole("button", { name: "Search" })).toHaveClass("h-11", "w-11");
-    expect(screen.getByRole("button", { name: "Notifications" })).toHaveClass("h-11", "w-11");
+    expect(screen.queryByRole("button", { name: "Notifications" })).not.toBeInTheDocument();
   });
 });

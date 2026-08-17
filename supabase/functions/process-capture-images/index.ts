@@ -37,7 +37,7 @@ const ALLOWED_MIME = new Set([
   "image/heif",
 ]);
 
-const SYSTEM = `You read photos of a college student's assignment, notes, handout, or textbook.
+const SYSTEM = `You read photos of a student's class assignment, notes, handout, study cards, or textbook.
 
 Return ONLY JSON matching:
 {
@@ -58,6 +58,7 @@ Rules:
 - Extract 1-8 concrete skills, concepts, formulas, problem types, or facts supported by the images.
 - For assignments, identify what the student must learn; do not merely provide final answers and do not invent an answer key.
 - Use short student-friendly definitions and examples grounded only in the pages.
+- Set professor_emphasis=true only when a teacher or instructor explicitly marks the material as important.
 - If an image is illegible or has no academic content, do not guess.
 - No prose outside the JSON.`;
 

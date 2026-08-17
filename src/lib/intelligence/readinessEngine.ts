@@ -8,9 +8,9 @@
  * read `getEffectiveReadiness(classId, base)` and
  * `getMomentumBoost()` to see the up-to-the-minute picture.
  *
- * Every completion also writes to Supabase (`study_sessions` +
- * `campus_brain_signals`) via the persistence layer — non-blocking,
- * so the demo keeps working offline.
+ * Signed-in completions may also write to Supabase (`study_sessions` +
+ * `campus_brain_signals`). Demo completions explicitly stay in the local
+ * overlay and never attempt those remote writes.
  */
 
 import { classes } from "@/data/demo";
@@ -127,6 +127,8 @@ export interface ReadinessChange {
   reason: string;
 }
 
+export type StudyPersistenceMode = "local-only" | "remote";
+
 /**
  * Simple, transparent scoring:
  *   +2  for completing any session
@@ -163,13 +165,14 @@ function estimateMomentumChange(o: StudyOutcome): number {
 /**
  * Persist the effect of one completed study session:
  *   1. Update the local readiness + momentum overlay
- *   2. Insert a `study_sessions` row (best-effort)
- *   3. Log a `campus_brain_signals` row so the Student Model can
- *      rebuild from history
+ *   2. In explicit remote mode, insert a `study_sessions` row (best-effort)
+ *   3. In explicit remote mode, log a `campus_brain_signals` row so the
+ *      Student Model can rebuild from history
  *   4. Broadcast `intelligence:updated` so pages can refresh
  */
 export async function updateReadinessAfterStudy(
   outcome: StudyOutcome,
+  options: { persistence: StudyPersistenceMode },
 ): Promise<ReadinessChange> {
   const cls = classes.find((c) => c.id === outcome.classId);
   const base = cls?.readiness ?? 0;
@@ -196,41 +199,43 @@ export async function updateReadinessAfterStudy(
 
   const after = getEffectiveReadiness(outcome.classId, base);
 
-  // 2 + 3. Best-effort Supabase writes — never throw.
-  const userId = getAnonUserId();
-  void (async () => {
-    try {
-      await supabase.from("study_sessions").insert({
-        user_id: userId,
-        client_class_id: outcome.classId,
-        mode: String(outcome.mode),
-        topic: outcome.topic,
-        duration_minutes: outcome.durationMinutes,
-        score: outcome.accuracy ?? null,
-        started_at: new Date(
-          Date.now() - outcome.durationMinutes * 60 * 1000,
-        ).toISOString(),
-        ended_at: new Date().toISOString(),
-      } as never);
-    } catch {
-      /* offline / column mismatch — overlay is source of truth */
-    }
-  })();
+  if (options.persistence === "remote") {
+    // 2 + 3. Best-effort Supabase writes — never throw and never run for demo.
+    const userId = getAnonUserId();
+    void (async () => {
+      try {
+        await supabase.from("study_sessions").insert({
+          user_id: userId,
+          client_class_id: outcome.classId,
+          mode: String(outcome.mode),
+          topic: outcome.topic,
+          duration_minutes: outcome.durationMinutes,
+          score: outcome.accuracy ?? null,
+          started_at: new Date(
+            Date.now() - outcome.durationMinutes * 60 * 1000,
+          ).toISOString(),
+          ended_at: new Date().toISOString(),
+        } as never);
+      } catch {
+        /* offline / column mismatch — overlay is source of truth */
+      }
+    })();
 
-  void saveCampusBrainSignal({
-    clientClassId: outcome.classId,
-    sourceType: `study-complete:${outcome.mode}`,
-    sourceId: outcome.captureId ?? null,
-    topic: outcome.topic,
-    weight: readinessDelta,
-    payload: {
-      accuracy: outcome.accuracy,
-      durationMinutes: outcome.durationMinutes,
-      completed: outcome.completed ?? true,
-      readinessDelta,
-      momentumDelta,
-    },
-  });
+    void saveCampusBrainSignal({
+      clientClassId: outcome.classId,
+      sourceType: `study-complete:${outcome.mode}`,
+      sourceId: outcome.captureId ?? null,
+      topic: outcome.topic,
+      weight: readinessDelta,
+      payload: {
+        accuracy: outcome.accuracy,
+        durationMinutes: outcome.durationMinutes,
+        completed: outcome.completed ?? true,
+        readinessDelta,
+        momentumDelta,
+      },
+    }, userId);
+  }
 
   // 4. Broadcast — let dashboard/class cards refresh their picks.
   try {

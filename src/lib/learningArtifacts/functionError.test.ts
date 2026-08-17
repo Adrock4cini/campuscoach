@@ -9,7 +9,7 @@ describe("describeFunctionError", () => {
     );
 
     await expect(describeFunctionError({ message: "Edge Function returned a non-2xx status code", context }))
-      .resolves.toContain("Add a quick note or professor hint");
+      .resolves.toContain("Add a quick note or teacher hint");
   });
 
   it("preserves an existing set when a server error occurs", async () => {

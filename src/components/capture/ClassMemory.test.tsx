@@ -5,10 +5,12 @@ import { ClassMemory } from "./ClassMemory";
 
 const mocks = vi.hoisted(() => ({
   mode: "real" as "real" | "demo" | "loading",
+  userId: "student-a",
   listCaptures: vi.fn(),
   getCapturesForClass: vi.fn(),
   retryCaptureConcepts: vi.fn(),
   navigate: vi.fn(),
+  invite: vi.fn(() => null),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -16,7 +18,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ mode: mocks.mode }),
+  useAuth: () => ({ mode: mocks.mode, user: mocks.mode === "real" ? { id: mocks.userId } : null }),
 }));
 
 vi.mock("@/lib/capture/processor", async (importOriginal) => {
@@ -42,7 +44,7 @@ vi.mock("@/components/intelligence/ClassBrainAggregateStrip", () => ({
 }));
 
 vi.mock("@/components/invite/InviteClassmatesButton", () => ({
-  InviteClassmatesButton: () => null,
+  InviteClassmatesButton: mocks.invite,
 }));
 
 const localSample: CaptureResult = {
@@ -77,10 +79,12 @@ const realCapture = {
 describe("Class Memory data boundaries", () => {
   beforeEach(() => {
     mocks.mode = "real";
+    mocks.userId = "student-a";
     mocks.listCaptures.mockReset().mockReturnValue([localSample]);
     mocks.getCapturesForClass.mockReset().mockResolvedValue([realCapture]);
     mocks.retryCaptureConcepts.mockReset().mockResolvedValue(undefined);
     mocks.navigate.mockReset();
+    mocks.invite.mockClear();
   });
 
   it("never mixes browser-local demo captures into a signed-in student's memory", async () => {
@@ -92,6 +96,17 @@ describe("Class Memory data boundaries", () => {
     });
   });
 
+  it("keeps separate captures visible when their topic and date match", async () => {
+    mocks.getCapturesForClass.mockResolvedValueOnce([
+      { ...realCapture, id: "flashcards-part-1", kind: "scan-material", topic: "Flash cards" },
+      { ...realCapture, id: "flashcards-part-2", kind: "scan-material", topic: "Flash cards" },
+    ]);
+
+    render(<ClassMemory classId="math" className="Math" />);
+
+    expect(await screen.findAllByText("Flash cards")).toHaveLength(2);
+  });
+
   it("keeps the device-local capture store available in explicit demo mode", async () => {
     mocks.mode = "demo";
 
@@ -99,6 +114,14 @@ describe("Class Memory data boundaries", () => {
 
     expect(await screen.findByText("Atomic Composition")).toBeInTheDocument();
     expect(mocks.getCapturesForClass).not.toHaveBeenCalled();
+    expect(mocks.invite).not.toHaveBeenCalled();
+  });
+
+  it("does not expose a class invite until a real join route exists", async () => {
+    render(<ClassMemory classId="math" className="Math" />);
+
+    await screen.findByText("Quadratic Formula");
+    expect(mocks.invite).not.toHaveBeenCalled();
   });
 
   it("routes a signed-in capture into the concept-backed study lab", async () => {
@@ -165,5 +188,23 @@ describe("Class Memory data boundaries", () => {
     await waitFor(() => {
       expect(screen.queryByText("Quadratic Formula")).not.toBeInTheDocument();
     });
+  });
+
+  it("hides one student's captures immediately when the account changes", async () => {
+    const { rerender } = render(<ClassMemory classId="math" className="Math" />);
+    expect(await screen.findByText("Quadratic Formula")).toBeInTheDocument();
+
+    let resolveSecond!: (rows: (typeof realCapture)[]) => void;
+    mocks.getCapturesForClass.mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+    mocks.userId = "student-b";
+    rerender(<ClassMemory classId="math" className="Math" />);
+
+    expect(screen.queryByText("Quadratic Formula")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading Class Memory…")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveSecond([{ ...realCapture, id: "student-b-capture", topic: "Linear Equations" }]);
+    });
+    expect(await screen.findByText("Linear Equations")).toBeInTheDocument();
   });
 });

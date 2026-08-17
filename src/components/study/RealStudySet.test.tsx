@@ -10,6 +10,12 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   invoke: vi.fn(),
   scopes: [] as unknown[],
+  exams: [] as Array<{
+    id: string;
+    title: string;
+    exam_date: string | null;
+    topics: string[];
+  }>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -32,12 +38,7 @@ vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
 
 vi.mock("@/lib/realData/hooks", () => ({
   useRealExams: () => ({
-    items: [{
-      id: "exam-1",
-      title: "Unit 1 Exam",
-      exam_date: "2026-07-20",
-      topics: ["Addition"],
-    }],
+    items: mocks.exams,
     loading: false,
     reload: vi.fn(),
   }),
@@ -84,6 +85,12 @@ function rateFlashcardKnewIt() {
 
 describe("real study set freshness", () => {
   beforeEach(() => {
+    mocks.exams = [{
+      id: "exam-1",
+      title: "Unit 1 Exam",
+      exam_date: "2099-07-20",
+      topics: ["Addition"],
+    }];
     mocks.generate.mockReset().mockResolvedValue(null);
     mocks.reload.mockClear();
     mocks.invoke.mockReset().mockResolvedValue({
@@ -140,6 +147,31 @@ describe("real study set freshness", () => {
     expect(screen.getByText("Your notes")).toBeInTheDocument();
   });
 
+  it("offers future and undated tests without turning past tests into study targets", () => {
+    mocks.exams = [
+      ...mocks.exams,
+      {
+        id: "exam-past",
+        title: "Old final",
+        exam_date: "2000-05-10",
+        topics: ["Subtraction"],
+      },
+      {
+        id: "exam-tbd",
+        title: "Pop quiz",
+        exam_date: null,
+        topics: ["Fractions"],
+      },
+    ];
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+
+    render(<RealStudySet classId="math" />);
+
+    expect(screen.getByRole("button", { name: /^Test · Unit 1 Exam/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Test · Pop quiz" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Old final/i })).not.toBeInTheDocument();
+  });
+
   it("opens the exact exam selected from the academic calendar", () => {
     mocks.artifact = null;
     render(<RealStudySet classId="math" initialExamId="exam-1" />);
@@ -173,7 +205,7 @@ describe("real study set freshness", () => {
     expect(screen.queryByRole("button", { name: /study now/i })).not.toBeInTheDocument();
   });
 
-  it("automatically builds the exact concepts handed off by Campus Coach", async () => {
+  it("automatically builds the exact concepts handed off by the coach", async () => {
     mocks.artifact = null;
     render(
       <RealStudySet

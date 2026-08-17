@@ -50,7 +50,7 @@ export const classEditorSchema = z.object({
     context.addIssue({
       code: "custom",
       path: [hasStartDate ? "semesterEndDate" : "semesterStartDate"],
-      message: "Choose term dates so meetings stop when the semester ends",
+      message: "Choose term dates so meetings stop when the term ends",
     });
   }
 
