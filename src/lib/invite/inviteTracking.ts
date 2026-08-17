@@ -11,17 +11,19 @@ export type InviteEventName =
   | "invite_created"
   | "invite_copied"
   | "invite_shared"
-  | "invite_joined";
+  | "invite_joined"
+  | "invite_prompt_shown";
 
 export interface InviteEvent {
   name: InviteEventName;
   classId: string;
   className?: string;
-  channel?: "copy" | "sms" | "share" | "qr" | "system";
+  channel?: "copy" | "sms" | "share" | "qr" | "system" | "post_study";
   at: string;
 }
 
 const STORAGE_KEY = "cc_invite_events_v1";
+const PROMPT_SEEN_KEY = "cc_invite_prompt_seen_v1";
 
 function readLog(): InviteEvent[] {
   try {
@@ -56,7 +58,6 @@ export function trackInviteEvent(
   } catch {
     /* SSR / non-window — ignore */
   }
-  // Console breadcrumb so we can see the loop working in the demo.
   console.info("[invite]", name, detail);
 }
 
@@ -78,7 +79,41 @@ export function buildInviteLink(classId: string): string {
 }
 
 export function buildInviteMessage(className: string): string {
-  return `Join our Campus Companion class brain for ${className}. The more of us who add notes, scans, and study signals, the smarter it gets for everyone.`;
+  return (
+    `Studying ${className} with Campus Companion. ` +
+    `It works alone — with classmates the class brain spots what this professor emphasizes. ` +
+    `Your notes stay private; only anonymous study signals are shared.`
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Soft prompt: show once per class after a real study session         */
+/* ------------------------------------------------------------------ */
+
+function readPromptSeen(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(PROMPT_SEEN_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** Returns true the first time we should surface a soft invite for this class. */
+export function shouldShowPostStudyInvite(classId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const seen = readPromptSeen();
+  return !seen[classId];
+}
+
+export function markPostStudyInviteSeen(classId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const seen = readPromptSeen();
+    seen[classId] = new Date().toISOString();
+    localStorage.setItem(PROMPT_SEEN_KEY, JSON.stringify(seen));
+  } catch {
+    /* quota — ignore */
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,7 +147,7 @@ export function describeInviteConfidence(
   }
   return {
     tier: "starting",
-    label: "Campus Brain is just getting started",
+    label: "Works alone — better with classmates",
     studentCount,
   };
 }

@@ -25,9 +25,12 @@ import type {
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 import type { StudyScope } from "@/lib/learningArtifacts/types";
 import { useRealExams } from "@/lib/realData/hooks";
+import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
+import { shouldShowPostStudyInvite } from "@/lib/invite/inviteTracking";
 
 interface Props {
   classId?: string;
+  classDisplayName?: string;
   initialCaptureId?: string;
   initialExamId?: string;
   initialKind?: Kind;
@@ -61,6 +64,7 @@ function formatUpdatedAt(value: string) {
 
 export function RealStudySet({
   classId,
+  classDisplayName,
   initialCaptureId,
   initialExamId,
   initialKind = "flashcards",
@@ -70,6 +74,7 @@ export function RealStudySet({
 }: Props) {
   const [kind, setKind] = useState<Kind>(initialKind);
   const [studying, setStudying] = useState(false);
+  const [showInvitePrompt, setShowInvitePrompt] = useState(false);
   const captureStudyScope = useMemo<StudyScope | undefined>(() => (
     initialCaptureId
       ? { type: "recent", id: `capture-${initialCaptureId}`, label: "This capture" }
@@ -83,11 +88,13 @@ export function RealStudySet({
   const { items: exams, loading: examsLoading, error: examsError } = useRealExams(classId);
 
   const initialConceptKey = initialConceptIds.join(",");
+  const inviteClassLabel = classDisplayName?.trim() || "this class";
 
   useEffect(() => {
     setSelectedTarget(initialTarget?.id ?? initialExamId ?? "recent");
     setKind(initialKind);
     setStudying(false);
+    setShowInvitePrompt(false);
     autoStartKey.current = null;
     reloadAfterStudy.current = false;
   }, [classId, initialConceptKey, initialExamId, initialKind, initialTarget?.id]);
@@ -135,9 +142,6 @@ export function RealStudySet({
   );
 
   const startGeneration = useCallback(async (regenerate: boolean) => {
-    // State-driven button disabling lands on the next render. The ref closes
-    // the small same-frame window where a fast double tap could create two
-    // active artifacts for the same study target.
     if (generationInFlight.current) return;
     generationInFlight.current = true;
     try {
@@ -339,6 +343,15 @@ export function RealStudySet({
             </Button>
           )}
         </div>
+
+        {showInvitePrompt && classId && (
+          <InviteClassmatesButton
+            classId={classId}
+            className={inviteClassLabel}
+            variant="postStudy"
+            onDismiss={() => setShowInvitePrompt(false)}
+          />
+        )}
       </CardContent>
 
       {artifact && studying && (
@@ -352,9 +365,12 @@ export function RealStudySet({
             }
           }}
           artifact={artifact as LearningArtifact<"flashcards"> | LearningArtifact<"multiple_choice">}
-          // Keep the saved-results screen stable. Reloading while it is open
-          // can replace the artifact prop and reset the runner back to card 1.
-          onCompleted={() => { reloadAfterStudy.current = true; }}
+          onCompleted={() => {
+            reloadAfterStudy.current = true;
+            if (classId && shouldShowPostStudyInvite(classId)) {
+              setShowInvitePrompt(true);
+            }
+          }}
         />
       )}
     </Card>
