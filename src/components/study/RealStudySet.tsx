@@ -14,12 +14,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info, Puzzle } from "lucide-react";
 import { RealStudyRunner } from "@/components/study/RealStudyRunner";
+import { RealMatchingSession } from "@/components/study/RealMatchingSession";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
 import type {
   FlashcardsPayload,
+  MatchingPayload,
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
@@ -37,11 +39,12 @@ interface Props {
   autoStart?: boolean;
 }
 
-type Kind = "flashcards" | "multiple_choice";
+type Kind = "flashcards" | "multiple_choice" | "matching";
 
 const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
   flashcards: { label: "Flashcards", icon: Sparkles },
   multiple_choice: { label: "Multiple choice", icon: ListChecks },
+  matching: { label: "Match Lab", icon: Puzzle },
 };
 
 function targetButtonLabel(target: StudyScope) {
@@ -79,7 +82,8 @@ export function RealStudySet({
   const initialTarget = initialStudyScope ?? captureStudyScope;
   const [selectedTarget, setSelectedTarget] = useState(initialTarget?.id ?? initialExamId ?? "recent");
   const autoStartKey = useRef<string | null>(null);
-  const generationInFlight = useRef(false);
+  const generationInFlight = useRef(new Map<string, Promise<unknown>>());
+  const currentGenerationKey = useRef("");
   const reloadAfterStudy = useRef(false);
   const { items: exams, loading: examsLoading, error: examsError } = useRealExams(classId);
 
@@ -129,7 +133,9 @@ export function RealStudySet({
   const count = artifact
     ? kind === "flashcards"
       ? (artifact.payload as FlashcardsPayload).cards?.length ?? 0
-      : (artifact.payload as MultipleChoicePayload).questions?.length ?? 0
+      : kind === "multiple_choice"
+        ? (artifact.payload as MultipleChoicePayload).questions?.length ?? 0
+        : (artifact.payload as MatchingPayload).pairs?.length ?? 0
     : 0;
 
   const needsRefresh = Boolean(
@@ -137,18 +143,35 @@ export function RealStudySet({
     artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
   );
 
+  const generationKey = JSON.stringify({
+    kind,
+    classId: classId ?? null,
+    captureId: scope.captureId ?? null,
+    conceptIds: scope.conceptIds ?? null,
+    studyScope: scope.studyScope,
+  });
+  currentGenerationKey.current = generationKey;
+
   const startGeneration = useCallback(async (regenerate: boolean) => {
-    // State-driven button disabling lands on the next render. The ref closes
-    // the small same-frame window where a fast double tap could create two
-    // active artifacts for the same study target.
-    if (generationInFlight.current) return;
-    generationInFlight.current = true;
-    try {
-      await generate({ regenerate });
-    } finally {
-      generationInFlight.current = false;
+    const existing = generationInFlight.current.get(generationKey);
+    if (existing) {
+      await existing;
+      // A → B → A can make the first A response intentionally stale inside
+      // the owner/scope-keyed hook. Reloading after its keyed promise settles
+      // prevents the returned A scope from becoming stranded.
+      if (currentGenerationKey.current === generationKey) await reload();
+      return;
     }
-  }, [generate]);
+    const task = generate({ regenerate });
+    generationInFlight.current.set(generationKey, task);
+    try {
+      await task;
+    } finally {
+      if (generationInFlight.current.get(generationKey) === task) {
+        generationInFlight.current.delete(generationKey);
+      }
+    }
+  }, [generate, generationKey, reload]);
 
   useEffect(() => {
     if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
@@ -181,11 +204,11 @@ export function RealStudySet({
 
   const KindIcon = KIND_META[kind].icon;
   const targetDetail = isCoachTarget
-    ? "Your coach picked these from weak, overdue, and high-impact concepts."
+    ? "Your coach uses your mastery, review timing, teacher emphasis, and the test or capture you selected."
     : isCaptureTarget
     ? "Only concepts extracted from this capture will be included."
     : studyScope.type === "exam"
-    ? `Only material for ${studyScope.label} will be included.`
+    ? `Focuses on concepts linked to ${studyScope.label}, named in its topics, or captured in its likely test window. Check the reasons shown before studying.`
     : studyScope.type === "recent"
       ? "A quick review of the newest material you added."
       : "A broader review that mixes older and newer material.";
@@ -194,7 +217,10 @@ export function RealStudySet({
     : "Practice is generated from this class’s notes and teacher hints.";
   const itemLabel = kind === "flashcards"
     ? count === 1 ? "card" : "cards"
-    : count === 1 ? "question" : "questions";
+    : kind === "multiple_choice"
+      ? count === 1 ? "question" : "questions"
+      : count === 1 ? "pair" : "pairs";
+  const selectionReasons = describeSelectionEvidence(artifact?.study_scope_snapshot);
 
   return (
     <Card className="overflow-hidden rounded-[28px] border-border/40 bg-card/70 shadow-card backdrop-blur-md">
@@ -249,7 +275,7 @@ export function RealStudySet({
           <div
             role="group"
             aria-label="Study format"
-            className="grid grid-cols-2 gap-1 rounded-2xl border border-border/30 bg-background/35 p-1"
+            className="grid grid-cols-3 gap-1 rounded-2xl border border-border/30 bg-background/35 p-1"
           >
             {(Object.keys(KIND_META) as Kind[]).map((k) => (
               <button
@@ -270,15 +296,30 @@ export function RealStudySet({
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading study set…</p>
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">Loading study set…</p>
         ) : needsRefresh ? (
           <div>
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
           </div>
         ) : artifact ? (
-          <p className="text-sm text-foreground">
-            {count} {itemLabel} · {formatUpdatedAt(artifact.updated_at)}
-          </p>
+          <div className="space-y-1.5">
+            <p className="text-sm text-foreground">
+              {count} {itemLabel} · {formatUpdatedAt(artifact.updated_at)}
+            </p>
+            {selectionReasons.length > 0 && (
+              <div className="text-xs leading-relaxed text-muted-foreground">
+                <p className="font-semibold text-foreground">Why these concepts:</p>
+                <ul className="mt-1 space-y-1">
+                  {selectionReasons.map((reason) => (
+                    <li key={reason.conceptId} className="break-words">
+                      <span className="font-medium text-foreground">{reason.conceptName}:</span>{" "}
+                      {reason.labels.join(" · ")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
@@ -299,7 +340,7 @@ export function RealStudySet({
         )}
 
         {error && (
-          <p className="text-xs text-destructive">
+          <p role="alert" className="text-xs text-destructive">
             {error}
           </p>
         )}
@@ -344,7 +385,7 @@ export function RealStudySet({
         </div>
       </CardContent>
 
-      {artifact && studying && (
+      {artifact && studying && artifact.kind !== "matching" && (
         <RealStudyRunner
           open={studying}
           onOpenChange={(nextOpen) => {
@@ -360,8 +401,62 @@ export function RealStudySet({
           onCompleted={() => { reloadAfterStudy.current = true; }}
         />
       )}
+      {artifact && studying && artifact.kind === "matching" && (
+        <RealMatchingSession
+          open={studying}
+          onOpenChange={(nextOpen) => {
+            setStudying(nextOpen);
+            if (!nextOpen && reloadAfterStudy.current) {
+              reloadAfterStudy.current = false;
+              void reload();
+            }
+          }}
+          artifact={artifact as LearningArtifact<"matching">}
+          onCompleted={() => { reloadAfterStudy.current = true; }}
+        />
+      )}
     </Card>
   );
+}
+
+function describeSelectionEvidence(snapshot: Record<string, unknown> | undefined) {
+  const raw = snapshot?.selectionEvidence;
+  if (!Array.isArray(raw)) return [];
+  const fallbackLabel = selectionFallbackLabel(snapshot);
+  const reasons: Array<{ conceptId: string; conceptName: string; labels: string[] }> = [];
+  for (const item of raw.slice(0, 8)) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { conceptId?: unknown; conceptName?: unknown; signals?: unknown };
+    if (typeof record.conceptId !== "string" || typeof record.conceptName !== "string") continue;
+    const conceptId = record.conceptId.trim();
+    const conceptName = record.conceptName.replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!conceptId || !conceptName) continue;
+    const labels: string[] = [];
+    if (Array.isArray(record.signals)) {
+      for (const signal of record.signals) {
+        const label = signal && typeof signal === "object"
+          ? (signal as { label?: unknown }).label
+          : null;
+        if (typeof label !== "string") continue;
+        const clean = label.replace(/\s+/g, " ").trim().slice(0, 100);
+        if (clean && !labels.includes(clean)) labels.push(clean);
+        if (labels.length >= 2) break;
+      }
+    }
+    reasons.push({ conceptId, conceptName, labels: labels.length ? labels : [fallbackLabel] });
+  }
+  return reasons;
+}
+
+function selectionFallbackLabel(snapshot: Record<string, unknown>) {
+  const id = typeof snapshot.id === "string" ? snapshot.id : "";
+  const type = typeof snapshot.type === "string" ? snapshot.type : "";
+  if (id.startsWith("coach-")) return "Included in your coach-picked set";
+  if (id.startsWith("capture-")) return "From the capture you selected";
+  if (type === "exam") return "Included in this test review";
+  if (type === "recent") return "Included in recent material";
+  if (type === "class") return "Included in mixed class review";
+  return "Included in this study set";
 }
 
 function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {

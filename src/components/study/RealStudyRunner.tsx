@@ -1,6 +1,9 @@
 /**
- * RealStudyRunner — real learning_artifacts study runner (flashcards / MCQ).
- * Saves via record-study-result. Confidence rating calibrates mastery priority.
+ * RealStudyRunner — grounded flashcard / multiple-choice retrieval practice.
+ *
+ * Confidence is captured before feedback. A first-attempt miss returns once
+ * near the end of the session; that recovery teaches, but never rewrites the
+ * original score or inflates mastery.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,10 +23,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Check, X, Loader2, RotateCcw } from "lucide-react";
+import { MemoryTrickPanel } from "@/components/study/MemoryTrickPanel";
+import { recordMemoryTrickFeedback } from "@/lib/learningArtifacts/memoryFeedback";
 import type {
   LearningArtifact,
   FlashcardsPayload,
   MultipleChoicePayload,
+  StudyScope,
 } from "@/lib/learningArtifacts/types";
 import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
 
@@ -39,10 +45,16 @@ interface Props {
   }) => void;
 }
 
+interface QueueEntry {
+  itemIndex: number;
+  recovery: boolean;
+}
+
 interface AnswerResult {
   conceptId: string;
   correct: boolean;
-  confidence: ConfidenceLevel | null;
+  confidence: ConfidenceLevel;
+  recovery: boolean;
 }
 
 interface PendingFinalResult {
@@ -59,10 +71,11 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     return (artifact.payload as MultipleChoicePayload).questions ?? [];
   }, [artifact]);
 
-  const [idx, setIdx] = useState(0);
+  const [queue, setQueue] = useState<QueueEntry[]>(() => buildInitialQueue(items.length));
+  const [position, setPosition] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [incorrect, setIncorrect] = useState(0);
-  const [flipped, setFlipped] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
@@ -75,17 +88,23 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const attemptIdRef = useRef(createStudyAttemptId());
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLDivElement>(null);
+  const completionRef = useRef<HTMLDivElement>(null);
 
   const total = items.length;
-  const isLast = idx >= total - 1;
-  const completed = pendingFinal ? total : idx;
+  const currentEntry = queue[position] ?? { itemIndex: 0, recovery: false };
+  const itemIndex = currentEntry.itemIndex;
+  const progressTotal = Math.max(1, queue.length);
+  const completedSteps = pendingFinal ? queue.length : position;
 
   useEffect(() => {
     if (!open) return;
-    setIdx(0);
+    setQueue(buildInitialQueue(items.length));
+    setPosition(0);
     setCorrect(0);
     setIncorrect(0);
-    setFlipped(false);
+    setRevealed(false);
     setPicked(null);
     setConfidence(null);
     setDone(false);
@@ -98,36 +117,57 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSubmitting(false);
     setStartedAt(Date.now());
     attemptIdRef.current = createStudyAttemptId();
-  }, [open, artifact.id]);
+  }, [open, artifact.id, items.length]);
 
-  const record = async (wasCorrect: boolean) => {
-    if (!confidence) return;
-    const item = items[idx] as { conceptId?: string };
-    const conceptId = item.conceptId
-      ?? (items.length === artifact.concept_ids.length ? artifact.concept_ids[idx] : undefined)
-      ?? (artifact.concept_ids.length === 1 ? artifact.concept_ids[0] : undefined);
-    const nextResults = conceptId
-      ? [...answerResults, { conceptId, correct: wasCorrect, confidence }]
-      : answerResults;
-    setAnswerResults(nextResults);
-    if (wasCorrect) setCorrect((c) => c + 1);
-    else setIncorrect((c) => c + 1);
-    if (isLast) {
-      const finalResult = {
-        correct: wasCorrect ? correct + 1 : correct,
-        incorrect: wasCorrect ? incorrect : incorrect + 1,
-        results: nextResults,
-      };
-      setPendingFinal(finalResult);
-      if (artifact.kind !== "flashcards") {
-        await finish(finalResult.correct, finalResult.incorrect, finalResult.results);
+  useEffect(() => {
+    if (open && revealed && !pendingFinal) feedbackRef.current?.focus();
+  }, [open, pendingFinal, position, revealed]);
+
+  useEffect(() => {
+    if (open && !done && !pendingFinal && !revealed) questionRef.current?.focus();
+  }, [done, open, pendingFinal, position, revealed]);
+
+  useEffect(() => {
+    if (open && pendingFinal) completionRef.current?.focus();
+  }, [open, pendingFinal]);
+
+  const record = (wasCorrect: boolean) => {
+    if (!confidence || pendingFinal) return;
+
+    const conceptId = conceptIdForItem(items[itemIndex], itemIndex, items.length, artifact.concept_ids);
+    const result = conceptId
+      ? { conceptId, correct: wasCorrect, confidence, recovery: currentEntry.recovery }
+      : null;
+    const nextResults = result ? [...answerResults, result] : answerResults;
+    let nextQueue = queue;
+
+    if (!currentEntry.recovery) {
+      if (wasCorrect) setCorrect((value) => value + 1);
+      else {
+        setIncorrect((value) => value + 1);
+        nextQueue = [...queue, { itemIndex, recovery: true }];
+        setQueue(nextQueue);
       }
-    } else {
-      setIdx((i) => i + 1);
-      setFlipped(false);
-      setPicked(null);
-      setConfidence(null);
     }
+    setAnswerResults(nextResults);
+
+    const isFinalStep = position >= nextQueue.length - 1;
+    if (isFinalStep) {
+      const finalCorrect = currentEntry.recovery
+        ? correct
+        : wasCorrect ? correct + 1 : correct;
+      setPendingFinal({
+        correct: finalCorrect,
+        incorrect: Math.max(0, total - finalCorrect),
+        results: nextResults,
+      });
+      return;
+    }
+
+    setPosition((value) => value + 1);
+    setRevealed(false);
+    setPicked(null);
+    setConfidence(null);
   };
 
   const finish = async (
@@ -146,19 +186,30 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           correct: finalCorrect,
           total,
           durationSeconds,
-          perConcept: summarizeByConcept(results),
+          perConcept: summarizeStudyResults(results),
         },
       });
       if (error) throw error;
 
+      const response = data as {
+        ok?: unknown;
+        sessionId?: unknown;
+        readiness?: unknown;
+        readinessDelta?: unknown;
+      } | null;
+      if (response?.ok !== true || typeof response.sessionId !== "string") {
+        throw new Error("The saved session could not be confirmed.");
+      }
+
       setDone(true);
-      const r = data as { readiness?: number | null; readinessDelta?: number | null };
-      setReadiness(typeof r?.readiness === "number" ? r.readiness : null);
-      setReadinessDelta(typeof r?.readinessDelta === "number" ? r.readinessDelta : null);
+      const nextReadiness = typeof response.readiness === "number" ? response.readiness : null;
+      const nextReadinessDelta = typeof response.readinessDelta === "number" ? response.readinessDelta : null;
+      setReadiness(nextReadiness);
+      setReadinessDelta(nextReadinessDelta);
       window.dispatchEvent(new CustomEvent("coach:refresh"));
       onCompleted?.({
-        readiness: r?.readiness ?? 0,
-        readinessDelta: r?.readinessDelta ?? null,
+        readiness: nextReadiness ?? 0,
+        readinessDelta: nextReadinessDelta,
         correct: finalCorrect,
         total,
       });
@@ -172,9 +223,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   };
 
   const reset = () => {
-    setIdx(0); setCorrect(0); setIncorrect(0);
-    setFlipped(false); setPicked(null); setConfidence(null); setDone(false);
-    setReadiness(null); setReadinessDelta(null); setStartedAt(Date.now());
+    setQueue(buildInitialQueue(items.length));
+    setPosition(0);
+    setCorrect(0);
+    setIncorrect(0);
+    setRevealed(false);
+    setPicked(null);
+    setConfidence(null);
+    setDone(false);
+    setReadiness(null);
+    setReadinessDelta(null);
+    setStartedAt(Date.now());
     setAnswerResults([]);
     setPendingFinal(null);
     setSaveError(null);
@@ -195,6 +254,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   if (!items.length) return null;
 
+  const stepLabel = currentEntry.recovery
+    ? `Quick retry · ${position + 1} of ${queue.length}`
+    : `${position + 1} of ${queue.length}`;
+
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent className="w-[calc(100vw_-_1rem)] max-w-[calc(100vw_-_1rem)] min-w-0 max-h-[calc(100dvh_-_1rem)] overflow-x-hidden overflow-y-auto rounded-3xl p-4 sm:max-w-md sm:p-6 gap-3">
@@ -205,68 +268,109 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           {!done && (
             <DialogDescription className="text-xs leading-relaxed">
               {artifact.study_scope_label ? `Reviewing: ${studentScopeLabel(artifact.study_scope_label)}. ` : ""}
-              Answer from memory first, then rate how sure you were. Results guide what to review next.
+              Choose how sure you are before checking. Missed items return once so you can correct them.
             </DialogDescription>
           )}
-          {done && <DialogDescription>Your answers were saved to concept memory.</DialogDescription>}
+          {done && <DialogDescription>Your first attempts were saved to concept memory.</DialogDescription>}
         </DialogHeader>
         <p role="status" aria-live="polite" className="sr-only">
-          {submitting ? "Saving results" : done ? "Study results saved" : ""}
+          {submitting ? "Saving results" : done ? "Study results saved" : currentEntry.recovery ? "Quick retry" : ""}
         </p>
 
         {!done ? (
           <div className="space-y-4">
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-xs text-muted-foreground">
-              <span>{idx + 1} / {total}</span>
+              <span>{stepLabel}</span>
               <span className="min-w-0 text-right break-words">{correct} correct · {incorrect} missed</span>
             </div>
-            <Progress value={(completed / total) * 100} className="h-1" />
+            <Progress value={(completedSteps / progressTotal) * 100} className="h-1" />
 
-            {artifact.kind === "flashcards" ? (
+            {pendingFinal ? (
+              <div
+                ref={completionRef}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+                className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-4 text-center outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <p className="text-sm font-medium text-foreground">Practice complete</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Retries help you learn without changing your first-try score.
+                </p>
+              </div>
+            ) : artifact.kind === "flashcards" ? (
               (() => {
-                const card = (artifact.payload as FlashcardsPayload).cards[idx];
+                const card = (artifact.payload as FlashcardsPayload).cards[itemIndex];
                 return (
                   <div className="min-w-0 space-y-3">
-                    <button
-                      type="button"
-                      onClick={() => { if (!flipped) setFlipped(true); }}
-                      className="w-full min-w-0 min-h-44 overflow-hidden rounded-2xl border border-border/60 p-4 text-left hover:border-primary/40 transition-colors sm:p-5"
+                    <div
+                      ref={revealed ? feedbackRef : questionRef}
+                      data-testid={revealed ? "study-feedback" : undefined}
+                      role={revealed ? "status" : undefined}
+                      aria-live={revealed ? "polite" : undefined}
+                      aria-label={!revealed ? `Question ${position + 1}: ${card.front}` : undefined}
+                      tabIndex={-1}
+                      className="w-full min-w-0 min-h-44 overflow-hidden rounded-2xl border border-border/60 p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
                     >
                       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                        {flipped ? "Answer" : "Question"}
+                        {revealed ? "Answer" : currentEntry.recovery ? "Try again from memory" : "Question"}
                       </p>
-                      {flipped && card.conceptName && (
+                      {revealed && card.conceptName && (
                         <p className="text-[11px] text-primary mb-3">Concept: {card.conceptName}</p>
                       )}
                       <p className="break-words text-base text-foreground leading-relaxed sm:text-lg">
-                        {flipped ? card.back : card.front}
+                        {revealed ? card.back : card.front}
                       </p>
-                      {flipped && card.sourceExcerpt && (
+                      {revealed && card.sourceExcerpt && (
                         <p className="mt-4 break-words border-t border-border/40 pt-3 text-xs leading-relaxed text-muted-foreground">
                           Source from your notes: “{card.sourceExcerpt}”
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground mt-5">
-                        {flipped ? "Rate your confidence, then how you did" : "Tap card or Reveal to see the answer"}
-                      </p>
-                    </button>
-                    {pendingFinal ? (
-                      <p className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-center text-sm text-foreground">
-                        Last card rated. Finish to save your progress.
-                      </p>
-                    ) : !flipped ? (
-                      <Button className="w-full" onClick={() => setFlipped(true)}>Reveal answer</Button>
-                    ) : (
+                    </div>
+                    {revealed && card.conceptId && card.conceptName && card.sourceExcerpt
+                      && (artifact.client_class_id || artifact.class_id) && (
+                      <MemoryTrickPanel
+                        conceptId={card.conceptId}
+                        conceptName={card.conceptName}
+                        exactTarget={card.sourceExcerpt}
+                        sourceExcerpt={card.sourceExcerpt}
+                        classId={(artifact.client_class_id ?? artifact.class_id)!}
+                        captureId={captureIdForArtifact(artifact)}
+                        studyScope={studyScopeForArtifact(artifact)}
+                        onHelpful={async (feedback) => {
+                          const saved = await recordMemoryTrickFeedback({
+                            artifactId: feedback.artifactId,
+                            conceptId: feedback.conceptId,
+                            technique: feedback.technique,
+                            helpful: true,
+                          });
+                          if (saved) toast.success("We’ll use that to choose future memory tricks.");
+                        }}
+                        onTryAnother={async (feedback) => {
+                          await recordMemoryTrickFeedback({
+                            artifactId: feedback.artifactId,
+                            conceptId: feedback.conceptId,
+                            technique: feedback.technique,
+                            helpful: false,
+                          });
+                        }}
+                      />
+                    )}
+                    {!revealed ? (
                       <div className="space-y-3">
                         <ConfidencePicker value={confidence} onChange={setConfidence} />
-                        <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
-                          <Button variant="outline" disabled={!confidence} onClick={() => void record(false)}>
-                            <X className="h-4 w-4 mr-1.5" /> Review again
-                          </Button>
-                          <Button disabled={!confidence} onClick={() => void record(true)}>
-                            <Check className="h-4 w-4 mr-1.5" /> I knew it
-                          </Button>
-                        </div>
+                        <Button className="w-full" disabled={!confidence} onClick={() => setRevealed(true)}>
+                          Reveal answer
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
+                        <Button variant="outline" onClick={() => record(false)}>
+                          <X className="h-4 w-4 mr-1.5" /> {currentEntry.recovery ? "Still learning" : "Review again"}
+                        </Button>
+                        <Button onClick={() => record(true)}>
+                          <Check className="h-4 w-4 mr-1.5" /> {currentEntry.recovery ? "Got it this time" : "I knew it"}
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -274,28 +378,35 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               })()
             ) : (
               (() => {
-                const q = (artifact.payload as MultipleChoicePayload).questions[idx];
-                const revealed = picked !== null;
+                const question = (artifact.payload as MultipleChoicePayload).questions[itemIndex];
                 return (
-                  <div className="space-y-3">
-                    <p className="text-base text-foreground">{q.prompt}</p>
+                  <div
+                    ref={revealed ? undefined : questionRef}
+                    tabIndex={revealed ? undefined : -1}
+                    aria-label={revealed ? undefined : `Question ${position + 1}: ${question.prompt}`}
+                    className="space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <p className="text-base text-foreground">{question.prompt}</p>
                     <div className="space-y-2">
-                      {q.choices.map((choice, i) => {
-                        const isPicked = picked === i;
-                        const isAnswer = i === q.answerIndex;
+                      {question.choices.map((choice, choiceIndex) => {
+                        const isPicked = picked === choiceIndex;
+                        const isAnswer = choiceIndex === question.answerIndex;
                         const cls = revealed
                           ? isAnswer
                             ? "border-primary/60 bg-primary/10 text-foreground"
                             : isPicked
                               ? "border-destructive/60 bg-destructive/10 text-foreground"
                               : "border-border/40 text-muted-foreground"
-                          : "border-border/40 text-foreground hover:border-primary/40";
+                          : isPicked
+                            ? "border-primary/60 bg-primary/10 text-foreground"
+                            : "border-border/40 text-foreground hover:border-primary/40";
                         return (
                           <button
-                            key={i}
+                            key={choiceIndex}
                             type="button"
                             disabled={revealed}
-                            onClick={() => setPicked(i)}
+                            aria-pressed={!revealed ? isPicked : undefined}
+                            onClick={() => setPicked(choiceIndex)}
                             className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${cls}`}
                           >
                             <span>{choice}</span>
@@ -311,21 +422,50 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         );
                       })}
                     </div>
-                    {revealed && (
-                      <>
-                        <p className="text-xs text-muted-foreground">{q.rationale}</p>
+                    {!revealed ? (
+                      <div className="space-y-3">
                         <ConfidencePicker value={confidence} onChange={setConfidence} />
-                      </>
-                    )}
-                    {!pendingFinal && (
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={!revealed || !confidence}
-                          onClick={() => void record(picked === q.answerIndex)}
-                        >
-                          {isLast ? "Finish" : "Next"}
-                        </Button>
+                        <div className="flex justify-end">
+                          <Button disabled={picked === null || !confidence} onClick={() => setRevealed(true)}>
+                            Check answer
+                          </Button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div
+                          ref={feedbackRef}
+                          data-testid="study-feedback"
+                          role="status"
+                          aria-live="polite"
+                          tabIndex={-1}
+                          className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <p className="break-words text-sm font-semibold text-foreground">
+                            {picked === question.answerIndex
+                              ? "Correct."
+                              : `Not quite. Correct answer: ${question.choices[question.answerIndex]}`}
+                          </p>
+                          {question.conceptName && (
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                              Concept: {question.conceptName}
+                            </p>
+                          )}
+                          <p className="text-xs leading-relaxed text-muted-foreground">{question.rationale}</p>
+                          {question.sourceExcerpt && (
+                            <p className="border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground">
+                              Check the source: “{question.sourceExcerpt}”
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex justify-end">
+                          <Button onClick={() => record(picked === question.answerIndex)}>
+                            {position >= queue.length - 1 && (currentEntry.recovery || picked === question.answerIndex)
+                              ? "Finish"
+                              : "Next"}
+                          </Button>
+                        </div>
+                      </>
                     )}
                   </div>
                 );
@@ -349,7 +489,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               {Math.round((correct / total) * 100)}%
             </p>
             <p className="text-sm text-muted-foreground">
-              {correct} of {total} correct · Concept memory updated.
+              {correct} of {total} correct on the first try · Concept memory updated.
             </p>
             {readiness !== null && (
               <p className="text-sm text-foreground">
@@ -390,7 +530,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
               {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               {saveError ? "Try saving again" : "Finish session"}
             </Button>
-          ) : isLast ? null : (
+          ) : (
             <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => requestOpenChange(false)} disabled={submitting}>
               End session
             </Button>
@@ -437,29 +577,48 @@ function ConfidencePicker({
     { id: "high", label: "Very sure" },
   ];
   return (
-    <div className="space-y-2" role="group" aria-label="How sure were you?">
+    <div className="space-y-2" role="group" aria-label="How sure are you before checking?">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        How sure were you before checking?
+        How sure are you before checking?
       </p>
       <div className="grid grid-cols-3 gap-2">
-        {options.map((opt) => (
+        {options.map((option) => (
           <button
-            key={opt.id}
+            key={option.id}
             type="button"
-            onClick={() => onChange(opt.id)}
-            aria-pressed={value === opt.id}
+            onClick={() => onChange(option.id)}
+            aria-pressed={value === option.id}
             className={`min-h-11 rounded-xl border px-2 text-xs font-medium transition-colors ${
-              value === opt.id
+              value === option.id
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
             }`}
           >
-            {opt.label}
+            {option.label}
           </button>
         ))}
       </div>
     </div>
   );
+}
+
+function buildInitialQueue(length: number): QueueEntry[] {
+  return Array.from({ length }, (_, itemIndex) => ({ itemIndex, recovery: false }));
+}
+
+function conceptIdForItem(
+  item: unknown,
+  itemIndex: number,
+  itemCount: number,
+  artifactConceptIds: string[],
+) {
+  const explicit = item && typeof item === "object" && "conceptId" in item
+    ? (item as { conceptId?: unknown }).conceptId
+    : undefined;
+  if (typeof explicit === "string" && explicit) return explicit;
+  if (itemCount === artifactConceptIds.length) return artifactConceptIds[itemIndex];
+  if (artifactConceptIds.length === 1) return artifactConceptIds[0];
+  return undefined;
 }
 
 function studentScopeLabel(label: string) {
@@ -468,20 +627,53 @@ function studentScopeLabel(label: string) {
   return label;
 }
 
-function summarizeByConcept(results: AnswerResult[]) {
-  const byConcept = new Map<string, { correct: number; total: number; highWrong: number }>();
+function studyScopeForArtifact(artifact: LearningArtifact): StudyScope {
+  return {
+    type: artifact.study_scope_type,
+    id: artifact.study_scope_id,
+    label: artifact.study_scope_label ?? "Study set",
+    ...(artifact.study_scope_type === "exam" ? { examId: artifact.study_scope_id } : {}),
+  };
+}
+
+function captureIdForArtifact(artifact: LearningArtifact) {
+  if (!artifact.capture_id || artifact.study_scope_type !== "recent") return undefined;
+  return artifact.study_scope_id === `capture-${artifact.capture_id}`
+    ? artifact.capture_id
+    : undefined;
+}
+
+function summarizeStudyResults(results: AnswerResult[]) {
+  const byConcept = new Map<string, {
+    firstAttempts: AnswerResult[];
+    recovered: boolean;
+  }>();
   for (const result of results) {
-    const current = byConcept.get(result.conceptId) ?? { correct: 0, total: 0, highWrong: 0 };
-    current.total += 1;
-    if (result.correct) current.correct += 1;
-    if (!result.correct && result.confidence === "high") current.highWrong += 1;
+    const current = byConcept.get(result.conceptId) ?? { firstAttempts: [], recovered: false };
+    if (result.recovery) {
+      current.recovered = current.recovered || result.correct;
+    } else {
+      current.firstAttempts.push(result);
+    }
     byConcept.set(result.conceptId, current);
   }
-  return [...byConcept].map(([conceptId, score]) => ({
-    conceptId,
-    correct: score.correct / score.total >= 0.5,
-    confidentlyWrong: score.highWrong > 0,
-  }));
+  return [...byConcept].flatMap(([conceptId, score]) => {
+    if (!score.firstAttempts.length) return [];
+    const correctCount = score.firstAttempts.filter((result) => result.correct).length;
+    const correct = correctCount / score.firstAttempts.length >= 0.5;
+    return [{
+      conceptId,
+      correct,
+      confidence: aggregateConfidence(score.firstAttempts, correct),
+      recovered: !correct && score.recovered,
+    }];
+  });
+}
+
+function aggregateConfidence(results: AnswerResult[], correct: boolean): ConfidenceLevel {
+  const rank: Record<ConfidenceLevel, number> = { low: 0, medium: 1, high: 2 };
+  const sorted = results.map((result) => result.confidence).sort((a, b) => rank[a] - rank[b]);
+  return correct ? sorted[0] ?? "medium" : sorted.at(-1) ?? "medium";
 }
 
 function createStudyAttemptId() {
