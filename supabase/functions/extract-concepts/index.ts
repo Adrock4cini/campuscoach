@@ -52,28 +52,57 @@ const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "concept";
 
 const EXTRACTION_CLAIM_MS = 5 * 60 * 1000;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return json({ error: "Unauthorized" }, 401);
   }
   const key = Deno.env.get("LOVABLE_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) {
+    console.error("[extract-concepts] public Supabase environment is missing");
+    return json({ error: "Service unavailable" }, 503);
+  }
 
   const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
+    supabaseUrl,
+    anonKey,
     { global: { headers: { Authorization: authHeader } } },
   );
   const jwt = authHeader.replace("Bearer ", "");
   const { data: claims, error: claimsErr } = await supabase.auth.getClaims(jwt);
   if (claimsErr || !claims?.claims?.sub) return json({ error: "Unauthorized" }, 401);
   const userId = claims.claims.sub as string;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceRoleKey) {
+    console.error("[extract-concepts] service-role environment is missing");
+    return json({ error: "Service unavailable" }, 503);
+  }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
-  let body: Body;
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  let parsedBody: unknown;
+  try { parsedBody = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
+    return json({ error: "JSON body must be an object" }, 400);
+  }
+  const body = parsedBody as Body;
+  if (body.captureId !== undefined && (
+    typeof body.captureId !== "string" || !UUID_PATTERN.test(body.captureId)
+  )) return json({ error: "captureId must be a UUID" }, 400);
+  if (body.classId !== undefined && body.classId !== null && (
+    typeof body.classId !== "string" || !UUID_PATTERN.test(body.classId)
+  )) return json({ error: "classId must be a UUID" }, 400);
+  if (body.clientClassId !== undefined && body.clientClassId !== null && (
+    typeof body.clientClassId !== "string" || !body.clientClassId.trim() || body.clientClassId.length > 200
+  )) return json({ error: "clientClassId is invalid" }, 400);
 
   // A durable capture is the source of truth on retries. This prevents a
   // changed client payload from attaching different material to the same
@@ -107,14 +136,17 @@ Deno.serve(async (req) => {
   // while the UUID anchors mastery/readiness foreign keys.
   let resolvedClassId = capture?.class_id ?? body.classId ?? null;
   let resolvedClientClassId = capture?.client_class_id ?? body.clientClassId ?? null;
-  if (resolvedClientClassId) {
-    const { data: ownedClass, error: classErr } = await supabase
+  if (resolvedClassId || resolvedClientClassId) {
+    let ownedClassQuery = supabase
       .from("classes")
       .select("id, client_class_id")
       .eq("user_id", userId)
-      .eq("client_class_id", resolvedClientClassId)
-      .is("source_archived_at", null)
-      .maybeSingle();
+      .is("source_archived_at", null);
+    if (resolvedClassId) ownedClassQuery = ownedClassQuery.eq("id", resolvedClassId);
+    if (resolvedClientClassId) {
+      ownedClassQuery = ownedClassQuery.eq("client_class_id", resolvedClientClassId);
+    }
+    const { data: ownedClass, error: classErr } = await ownedClassQuery.maybeSingle();
     if (classErr) return json({ error: "class lookup failed", details: classErr.message }, 500);
     if (!ownedClass) return json({ error: "class not found" }, 404);
     resolvedClassId = ownedClass.id;
@@ -133,8 +165,29 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: true });
     if (existingErr) return json({ error: "existing concepts lookup failed", details: existingErr.message }, 500);
     if (existingConcepts?.length) {
+      const existingClassIds = [...new Set(
+        existingConcepts
+          .map((concept) => concept.class_id as string | null)
+          .filter((classId): classId is string => Boolean(classId)),
+      )];
+      if (resolvedClassId && existingClassIds.some((classId) => classId !== resolvedClassId)) {
+        return json({ error: "existing concepts do not match the capture class" }, 409);
+      }
+      if (existingClassIds.length) {
+        const { data: ownedExistingClasses, error: existingClassErr } = await supabase
+          .from("classes")
+          .select("id")
+          .eq("user_id", userId)
+          .in("id", existingClassIds);
+        if (existingClassErr) {
+          return json({ error: "existing concept class lookup failed", details: existingClassErr.message }, 500);
+        }
+        if ((ownedExistingClasses ?? []).length !== existingClassIds.length) {
+          return json({ error: "existing concepts contain an invalid class" }, 409);
+        }
+      }
       const existingIds = existingConcepts.map((concept) => concept.id as string);
-      const { data: masteryRows, error: masteryLookupErr } = await supabase
+      const { data: masteryRows, error: masteryLookupErr } = await adminClient
         .from("user_concept_mastery")
         .select("concept_id")
         .eq("user_id", userId)
@@ -148,7 +201,7 @@ Deno.serve(async (req) => {
         .map((concept) => ({
           user_id: userId,
           concept_id: concept.id,
-          class_id: concept.class_id,
+          class_id: resolvedClassId ?? concept.class_id,
           strength: 0.15,
           attempts: 0,
           correct: 0,
@@ -157,7 +210,7 @@ Deno.serve(async (req) => {
           streak: 0,
         }));
       if (missingMastery.length) {
-        const { error: recoveryErr } = await supabase
+        const { error: recoveryErr } = await adminClient
           .from("user_concept_mastery")
           .insert(missingMastery);
         if (recoveryErr) return json({ error: "mastery recovery failed", details: recoveryErr.message }, 500);
@@ -367,7 +420,7 @@ Deno.serve(async (req) => {
 
   let insertedIds: string[] = [];
   if (conceptRows.length) {
-    const { data: inserted, error: insErr } = await supabase
+    const { data: inserted, error: insErr } = await adminClient
       .from("concepts")
       .insert(conceptRows)
       .select("id, class_id");
@@ -390,7 +443,7 @@ Deno.serve(async (req) => {
       streak: 0,
     }));
     if (masteryRows.length) {
-      const { error: masteryErr } = await supabase
+      const { error: masteryErr } = await adminClient
         .from("user_concept_mastery")
         .upsert(masteryRows, { onConflict: "user_id,concept_id" });
       if (masteryErr) {

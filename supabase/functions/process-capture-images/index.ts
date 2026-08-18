@@ -92,12 +92,16 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  let body: Body;
+  let parsedBody: unknown;
   try {
-    body = await req.json();
+    parsedBody = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
+  if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
+    return json({ error: "JSON body must be an object" }, 400);
+  }
+  const body = parsedBody as Body;
   if (!body.captureId || !Array.isArray(body.materialIds)) {
     return json({ error: "captureId and materialIds are required" }, 400);
   }
@@ -143,8 +147,11 @@ Deno.serve(async (req) => {
     .order("created_at", { ascending: true });
   if (existingError) return json({ error: "Concept recovery lookup failed" }, 500);
   if (existing?.length) {
+    if (existing.some((concept) => concept.class_id !== ownedClass.id)) {
+      return json({ error: "Existing concepts do not match the capture class" }, 409);
+    }
     const existingIds = existing.map((concept) => concept.id);
-    const { data: masteryRows, error: masteryLookupError } = await userClient
+    const { data: masteryRows, error: masteryLookupError } = await adminClient
       .from("user_concept_mastery")
       .select("concept_id")
       .eq("user_id", userId)
@@ -156,7 +163,7 @@ Deno.serve(async (req) => {
       .map((concept) => ({
         user_id: userId,
         concept_id: concept.id,
-        class_id: concept.class_id,
+        class_id: ownedClass.id,
         strength: 0.15,
         attempts: 0,
         correct: 0,
@@ -165,7 +172,7 @@ Deno.serve(async (req) => {
         streak: 0,
       }));
     if (missingMastery.length) {
-      const { error: recoveryError } = await userClient
+      const { error: recoveryError } = await adminClient
         .from("user_concept_mastery")
         .insert(missingMastery);
       if (recoveryError) return json({ error: "Mastery recovery failed" }, 500);
@@ -400,7 +407,7 @@ Deno.serve(async (req) => {
     embedding: null,
     source_kind: capture.kind,
   }));
-  const { data: inserted, error: conceptError } = await userClient
+  const { data: inserted, error: conceptError } = await adminClient
     .from("concepts")
     .insert(conceptRows)
     .select("id, class_id, name");
@@ -410,7 +417,7 @@ Deno.serve(async (req) => {
   }
 
   const now = new Date().toISOString();
-  const { error: masteryError } = await userClient
+  const { error: masteryError } = await adminClient
     .from("user_concept_mastery")
     .upsert(inserted.map((concept) => ({
       user_id: userId,
