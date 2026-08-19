@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
   });
   if (!groundedCandidates.length) {
     return json({
-      error: "No grounded source material is available for this study target. Add a definition, example, equation, class fact, or teacher/instructor hint first.",
+      error: "Your captured pages only have headings or page furniture so far — no explanation to study yet. Snap the paragraph under the heading (or add a definition, example, equation, or teacher hint) and try again.",
     }, 422);
   }
   const recentDefault = resolvedScope.type === "recent"
