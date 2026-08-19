@@ -143,7 +143,7 @@ export function buildDeterministicMultipleChoice(
         || "",
       220,
     ),
-  })).filter((entry) => entry.target);
+  })).filter((entry) => entry.target && !isNonExplanatoryFragment(entry.target));
   const safeDecoys = [
     "Not stated in the provided class material",
     "There is not enough information in the source",
