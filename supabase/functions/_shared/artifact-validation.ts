@@ -479,6 +479,14 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
     ) {
       return { ok: false, error: "mnemonic target must copy the exact grounded fact" };
     }
+    // Make It Stick must never sound confident about a heading or page
+    // fragment. Without a real explanation there is nothing to memorise yet.
+    if (isNonExplanatoryFragment(exactTarget)) {
+      return {
+        ok: false,
+        error: "this material is only a heading, so there is nothing to memorise yet — capture the explanation under it",
+      };
+    }
 
     const mnemonic = cleanString(rawItem.mnemonic, "mnemonic", 3, 500);
     if ("error" in mnemonic) return { ok: false, error: mnemonic.error };
