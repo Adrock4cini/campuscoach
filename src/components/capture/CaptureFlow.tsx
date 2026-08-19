@@ -38,6 +38,11 @@ import {
   writeLastCaptureClassId,
 } from "@/lib/capture/captureClassPreference";
 import {
+  clearCaptureDraft,
+  readCaptureDraft,
+  writeCaptureDraft,
+} from "@/lib/capture/captureDraft";
+import {
   captureContextLabel,
   inferCaptureClass,
   type CaptureClassInference,
