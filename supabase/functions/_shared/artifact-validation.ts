@@ -107,7 +107,9 @@ export function buildDeterministicFlashcards(
         800,
       );
     const promptKey = duplicateKey(front);
-    if (!back || seenPrompts.has(promptKey)) continue;
+    // A heading, running head, or "© Publisher 159" page fragment is not an
+    // answer. Skipping it keeps the set honest instead of teaching furniture.
+    if (!back || isNonExplanatoryFragment(back) || seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
     cards.push({
       front,
