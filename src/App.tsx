@@ -42,6 +42,7 @@ import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
 import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
 import { getOnboardingRedirect } from "@/lib/auth/protectedRoute";
+import { readLastRoute, writeLastRoute } from "@/lib/app/routeMemory";
 
 
 function DemoOnly({
