@@ -35,6 +35,9 @@ export interface MemoryTrickPanelProps extends MemoryTrickBoundary {
   onTryAnother?: (context: MemoryTrickFeedbackContext) => void | Promise<void>;
   /** Subject family of the class, used only to scope learned evidence. */
   subjectProfileId?: string;
+  /** Restores an open Make It Stick panel after backgrounding or a reload. */
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -46,7 +49,11 @@ export function MemoryTrickPanel(props: MemoryTrickPanelProps) {
 }
 
 function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(props.defaultOpen ?? false);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    props.onOpenChange?.(next);
+  };
   const panelId = useId();
   const headingId = `${panelId}-heading`;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -55,6 +62,7 @@ function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
   useEffect(() => {
     if (open) panelRef.current?.focus();
   }, [open]);
+
 
   return (
     <div className="min-w-0">
