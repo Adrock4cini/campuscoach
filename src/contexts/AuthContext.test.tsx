@@ -87,6 +87,22 @@ function AuthOnboardingSnapshot() {
   return <output aria-label="Setup status">{onboarded === null ? "pending" : String(onboarded)}</output>;
 }
 
+function AuthRecoverySnapshot() {
+  const { recovering, mode } = useAuth();
+  return <output aria-label="Recovery state">{recovering ? "recovering" : mode}</output>;
+}
+
+function AuthSignOutSnapshot() {
+  const { user, loading, signOut } = useAuth();
+  return (
+    <div>
+      <span>{loading ? "loading" : user?.id ?? "signed-out"}</span>
+      <button type="button" onClick={() => void signOut()}>Sign out</button>
+    </div>
+  );
+}
+
+
 describe("AuthProvider session restoration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
