@@ -21,7 +21,7 @@ const FURNITURE_LINE =
 
 /** Words that signal an actual explanation rather than a label. */
 const EXPLANATORY_SIGNAL =
-  /\b(is|are|was|were|means|refers|defined|definition|because|when|which|that|who|requires|allows|includes|equals|causes|results|must|can|may|do|does|has|have)\b/i;
+  /\b(is|are|was|were|means|refers|defined|definition|because|when|which|that|who|requires|allows|includes|equals|causes|results|must|can|may|do|does|has|have|will|said|says|need|needs|becomes|occurs|happens|makes|gives|shows)\b/i;
 
 /**
  * Removes trailing source furniture ("… © Stringham Schools 159") so the real
