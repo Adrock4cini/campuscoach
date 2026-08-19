@@ -336,6 +336,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     if (realMode && outcome.value.context.classId) {
       writeLastCaptureClassId(outcome.value.context.classId);
     }
+    // The draft is now a saved capture; nothing left to restore.
+    clearCaptureDraft();
     setResult(outcome.value);
     setStage("done");
 
