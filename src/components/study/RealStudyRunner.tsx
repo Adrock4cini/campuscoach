@@ -374,6 +374,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                     {revealed && card.conceptId && card.conceptName && card.sourceExcerpt
                       && (artifact.client_class_id || artifact.class_id) && (
                       <MemoryTrickPanel
+                        defaultOpen={mnemonicOpen}
+                        onOpenChange={setMnemonicOpen}
                         conceptId={card.conceptId}
                         conceptName={card.conceptName}
                         exactTarget={card.sourceExcerpt}
