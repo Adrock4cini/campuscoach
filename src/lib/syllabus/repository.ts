@@ -94,8 +94,32 @@ export async function parseClassSyllabus(
       },
     },
   });
-  if (error) throw error;
+  if (error) throw new Error(await describeSyllabusFunctionError(error));
   return parseParsedSyllabus(data);
+}
+
+async function describeSyllabusFunctionError(error: unknown) {
+  const value = error as { message?: unknown; context?: unknown };
+  const response = value.context instanceof Response ? value.context : null;
+  let serverMessage = "";
+  if (response) {
+    try {
+      const body = await response.clone().json() as { error?: unknown; details?: unknown };
+      serverMessage = typeof body.error === "string"
+        ? body.error.trim()
+        : typeof body.details === "string" ? body.details.trim() : "";
+    } catch {
+      serverMessage = "";
+    }
+  }
+  if (response?.status === 401) return "Your session expired. Sign in again, then retry the syllabus.";
+  if (response?.status === 429) return "Too many syllabus scans are running right now. Wait a moment and try again.";
+  if (response && response.status >= 500) {
+    return serverMessage
+      ? `The syllabus reader could not finish: ${serverMessage}. Try again shortly.`
+      : "The syllabus reader is temporarily unavailable. Try again shortly.";
+  }
+  return serverMessage || (typeof value.message === "string" ? value.message : "") || "We couldn’t read that syllabus.";
 }
 
 export async function getClassSyllabus(classUuid: string): Promise<ClassSyllabus | null> {

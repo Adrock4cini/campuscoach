@@ -1,7 +1,6 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CaptureButton } from "@/components/CaptureButton";
-import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { CaptureProvider } from "@/contexts/CaptureContext";
 
@@ -14,17 +13,27 @@ import { CanvasAutoSync } from "@/components/CanvasAutoSync";
 
 function HeaderSearchButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <button
-      onClick={onOpen}
-      className="hidden md:inline-flex items-center gap-2 rounded-full border border-border/50 bg-background/40 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
-      aria-label="Open command palette"
-    >
-      <Search className="h-3.5 w-3.5" />
-      Search…
-      <kbd className="ml-2 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-foreground/70">⌘K</kbd>
-    </button>
+    <>
+      <button
+        onClick={onOpen}
+        className="hidden md:inline-flex items-center gap-2 rounded-full border border-border/50 bg-background/40 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+        aria-label="Open command palette"
+      >
+        <Search className="h-3.5 w-3.5" />
+        Search…
+        <kbd className="ml-2 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-foreground/70">⌘K</kbd>
+      </button>
+      <button
+        onClick={onOpen}
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground md:hidden"
+        aria-label="Search"
+      >
+        <Search className="h-5 w-5" />
+      </button>
+    </>
   );
 }
+
 
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const { mode } = useFocusMode();
@@ -66,7 +75,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
             <div className="ml-auto flex items-center gap-2">
               <HeaderSearchButton onOpen={() => setOpen(true)} />
               <FocusModeToggle />
-              <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70 hidden lg:inline ml-2">AI Academic OS</span>
+              
             </div>
           </header>
           <main className="flex-1 min-w-0 max-w-full p-4 pb-[calc(9rem+env(safe-area-inset-bottom))] md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden">
@@ -75,7 +84,6 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
         </div>
         <CaptureButton />
         <MobileBottomNav />
-        <OnboardingDialog />
         <CommandPalette open={open} onOpenChange={setOpen} />
         <CanvasAutoSync />
       </div>
@@ -84,8 +92,11 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const { mode, user } = useAuth();
+  const ownerKey = `${mode}:${user?.id ?? "anonymous"}`;
+
   return (
-    <FocusModeProvider>
+    <FocusModeProvider key={ownerKey}>
       <CaptureProvider>
         <LayoutShell>{children}</LayoutShell>
       </CaptureProvider>

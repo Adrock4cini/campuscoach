@@ -57,7 +57,7 @@ export function ChapterDetailDrawer({ open, onOpenChange, chapter, classId, clas
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) setTitle(""); onOpenChange(v); }}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-lg">
         <SheetHeader className="pb-4">
           <div className="flex items-center gap-2">
             {statusIcon}
@@ -191,7 +191,7 @@ export function ChapterDetailDrawer({ open, onOpenChange, chapter, classId, clas
               {chapter.aiBreakdown.professorCares && (
                 <Card className="shadow-soft bg-warning/5 border-warning/20">
                   <CardContent className="p-3">
-                    <p className="text-xs font-semibold text-warning mb-1 flex items-center gap-1"><Target className="h-3 w-3" /> What the Professor Cares About</p>
+                    <p className="text-xs font-semibold text-warning mb-1 flex items-center gap-1"><Target className="h-3 w-3" /> What the Teacher Cares About</p>
                     <p className="text-sm text-foreground/80">{chapter.aiBreakdown.professorCares}</p>
                   </CardContent>
                 </Card>

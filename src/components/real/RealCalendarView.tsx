@@ -7,7 +7,6 @@ import {
   Clock,
   FileText,
   GraduationCap,
-  Plus,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -157,27 +156,29 @@ export function RealCalendarView() {
             See what’s coming
           </h1>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-11 shrink-0 rounded-xl"
-          onClick={() => navigate("/classes?intent=syllabus")}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          <span className="hidden min-[390px]:inline">Import </span>syllabus
-        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
         <Card className="overflow-hidden rounded-[26px] border-border/40 shadow-card">
-          <CardContent className="p-2 sm:p-3">
+          <CardContent className="p-3 sm:p-4">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={(date) => date && setSelectedDate(date)}
               month={month}
               onMonthChange={setMonth}
-              className="mx-auto w-fit"
+              className="w-full p-0"
+              classNames={{
+                months: "flex w-full flex-col",
+                month: "w-full space-y-3",
+                caption: "relative flex items-center justify-center pt-0.5",
+                table: "w-full border-collapse",
+                head_row: "grid w-full grid-cols-7",
+                head_cell: "w-full text-center text-[0.7rem] font-normal text-muted-foreground",
+                row: "mt-1 grid w-full grid-cols-7",
+                cell: "relative h-auto w-full p-0 text-center text-sm focus-within:relative focus-within:z-20",
+                day: "mx-auto flex aspect-square h-auto w-full max-w-10 items-center justify-center rounded-full p-0 text-sm font-normal hover:bg-accent/60 aria-selected:opacity-100",
+              }}
               modifiers={{
                 hasExam: (date) => examDates.has(toDateKey(date)),
                 hasAssignment: (date) => assignmentDates.has(toDateKey(date)),
@@ -187,6 +188,7 @@ export function RealCalendarView() {
                 hasAssignment: "bg-primary/10 font-medium",
               }}
             />
+
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-border/40 px-2 pt-3 pb-1 text-[11px] text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary/70" /> Assignment</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full ring-1 ring-accent" /> Exam</span>
@@ -236,8 +238,16 @@ export function RealCalendarView() {
               <div className="rounded-2xl border border-dashed border-border/60 px-5 py-9 text-center">
                 <CalendarDays className="h-8 w-8 mx-auto text-muted-foreground/60" />
                 <p className="mt-3 text-sm font-medium text-foreground">Nothing scheduled</p>
-                <p className="mt-1 text-xs text-muted-foreground">A clear day—or import a syllabus to fill in deadlines.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Add a syllabus and due dates fill in here.</p>
+                <Button
+                  size="sm"
+                  className="mt-4 min-h-11"
+                  onClick={() => navigate("/classes?intent=syllabus")}
+                >
+                  Add a syllabus
+                </Button>
               </div>
+
             ) : (
               <div className="space-y-2">
                 {selectedItems.map((item) => {

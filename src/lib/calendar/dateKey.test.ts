@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatDateKey, isDateKey, parseDateKey, todayDateKey, toDateKey } from "./dateKey";
+import {
+  formatDateKey,
+  isDateKey,
+  isPastDateKey,
+  parseDateKey,
+  todayDateKey,
+  toDateKey,
+} from "./dateKey";
 
 describe("local calendar date keys", () => {
   it("keeps a Mountain Time evening on the student's local day", () => {
@@ -23,5 +30,14 @@ describe("local calendar date keys", () => {
 
   it("formats without shifting the calendar day", () => {
     expect(formatDateKey("2026-08-09", { month: "long", day: "numeric" })).toBe("August 9");
+  });
+
+  it("treats today as current through the end of the student's local day", () => {
+    const lateEvening = new Date(2026, 7, 17, 23, 59);
+
+    expect(isPastDateKey("2026-08-16", lateEvening)).toBe(true);
+    expect(isPastDateKey("2026-08-17", lateEvening)).toBe(false);
+    expect(isPastDateKey("2026-08-18", lateEvening)).toBe(false);
+    expect(isPastDateKey(null, lateEvening)).toBe(false);
   });
 });

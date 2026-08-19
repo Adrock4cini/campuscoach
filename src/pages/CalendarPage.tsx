@@ -157,13 +157,13 @@ function DemoCalendarPage() {
       {/* Navigation Controls */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-card rounded-lg border border-border p-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrev}>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Previous week" onClick={goToPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant={isCurrentWeek ? "default" : "ghost"} size="sm" className={`h-8 text-xs ${isCurrentWeek ? "bg-gradient-calm border-0 text-primary-foreground" : ""}`} onClick={goToToday}>
+          <Button variant={isCurrentWeek ? "default" : "ghost"} size="sm" className={`min-h-11 text-xs ${isCurrentWeek ? "bg-gradient-calm border-0 text-primary-foreground" : ""}`} onClick={goToToday}>
             Today
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNext}>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Next week" onClick={goToNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

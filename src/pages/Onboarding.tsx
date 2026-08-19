@@ -5,13 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, Plus, Trash2, CalendarDays, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { emptyOnboarding, type OnboardingData, type OnboardingClass } from "@/lib/onboarding/types";
-import { loadCachedOnboarding, saveOnboarding } from "@/lib/onboarding/store";
+import { cacheOnboardingDraft, loadCachedOnboarding, saveOnboarding } from "@/lib/onboarding/store";
 import { academicTermOptions } from "@/lib/onboarding/options";
 import { useAuth } from "@/contexts/AuthContext";
 import { SchoolCombobox } from "@/components/onboarding/SchoolCombobox";
@@ -26,16 +25,18 @@ import { normalizeTimeKey } from "@/lib/calendar/classSchedule";
 import { isDateKey } from "@/lib/calendar/dateKey";
 
 
-const STEPS = [
+export const ONBOARDING_STEPS = [
   "You",
   "School",
   "Term",
   "Classes",
   "Schedule",
-  "Work",
-  "Reminders",
-  "Goal",
 ];
+const STEPS = ONBOARDING_STEPS;
+
+export function isOnboardingIdentityValid(data: Pick<OnboardingData, "name" | "learnerType">) {
+  return data.name.trim().length > 0 && data.learnerType !== "";
+}
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -49,12 +50,13 @@ export default function Onboarding() {
   }));
   const [saving, setSaving] = useState(false);
   const initialized = useRef(false);
+  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const termOptions = useMemo(() => academicTermOptions(), []);
 
   useEffect(() => {
     if (!user || initialized.current) return;
     initialized.current = true;
-    const cached = loadCachedOnboarding();
+    const cached = loadCachedOnboarding(user.id);
     const metadataName = typeof user.user_metadata?.full_name === "string"
       ? user.user_metadata.full_name.split(" ")[0]
       : "";
@@ -62,13 +64,16 @@ export default function Onboarding() {
     const school = profile?.schools?.name || cached?.school || "";
     const term = profile?.term || cached?.term || "";
 
+    const learnerType: OnboardingData["learnerType"] = (profile?.learner_type as OnboardingData["learnerType"])
+      || cached?.learnerType
+      || "";
     const merged = {
       ...emptyOnboarding,
       ...cached,
       name,
       school,
       term,
-      learnerType: (profile?.learner_type as OnboardingData["learnerType"]) || cached?.learnerType || "college",
+      learnerType,
       workSchedule: profile?.work_schedule || cached?.workSchedule || "",
     };
     setData({
@@ -77,13 +82,19 @@ export default function Onboarding() {
         cached ? hydrateCachedOnboardingClass : prepareNewOnboardingClass,
       ),
     });
+    setHydratedUserId(user.id);
 
     // Do not ask returning students to re-enter information already stored.
     if (importSyllabusMode) setStep(0);
-    else if (name && school && term) setStep(3);
-    else if (name && school) setStep(2);
-    else if (name) setStep(1);
+    else if (name && learnerType && school && term) setStep(3);
+    else if (name && learnerType && school) setStep(2);
+    else if (name && learnerType) setStep(1);
   }, [importSyllabusMode, profile, user]);
+
+  useEffect(() => {
+    if (!hydratedUserId || hydratedUserId !== user?.id || importSyllabusMode) return;
+    cacheOnboardingDraft(data, hydratedUserId);
+  }, [data, hydratedUserId, importSyllabusMode, user?.id]);
 
   // The returning-student importer used to create or overwrite classes from
   // an unscoped file. Every syllabus now belongs to one already-chosen class.
@@ -100,7 +111,7 @@ export default function Onboarding() {
 
   const canNext = (() => {
     switch (step) {
-      case 0: return data.name.trim().length > 0;
+      case 0: return isOnboardingIdentityValid(data);
       case 1: return data.school.trim().length > 0;
       case 2: return data.term.trim().length > 0;
       case 3: return data.classes.some((c) => c.name.trim().length > 0);
@@ -175,7 +186,7 @@ export default function Onboarding() {
                 {step === 0 && (
                   <StepShell
                     title="What's your name?"
-                    hint="First name is fine. After you add your classes, each class will have its own place for its syllabus."
+                    hint="First name is fine. You can change this later."
                   >
                     <div className="space-y-3">
                       <Input
@@ -190,18 +201,15 @@ export default function Onboarding() {
                           value={data.learnerType}
                           onValueChange={(v) => update({ learnerType: v as OnboardingData["learnerType"] })}
                         >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Choose student type" /></SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="middle_school">Middle school student</SelectItem>
                             <SelectItem value="high_school">High school student</SelectItem>
                             <SelectItem value="college">College student</SelectItem>
                             <SelectItem value="certification">Certification / bootcamp</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div className="flex gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
-                        <FileText aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                        <p className="text-muted-foreground"><span className="font-medium text-foreground">Syllabi come after class setup.</span> Open any class and tap Add syllabus. We’ll review its assignments, quizzes, exams, and study topics with you.</p>
                       </div>
                     </div>
                   </StepShell>
@@ -231,7 +239,7 @@ export default function Onboarding() {
                   </StepShell>
                 )}
                 {step === 3 && (
-                  <StepShell title="Add your classes" hint="Start with the class name. Course code and professor are optional.">
+                  <StepShell title="Add your classes" hint="Start with the class name. Course code and teacher or instructor are optional.">
                     <div className="space-y-3">
                       {data.classes.map((c, i) => (
                         <div key={c.clientClassId || i} className="rounded-xl border border-border/60 bg-background/20 p-3 space-y-2">
@@ -241,6 +249,7 @@ export default function Onboarding() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-11 w-11"
                               aria-label={`Remove class ${i + 1}`}
                               onClick={() =>
                                 setData((d) => ({
@@ -268,14 +277,14 @@ export default function Onboarding() {
                             <Input
                               value={c.professor || ""}
                               onChange={(e) => updateClass(i, { professor: e.target.value })}
-                              placeholder="Professor"
+                              placeholder="Teacher or instructor"
                             />
                           </div>
                         </div>
                       ))}
                       <Button
                         variant="outline"
-                        className="w-full border-dashed"
+                        className="min-h-11 w-full border-dashed"
                         onClick={() =>
                           setData((d) => ({
                             ...d,
@@ -289,7 +298,7 @@ export default function Onboarding() {
                   </StepShell>
                 )}
                 {step === 4 && (
-                  <StepShell title="Professor & schedule" hint="Optional but makes Campus Companion smarter.">
+                  <StepShell title="Teacher & schedule" hint="Optional. Add anything you know now, or finish and update it later.">
                     <div className="space-y-4 pr-1">
                       {data.classes
                         .filter((c) => c.name.trim())
@@ -301,7 +310,7 @@ export default function Onboarding() {
                               <Input
                                 value={c.professor || ""}
                                 onChange={(e) => updateClass(realIdx, { professor: e.target.value })}
-                                placeholder="Professor (optional)"
+                                placeholder="Teacher or instructor (optional)"
                               />
                               <DayPicker
                                 value={c.days}
@@ -377,52 +386,16 @@ export default function Onboarding() {
                     </div>
                   </StepShell>
                 )}
-                {step === 5 && (
-                  <StepShell title="Work schedule" hint="Optional — helps plan study time.">
-                    <Textarea
-                      value={data.workSchedule || ""}
-                      onChange={(e) => update({ workSchedule: e.target.value })}
-                      placeholder="e.g. Tue/Thu 4–8pm, Sat 10–4"
-                      className="min-h-[80px]"
-                    />
-                  </StepShell>
-                )}
-                {step === 6 && (
-                  <StepShell title="How should we remind you?">
-                    <Select
-                      value={data.reminderStyle}
-                      onValueChange={(v) => update({ reminderStyle: v as OnboardingData["reminderStyle"] })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gentle">Gentle — light nudges</SelectItem>
-                        <SelectItem value="standard">Standard — regular reminders</SelectItem>
-                        <SelectItem value="high">High — stay on top of me</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </StepShell>
-                )}
-                {step === 7 && (
-                  <StepShell title="What's your goal this term?" hint="One sentence. You can change it later.">
-                    <Textarea
-                      autoFocus
-                      value={data.studyGoal}
-                      onChange={(e) => update({ studyGoal: e.target.value })}
-                      placeholder="Raise my GPA to 3.5 and not fall behind in Bio."
-                      className="min-h-[80px]"
-                    />
-                  </StepShell>
-                )}
               </motion.div>
             </AnimatePresence>
 
             <div className="flex items-center justify-between mt-6">
-              <Button variant="ghost" size="sm" onClick={back} disabled={step === 0}>
+              <Button variant="ghost" size="sm" className="min-h-11" onClick={back} disabled={step === 0}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
               </Button>
               <Button
                 size="sm"
-                className="bg-gradient-calm border-0 text-primary-foreground"
+                className="min-h-11 bg-gradient-calm border-0 text-primary-foreground"
                 onClick={next}
                 disabled={!canContinue || saving}
               >

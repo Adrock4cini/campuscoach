@@ -26,18 +26,31 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 describe("Canvas connection", () => {
   beforeEach(() => vi.clearAllMocks());
-  it("uses the school's secure Canvas sign-in without asking for a password", async () => {
+  it("starts blank and uses the school's secure Canvas sign-in without asking for a password", async () => {
     vi.mocked(getCanvasStatus).mockResolvedValue({ connected: false, status: "disconnected" });
     vi.mocked(beginCanvasConnection).mockResolvedValue({
-      authorizationUrl: "https://usu.instructure.com/login/oauth2/auth?state=safe",
+      authorizationUrl: "https://district.instructure.com/login/oauth2/auth?state=safe",
     });
     render(<CanvasConnectionPage />);
-    expect(await screen.findByRole("button", { name: /Continue to Canvas/i })).toBeInTheDocument();
+    const connectButton = await screen.findByRole("button", { name: /Continue to Canvas/i });
+    const address = screen.getByLabelText(/School Canvas address/i);
+    expect(address).toHaveValue("");
+    expect(connectButton).toBeDisabled();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Continue to Canvas/i }));
+    fireEvent.change(address, { target: { value: "https://district.instructure.com" } });
+    fireEvent.click(connectButton);
     await waitFor(() =>
-      expect(beginCanvasConnection).toHaveBeenCalledWith("https://usu.instructure.com")
+      expect(beginCanvasConnection).toHaveBeenCalledWith("https://district.instructure.com")
     );
+  });
+  it("makes Canvas optional and keeps manual setup prominent", async () => {
+    vi.mocked(getCanvasStatus).mockResolvedValue({ connected: false, status: "disconnected" });
+    render(<CanvasConnectionPage />);
+
+    expect(await screen.findByText(/if your school uses Canvas/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Set up classes manually/i }));
+    expect(navigate).toHaveBeenCalledWith("/classes");
+    expect(screen.getByRole("button", { name: /Use Canvas calendar feed/i })).toBeInTheDocument();
   });
   it("keeps a connected account visible when the latest sync needs a retry", async () => {
     vi.mocked(getCanvasStatus).mockResolvedValue({
@@ -62,7 +75,7 @@ describe("Canvas connection", () => {
       lastSyncedAt: "2026-07-30T12:00:00Z",
     });
     render(<CanvasConnectionPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /can’t connect automatically/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Use Canvas calendar feed/i }));
     const input = screen.getByPlaceholderText(/private Canvas calendar link/i);
     fireEvent.change(input, {
       target: {

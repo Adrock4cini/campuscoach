@@ -18,7 +18,11 @@
  */
 
 import { classes } from "@/data/demo";
-import { contributeStudySignal } from "@/hooks/useClassIntelligence";
+import {
+  AUTH_OWNER_CHANGED_MESSAGE,
+  contributeStudySignal,
+  getAuthenticatedUserId,
+} from "@/hooks/useClassIntelligence";
 import type {
   CaptureContext,
   CaptureKind,
@@ -28,13 +32,38 @@ import type {
 
 const STORE_KEY = "cc_captures_v1";
 
+/** UUID-shaped because a capture attempt also becomes a deterministic assignment id. */
+export function createCaptureAttemptId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function assertCaptureOwner(ownerId: string | undefined): asserts ownerId is string {
+  if (!ownerId || getAuthenticatedUserId() !== ownerId) {
+    throw new Error(AUTH_OWNER_CHANGED_MESSAGE);
+  }
+}
+
 export const PROCESSING_STEPS: ProcessingStep[] = [
   { id: "queued",            label: "Campus Brain is processing…", duration: 700 },
   { id: "class-detected",    label: "Class detected",              duration: 550 },
   { id: "concepts-found",    label: "Key concepts found",          duration: 700 },
   { id: "summary-created",   label: "Summary created",             duration: 700 },
   { id: "flashcards-ready",  label: "Flashcards ready",            duration: 650 },
-  { id: "added-to-brain",    label: "Added to Campus Brain",       duration: 500 },
+  { id: "added-to-brain",    label: "Saved in this demo",          duration: 500 },
 ];
 
 export const CAPTURE_LABELS: Record<CaptureKind, string> = {
@@ -46,7 +75,7 @@ export const CAPTURE_LABELS: Record<CaptureKind, string> = {
   "scan-syllabus":   "Scan Syllabus",
   "upload-file":     "Upload File",
   "quick-note":      "Quick Note",
-  "professor-hint":  "Professor Hint",
+  "professor-hint":  "Teacher Hint",
   "ask-brain":       "Ask Campus Brain",
 };
 
@@ -68,21 +97,22 @@ function simulateConcepts(kind: CaptureKind, ctx: CaptureContext): string[] {
 function simulateSummary(kind: CaptureKind, ctx: CaptureContext): string {
   const cls = classes.find((c) => c.id === ctx.classId);
   const topic = ctx.topic || cls?.currentTopic || "today's material";
+  const classSuffix = cls?.name ? ` for ${cls.name}` : "";
   switch (kind) {
     case "record-lecture":
-      return `Lecture on ${topic} — 3 key ideas surfaced, linked to ${cls?.name}.`;
+      return `Lecture on ${topic} saved${classSuffix}.`;
     case "scan-board":
       return `Board notes on ${topic} — diagrams extracted, terms indexed.`;
     case "scan-textbook":
       return `Textbook pages on ${topic} — summary + practice hooks generated.`;
     case "scan-assignment":
-      return `Assignment saved for ${cls?.name} — skills and problem types are being identified.`;
+      return `Assignment photos saved${classSuffix} — concepts and problem types are being identified.`;
     case "scan-material":
-      return `Pages saved to ${cls?.name} — concepts are being added to Class Memory.`;
+      return `Photos saved${classSuffix} — concepts are being added to Class Memory.`;
     case "scan-syllabus":
       return `Syllabus ready to build your classes and calendar.`;
     case "upload-file":
-      return `File processed for ${cls?.name} — content added to your study set.`;
+      return `File processed${classSuffix} — content added to Class Memory.`;
     case "quick-note":
       return `Note captured: ${(ctx.text ?? "").slice(0, 120)}`;
     case "professor-hint":
@@ -109,9 +139,14 @@ export function listCaptures(): CaptureResult[] {
 }
 
 /**
- * Persist the capture locally + feed the Student Model / Campus
- * Brain via `contributeStudySignal`. Anything more expensive
- * (uploads, transcription) hangs off this seam later.
+ * Persist one capture through an explicit boundary:
+ *   - `requireRemotePersistence: true` is the signed-in path. The durable
+ *     Supabase write must succeed before the capture is reported as complete,
+ *     and remote intelligence signals may follow.
+ *   - otherwise the capture is sample/device-local only. It never attempts a
+ *     Supabase write or contributes to shared intelligence.
+ *
+ * Anything more expensive (uploads, transcription) hangs off this seam later.
  */
 export async function commitCapture(
   kind: CaptureKind,
@@ -120,16 +155,22 @@ export async function commitCapture(
     simulateDerivedContent?: boolean;
     requireRemotePersistence?: boolean;
     attachments?: File[];
+    /** Stable for every retry of the same retained CaptureFlow draft. */
+    attemptId?: string;
+    /** Authenticated account that initiated this capture. */
+    ownerId?: string;
   } = {},
 ): Promise<CaptureResult> {
   const cls = classes.find((c) => c.id === context.classId);
   const topicName = context.topic || cls?.currentTopic || "General";
   const simulateDerivedContent = options.simulateDerivedContent ?? true;
+  const remotePersistence = options.requireRemotePersistence === true;
+  if (remotePersistence) assertCaptureOwner(options.ownerId);
 
   const result: CaptureResult = {
-    id: `cap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: options.attemptId ?? createCaptureAttemptId(),
     kind,
-    context,
+    context: { ...context },
     createdAt: new Date().toISOString(),
     // Real accounts must never present placeholder concepts as AI output.
     // Text captures are persisted below and the extraction edge function owns
@@ -143,25 +184,27 @@ export async function commitCapture(
     const { persistCaptureResult } = await import(
       "@/lib/supabase/capturePersistence"
     );
-    return options.attachments?.length
-      ? persistCaptureResult(result, options.attachments)
-      : persistCaptureResult(result);
+    return persistCaptureResult(result, options.attachments ?? [], options.ownerId!);
   };
 
-  if (options.requireRemotePersistence) {
+  if (remotePersistence) {
     try {
       const persistedId = await persist();
       if (!persistedId) throw new Error("Capture persistence returned no id");
+      assertCaptureOwner(options.ownerId);
     } catch (error) {
       console.warn("[capture] required Supabase save failed", error);
-      throw new Error("We couldn't save this capture. Check your connection and try again.");
+      const detail = error instanceof Error ? error.message : "";
+      const safeDetail = /^(We couldn't upload these photos|These photos cannot be uploaded|Add an assignment name|We couldn't create this assignment|That assignment does not belong|That test does not belong|Your account changed)/.test(detail)
+        ? detail
+        : "We couldn't save this capture. Check your connection and try again.";
+      throw new Error(safeDetail);
     }
   } else {
     // Demo and signed-out captures remain device-local and keep working
-    // offline. Real captures never enter this shared browser store.
+    // offline. Do not even attempt a remote write: sample activity must never
+    // enter Supabase, aggregates, or class-intelligence signals.
     saveStore([result, ...loadStore()]);
-
-    void persist().catch(() => undefined);
   }
 
   // Notify any listening surface (e.g. Class Memory) so newly captured
@@ -175,23 +218,25 @@ export async function commitCapture(
     /* non-browser env */
   }
 
-  // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
-  void (async () => {
-    try {
-      const {
-        extractAggregateSignalFromCapture,
-        updateCampusBrainAggregate,
-      } = await import("@/lib/intelligence/aggregateSignals");
-      await updateCampusBrainAggregate(
-        extractAggregateSignalFromCapture(result),
-      );
-    } catch {
-      /* offline — aggregate layer will backfill later */
-    }
-  })();
+  if (remotePersistence) {
+    // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
+    void (async () => {
+      try {
+        const {
+          extractAggregateSignalFromCapture,
+          updateCampusBrainAggregate,
+        } = await import("@/lib/intelligence/aggregateSignals");
+        await updateCampusBrainAggregate(
+          extractAggregateSignalFromCapture(result),
+          options.ownerId,
+        );
+      } catch {
+        /* offline — aggregate layer will backfill later */
+      }
+    })();
 
-  // Feed the topic-level signal used by the aggregate intelligence.
-  void contributeStudySignal({
+    // Feed the topic-level signal used by the aggregate intelligence.
+    void contributeStudySignal({
       classId: context.classId,
       topicId: topicName,
       topicName,
@@ -199,8 +244,11 @@ export async function commitCapture(
       timeSpentMinutes: kind === "record-lecture" ? 45 : 5,
       sourceType: `capture:${kind}`,
       sourceId: result.id,
+      ownerId: options.ownerId,
+      idempotent: true,
     })
-    .catch(() => undefined); // Offline/anonymous capture still stays local.
+      .catch(() => undefined);
+  }
 
   return result;
 }

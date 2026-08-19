@@ -256,10 +256,10 @@ function DemoAssignmentsPage() {
           </DialogHeader>
           <div className="text-sm text-foreground/80 leading-relaxed space-y-2 whitespace-pre-line">
             {aiModal?.type === "steps" && "1. Read through the full instructions (10 min)\n2. Identify what you already know (5 min)\n3. Research and gather sources (20 min)\n4. Create an outline (15 min)\n5. Write the first draft (1-2 hours)\n6. Review and revise (30 min)\n\nStart with step 1 — just reading. That's it for now!"}
-            {aiModal?.type === "expected" && "Your professor is looking for:\n\n✓ Clear understanding of the material\n✓ Original thinking and connections\n✓ Proper formatting and citations\n✓ Timely submission\n\nFocus on showing you engaged with the content."}
+            {aiModal?.type === "expected" && "Your teacher or instructor is looking for:\n\n✓ Clear understanding of the material\n✓ Original thinking and connections\n✓ Proper formatting and citations\n✓ Timely submission\n\nFocus on showing you engaged with the content."}
             {aiModal?.type === "start" && "The hardest part is starting. Here's your first 10 minutes:\n\n1. Open a blank doc (1 min)\n2. Write your name and the title (1 min)\n3. Write ONE sentence about the main idea (3 min)\n4. List 3 points you want to make (5 min)\n\nThat's it! You're started. The rest flows from here. 💪"}
             {aiModal?.type === "outline" && "I. Introduction\n   - Context/hook\n   - Main argument\n\nII. Key Point 1\n   - Evidence\n   - Analysis\n\nIII. Key Point 2\n   - Evidence\n   - Analysis\n\nIV. Conclusion\n   - Summary\n   - Final thought"}
-            {aiModal?.type === "quiz" && "Quick check — can you answer these?\n\n1. What's the main topic of this assignment?\n2. What format does your professor expect?\n3. What sources do you need?\n4. What's the most important thing to include?\n\nIf you can answer these, you're ready to start writing!"}
+            {aiModal?.type === "quiz" && "Quick check — can you answer these?\n\n1. What's the main topic of this assignment?\n2. What format does your teacher or instructor expect?\n3. What sources do you need?\n4. What's the most important thing to include?\n\nIf you can answer these, you're ready to start writing!"}
           </div>
         </DialogContent>
       </Dialog>

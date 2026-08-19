@@ -3,6 +3,7 @@
  * Lets the student add + view upcoming items without leaving the class.
  */
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
 import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { toast } from "sonner";
+import { assessmentLabel, classifyAssessment } from "@/lib/assessments/classification";
 
 export function RealClassAssignmentsExams({ classId }: { classId: string }) {
   const {
@@ -61,18 +63,27 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
             <ul className="space-y-2">
               {assignments.slice(0, 6).map((a) => {
                 const days = daysUntil(a.due_date);
+                const type = classifyAssessment({ row: "assignment", title: a.title, meta: (a as { meta?: unknown }).meta });
                 const chip =
                   days === null ? "No date" :
                   days < 0 ? `${-days}d overdue` :
                   days === 0 ? "Today" : `${days}d`;
                 return (
                   <li key={a.id} className="flex items-center gap-2">
-                    <button onClick={() => toggle(a.id, a.status)} aria-label="Toggle">
+                    <button
+                      type="button"
+                      onClick={() => toggle(a.id, a.status)}
+                      aria-label={a.status === "complete" ? `Mark ${a.title} not started` : `Mark ${a.title} complete`}
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                    >
                       <CheckCircle2 className={`h-4 w-4 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
                     </button>
                     <span className={`flex-1 text-sm truncate ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {a.title}
                     </span>
+                    {type !== "assignment" && (
+                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">{assessmentLabel(type)}</Badge>
+                    )}
                     {a.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
                     <Badge variant="outline" className="text-[10px]"><Clock className="h-3 w-3 mr-0.5" />{chip}</Badge>
                   </li>
@@ -119,6 +130,16 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                     {e.topics.length > 0 && (
                       <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">Study: {e.topics.join(", ")}</p>
                     )}
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1 h-9 px-2 text-xs text-primary"
+                    >
+                      <Link to={`/study-lab?classId=${encodeURIComponent(classId)}&examId=${encodeURIComponent(e.id)}`}>
+                        Prepare for this test
+                      </Link>
+                    </Button>
                   </li>
                 );
               })}

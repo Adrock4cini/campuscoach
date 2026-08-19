@@ -19,12 +19,12 @@ const actions: Array<{
   captureKind?: CaptureKind;
 }> = [
   { label: "Add Class", icon: BookOpen, desc: "Set up a new class", route: "/classes/new" },
-  { label: "Add Assignment", icon: ClipboardList, desc: "Track a new assignment", route: "/assignments" },
-  { label: "Add Exam", icon: GraduationCap, desc: "Add an upcoming exam", route: "/exams" },
+  { label: "View Assignments", icon: ClipboardList, desc: "Open assignments to add or update work", route: "/assignments" },
+  { label: "View Tests & Exams", icon: GraduationCap, desc: "Open tests and exams to add or update dates", route: "/exams" },
   { label: "Open Calendar", icon: Calendar, desc: "See tests and assignments", route: "/calendar" },
   { label: "Add Note", icon: FileText, desc: "Create a class note", captureKind: "quick-note" },
   { label: "Upload Syllabus", icon: FileUp, desc: "Choose a class, then review its syllabus", route: "/classes?intent=syllabus" },
-  { label: "Professor Hint", icon: MessageSquare, desc: "Save what the professor emphasized", captureKind: "professor-hint" },
+  { label: "Teacher Hint", icon: MessageSquare, desc: "Save what the teacher or instructor emphasized", captureKind: "professor-hint" },
 ];
 
 export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {

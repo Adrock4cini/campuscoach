@@ -16,7 +16,11 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { getAnonUserId } from "@/hooks/useClassIntelligence";
+import {
+  AUTH_OWNER_CHANGED_MESSAGE,
+  getAnonUserId,
+  getAuthenticatedUserId,
+} from "@/hooks/useClassIntelligence";
 import type { CaptureKind, CaptureResult } from "@/lib/capture/types";
 import { createAssignment } from "@/lib/realData/assignments";
 import {
@@ -90,6 +94,56 @@ function warn(scope: string, err: unknown) {
   console.warn(`[capturePersistence:${scope}]`, err);
 }
 
+function isOwnerMismatchError(error: unknown): boolean {
+  return error instanceof Error && error.message === AUTH_OWNER_CHANGED_MESSAGE;
+}
+
+function assertActiveCaptureOwner(ownerId: string): void {
+  if (getAuthenticatedUserId() !== ownerId) {
+    throw new Error(AUTH_OWNER_CHANGED_MESSAGE);
+  }
+}
+
+async function assertAuthenticatedSessionOwner(ownerId: string): Promise<void> {
+  assertActiveCaptureOwner(ownerId);
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (
+      error ||
+      !data.session?.access_token ||
+      data.session.user.id !== ownerId
+    ) {
+      throw new Error(AUTH_OWNER_CHANGED_MESSAGE);
+    }
+  } catch (error) {
+    if (isOwnerMismatchError(error)) throw error;
+    warn("assertAuthenticatedSessionOwner", error);
+    throw new Error(AUTH_OWNER_CHANGED_MESSAGE);
+  }
+  assertActiveCaptureOwner(ownerId);
+}
+
+async function rollbackCreatedAssignment(
+  assignmentId: string,
+  userId: string,
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("assignments")
+      .delete()
+      .eq("id", assignmentId)
+      .eq("user_id", userId);
+    if (error) {
+      warn("rollbackCreatedAssignment", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    warn("rollbackCreatedAssignment.catch", error);
+    return false;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Writes                                                              */
 /* ------------------------------------------------------------------ */
@@ -101,14 +155,14 @@ function warn(scope: string, err: unknown) {
  * Student Model can be rebuilt from history later.
  */
 export async function saveCapture(
-  input: CapturePersistInput
+  input: CapturePersistInput,
+  userId: string,
 ): Promise<string | null> {
-  const userId = getAnonUserId();
-
   try {
+    assertActiveCaptureOwner(userId);
     const { data, error } = await supabase
       .from("captures")
-      .insert({
+      .upsert({
         user_id: userId,
         client_class_id: input.clientClassId,
         kind: input.kind,
@@ -122,10 +176,11 @@ export async function saveCapture(
         meta: (input.meta ?? {}) as never,
         assignment_id: input.assignmentId ?? null,
         exam_id: input.examId ?? null,
-      })
+      }, { onConflict: "user_id,local_id" })
       .select("id")
       .maybeSingle();
 
+    assertActiveCaptureOwner(userId);
     if (error || !data) {
       warn("saveCapture.insert", error);
       return null;
@@ -133,6 +188,7 @@ export async function saveCapture(
 
     // Best-effort: write processed output alongside.
     if (input.summary || (input.keyConcepts && input.keyConcepts.length)) {
+      assertActiveCaptureOwner(userId);
       const { error: pcErr } = await supabase.from("processed_content").insert({
         capture_id: data.id,
         user_id: userId,
@@ -145,6 +201,7 @@ export async function saveCapture(
 
     // Feed the Campus Brain signal log so the Student Model can
     // rehydrate from history without replaying UI events.
+    assertActiveCaptureOwner(userId);
     await saveCampusBrainSignal({
       clientClassId: input.clientClassId,
       sourceType: `capture:${input.kind}`,
@@ -156,10 +213,12 @@ export async function saveCapture(
         keyConcepts: input.keyConcepts,
         flashcardsReady: input.flashcardsReady,
       },
-    });
+    }, userId);
+    assertActiveCaptureOwner(userId);
 
     return data.id;
   } catch (err) {
+    if (isOwnerMismatchError(err)) throw err;
     warn("saveCapture.catch", err);
     return null;
   }
@@ -167,24 +226,33 @@ export async function saveCapture(
 
 /** Log a high-level Campus Brain event. Non-throwing. */
 export async function saveCampusBrainSignal(
-  input: CampusBrainSignalInput
+  input: CampusBrainSignalInput,
+  userId: string,
 ): Promise<boolean> {
   try {
-    const { error } = await supabase.from("campus_brain_signals").insert({
-      user_id: getAnonUserId(),
+    assertActiveCaptureOwner(userId);
+    const payload = {
+      user_id: userId,
       client_class_id: input.clientClassId ?? null,
       source_type: input.sourceType,
       source_id: input.sourceId ?? null,
       topic: input.topic ?? null,
       weight: input.weight ?? 1,
       payload: (input.payload ?? {}) as never,
-    });
+    };
+    const { error } = input.sourceId
+      ? await supabase
+          .from("campus_brain_signals")
+          .upsert(payload, { onConflict: "user_id,source_type,source_id" })
+      : await supabase.from("campus_brain_signals").insert(payload);
+    assertActiveCaptureOwner(userId);
     if (error) {
       warn("saveCampusBrainSignal", error);
       return false;
     }
     return true;
   } catch (err) {
+    if (isOwnerMismatchError(err)) throw err;
     warn("saveCampusBrainSignal.catch", err);
     return false;
   }
@@ -316,51 +384,58 @@ export async function getRecentCaptures(
 
 /**
  * Convenience: given a completed local `CaptureResult`, mirror it to
- * Supabase. Called from `commitCapture` — never throws.
+ * Supabase. Called from `commitCapture`. A durable insert failure returns
+ * `null`; invalid inputs and incomplete photo uploads throw so the UI can
+ * keep the student's original input visible for a retry.
  */
 export async function persistCaptureResult(
   result: CaptureResult,
   attachments: File[] = [],
+  userId: string,
 ): Promise<string | null> {
+  await assertAuthenticatedSessionOwner(userId);
   const rawText = (result.context.text ?? "").trim();
   const hasImages = attachments.length > 0;
   if (hasImages) {
     const validation = validateCaptureImages(attachments);
     if (!validation.ok) throw new Error(validation.message ?? "These photos cannot be uploaded.");
   }
-  let hasAuthenticatedSession = false;
-  try {
-    const { data } = await supabase.auth.getSession();
-    hasAuthenticatedSession = Boolean(data.session?.access_token);
-  } catch (err) {
-    warn("persistCaptureResult.session", err);
-  }
-
   // Simulated demo results already contain derived concepts. A real capture
   // arrives with no concepts and must remain "processing" until the edge
   // function confirms that durable concepts and mastery rows exist.
   const hasDerivedContent = result.keyConcepts.length > 0 || result.flashcardCount > 0;
   const needsExtraction = rawText.length > 0 && !hasDerivedContent && !hasImages;
   let assignmentId = result.context.assignmentId ?? null;
+  let createdAssignmentId: string | null = null;
   if (result.kind === "scan-assignment" && !assignmentId) {
+    assertActiveCaptureOwner(userId);
     const title = result.context.assignmentTitle?.trim();
     if (!title) throw new Error("Add an assignment name before saving.");
-    const assignment = await createAssignment(getAnonUserId(), {
+    const assignment = await createAssignment(userId, {
+      id: result.id,
       title,
       clientClassId: result.context.classId,
       dueDate: result.context.assignmentDueDate ?? null,
       notes: "Created from Assignment Capture",
     });
     if (!assignment) throw new Error("We couldn't create this assignment. Try again.");
+    assertActiveCaptureOwner(userId);
     assignmentId = assignment.id;
-    result.context.assignmentId = assignment.id;
+    createdAssignmentId = assignment.id;
   }
 
-  await assertCaptureTargets({
-    clientClassId: result.context.classId,
-    assignmentId,
-    examId: result.context.examId ?? null,
-  });
+  try {
+    await assertCaptureTargets({
+      clientClassId: result.context.classId,
+      assignmentId,
+      examId: result.context.examId ?? null,
+    }, userId);
+  } catch (error) {
+    if (createdAssignmentId) {
+      await rollbackCreatedAssignment(createdAssignmentId, userId);
+    }
+    throw error;
+  }
 
   const captureId = await saveCapture({
     localId: result.id,
@@ -380,30 +455,51 @@ export async function persistCaptureResult(
     },
     assignmentId,
     examId: result.context.examId ?? null,
-  });
+  }, userId);
 
-  if (captureId && hasImages) {
+  if (!captureId) {
+    if (createdAssignmentId) {
+      await rollbackCreatedAssignment(createdAssignmentId, userId);
+    }
+    return null;
+  }
+  assertActiveCaptureOwner(userId);
+
+  if (hasImages) {
     let materialIds: string[];
     try {
-      if (!hasAuthenticatedSession) throw new Error("Authenticated image processing session unavailable");
-      materialIds = await uploadCaptureImages(captureId, attachments);
+      materialIds = await uploadCaptureImages(captureId, attachments, userId);
     } catch (err) {
+      if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.upload", err);
-      await supabase
-        .from("captures")
-        .delete()
-        .eq("id", captureId)
-        .eq("user_id", getAnonUserId());
-      await supabase
-        .from("campus_brain_signals")
-        .delete()
-        .eq("user_id", getAnonUserId())
-        .eq("source_id", captureId);
+      try {
+        const { error } = await supabase
+          .from("captures")
+          .delete()
+          .eq("id", captureId)
+          .eq("user_id", userId);
+        if (error) warn("persistCaptureResult.cleanup-capture", error);
+      } catch (cleanupError) {
+        warn("persistCaptureResult.cleanup-capture.catch", cleanupError);
+      }
+      try {
+        const { error } = await supabase
+          .from("campus_brain_signals")
+          .delete()
+          .eq("user_id", userId)
+          .eq("source_id", captureId);
+        if (error) warn("persistCaptureResult.cleanup-signal", error);
+      } catch (cleanupError) {
+        warn("persistCaptureResult.cleanup-signal.catch", cleanupError);
+      }
+      if (createdAssignmentId) {
+        await rollbackCreatedAssignment(createdAssignmentId, userId);
+      }
       throw new Error("We couldn't upload these photos. They are still on this screen—check your connection and try again.");
     }
 
     try {
-      const imageStatus = await invokeImageProcessing(captureId, materialIds);
+      const imageStatus = await invokeImageProcessing(captureId, materialIds, userId);
       result.processingStatus = imageStatus;
       if (imageStatus === "ready") {
         dispatchConceptsExtracted(captureId);
@@ -411,23 +507,23 @@ export async function persistCaptureResult(
         result.processingMessage = "Campus Brain is already reading these pages.";
       }
     } catch (err) {
+      if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.process-images", err);
-      await setCaptureProcessingStatus(captureId, "failed");
+      await setCaptureProcessingStatus(captureId, "failed", userId);
       result.processingStatus = "failed";
       result.processingMessage = "Your photos are private and saved, but Campus Brain couldn't finish reading them.";
     }
   }
 
-  if (captureId && needsExtraction) {
+  if (needsExtraction) {
     try {
-      if (!hasAuthenticatedSession) throw new Error("Authenticated AI session unavailable");
       const extractionStatus = await invokeConceptExtraction({
         captureId,
         clientClassId: result.context.classId,
         topic: result.context.topic ?? null,
         kind: result.kind,
         rawText,
-      });
+      }, userId);
       result.processingStatus = extractionStatus;
       if (extractionStatus === "ready") {
         dispatchConceptsExtracted(captureId);
@@ -435,13 +531,16 @@ export async function persistCaptureResult(
         result.processingMessage = "Campus Brain is already working on this note.";
       }
     } catch (err) {
+      if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.extract", err);
-      await setCaptureProcessingStatus(captureId, "failed");
+      await setCaptureProcessingStatus(captureId, "failed", userId);
       result.processingStatus = "failed";
       result.processingMessage = "Your note is safe, but Campus Brain couldn't finish processing it.";
     }
   }
 
+  assertActiveCaptureOwner(userId);
+  if (createdAssignmentId) result.context.assignmentId = createdAssignmentId;
   return captureId;
 }
 
@@ -449,8 +548,8 @@ async function assertCaptureTargets(input: {
   clientClassId: string;
   assignmentId: string | null;
   examId: string | null;
-}): Promise<void> {
-  const userId = getAnonUserId();
+}, userId: string): Promise<void> {
+  assertActiveCaptureOwner(userId);
   if (input.assignmentId) {
     const { data, error } = await supabase
       .from("assignments")
@@ -460,9 +559,11 @@ async function assertCaptureTargets(input: {
       .eq("client_class_id", input.clientClassId)
       .is("source_archived_at", null)
       .maybeSingle();
+    assertActiveCaptureOwner(userId);
     if (error || !data) throw new Error("That assignment does not belong to this class.");
   }
   if (input.examId) {
+    assertActiveCaptureOwner(userId);
     const { data, error } = await supabase
       .from("exams")
       .select("id")
@@ -471,19 +572,26 @@ async function assertCaptureTargets(input: {
       .eq("client_class_id", input.clientClassId)
       .is("source_archived_at", null)
       .maybeSingle();
+    assertActiveCaptureOwner(userId);
     if (error || !data) throw new Error("That test does not belong to this class.");
   }
 }
 
-async function uploadCaptureImages(captureId: string, files: File[]): Promise<string[]> {
-  const userId = getAnonUserId();
+async function uploadCaptureImages(
+  captureId: string,
+  files: File[],
+  userId: string,
+): Promise<string[]> {
+  assertActiveCaptureOwner(userId);
   const materialIds: string[] = [];
   const newlyUploadedPaths: string[] = [];
 
   try {
     for (let pageIndex = 0; pageIndex < files.length; pageIndex += 1) {
+      assertActiveCaptureOwner(userId);
       const file = files[pageIndex];
       const contentHash = await hashCaptureImage(file);
+      assertActiveCaptureOwner(userId);
       const { data: duplicate, error: duplicateError } = await supabase
         .from("materials")
         .select("storage_path")
@@ -492,6 +600,7 @@ async function uploadCaptureImages(captureId: string, files: File[]): Promise<st
         .not("storage_path", "is", null)
         .limit(1)
         .maybeSingle();
+      assertActiveCaptureOwner(userId);
       if (duplicateError) throw duplicateError;
 
       const storagePath = duplicate?.storage_path
@@ -502,15 +611,16 @@ async function uploadCaptureImages(captureId: string, files: File[]): Promise<st
           .upload(storagePath, file, {
             cacheControl: "3600",
             contentType: file.type,
-            upsert: false,
+            upsert: true,
           });
+        assertActiveCaptureOwner(userId);
         if (uploadError) throw uploadError;
         newlyUploadedPaths.push(storagePath);
       }
 
       const { data: material, error: materialError } = await supabase
         .from("materials")
-        .insert({
+        .upsert({
           capture_id: captureId,
           user_id: userId,
           kind: "image",
@@ -522,15 +632,17 @@ async function uploadCaptureImages(captureId: string, files: File[]): Promise<st
           page_index: pageIndex,
           visibility: "private",
           anonymized: false,
-        })
+        }, { onConflict: "capture_id,page_index" })
         .select("id")
         .maybeSingle();
+      assertActiveCaptureOwner(userId);
       if (materialError || !material) {
         throw materialError ?? new Error("Image link could not be saved.");
       }
       materialIds.push(material.id);
     }
   } catch (error) {
+    if (isOwnerMismatchError(error)) throw error;
     await supabase
       .from("materials")
       .delete()
@@ -548,10 +660,13 @@ async function uploadCaptureImages(captureId: string, files: File[]): Promise<st
 async function invokeImageProcessing(
   captureId: string,
   materialIds: string[],
+  userId?: string,
 ): Promise<"processing" | "ready"> {
+  if (userId) assertActiveCaptureOwner(userId);
   const { data, error } = await supabase.functions.invoke("process-capture-images", {
     body: { captureId, materialIds },
   });
+  if (userId) assertActiveCaptureOwner(userId);
   const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Image processing failed");
@@ -581,7 +696,11 @@ interface ConceptExtractionInput {
   rawText: string;
 }
 
-async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<"processing" | "ready"> {
+async function invokeConceptExtraction(
+  input: ConceptExtractionInput,
+  userId?: string,
+): Promise<"processing" | "ready"> {
+  if (userId) assertActiveCaptureOwner(userId);
   const { data, error } = await supabase.functions.invoke("extract-concepts", {
     body: {
       captureId: input.captureId,
@@ -592,6 +711,7 @@ async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<"
       rawText: input.rawText,
     },
   });
+  if (userId) assertActiveCaptureOwner(userId);
   const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Concept extraction failed");
@@ -602,12 +722,16 @@ async function invokeConceptExtraction(input: ConceptExtractionInput): Promise<"
 async function setCaptureProcessingStatus(
   captureId: string,
   status: "processing" | "ready" | "failed",
+  explicitUserId?: string,
 ): Promise<void> {
+  if (explicitUserId) assertActiveCaptureOwner(explicitUserId);
+  const userId = explicitUserId ?? getAnonUserId();
   const { error } = await supabase
     .from("captures")
     .update({ processing_status: status })
     .eq("id", captureId)
-    .eq("user_id", getAnonUserId());
+    .eq("user_id", userId);
+  if (explicitUserId) assertActiveCaptureOwner(explicitUserId);
   if (error) warn("setCaptureProcessingStatus", error);
 }
 
@@ -630,8 +754,9 @@ export interface RetryCaptureInput {
 export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<void> {
   const rawText = (capture.rawText ?? "").trim();
   if (!rawText) throw new Error("This capture has no source text to process.");
+  const userId = getAnonUserId();
 
-  await setCaptureProcessingStatus(capture.id, "processing");
+  await setCaptureProcessingStatus(capture.id, "processing", userId);
   try {
     const extractionStatus = await invokeConceptExtraction({
       captureId: capture.id,
@@ -639,10 +764,10 @@ export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<
       topic: capture.topic,
       kind: capture.kind,
       rawText,
-    });
+    }, userId);
     if (extractionStatus === "ready") dispatchConceptsExtracted(capture.id);
   } catch (err) {
-    await setCaptureProcessingStatus(capture.id, "failed");
+    await setCaptureProcessingStatus(capture.id, "failed", userId);
     throw err;
   }
 }
@@ -652,12 +777,13 @@ export async function retryCaptureImages(
   materialIds: string[],
 ): Promise<void> {
   if (!materialIds.length) throw new Error("This capture has no saved images to process.");
-  await setCaptureProcessingStatus(captureId, "processing");
+  const userId = getAnonUserId();
+  await setCaptureProcessingStatus(captureId, "processing", userId);
   try {
-    const status = await invokeImageProcessing(captureId, materialIds);
+    const status = await invokeImageProcessing(captureId, materialIds, userId);
     if (status === "ready") dispatchConceptsExtracted(captureId);
   } catch (err) {
-    await setCaptureProcessingStatus(captureId, "failed");
+    await setCaptureProcessingStatus(captureId, "failed", userId);
     throw err;
   }
 }

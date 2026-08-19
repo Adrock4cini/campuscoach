@@ -114,10 +114,45 @@ describe("real academic calendar", () => {
     expect(mocks.openCapture).toHaveBeenCalledWith(undefined, "math");
   });
 
-  it("chooses a class before importing a syllabus", () => {
+  it("keeps syllabus import out of the calendar because syllabi belong to classes", () => {
     renderCalendar();
 
-    fireEvent.click(screen.getByRole("button", { name: /import syllabus/i }));
-    expect(screen.getByText("/classes?intent=syllabus")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /import syllabus/i })).toBeNull();
+  });
+});
+
+describe("month grid responsiveness", () => {
+  it("spreads weekday columns and dates across the full card width", () => {
+    const { container } = renderCalendar();
+
+    const headRow = container.querySelector("thead tr");
+    const weekRow = container.querySelector("tbody tr");
+    expect(headRow?.className).toContain("grid-cols-7");
+    expect(headRow?.className).toContain("w-full");
+    expect(weekRow?.className).toContain("grid-cols-7");
+    expect(weekRow?.className).toContain("w-full");
+
+    const table = container.querySelector("table");
+    expect(table?.className).toContain("w-full");
+  });
+
+  it("keeps day cells fluid and circular without oversized targets", () => {
+    const { container } = renderCalendar();
+
+    const cell = container.querySelector("tbody tr td");
+    expect(cell?.className).toContain("w-full");
+
+    const day = cell?.querySelector("button");
+    expect(day?.className).toContain("rounded-full");
+    expect(day?.className).toContain("aspect-square");
+    expect(day?.className).toContain("max-w-10");
+  });
+
+  it("does not center the month in a fixed-width block that leaves dead space", () => {
+    const { container } = renderCalendar();
+
+    const root = container.querySelector(".rdp");
+    expect(root?.className).toContain("w-full");
+    expect(root?.className).not.toContain("w-fit");
   });
 });

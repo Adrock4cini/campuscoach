@@ -27,8 +27,12 @@ const mocks = vi.hoisted(() => {
     return query;
   });
 
-  return { pending, from, invoke: vi.fn() };
+  return { pending, from, invoke: vi.fn(), userId: "student-1" };
 });
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ mode: "real", user: { id: mocks.userId } }),
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -42,6 +46,7 @@ describe("useLearningArtifact class boundary", () => {
     mocks.pending.length = 0;
     mocks.from.mockClear();
     mocks.invoke.mockReset();
+    mocks.userId = "student-1";
   });
 
   it("ignores an older class response that arrives after the new class", async () => {
@@ -72,6 +77,44 @@ describe("useLearningArtifact class boundary", () => {
     });
 
     expect(result.current.artifact?.id).toBe("science-cards");
+  });
+
+  it("hides the prior class artifact synchronously while a new scope loads", async () => {
+    const { result, rerender } = renderHook(
+      ({ classId }) => useLearningArtifact("flashcards", { classId }),
+      { initialProps: { classId: "math" } },
+    );
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({
+        data: { id: "math-cards", client_class_id: "math" },
+        error: null,
+      });
+    });
+    await waitFor(() => expect(result.current.artifact?.id).toBe("math-cards"));
+
+    rerender({ classId: "science" });
+
+    expect(result.current.artifact).toBeNull();
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(mocks.pending).toHaveLength(2));
+  });
+
+  it("hides artifacts immediately when the signed-in owner changes", async () => {
+    const { result, rerender } = renderHook(() => (
+      useLearningArtifact("flashcards", { classId: "math" })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: { id: "child-a-cards" }, error: null });
+    });
+    await waitFor(() => expect(result.current.artifact?.id).toBe("child-a-cards"));
+
+    mocks.userId = "student-2";
+    rerender();
+
+    expect(result.current.artifact).toBeNull();
+    expect(result.current.loading).toBe(true);
   });
 
   it("leaves loading state when the study-set request rejects", async () => {

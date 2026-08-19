@@ -1,10 +1,20 @@
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "./AppSidebar";
+
+const router = vi.hoisted(() => ({
+  pathname: "/dashboard",
+  search: "",
+}));
+const sidebar = vi.hoisted(() => ({
+  isMobile: false,
+  setOpenMobile: vi.fn(),
+}));
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: router.pathname, search: router.search }),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -40,26 +50,34 @@ vi.mock("@/components/ui/sidebar", () => {
     SidebarMenu: Wrapper,
     SidebarMenuButton: Wrapper,
     SidebarMenuItem: Wrapper,
-    useSidebar: () => ({ state: "expanded" }),
+    useSidebar: () => ({
+      state: "expanded",
+      isMobile: sidebar.isMobile,
+      setOpenMobile: sidebar.setOpenMobile,
+    }),
   };
 });
 
 describe("signed-in product navigation", () => {
-  it("keeps the complete product map visible and marks guarded pages as previews", () => {
+  beforeEach(() => {
+    router.pathname = "/dashboard";
+    router.search = "";
+    sidebar.isMobile = false;
+    sidebar.setOpenMobile.mockReset();
+  });
+
+  it("keeps working destinations visible and hides unfinished product promises", () => {
     render(<AppSidebar />);
 
-    expect(screen.getByRole("link", { name: /Path to Graduation Preview/i })).toHaveAttribute(
-      "href",
-      "/path-to-graduation",
-    );
-    expect(screen.getByRole("link", { name: /Your Week Preview/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/calendar");
     expect(screen.getByRole("link", { name: "Notes & Recordings" })).toHaveAttribute("href", "/notes");
-    expect(screen.getByRole("link", { name: /Scholarships Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Class Intelligence Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Exam Debrief Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Progress Preview/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Settings Preview/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Path to Graduation/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Your Week/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Scholarships/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Class Intelligence/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Exam Debrief/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Progress/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Settings/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
       "href",
       "/integrations/canvas",
@@ -70,4 +88,19 @@ describe("signed-in product navigation", () => {
     );
     expect(screen.queryByRole("button", { name: /faster sign-in/i })).not.toBeInTheDocument();
   }, 10_000);
+
+  it("provides a 44px mobile close control and closes after navigation", () => {
+    sidebar.isMobile = true;
+    const { rerender } = render(<AppSidebar />);
+
+    const close = screen.getByRole("button", { name: "Close navigation" });
+    expect(close).toHaveClass("h-11", "w-11");
+    fireEvent.click(close);
+    expect(sidebar.setOpenMobile).toHaveBeenCalledWith(false);
+
+    sidebar.setOpenMobile.mockClear();
+    router.pathname = "/classes";
+    rerender(<AppSidebar />);
+    expect(sidebar.setOpenMobile).toHaveBeenCalledWith(false);
+  });
 });

@@ -14,20 +14,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info, Puzzle } from "lucide-react";
 import { RealStudyRunner } from "@/components/study/RealStudyRunner";
+import { RealMatchingSession } from "@/components/study/RealMatchingSession";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
 import type {
   FlashcardsPayload,
+  MatchingPayload,
   MultipleChoicePayload,
 } from "@/lib/learningArtifacts/types";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 import type { StudyScope } from "@/lib/learningArtifacts/types";
 import { useRealExams } from "@/lib/realData/hooks";
+import { isPastDateKey } from "@/lib/calendar/dateKey";
+import { validateMatchingPayload } from "@/lib/learningArtifacts/matchingGame";
+import { writeStudyLabState } from "@/lib/study/studyLabState";
+import { classifySubject, getSubjectProfile, orderStudyFormats } from "@/lib/study/subjectProfiles";
+import {
+  evidenceAdjustment,
+  evidenceNote,
+  orderFormatsByEvidence,
+  useStrategyEvidence,
+} from "@/lib/study/strategyEvidence";
 
 interface Props {
   classId?: string;
+  /** Display name of the class, used only to pick a subject study strategy. */
+  className?: string;
+  /** Current topic for the class, used only as a secondary subject signal. */
+  classTopic?: string;
   initialCaptureId?: string;
   initialExamId?: string;
   initialKind?: Kind;
@@ -36,11 +52,12 @@ interface Props {
   autoStart?: boolean;
 }
 
-type Kind = "flashcards" | "multiple_choice";
+type Kind = "flashcards" | "multiple_choice" | "matching";
 
 const KIND_META: Record<Kind, { label: string; icon: React.ElementType }> = {
   flashcards: { label: "Flashcards", icon: Sparkles },
   multiple_choice: { label: "Multiple choice", icon: ListChecks },
+  matching: { label: "Match Lab", icon: Puzzle },
 };
 
 function targetButtonLabel(target: StudyScope) {
@@ -61,6 +78,8 @@ function formatUpdatedAt(value: string) {
 
 export function RealStudySet({
   classId,
+  className: classDisplayName,
+  classTopic,
   initialCaptureId,
   initialExamId,
   initialKind = "flashcards",
@@ -69,7 +88,9 @@ export function RealStudySet({
   autoStart = false,
 }: Props) {
   const [kind, setKind] = useState<Kind>(initialKind);
+  const [showWhy, setShowWhy] = useState(false);
   const [studying, setStudying] = useState(false);
+
   const captureStudyScope = useMemo<StudyScope | undefined>(() => (
     initialCaptureId
       ? { type: "recent", id: `capture-${initialCaptureId}`, label: "This capture" }
@@ -78,7 +99,8 @@ export function RealStudySet({
   const initialTarget = initialStudyScope ?? captureStudyScope;
   const [selectedTarget, setSelectedTarget] = useState(initialTarget?.id ?? initialExamId ?? "recent");
   const autoStartKey = useRef<string | null>(null);
-  const generationInFlight = useRef(false);
+  const generationInFlight = useRef(new Map<string, Promise<unknown>>());
+  const currentGenerationKey = useRef("");
   const reloadAfterStudy = useRef(false);
   const { items: exams, loading: examsLoading, error: examsError } = useRealExams(classId);
 
@@ -93,9 +115,11 @@ export function RealStudySet({
   }, [classId, initialConceptKey, initialExamId, initialKind, initialTarget?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
-    ...(initialTarget ? [initialTarget] : []),
+    ...(initialTarget && (initialTarget.type !== "exam" || !isPastDateKey(initialTarget.examDate))
+      ? [initialTarget]
+      : []),
     { type: "recent", id: "recent", label: "Recent material" },
-    ...exams.map((exam) => ({
+    ...exams.filter((exam) => !isPastDateKey(exam.exam_date)).map((exam) => ({
       type: "exam" as const,
       id: exam.id,
       examId: exam.id,
@@ -108,6 +132,34 @@ export function RealStudySet({
 
   const studyScope = studyTargets.find((target) => target.id === selectedTarget)
     ?? studyTargets[0];
+  // Subject adaptation is presentation-only here: it reorders the format
+  // buttons and names the strategy. Concept selection stays untouched.
+  const subject = useMemo(() => classifySubject({
+    className: classDisplayName ?? null,
+    topics: [classTopic ?? "", ...(studyScope.type === "exam" ? studyScope.topics ?? [] : [])],
+  }), [classDisplayName, classTopic, studyScope]);
+  const subjectProfile = getSubjectProfile(subject.primary);
+  // Learned evidence leads when the student has actually shown a format works
+  // better for them in this subject; otherwise the cold-start subject order
+  // stands. Formats are compared across task kinds, so evidence is collapsed.
+  const { evidence: formatEvidence } = useStrategyEvidence({
+    subjectProfileId: subject.primary,
+    taskKind: null,
+  });
+  const orderedKinds = useMemo(() => orderFormatsByEvidence(
+    Object.keys(KIND_META) as Kind[],
+    orderStudyFormats(subject.primary, Object.keys(KIND_META) as Kind[]) as Kind[],
+    formatEvidence,
+    { subjectProfileId: subject.primary, taskKind: null },
+  ), [formatEvidence, subject.primary]);
+  const kindNote = useMemo(() => evidenceNote(
+    evidenceAdjustment(formatEvidence, {
+      format: kind,
+      subjectProfileId: subject.primary,
+      taskKind: null,
+    }).evidence,
+  ), [formatEvidence, kind, subject.primary]);
+
   const isCoachTarget = Boolean(
     initialStudyScope && studyScope.id === initialStudyScope.id,
   );
@@ -123,29 +175,63 @@ export function RealStudySet({
   const { artifact, loading, generating, error, generate, reload } =
     useLearningArtifact(kind, scope);
 
+  // Remember where the student was so leaving Study Lab and coming back does
+  // not silently reset them to the first class in flashcard mode.
+  useEffect(() => {
+    if (!classId) return;
+    writeStudyLabState({ classId, kind, targetId: studyScope.id });
+  }, [classId, kind, studyScope.id]);
+
   const count = artifact
     ? kind === "flashcards"
       ? (artifact.payload as FlashcardsPayload).cards?.length ?? 0
-      : (artifact.payload as MultipleChoicePayload).questions?.length ?? 0
+      : kind === "multiple_choice"
+        ? (artifact.payload as MultipleChoicePayload).questions?.length ?? 0
+        : (artifact.payload as MatchingPayload).pairs?.length ?? 0
     : 0;
+
+  // Match Lab renders only verified pairs. Checking here keeps "Start" from
+  // opening a dialog that can only say the set is unusable.
+  const matchingUnusable = Boolean(
+    artifact
+    && kind === "matching"
+    && !validateMatchingPayload(artifact.payload as MatchingPayload, artifact.concept_ids),
+  );
 
   const needsRefresh = Boolean(
     artifact &&
     artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
   );
 
+  const generationKey = JSON.stringify({
+    kind,
+    classId: classId ?? null,
+    captureId: scope.captureId ?? null,
+    conceptIds: scope.conceptIds ?? null,
+    studyScope: scope.studyScope,
+  });
+  currentGenerationKey.current = generationKey;
+
   const startGeneration = useCallback(async (regenerate: boolean) => {
-    // State-driven button disabling lands on the next render. The ref closes
-    // the small same-frame window where a fast double tap could create two
-    // active artifacts for the same study target.
-    if (generationInFlight.current) return;
-    generationInFlight.current = true;
-    try {
-      await generate({ regenerate });
-    } finally {
-      generationInFlight.current = false;
+    const existing = generationInFlight.current.get(generationKey);
+    if (existing) {
+      await existing;
+      // A → B → A can make the first A response intentionally stale inside
+      // the owner/scope-keyed hook. Reloading after its keyed promise settles
+      // prevents the returned A scope from becoming stranded.
+      if (currentGenerationKey.current === generationKey) await reload();
+      return;
     }
-  }, [generate]);
+    const task = generate({ regenerate });
+    generationInFlight.current.set(generationKey, task);
+    try {
+      await task;
+    } finally {
+      if (generationInFlight.current.get(generationKey) === task) {
+        generationInFlight.current.delete(generationKey);
+      }
+    }
+  }, [generate, generationKey, reload]);
 
   useEffect(() => {
     if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
@@ -178,20 +264,23 @@ export function RealStudySet({
 
   const KindIcon = KIND_META[kind].icon;
   const targetDetail = isCoachTarget
-    ? "Campus Coach picked these from weak, overdue, and high-impact concepts."
+    ? "Your coach uses your mastery, review timing, teacher emphasis, and the test or capture you selected."
     : isCaptureTarget
     ? "Only concepts extracted from this capture will be included."
     : studyScope.type === "exam"
-    ? `Only material for ${studyScope.label} will be included.`
+    ? `Focuses on concepts linked to ${studyScope.label}, named in its topics, or captured in its likely test window. Check the reasons shown before studying.`
     : studyScope.type === "recent"
       ? "A quick review of the newest material you added."
       : "A broader review that mixes older and newer material.";
   const sourceDetail = artifact
-    ? `Built from ${artifact.concept_ids.length} concept${artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and professor hints. Your answers update mastery and future recommendations.`
-    : "Practice is generated from this class’s notes and professor hints.";
+    ? `Built from ${artifact.concept_ids.length} concept${artifact.concept_ids.length === 1 ? "" : "s"} extracted from your notes and teacher hints. Your answers update mastery and future recommendations.`
+    : "Practice is generated from this class’s notes and teacher hints.";
   const itemLabel = kind === "flashcards"
     ? count === 1 ? "card" : "cards"
-    : count === 1 ? "question" : "questions";
+    : kind === "multiple_choice"
+      ? count === 1 ? "question" : "questions"
+      : count === 1 ? "pair" : "pairs";
+  const selectionReasons = describeSelectionEvidence(artifact?.study_scope_snapshot);
 
   return (
     <Card className="overflow-hidden rounded-[28px] border-border/40 bg-card/70 shadow-card backdrop-blur-md">
@@ -246,9 +335,9 @@ export function RealStudySet({
           <div
             role="group"
             aria-label="Study format"
-            className="grid grid-cols-2 gap-1 rounded-2xl border border-border/30 bg-background/35 p-1"
+            className="grid grid-cols-3 gap-1 rounded-2xl border border-border/30 bg-background/35 p-1"
           >
-            {(Object.keys(KIND_META) as Kind[]).map((k) => (
+            {orderedKinds.map((k) => (
               <button
                 key={k}
                 type="button"
@@ -264,18 +353,70 @@ export function RealStudySet({
               </button>
             ))}
           </div>
+          {kindNote && (
+            <p className="text-xs font-medium text-primary">{kindNote}</p>
+          )}
+          {subject.primary !== "general" && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">{subjectProfile.label}:</span>{" "}
+              {subjectProfile.studyFocus}
+            </p>
+          )}
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading study set…</p>
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">Loading study set…</p>
         ) : needsRefresh ? (
           <div>
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
           </div>
         ) : artifact ? (
-          <p className="text-sm text-foreground">
-            {count} {itemLabel} · {formatUpdatedAt(artifact.updated_at)}
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-foreground">
+              {count} {itemLabel} · {formatUpdatedAt(artifact.updated_at)}
+            </p>
+            {selectionReasons.length > 0 && (
+              <div className="rounded-2xl border border-border/40 bg-background/30 p-3">
+                <p className="text-sm font-medium text-foreground">
+                  {summarizeSelectionReasons(selectionReasons)}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Concepts in this set">
+                  {selectionReasons.slice(0, 3).map((reason) => (
+                    <span
+                      key={reason.conceptId}
+                      className="max-w-full truncate rounded-full border border-border/50 bg-card/60 px-2.5 py-1 text-xs text-foreground"
+                    >
+                      {reason.conceptName}
+                    </span>
+                  ))}
+                  {selectionReasons.length > 3 && (
+                    <span className="rounded-full px-1.5 py-1 text-xs text-muted-foreground">
+                      +{selectionReasons.length - 3} more
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  aria-expanded={showWhy}
+                  onClick={() => setShowWhy((value) => !value)}
+                  className="mt-1 inline-flex min-h-11 items-center text-xs font-medium text-primary"
+                >
+                  {showWhy ? "Hide details" : "Why this set?"}
+                </button>
+                {showWhy && (
+                  <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+                    {selectionReasons.map((reason) => (
+                      <li key={reason.conceptId} className="break-words">
+                        <span className="font-medium text-foreground">{reason.conceptName}:</span>{" "}
+                        {reason.labels.join(" · ")}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
         ) : (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
@@ -289,24 +430,53 @@ export function RealStudySet({
             </p>
             {!isCoachTarget && !isCaptureTarget && studyScope.type !== "exam" && (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add a note or professor hint first.
+                Add a note or teacher hint first.
               </p>
             )}
           </div>
         )}
 
+        {matchingUnusable && (
+          <div className="space-y-2 rounded-2xl border border-border/60 bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground">Match Lab needs a few more details</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Matching needs at least three clearly different term-and-answer pairs. Refresh this
+              set after adding a note, or study this material as flashcards now.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 w-full rounded-xl sm:w-auto"
+              onClick={() => setKind("flashcards")}
+            >
+              Study as flashcards
+            </Button>
+          </div>
+        )}
+
         {error && (
-          <p className="text-xs text-destructive">
+          <p role="alert" className="text-xs text-destructive">
             {error}
           </p>
         )}
 
-        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:flex sm:items-center sm:flex-wrap">
+        <div className="space-y-2">
+          {artifact && count > 0 && !needsRefresh && !matchingUnusable && (
+            <Button
+              aria-label="Start study session"
+              className="h-12 w-full rounded-2xl text-base font-semibold shadow-elegant"
+              onClick={() => setStudying(true)}
+              disabled={generating}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Start
+            </Button>
+          )}
           <Button
             size="sm"
-            variant={artifact ? "outline" : "default"}
+            variant={artifact && !needsRefresh ? "ghost" : "outline"}
             onClick={() => { void startGeneration(Boolean(artifact)); }}
-            className="h-11 w-full rounded-xl sm:w-auto"
+            className="h-11 w-full rounded-xl"
             disabled={generating}
             aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
@@ -314,11 +484,6 @@ export function RealStudySet({
               <>
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 Generating…
-              </>
-            ) : needsRefresh ? (
-              <>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Refresh
               </>
             ) : artifact ? (
               <>
@@ -332,16 +497,11 @@ export function RealStudySet({
               </>
             )}
           </Button>
-          {artifact && count > 0 && !needsRefresh && (
-            <Button aria-label="Start study session" className="h-11 w-full rounded-xl sm:w-auto" size="sm" onClick={() => setStudying(true)} disabled={generating}>
-              <Play className="h-3.5 w-3.5 mr-1.5" />
-              Start
-            </Button>
-          )}
         </div>
+
       </CardContent>
 
-      {artifact && studying && (
+      {artifact && studying && artifact.kind !== "matching" && (
         <RealStudyRunner
           open={studying}
           onOpenChange={(nextOpen) => {
@@ -357,8 +517,81 @@ export function RealStudySet({
           onCompleted={() => { reloadAfterStudy.current = true; }}
         />
       )}
+      {artifact && studying && artifact.kind === "matching" && (
+        <RealMatchingSession
+          open={studying}
+          onOpenChange={(nextOpen) => {
+            setStudying(nextOpen);
+            if (!nextOpen && reloadAfterStudy.current) {
+              reloadAfterStudy.current = false;
+              void reload();
+            }
+          }}
+          artifact={artifact as LearningArtifact<"matching">}
+          onCompleted={() => { reloadAfterStudy.current = true; }}
+        />
+      )}
     </Card>
   );
+}
+
+type SelectionReason = { conceptId: string; conceptName: string; labels: string[] };
+
+/**
+ * Five concepts that share one reason should say the reason once. Only fall
+ * back to a neutral count when the reasons genuinely differ.
+ */
+export function summarizeSelectionReasons(reasons: SelectionReason[]) {
+  const count = reasons.length;
+  const noun = `${count} concept${count === 1 ? "" : "s"}`;
+  if (!count) return noun;
+  const shared = reasons[0].labels.find((label) =>
+    reasons.every((reason) => reason.labels.includes(label)),
+  );
+  if (!shared) return `${noun} picked for this set`;
+  const lowered = shared.charAt(0).toLowerCase() + shared.slice(1);
+  return `${noun} · ${lowered}`;
+}
+
+function describeSelectionEvidence(snapshot: Record<string, unknown> | undefined) {
+
+  const raw = snapshot?.selectionEvidence;
+  if (!Array.isArray(raw)) return [];
+  const fallbackLabel = selectionFallbackLabel(snapshot);
+  const reasons: Array<{ conceptId: string; conceptName: string; labels: string[] }> = [];
+  for (const item of raw.slice(0, 8)) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { conceptId?: unknown; conceptName?: unknown; signals?: unknown };
+    if (typeof record.conceptId !== "string" || typeof record.conceptName !== "string") continue;
+    const conceptId = record.conceptId.trim();
+    const conceptName = record.conceptName.replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!conceptId || !conceptName) continue;
+    const labels: string[] = [];
+    if (Array.isArray(record.signals)) {
+      for (const signal of record.signals) {
+        const label = signal && typeof signal === "object"
+          ? (signal as { label?: unknown }).label
+          : null;
+        if (typeof label !== "string") continue;
+        const clean = label.replace(/\s+/g, " ").trim().slice(0, 100);
+        if (clean && !labels.includes(clean)) labels.push(clean);
+        if (labels.length >= 2) break;
+      }
+    }
+    reasons.push({ conceptId, conceptName, labels: labels.length ? labels : [fallbackLabel] });
+  }
+  return reasons;
+}
+
+function selectionFallbackLabel(snapshot: Record<string, unknown>) {
+  const id = typeof snapshot.id === "string" ? snapshot.id : "";
+  const type = typeof snapshot.type === "string" ? snapshot.type : "";
+  if (id.startsWith("coach-")) return "Included in your coach-picked set";
+  if (id.startsWith("capture-")) return "From the capture you selected";
+  if (type === "exam") return "Included in this test review";
+  if (type === "recent") return "Included in recent material";
+  if (type === "class") return "Included in mixed class review";
+  return "Included in this study set";
 }
 
 function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {

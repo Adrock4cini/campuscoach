@@ -140,4 +140,43 @@ describe("useMyClasses data integrity", () => {
 
     expect(resolveLatestReadiness("math-uuid", "math", 0, snapshots)).toBe(73);
   });
+
+  it("does not render one student's classes during another account's failed load", async () => {
+    mocks.mode = "real";
+    mocks.user = { id: "child-a" };
+    mocks.classResult = {
+      data: [{
+        id: "a-uuid",
+        client_class_id: "a-class",
+        name: "Child A private class",
+        professor: null,
+        location: null,
+        color: "bg-primary",
+        current_topic: null,
+        readiness: 0,
+        meta: {},
+        source: "manual",
+        term: null,
+        section: null,
+        semester_start_date: null,
+        semester_end_date: null,
+        weekdays: [],
+        start_time: null,
+        end_time: null,
+        time_zone: null,
+      }],
+      error: null,
+    };
+    const { result, rerender } = renderHook(() => useMyClasses());
+    await waitFor(() => expect(result.current.classes[0]?.id).toBe("a-class"));
+
+    mocks.user = { id: "child-b" };
+    mocks.classResult = { data: null, error: new Error("offline") };
+    rerender();
+
+    expect(result.current.classes).toEqual([]);
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.error).toMatch(/saved classes were not deleted/i));
+    expect(result.current.classes).toEqual([]);
+  });
 });

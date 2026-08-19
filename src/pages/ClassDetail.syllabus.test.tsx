@@ -62,7 +62,7 @@ describe("real class syllabus entry", () => {
 
     expect(screen.getByRole("heading", { name: "Class syllabus" })).toBeInTheDocument();
     expect(screen.getByText("No syllabus added")).toBeInTheDocument();
-    expect(screen.getByText(/assignments, quizzes, exam dates, and topics to study/i)).toBeInTheDocument();
+    expect(screen.getByText(/assignments, quizzes, exam dates, and topics for you to review/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^add syllabus/i })).toHaveAttribute(
       "href",
       "/classes/math-1/syllabus",

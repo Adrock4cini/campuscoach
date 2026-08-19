@@ -91,7 +91,7 @@ export function CaptureDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-lg">
         <SheetHeader className="text-left">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="uppercase tracking-wide">
@@ -115,7 +115,7 @@ export function CaptureDetailDrawer({
             </div>
             <p className="text-sm text-foreground">
               {item.isPlaceholder
-                ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or professor hint instead."
+                ? "This was saved before media processing was connected. It is not valid study material yet. Add a typed note or teacher hint instead."
                 : item.processingStatus === "failed"
                   ? "Your source is safe, but concept processing needs another try before study tools can use it."
                   : item.processingStatus !== "ready"
@@ -257,26 +257,26 @@ function buildInsight(item: MemoryItem): string {
   switch (item.kind) {
     case "record-lecture":
       return c
-        ? `Your professor spent the most time on "${c}" — likely fair game on the next exam.`
-        : "Lecture captured. Campus Brain will surface the sticky concepts once you review.";
+        ? `One concept extracted from this recording is "${c}". Check it against your teacher's review guide before test prep.`
+        : "Lecture captured. Review the extracted concepts before using them for test prep.";
     case "scan-board":
       return c
-        ? `Board scans are strong signal — "${c}" is worth two quick recall passes today.`
-        : "Board content captured. Try a 5-minute recall pass before you forget it.";
+        ? `The scan includes "${c}". Try one recall pass, then check the source if you miss it.`
+        : "Board content captured. Try a short recall pass while the class is fresh.";
     case "scan-textbook":
     case "scan-material":
       return c
         ? `Anchor "${c}" with one practice problem before reviewing the rest of the chapter.`
         : "Chapter captured. Skim the section headings, then hit one recall pass.";
     case "professor-hint":
-      return "Professor hints predict exam questions better than any other signal — starred and boosted.";
+      return "You marked this as a teacher hint, so it receives extra study priority without being treated as a guaranteed test question.";
     case "quick-note":
-      return "Quick notes fade fastest. A 2-minute flashcard pass will lock this in.";
+      return "Turn this note into a short recall check while the context is still fresh.";
     case "ask-brain":
       return "Saved to your memory so Campus Brain can revisit this the next time it matters.";
     case "upload-file":
       return c
-        ? `File added. Start with "${c}" — it's the highest-yield concept here.`
+        ? `File added. One extracted concept is "${c}"; Study Lab will rank it with your test scope and mastery.`
         : "File added to Class Memory.";
     case "scan-assignment":
       return c
@@ -285,7 +285,7 @@ function buildInsight(item: MemoryItem): string {
     case "scan-syllabus":
     default:
       return c
-        ? `File added. Start with "${c}" — it's the highest-yield concept here.`
+        ? `File added. One extracted concept is "${c}"; verify it against the original source.`
         : "File added to Class Memory.";
   }
 }

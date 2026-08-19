@@ -27,8 +27,13 @@ export function RealExamsView() {
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
+  const timedItems = items.map((exam) => ({ exam, days: daysUntil(exam.exam_date) }));
+  const upcomingItems = timedItems.filter(({ days }) => days !== null && Number.isFinite(days) && days >= 0);
+  const undatedItems = timedItems.filter(({ days }) => days === null || !Number.isFinite(days));
+  const pastItems = timedItems.filter(({ days }) => days !== null && Number.isFinite(days) && days < 0);
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, title: string) => {
+    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
     const ok = await deleteExam(id);
     if (!ok) return toast.error("Couldn't delete");
     toast.success("Deleted");
@@ -39,8 +44,11 @@ export function RealExamsView() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Exams</h1>
-          <p className="text-xs text-muted-foreground mt-1">{items.length} upcoming</p>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Tests &amp; exams</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            {upcomingItems.length} upcoming
+            {undatedItems.length > 0 ? ` · ${undatedItems.length} date TBD` : ""}
+          </p>
         </div>
         <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
           <Plus className="h-4 w-4 mr-1" /> Add
@@ -77,68 +85,88 @@ export function RealExamsView() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {items.map((e) => {
-            const fromCanvas = e.source === "canvas";
-            const days = daysUntil(e.exam_date);
-            const dueChip =
-              days === null ? "Date TBD" :
-              days < 0 ? `${-days}d ago` :
-              days === 0 ? "Today" :
-              `${days}d away`;
-            return (
-              <Card key={e.id} className="shadow-card">
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-display font-semibold text-foreground">{e.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{classNameFor(e.client_class_id)}</p>
-                      {fromCanvas && <Badge variant="outline" className="mt-1 text-[10px]">Canvas</Badge>}
-                    </div>
-                    <Badge variant="outline" className="text-xs"><Calendar className="h-3 w-3 mr-1" />{dueChip}</Badge>
-                    {fromCanvas ? (
-                      e.source_url && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                          <a href={e.source_url} target="_blank" rel="noreferrer" aria-label="Open in Canvas">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
+        <div className="space-y-6">
+          {[
+            { id: "upcoming-exams", label: "Upcoming", entries: upcomingItems },
+            { id: "undated-exams", label: "Date not set", entries: undatedItems },
+            { id: "past-exams", label: "Past exams", entries: pastItems },
+          ].filter((group) => group.entries.length > 0).map((group) => (
+            <section key={group.id} aria-labelledby={group.id} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 id={group.id} className="text-sm font-semibold text-foreground">{group.label}</h2>
+                <span className="text-xs text-muted-foreground">{group.entries.length}</span>
+              </div>
+              {group.entries.map(({ exam: e, days }) => {
+                const fromCanvas = e.source === "canvas";
+                const isPast = days !== null && Number.isFinite(days) && days < 0;
+                const dueChip =
+                  days === null || !Number.isFinite(days) ? "Date TBD" :
+                  days < 0 ? `Past · ${-days}d ago` :
+                  days === 0 ? "Today" :
+                  `${days}d away`;
+                return (
+                  <Card key={e.id} className="shadow-card">
+                    <CardContent className="p-5 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display font-semibold text-foreground">{e.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{classNameFor(e.client_class_id)}</p>
+                          {fromCanvas && <Badge variant="outline" className="mt-1 text-[10px]">Canvas</Badge>}
+                        </div>
+                        <Badge variant="outline" className="text-xs"><Calendar className="h-3 w-3 mr-1" />{dueChip}</Badge>
+                        {fromCanvas ? (
+                          e.source_url && (
+                            <Button variant="ghost" size="icon" className="h-11 w-11" asChild>
+                              <a href={e.source_url} target="_blank" rel="noreferrer" aria-label="Open in Canvas">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </Button>
+                          )
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-11 w-11 text-muted-foreground hover:text-danger"
+                            aria-label={`Delete ${e.title}`}
+                            onClick={() => { void remove(e.id, e.title); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      {!isPast && (
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Readiness</span>
+                            <span className="font-medium text-foreground">{e.readiness}%</span>
+                          </div>
+                          <Progress value={e.readiness} className="h-2" />
+                        </div>
+                      )}
+                      {e.topics.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {e.topics.map((t) => (
+                            <Badge key={t} variant="outline" className="text-[10px] border-primary/20 text-primary">{t}</Badge>
+                          ))}
+                        </div>
+                      )}
+                      {e.client_class_id && !isPast && (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/study-lab?${new URLSearchParams({
+                            classId: e.client_class_id!,
+                            examId: e.id,
+                          }).toString()}`)}
+                        >
+                          <Sparkles className="h-4 w-4 mr-1.5" /> Study for this exam
                         </Button>
-                      )
-                    ) : (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(e.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Readiness</span>
-                      <span className="font-medium text-foreground">{e.readiness}%</span>
-                    </div>
-                    <Progress value={e.readiness} className="h-2" />
-                  </div>
-                  {e.topics.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {e.topics.map((t) => (
-                        <Badge key={t} variant="outline" className="text-[10px] border-primary/20 text-primary">{t}</Badge>
-                      ))}
-                    </div>
-                  )}
-                  {e.client_class_id && (
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/study-lab?${new URLSearchParams({
-                        classId: e.client_class_id!,
-                        examId: e.id,
-                      }).toString()}`)}
-                    >
-                      <Sparkles className="h-4 w-4 mr-1.5" /> Study for this exam
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </section>
+          ))}
         </div>
       )}
 

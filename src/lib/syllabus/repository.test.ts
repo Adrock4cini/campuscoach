@@ -75,6 +75,26 @@ describe("class syllabus repository", () => {
     expect(validateSyllabusFile(noAdvertisedType)).toBe("application/pdf");
   });
 
+  it("surfaces an actionable syllabus quota message from the Edge Function body", async () => {
+    mocks.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: new Response(JSON.stringify({ error: "quota reached" }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }),
+      },
+    });
+    const file = new File(["syllabus"], "biology.pdf", { type: "application/pdf" });
+
+    await expect(parseClassSyllabus(file, {
+      id: "11111111-1111-4111-8111-111111111111",
+      clientClassId: "biology",
+      name: "Biology 101",
+    })).rejects.toThrow(/too many syllabus scans.*try again/i);
+  });
+
   it("turns a Storage quota policy denial into a useful retry message", async () => {
     mocks.upload.mockResolvedValue({
       data: null,

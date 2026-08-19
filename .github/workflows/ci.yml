@@ -30,8 +30,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Lint
         run: npm run lint
@@ -45,5 +45,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Mobile and desktop journey smoke tests
+      - name: Desktop, Android, and iPhone journey smoke tests
         run: npm run e2e

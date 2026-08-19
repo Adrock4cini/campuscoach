@@ -25,7 +25,7 @@ export type ArtifactKind =
 // Keep the client honest about which server generator produced a set. Older
 // artifacts can still exist in the disposable table after a deployment, but
 // students should refresh them before using them to update mastery.
-export const CURRENT_ARTIFACT_PROMPT_VERSION = "v8-grounding-quality";
+export const CURRENT_ARTIFACT_PROMPT_VERSION = "v9-study-intelligence";
 
 // Temporary compatibility alias for any older imports. New consumers should
 // use the artifact-wide constant because freshness applies to every study mode.
@@ -67,13 +67,43 @@ export interface MultipleChoicePayload {
 // Reserved payload shapes (implemented later). Kept here so every
 // consumer already knows the shape when the template lands.
 export interface FillBlankPayload { items: Array<{ sentence: string; answer: string }> }
-export interface MatchingPayload { pairs: Array<{ left: string; right: string }> }
+export interface MatchingPayload {
+  pairs: Array<{
+    id: string;
+    conceptId: string;
+    conceptName: string;
+    left: string;
+    right: string;
+    sourceExcerpt?: string;
+  }>;
+}
 export interface PracticePayload { problems: Array<{ prompt: string; hint: string; solution: string }> }
 export interface StudyGuidePayload { sections: Array<{ heading: string; body: string }> }
 export interface CheatSheetPayload { bullets: string[] }
 export interface Eli5Payload { text: string }
 export interface EliProfessorPayload { text: string }
-export interface MnemonicPayload { items: Array<{ concept: string; mnemonic: string }> }
+export type MemoryTrickTechnique =
+  | "acronym"
+  | "association"
+  | "rhyme"
+  | "story"
+  | "chunking"
+  | "visual"
+  | "other";
+
+export interface MnemonicPayload {
+  items: Array<{
+    id: string;
+    conceptId: string;
+    conceptName: string;
+    target: string;
+    mnemonic: string;
+    technique: MemoryTrickTechnique;
+    origin: "ai_created" | "known";
+    explanation: string;
+    sourceExcerpt?: string;
+  }>;
+}
 
 export type ArtifactPayloadByKind = {
   flashcards: FlashcardsPayload;

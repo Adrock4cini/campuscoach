@@ -1,4 +1,7 @@
-export const ACTIVE_STUDY_ATTEMPT_MS = 30_000;
+// A study save performs several durable, owner-scoped updates. Give an active
+// request enough time to finish on a slow mobile connection before a retry may
+// reclaim its lease.
+export const ACTIVE_STUDY_ATTEMPT_MS = 120_000;
 
 export type StudyAttemptDisposition = "return-cached" | "wait" | "resume";
 

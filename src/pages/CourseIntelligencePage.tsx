@@ -14,15 +14,17 @@ import { classes } from "@/data/demo";
 import { textbooks, classTextbookMap, professors, classProfessorMap } from "@/data/courseIntelligence";
 import { useClassIntelligence } from "@/hooks/useClassIntelligence";
 import { ContributeHub } from "@/components/ContributeHub";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CourseIntelligencePage() {
   const navigate = useNavigate();
+  const { mode } = useAuth();
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "");
 
   const cls = classes.find(c => c.id === selectedClassId);
   const textbook = textbooks.find(t => t.id === classTextbookMap[selectedClassId]);
   const professor = professors.find(p => p.id === classProfessorMap[selectedClassId]);
-  const intel = useClassIntelligence(selectedClassId);
+  const intel = useClassIntelligence(selectedClassId, mode);
 
   const top3 = intel.topics.slice(0, 3);
   const struggles = intel.topics.filter((t) => t.miss_rate >= 30 || t.average_confidence > 0 && t.average_confidence <= 2.5).slice(0, 5);
@@ -39,8 +41,18 @@ export default function CourseIntelligencePage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-semibold text-foreground">Course Intelligence</h1>
-        <p className="text-muted-foreground text-sm mt-1">Real-time, crowdsourced insights from students taking this class.</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          {mode === "demo"
+            ? "See how peer study patterns can reveal what matters most."
+            : "Real-time, crowdsourced insights from students taking this class."}
+        </p>
       </div>
+
+      {mode === "demo" && (
+        <p className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-foreground/80">
+          Demo preview · Community counts and trends are realistic sample data. Nothing on this page reads from or writes to a student account.
+        </p>
+      )}
 
       <Select value={selectedClassId} onValueChange={setSelectedClassId}>
         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -237,7 +249,7 @@ export default function CourseIntelligencePage() {
               <Brain className="h-4 w-4 mr-1.5" /> Study This Course
             </Button>
             <Button variant="outline" onClick={() => navigate("/exam-debrief")}>
-              <ArrowRight className="h-4 w-4 mr-1.5" /> Submit Debrief
+              <ArrowRight className="h-4 w-4 mr-1.5" /> {mode === "demo" ? "Try a Debrief" : "Submit Debrief"}
             </Button>
             <Button variant="outline" onClick={() => navigate(`/classes/${selectedClassId}`)}>
               <BookOpen className="h-4 w-4 mr-1.5" /> Class Details

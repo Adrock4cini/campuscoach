@@ -51,7 +51,8 @@ export function RealAssignmentsView() {
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
   };
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, title: string) => {
+    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
     const ok = await deleteAssignment(id);
     if (!ok) return toast.error("Couldn't delete");
     toast.success("Deleted");
@@ -132,8 +133,8 @@ export function RealAssignmentsView() {
                     onClick={() => {
                       if (!fromCanvas) void toggleStatus(a.id, a.status === "complete" ? "not_started" : "complete");
                     }}
-                    className="mt-0.5 shrink-0"
-                    aria-label="Toggle complete"
+                    className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                    aria-label={a.status === "complete" ? `Mark ${a.title} not started` : `Mark ${a.title} complete`}
                     disabled={fromCanvas}
                   >
                     <CheckCircle2 className={`h-5 w-5 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
@@ -166,14 +167,20 @@ export function RealAssignmentsView() {
                     ) : (
                       <>
                         <Select value={a.status} onValueChange={(v: AssignmentStatus) => toggleStatus(a.id, v)}>
-                          <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-11 w-[130px] text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {(Object.keys(STATUS_LABEL) as AssignmentStatus[]).map((s) => (
                               <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={() => remove(a.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 text-muted-foreground hover:text-danger"
+                          aria-label={`Delete ${a.title}`}
+                          onClick={() => { void remove(a.id, a.title); }}
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </>

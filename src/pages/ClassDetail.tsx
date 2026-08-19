@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import {
 } from "@/data/demo";
 import {
   ArrowLeft, MapPin, Clock, User, BookOpen, ArrowRight,
-  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic, CalendarRange, FileText,
+  CheckCircle2, Circle, Loader2, MessageSquare, FlaskConical, Pencil, Plus, Mic, CalendarRange, FileText, Camera,
 } from "lucide-react";
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { ChapterDetailDrawer } from "@/components/ChapterDetailDrawer";
@@ -19,17 +19,19 @@ import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import type { ProfessorHint, Chapter } from "@/data/demo";
 import { getClassPulse, getPredictedTopics, getRecommendedStudyMode, getTopStudentInsights } from "@/data/courseIntelligence";
 import { ClassMemory } from "@/components/capture/ClassMemory";
-import { InviteClassmatesButton } from "@/components/invite/InviteClassmatesButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useCapture } from "@/contexts/CaptureContext";
 import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
+import { SyllabusNextStep } from "@/components/real/SyllabusNextStep";
+import { ClassTopicTargets } from "@/components/real/ClassTopicTargets";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { formatDateKey } from "@/lib/calendar/dateKey";
 
 export default function ClassDetail() {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, isDemoMode } = useAuth();
   const { classes: myClasses, loading: classesLoading, error: classesError, reload: reloadClasses } = useMyClasses();
   const { open: openCapture } = useCapture();
@@ -43,6 +45,21 @@ export default function ClassDetail() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [classHints, setClassHints] = useState<ProfessorHint[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    if (!realClass || searchParams.get("capture") !== "1") return;
+    openCapture(undefined, realClass.id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("capture");
+    setSearchParams(next, { replace: true });
+  }, [openCapture, realClass, searchParams, setSearchParams]);
+
+  const syllabusSaved = searchParams.get("saved") === "syllabus";
+  const dismissSyllabusSaved = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("saved");
+    setSearchParams(next, { replace: true });
+  };
 
   if (realMode && classesLoading && !c) {
     return <p className="py-20 text-center text-sm text-muted-foreground">Loading your class…</p>;
@@ -91,6 +108,11 @@ export default function ClassDetail() {
           </Button>
         </div>
 
+        {syllabusSaved && (
+          <SyllabusNextStep classId={c.id} className={c.name} onDismiss={dismissSyllabusSaved} />
+        )}
+
+
         <Card className="shadow-card">
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
             {c.professor && c.professor !== "TBD" && (
@@ -133,10 +155,18 @@ export default function ClassDetail() {
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   {c.hasSyllabus
-                    ? "View the saved source or replace it. Reviewed assignments, quizzes, exam dates, and test topics stay connected to this class, calendar, dashboard, and help Study Lab focus your captured material."
-                    : "Add this class’s PDF or one clear photo. We’ll find assignments, quizzes, exam dates, and topics to study—then let you review everything before it reaches the class, calendar, dashboard, and exam study targets."}
+                    ? "Assignments, quizzes, exam dates, and topics from this syllabus are connected to your calendar and Study Lab."
+                    : "Add the PDF or one clear photo. We’ll pull out assignments, quizzes, exam dates, and topics for you to review."}
                 </p>
-                {!c.hasSyllabus && <p className="mt-1 text-xs text-muted-foreground">If this class does not use a syllabus, you can skip this.</p>}
+                {!c.hasSyllabus && (
+                  <details className="mt-2 text-xs text-muted-foreground">
+                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-primary">How it works</summary>
+                    <p className="pb-1 leading-relaxed">
+                      For several paper pages, scan them into one PDF first. Nothing is saved to your class, calendar, or
+                      dashboard until you review it. If this class does not use a syllabus, you can skip this.
+                    </p>
+                  </details>
+                )}
               </div>
             </div>
             <Button className="h-11 shrink-0" asChild>
@@ -151,25 +181,35 @@ export default function ClassDetail() {
         <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
           <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
             <div>
-              <p className="text-xs font-medium text-primary mb-1">🎯 Start capturing</p>
-              <h3 className="font-display font-semibold text-foreground">Teach Campus Brain about this class</h3>
+              <h3 className="font-display font-semibold text-foreground">Capture something from this class</h3>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Add a quick note or save something your professor emphasized. Campus Brain extracts concepts first, then uses them to build study sets.
+                A photo, a note, or something your teacher emphasized. Campus Brain turns it into study sets.
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
-              <Button size="sm" className="bg-gradient-calm border-0 text-primary-foreground hover:opacity-90 w-full sm:w-auto" onClick={() => openCapture(undefined, c.id)}>
-                <Plus className="h-4 w-4 mr-1" /> Quick Capture
+            <div className="space-y-2">
+              <Button className="h-12 w-full rounded-2xl bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture(undefined, c.id)}>
+                <Plus className="h-4 w-4 mr-1.5" /> Capture
               </Button>
-              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCapture("professor-hint", c.id)}>
-                <MessageSquare className="h-4 w-4 mr-1" /> Professor Hint
-              </Button>
-              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(`/study-lab?classId=${c.id}`)}>
-                <FlaskConical className="h-4 w-4 mr-1" /> Study Lab
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("scan-assignment", c.id)}>
+                  <Camera className="h-4 w-4 mr-1.5" /> Homework help
+                </Button>
+                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("professor-hint", c.id)}>
+                  <MessageSquare className="h-4 w-4 mr-1.5" /> Teacher hint
+                </Button>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/study-lab?classId=${c.id}`)}
+                className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary"
+              >
+                <FlaskConical className="h-4 w-4" /> Study this class
+              </button>
             </div>
           </CardContent>
         </Card>
+
+        <ClassTopicTargets classId={c.id} className={c.name} schedule={c.schedule} />
 
         <RealClassAssignmentsExams classId={c.id} />
 
@@ -189,7 +229,7 @@ export default function ClassDetail() {
 
   const editFields: EditField[] = [
     { key: "name", label: "Class Name", type: "text" },
-    { key: "professor", label: "Professor", type: "text" },
+    { key: "professor", label: "Teacher or instructor", type: "text" },
     { key: "location", label: "Location", type: "text" },
     { key: "time", label: "Time", type: "text" },
     { key: "currentTopic", label: "Current Topic", type: "text" },
@@ -308,9 +348,6 @@ export default function ClassDetail() {
           />
         </CardContent>
       </Card>
-
-      {/* Invite classmates */}
-      <InviteClassmatesButton classId={c.id} className={c.name} />
 
       {/* Class Memory */}
       <ClassMemory classId={c.id} className={c.name} />

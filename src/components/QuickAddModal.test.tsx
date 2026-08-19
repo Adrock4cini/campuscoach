@@ -12,7 +12,7 @@ function LocationProbe() {
   return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
-describe("Quick Add syllabus entry", () => {
+describe("Quick Add navigation", () => {
   it("selects a class instead of reopening onboarding", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -23,5 +23,22 @@ describe("Quick Add syllabus entry", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /upload syllabus/i }));
     expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=syllabus");
+  });
+
+  it("names list-only actions truthfully", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <QuickAddModal open onOpenChange={vi.fn()} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("button", { name: /^Add Assignment/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /View Assignments/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/assignments");
+
+    expect(screen.queryByRole("button", { name: /^Add Exam/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /View Tests & Exams/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/exams");
   });
 });

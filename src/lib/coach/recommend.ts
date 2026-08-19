@@ -69,6 +69,7 @@ export interface CoachInputAssignment {
   class_id: string;
   due_date: string | null;
   title: string;
+  status?: string | null;
 }
 
 export interface CoachInputs {
@@ -117,10 +118,15 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
 
   const nextAssignByClass = new Map<string, { days: number; title: string }>();
   for (const a of inputs.assignments) {
+    if (a.status === "complete") continue;
     const d = daysBetween(a.due_date, now);
-    if (d === null || d < 0) continue;
+    if (d === null) continue;
     const cur = nextAssignByClass.get(a.class_id);
-    if (!cur || d < cur.days) {
+    const urgency = d < 0 ? 1000 - Math.min(Math.abs(d), 30) : 100 - Math.min(d, 100);
+    const currentUrgency = cur
+      ? cur.days < 0 ? 1000 - Math.min(Math.abs(cur.days), 30) : 100 - Math.min(cur.days, 100)
+      : -Infinity;
+    if (!cur || urgency > currentUrgency) {
       nextAssignByClass.set(a.class_id, { days: d, title: a.title });
     }
   }
@@ -144,7 +150,15 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
         });
       }
       const examWeight = exam ? clamp(1 - exam.days / EXAM_HORIZON_DAYS, 0, 1) * (exam.weight ?? 1) : 0;
-      const score = 0.3 + examWeight * 0.5;
+      const assignmentUrgency = assignmentWeight(assign);
+      if (assign) {
+        evidence.push({
+          type: "assignment",
+          label: assignmentLabel(assign),
+          weight: assignmentUrgency,
+        });
+      }
+      const score = 0.3 + examWeight * 0.5 + assignmentUrgency * 0.4;
       recs.push({
         id: `${c.id}:capture`,
         action: "capture",
@@ -152,9 +166,11 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
         className: c.name,
         conceptIds: [],
         minutes: BLOCK_MINUTES,
-        why: exam
-          ? `${exam.title} is in ${exam.days} days — add notes first.`
-          : "Add a note or professor hint to build your first study set.",
+        why: assign && assign.days <= 1
+          ? `${assignmentLabel(assign)} — scan the instructions to build quick practice.`
+          : exam
+            ? `${exam.title} is in ${exam.days} days — add notes first.`
+            : "Add a note or teacher hint to build your first study set.",
         evidence,
         impact: { readinessDelta: 0, examWeight },
         score,
@@ -175,9 +191,11 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
     const overdueRatio = mastery.length ? overdue.length / mastery.length : 0;
     const examUrgency = exam ? clamp(1 - exam.days / EXAM_HORIZON_DAYS, 0, 1) : 0;
     const examWeight = exam ? examUrgency * (exam.weight ?? 1) : 0;
+    const assignmentUrgency = assignmentWeight(assign);
 
     const score =
-      examWeight * 0.5 +
+      examWeight * 0.45 +
+      assignmentUrgency * 0.35 +
       fragility * 0.3 +
       overdueRatio * 0.2 +
       // small tiebreaker so classes with any weak concepts still surface without an exam
@@ -232,8 +250,8 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
     if (assign) {
       evidence.push({
         type: "assignment",
-        label: `${assign.title} due in ${assign.days}d`,
-        weight: clamp(1 - assign.days / 7, 0, 1),
+        label: assignmentLabel(assign),
+        weight: assignmentUrgency,
       });
     }
     if (evidence.length === 0) {
@@ -247,7 +265,7 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
     }
     evidence.sort((a, b) => b.weight - a.weight);
 
-    const why = buildWhy({ action, exam, weakCount: weak.length, overdueCount: overdue.length, className: c.name });
+    const why = buildWhy({ action, exam, assignment: assign, weakCount: weak.length, overdueCount: overdue.length, className: c.name });
 
     recs.push({
       id: `${c.id}:${action}`,
@@ -269,6 +287,7 @@ export function recommend(inputs: CoachInputs): CoachRecommendation[] {
 function buildWhy(args: {
   action: CoachActionKind;
   exam: { days: number; title: string } | undefined;
+  assignment: { days: number; title: string } | undefined;
   weakCount: number;
   overdueCount: number;
   className: string;
@@ -285,7 +304,26 @@ function buildWhy(args: {
   } else {
     attention = `Keep ${args.className} sharp`;
   }
+  if (args.assignment && args.assignment.days <= 1) {
+    return `${assignmentLabel(args.assignment)} · ${attention}.`;
+  }
   return args.exam
     ? `${attention} · ${args.exam.title} in ${args.exam.days} days.`
     : `${attention}.`;
+}
+
+function assignmentWeight(assignment: { days: number } | undefined) {
+  if (!assignment) return 0;
+  if (assignment.days < 0) return 1;
+  return clamp(1 - assignment.days / 7, 0, 1);
+}
+
+function assignmentLabel(assignment: { days: number; title: string }) {
+  if (assignment.days < 0) {
+    const count = Math.abs(assignment.days);
+    return `${assignment.title} ${count} day${count === 1 ? "" : "s"} overdue`;
+  }
+  if (assignment.days === 0) return `${assignment.title} due today`;
+  if (assignment.days === 1) return `${assignment.title} due tomorrow`;
+  return `${assignment.title} due in ${assignment.days} days`;
 }
