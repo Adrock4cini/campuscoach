@@ -169,6 +169,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <RouteMemory />
           <Routes>
             {/* Public auth routes — no AppLayout */}
             <Route path="/login" element={<Login />} />
