@@ -226,7 +226,7 @@ export function buildDeterministicMatchingPairs(
       .find((candidate) => {
         const key = duplicateKey(candidate);
         const vague = /^(?:please\s+)?(?:review|study|learn|remember|help|explain)\b/i.test(candidate);
-        return !vague && key !== leftKey && !seenRight.has(key);
+        return !vague && !isNonExplanatoryFragment(candidate) && key !== leftKey && !seenRight.has(key);
       });
     if (!right) continue;
     seenLeft.add(leftKey);
