@@ -50,6 +50,8 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  /** True when a known session could not be read yet (offline / refresh in flight). */
+  recovering: boolean;
   onboarded: boolean | null; // null = still loading
   isDemoMode: boolean;
   profile: Profile;
