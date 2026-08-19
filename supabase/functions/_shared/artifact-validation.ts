@@ -1,4 +1,5 @@
 import { boundGroundedText } from "./grounded-excerpt.ts";
+import { isNonExplanatoryFragment } from "./grounding-quality.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
 
 export type GeneratedArtifactKind =
@@ -106,7 +107,9 @@ export function buildDeterministicFlashcards(
         800,
       );
     const promptKey = duplicateKey(front);
-    if (!back || seenPrompts.has(promptKey)) continue;
+    // A heading, running head, or "© Publisher 159" page fragment is not an
+    // answer. Skipping it keeps the set honest instead of teaching furniture.
+    if (!back || isNonExplanatoryFragment(back) || seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
     cards.push({
       front,
@@ -140,7 +143,7 @@ export function buildDeterministicMultipleChoice(
         || "",
       220,
     ),
-  })).filter((entry) => entry.target);
+  })).filter((entry) => entry.target && !isNonExplanatoryFragment(entry.target));
   const safeDecoys = [
     "Not stated in the provided class material",
     "There is not enough information in the source",
@@ -223,7 +226,7 @@ export function buildDeterministicMatchingPairs(
       .find((candidate) => {
         const key = duplicateKey(candidate);
         const vague = /^(?:please\s+)?(?:review|study|learn|remember|help|explain)\b/i.test(candidate);
-        return !vague && key !== leftKey && !seenRight.has(key);
+        return !vague && !isNonExplanatoryFragment(candidate) && key !== leftKey && !seenRight.has(key);
       });
     if (!right) continue;
     seenLeft.add(leftKey);
@@ -475,6 +478,14 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
       || duplicateKey(rawItem.target) !== duplicateKey(exactTarget)
     ) {
       return { ok: false, error: "mnemonic target must copy the exact grounded fact" };
+    }
+    // Make It Stick must never sound confident about a heading or page
+    // fragment. Without a real explanation there is nothing to memorise yet.
+    if (isNonExplanatoryFragment(exactTarget)) {
+      return {
+        ok: false,
+        error: "this material is only a heading, so there is nothing to memorise yet — capture the explanation under it",
+      };
     }
 
     const mnemonic = cleanString(rawItem.mnemonic, "mnemonic", 3, 500);

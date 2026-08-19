@@ -33,6 +33,11 @@ import type {
 } from "@/lib/learningArtifacts/types";
 import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
 import { cleanStudyText, isLongStudyText, retrievalPrompt } from "@/lib/study/studyText";
+import {
+  clearStudyRunnerState,
+  readStudyRunnerState,
+  writeStudyRunnerState,
+} from "@/lib/study/studyRunnerState";
 
 interface Props {
   open: boolean;
@@ -79,6 +84,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [revealed, setRevealed] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
+  const [mnemonicOpen, setMnemonicOpen] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -101,13 +107,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   useEffect(() => {
     if (!open) return;
-    setQueue(buildInitialQueue(items.length));
-    setPosition(0);
-    setCorrect(0);
-    setIncorrect(0);
-    setRevealed(false);
-    setPicked(null);
-    setConfidence(null);
+    // Returning from another app (or an iOS tab reload) restores the student's
+    // exact place instead of restarting the set from card one.
+    const restored = readStudyRunnerState({ artifactId: artifact.id, itemCount: items.length });
+    setQueue(restored?.queue ?? buildInitialQueue(items.length));
+    setPosition(restored?.position ?? 0);
+    setCorrect(restored?.correct ?? 0);
+    setIncorrect(restored?.incorrect ?? 0);
+    setRevealed(restored?.revealed ?? false);
+    setPicked(restored?.picked ?? null);
+    setConfidence((restored?.confidence as ConfidenceLevel | null) ?? null);
+    setMnemonicOpen(restored?.mnemonicOpen ?? false);
     setDone(false);
     setReadiness(null);
     setReadinessDelta(null);
@@ -119,6 +129,26 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setStartedAt(Date.now());
     attemptIdRef.current = createStudyAttemptId();
   }, [open, artifact.id, items.length]);
+
+  // Persist only safe, re-derivable progress on every step.
+  useEffect(() => {
+    if (!open || done) return;
+    writeStudyRunnerState({
+      artifactId: artifact.id,
+      queue,
+      position,
+      revealed,
+      picked,
+      confidence,
+      correct,
+      incorrect,
+      mnemonicOpen,
+    });
+  }, [
+    open, done, artifact.id, queue, position, revealed, picked, confidence,
+    correct, incorrect, mnemonicOpen,
+  ]);
+
 
   useEffect(() => {
     if (open && revealed && !pendingFinal) feedbackRef.current?.focus();
@@ -203,6 +233,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       }
 
       setDone(true);
+      // Saved work is no longer "in progress"; a resume must not replay it.
+      clearStudyRunnerState();
       const nextReadiness = typeof response.readiness === "number" ? response.readiness : null;
       const nextReadinessDelta = typeof response.readinessDelta === "number" ? response.readinessDelta : null;
       setReadiness(nextReadiness);
@@ -224,8 +256,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   };
 
   const reset = () => {
+    clearStudyRunnerState();
     setQueue(buildInitialQueue(items.length));
     setPosition(0);
+    setMnemonicOpen(false);
     setCorrect(0);
     setIncorrect(0);
     setRevealed(false);
@@ -340,6 +374,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                     {revealed && card.conceptId && card.conceptName && card.sourceExcerpt
                       && (artifact.client_class_id || artifact.class_id) && (
                       <MemoryTrickPanel
+                        defaultOpen={mnemonicOpen}
+                        onOpenChange={setMnemonicOpen}
                         conceptId={card.conceptId}
                         conceptName={card.conceptName}
                         exactTarget={card.sourceExcerpt}

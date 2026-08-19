@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -41,6 +42,7 @@ import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
 import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
 import { getOnboardingRedirect } from "@/lib/auth/protectedRoute";
+import { readLastRoute, writeLastRoute } from "@/lib/app/routeMemory";
 
 
 function DemoOnly({
@@ -59,9 +61,54 @@ function DemoOnly({
   );
 }
 
+/**
+ * Shown instead of the login screen whenever a known session is temporarily
+ * unreadable (offline, backgrounded phone, refresh in flight). The student
+ * stays signed in; nothing is cleared unless they choose Sign out.
+ */
+function ReconnectingPanel() {
+  const { signOut } = useAuth();
+  return (
+    <section
+      className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center"
+      aria-live="polite"
+      data-testid="auth-reconnecting"
+    >
+      <h1 className="font-display text-xl font-semibold text-foreground">Reconnecting…</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        You’re still signed in. We’re just waiting on your connection — nothing you saved is lost.
+      </p>
+      <button
+        type="button"
+        className="mt-4 min-h-11 rounded-xl border border-border px-4 text-sm font-medium text-primary hover:bg-primary/5"
+        onClick={() => window.location.reload()}
+      >
+        Try again
+      </button>
+      <button
+        type="button"
+        className="mt-2 min-h-11 rounded-xl px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
+        onClick={() => { void signOut(); }}
+      >
+        Sign out
+      </button>
+    </section>
+  );
+}
+
+/** Remembers the student's current place so a reload/resume lands back here. */
+function RouteMemory() {
+  const loc = useLocation();
+  useEffect(() => {
+    writeLastRoute(`${loc.pathname}${loc.search}`);
+  }, [loc.pathname, loc.search]);
+  return null;
+}
+
 function RootGate() {
-  const { user, isDemoMode, loading, onboarded, refreshOnboarded, signOut } = useAuth();
+  const { user, isDemoMode, loading, recovering, onboarded, refreshOnboarded, signOut } = useAuth();
   if (loading) return null;
+  if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
   if (user && !hasFamilyBetaAgreement(user)) return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;
   if (user && onboarded === null) {
@@ -89,13 +136,16 @@ function RootGate() {
     );
   }
   if (user && !onboarded) return <Navigate to="/onboarding" replace />;
-  return <Navigate to="/dashboard" replace />;
+  // Returning students land back where they were, not on a generic Today page.
+  return <Navigate to={(user && readLastRoute()) || "/dashboard"} replace />;
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, isDemoMode, loading, onboarded } = useAuth();
+  const { user, isDemoMode, loading, recovering, onboarded } = useAuth();
   const loc = useLocation();
   if (loading) return null;
+  // A transient session read failure must never look like a logout.
+  if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
   if (user && !hasFamilyBetaAgreement(user)) {
     return <Navigate to="/family-beta-agreement" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
@@ -109,6 +159,7 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -118,6 +169,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <RouteMemory />
           <Routes>
             {/* Public auth routes — no AppLayout */}
             <Route path="/login" element={<Login />} />

@@ -38,6 +38,11 @@ import {
   writeLastCaptureClassId,
 } from "@/lib/capture/captureClassPreference";
 import {
+  clearCaptureDraft,
+  readCaptureDraft,
+  writeCaptureDraft,
+} from "@/lib/capture/captureDraft";
+import {
   captureContextLabel,
   inferCaptureClass,
   type CaptureClassInference,
@@ -204,8 +209,19 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     const initialMeta = initialKind ? MENU.find((item) => item.kind === initialKind) : null;
     const canOpenInitial = !!initialKind && (!realMode || initialMeta?.availableForRealUsers);
     openedWithKindRef.current = Boolean(canOpenInitial);
-    setStage(canOpenInitial ? "context" : "menu");
-    setKind(canOpenInitial ? initialKind : null);
+
+    // A draft interrupted by app switching, a phone call, or an iOS tab reload
+    // comes back exactly as it was. Photos are in-memory files and cannot be
+    // restored, so the flow simply re-asks for them.
+    const draft = readCaptureDraft({ allowedClassIds: classes.map((item) => item.id) });
+    const draftMeta = draft ? MENU.find((item) => item.kind === draft.kind) : null;
+    const restorable = Boolean(
+      draft && draftMeta && (!realMode || draftMeta.availableForRealUsers)
+      && (!canOpenInitial || draft!.kind === initialKind),
+    );
+
+    setStage(canOpenInitial || restorable ? "context" : "menu");
+    setKind(canOpenInitial ? initialKind! : restorable ? draft!.kind : null);
     setStepIndex(0);
     setResult(null);
     setCaptureError(null);
@@ -213,13 +229,33 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setDetailsOpen(false);
     setClassChangedManually(false);
 
-    setCtx({
-      classId: defaultClassId,
-      date: todayDateKey(),
-      topic: detected?.currentTopic ?? "",
-      text: "",
+    setCtx(restorable
+      ? {
+        classId: draft!.classId || defaultClassId,
+        date: draft!.date || todayDateKey(),
+        topic: draft!.topic,
+        text: draft!.text,
+      }
+      : {
+        classId: defaultClassId,
+        date: todayDateKey(),
+        topic: detected?.currentTopic ?? "",
+        text: "",
+      });
+  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id, classes]);
+
+  // Keep the draft warm while the student is actually composing something.
+  useEffect(() => {
+    if (!open || !kind || stage !== "context") return;
+    writeCaptureDraft({
+      kind,
+      classId: ctx.classId,
+      date: ctx.date,
+      topic: ctx.topic ?? "",
+      text: ctx.text ?? "",
+      hadPhotos: images.length > 0,
     });
-  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id]);
+  }, [open, kind, stage, ctx.classId, ctx.date, ctx.topic, ctx.text, images.length]);
 
   // Fill (never overwrite) the class once it becomes known — from the default
   // for this entry point, or from the student's last capture so the habit of
@@ -230,6 +266,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     if (!fill) return;
     setCtx((current) => (current.classId ? current : { ...current, classId: fill }));
   }, [defaultClassId, open, rememberedClassId]);
+
 
 
 
@@ -336,6 +373,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     if (realMode && outcome.value.context.classId) {
       writeLastCaptureClassId(outcome.value.context.classId);
     }
+    // The draft is now a saved capture; nothing left to restore.
+    clearCaptureDraft();
     setResult(outcome.value);
     setStage("done");
 

@@ -87,6 +87,22 @@ function AuthOnboardingSnapshot() {
   return <output aria-label="Setup status">{onboarded === null ? "pending" : String(onboarded)}</output>;
 }
 
+function AuthRecoverySnapshot() {
+  const { recovering, mode } = useAuth();
+  return <output aria-label="Recovery state">{recovering ? "recovering" : mode}</output>;
+}
+
+function AuthSignOutSnapshot() {
+  const { user, loading, signOut } = useAuth();
+  return (
+    <div>
+      <span>{loading ? "loading" : user?.id ?? "signed-out"}</span>
+      <button type="button" onClick={() => void signOut()}>Sign out</button>
+    </div>
+  );
+}
+
+
 describe("AuthProvider session restoration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -290,4 +306,48 @@ describe("AuthProvider session restoration", () => {
     expect(mocks.completeOAuthPasskeyOffer).toHaveBeenCalledTimes(1);
     expect(mocks.completeOAuthPasskeyOffer).toHaveBeenCalledWith("student-oauth");
   });
+
+  it("keeps a returning student signed in when the session read fails on resume", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    localStorage.setItem("campus-coach:known-session", "1");
+    mocks.getSession.mockRejectedValue(new Error("network down"));
+
+    render(
+      <AuthProvider>
+        <AuthRecoverySnapshot />
+      </AuthProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Recovery state" })).toHaveTextContent("recovering"),
+    );
+    // Never falls back to sample data while a real account is being restored.
+    expect(screen.getByRole("status", { name: "Recovery state" })).not.toHaveTextContent("demo");
+    warn.mockRestore();
+  });
+
+  it("only forgets the remembered account on an explicit sign out", async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: sessionFor("student-1") }, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+
+    render(
+      <AuthProvider>
+        <AuthSignOutSnapshot />
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByText("student-1")).toBeInTheDocument();
+    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+
+    await act(async () => {
+      mocks.authCallback?.("SIGNED_OUT", null);
+    });
+    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    });
+    await waitFor(() => expect(localStorage.getItem("campus-coach:known-session")).toBeNull());
+  });
 });
+
