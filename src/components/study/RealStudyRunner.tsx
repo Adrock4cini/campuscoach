@@ -79,6 +79,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [revealed, setRevealed] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
+  const [mnemonicOpen, setMnemonicOpen] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -101,13 +102,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   useEffect(() => {
     if (!open) return;
-    setQueue(buildInitialQueue(items.length));
-    setPosition(0);
-    setCorrect(0);
-    setIncorrect(0);
-    setRevealed(false);
-    setPicked(null);
-    setConfidence(null);
+    // Returning from another app (or an iOS tab reload) restores the student's
+    // exact place instead of restarting the set from card one.
+    const restored = readStudyRunnerState({ artifactId: artifact.id, itemCount: items.length });
+    setQueue(restored?.queue ?? buildInitialQueue(items.length));
+    setPosition(restored?.position ?? 0);
+    setCorrect(restored?.correct ?? 0);
+    setIncorrect(restored?.incorrect ?? 0);
+    setRevealed(restored?.revealed ?? false);
+    setPicked(restored?.picked ?? null);
+    setConfidence((restored?.confidence as ConfidenceLevel | null) ?? null);
+    setMnemonicOpen(restored?.mnemonicOpen ?? false);
     setDone(false);
     setReadiness(null);
     setReadinessDelta(null);
@@ -119,6 +124,26 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setStartedAt(Date.now());
     attemptIdRef.current = createStudyAttemptId();
   }, [open, artifact.id, items.length]);
+
+  // Persist only safe, re-derivable progress on every step.
+  useEffect(() => {
+    if (!open || done) return;
+    writeStudyRunnerState({
+      artifactId: artifact.id,
+      queue,
+      position,
+      revealed,
+      picked,
+      confidence,
+      correct,
+      incorrect,
+      mnemonicOpen,
+    });
+  }, [
+    open, done, artifact.id, queue, position, revealed, picked, confidence,
+    correct, incorrect, mnemonicOpen,
+  ]);
+
 
   useEffect(() => {
     if (open && revealed && !pendingFinal) feedbackRef.current?.focus();
