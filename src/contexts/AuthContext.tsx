@@ -16,6 +16,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { setAuthUserId } from "@/hooks/useClassIntelligence";
 import { completeOAuthPasskeyOffer } from "@/lib/auth/passkeys";
 import { setSupabaseNetworkMode } from "@/lib/demo/supabaseNetworkPolicy";
+import {
+  classifySessionLoss,
+  forgetSignedIn,
+  hasRememberedSession,
+  rememberSignedIn,
+} from "@/lib/auth/sessionResilience";
+import { clearLastRoute } from "@/lib/app/routeMemory";
+import { clearStudyRunnerState } from "@/lib/study/studyRunnerState";
+import { clearCaptureDraft } from "@/lib/capture/captureDraft";
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
