@@ -33,6 +33,11 @@ import type {
 } from "@/lib/learningArtifacts/types";
 import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
 import { cleanStudyText, isLongStudyText, retrievalPrompt } from "@/lib/study/studyText";
+import {
+  clearStudyRunnerState,
+  readStudyRunnerState,
+  writeStudyRunnerState,
+} from "@/lib/study/studyRunnerState";
 
 interface Props {
   open: boolean;
