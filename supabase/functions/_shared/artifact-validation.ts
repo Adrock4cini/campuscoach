@@ -468,9 +468,15 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
     if ("error" in linked) return { ok: false, error: linked.error };
     const exactTarget = options.exactTargetByConcept.get(linked.concept.id);
-    if (!exactTarget || exactTarget.length > 500 || typeof rawItem.target !== "string" || rawItem.target !== exactTarget) {
+    if (
+      !exactTarget
+      || exactTarget.length > 500
+      || typeof rawItem.target !== "string"
+      || duplicateKey(rawItem.target) !== duplicateKey(exactTarget)
+    ) {
       return { ok: false, error: "mnemonic target must copy the exact grounded fact" };
     }
+
     const mnemonic = cleanString(rawItem.mnemonic, "mnemonic", 3, 500);
     if ("error" in mnemonic) return { ok: false, error: mnemonic.error };
     if (duplicateKey(mnemonic.value) === duplicateKey(exactTarget)) {
