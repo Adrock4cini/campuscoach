@@ -233,6 +233,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       }
 
       setDone(true);
+      // Saved work is no longer "in progress"; a resume must not replay it.
+      clearStudyRunnerState();
       const nextReadiness = typeof response.readiness === "number" ? response.readiness : null;
       const nextReadinessDelta = typeof response.readinessDelta === "number" ? response.readinessDelta : null;
       setReadiness(nextReadiness);
@@ -254,8 +256,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   };
 
   const reset = () => {
+    clearStudyRunnerState();
     setQueue(buildInitialQueue(items.length));
     setPosition(0);
+    setMnemonicOpen(false);
     setCorrect(0);
     setIncorrect(0);
     setRevealed(false);
