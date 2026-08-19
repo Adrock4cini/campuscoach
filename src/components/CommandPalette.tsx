@@ -39,7 +39,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search classes, assignments, pages…" />
+      <CommandInput placeholder={demoMode ? "Search sample classes, assignments, and pages…" : "Search your classes and app pages…"} />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
 

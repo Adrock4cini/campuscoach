@@ -16,11 +16,16 @@ export default function ResetPassword() {
     e.preventDefault();
     if (password.length < 8) return toast.error("Password too short");
     setBusy(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (error) return toast.error("Couldn't update password", { description: error.message });
-    toast.success("Password updated");
-    nav("/dashboard", { replace: true });
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) return toast.error("Couldn't update password", { description: error.message });
+      toast.success("Password updated");
+      nav("/dashboard", { replace: true });
+    } catch {
+      toast.error("Couldn't update password", { description: "Check your connection and try again." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

@@ -22,6 +22,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { classes } from "@/data/demo";
+import { getDemoClassIntelligence } from "@/lib/demo/classIntelligenceSampleAdapter";
+import { getSupabaseNetworkMode } from "@/lib/demo/supabaseNetworkPolicy";
 import type {
   CaptureKind,
   CaptureResult,
@@ -66,6 +68,8 @@ export interface AggregateInsight {
 export interface AggregateSignalDraft {
   sourceType: AggregateSourceType;
   clientClassId: string;
+  /** Stable source operation id; enables retry-safe aggregate writes. */
+  sourceId?: string | null;
   professorName?: string | null;
   courseKey?: string | null;
   topic?: string | null;
@@ -137,6 +141,7 @@ export function extractAggregateSignalFromCapture(
   return {
     sourceType: kindToSource[capture.kind],
     clientClassId: capture.context.classId,
+    sourceId: capture.id,
     professorName: professorForClass(capture.context.classId),
     courseKey: courseKeyForClass(capture.context.classId),
     topic: capture.context.topic ?? null,
@@ -197,14 +202,24 @@ export function extractAggregateSignalFromStudySession(
  * `visibility='aggregate'` so it can feed public aggregate views.
  */
 export async function updateCampusBrainAggregate(
-  draft: AggregateSignalDraft
+  draft: AggregateSignalDraft,
+  ownerId?: string,
 ): Promise<boolean> {
+  // A demo action may look interactive, but it must never become a remote row.
+  if (getSupabaseNetworkMode() !== "real") return false;
+
   try {
-    const { getAnonUserId } = await import("@/hooks/useClassIntelligence");
-    const { error } = await supabase.from("campus_brain_signals").insert({
-      user_id: getAnonUserId(),
+    const {
+      getAnonUserId,
+      getAuthenticatedUserId,
+    } = await import("@/hooks/useClassIntelligence");
+    if (ownerId && getAuthenticatedUserId() !== ownerId) return false;
+
+    const payload = {
+      user_id: ownerId ?? getAnonUserId(),
       client_class_id: draft.clientClassId,
       source_type: `agg:${draft.sourceType}`,
+      source_id: draft.sourceId ?? null,
       topic: draft.topic ?? null,
       weight: draft.weight ?? 1,
       payload: {
@@ -215,7 +230,12 @@ export async function updateCampusBrainAggregate(
       } as never,
       visibility: "aggregate",
       anonymized: true,
-    });
+    };
+    const { error } = draft.sourceId
+      ? await supabase
+          .from("campus_brain_signals")
+          .upsert(payload, { onConflict: "user_id,source_type,source_id" })
+      : await supabase.from("campus_brain_signals").insert(payload);
     if (error) {
       warn("updateCampusBrainAggregate", error);
       return false;
@@ -242,11 +262,72 @@ interface TopicScoreRow {
   probability: number;
 }
 
+function buildTopicInsights(scores: TopicScoreRow[]): AggregateInsight[] {
+  const insights: AggregateInsight[] = [];
+
+  // Trending topic (by probability, with threshold)
+  const trending = scores.find((topic) => topic.student_count >= MIN_STUDENTS);
+  if (trending) {
+    insights.push({
+      id: `trend:${trending.topic_id}`,
+      headline: `${trending.topic_name} is trending in this class`,
+      metric: `${trending.student_count} students`,
+      source: "study_session",
+      topic: trending.topic_name,
+      studentCount: trending.student_count,
+      signalCount: trending.student_count,
+      confidence: bandFor(trending.student_count, trending.student_count),
+    });
+  }
+
+  // High miss-rate concept
+  const struggled = scores
+    .filter((topic) => topic.student_count >= MIN_STUDENTS && topic.miss_rate >= 40)
+    .sort((a, b) => b.miss_rate - a.miss_rate)[0];
+  if (struggled) {
+    insights.push({
+      id: `miss:${struggled.topic_id}`,
+      headline: `${Math.round(struggled.miss_rate)}% struggled with ${struggled.topic_name}`,
+      metric: `${struggled.student_count} students`,
+      source: "study_session",
+      topic: struggled.topic_name,
+      studentCount: struggled.student_count,
+      signalCount: struggled.student_count,
+      confidence: bandFor(struggled.student_count, struggled.student_count),
+    });
+  }
+
+  // Post-exam mentions (what actually showed up)
+  const examTopic = scores
+    .filter((topic) => topic.student_count >= MIN_STUDENTS && topic.post_exam_mentions >= 2)
+    .sort((a, b) => b.post_exam_mentions - a.post_exam_mentions)[0];
+  if (examTopic) {
+    insights.push({
+      id: `exam:${examTopic.topic_id}`,
+      headline: `${examTopic.topic_name} appeared on ${examTopic.post_exam_mentions} recent exams`,
+      source: "exam_debrief",
+      topic: examTopic.topic_name,
+      studentCount: examTopic.student_count,
+      signalCount: examTopic.post_exam_mentions,
+      confidence: bandFor(
+        examTopic.student_count,
+        examTopic.post_exam_mentions * 5
+      ),
+    });
+  }
+
+  return insights;
+}
+
 /** Build safe, thresholded insights for a single class. */
 export async function getAggregateInsightsForClass(
   clientClassId: string
 ): Promise<AggregateInsight[]> {
-  const insights: AggregateInsight[] = [];
+  const mode = getSupabaseNetworkMode();
+  if (mode === "loading") return [];
+  if (mode === "demo") {
+    return buildTopicInsights(getDemoClassIntelligence(clientClassId).topics);
+  }
 
   try {
     const scoresRes = await supabase
@@ -258,59 +339,7 @@ export async function getAggregateInsightsForClass(
       .order("probability", { ascending: false })
       .limit(10);
 
-    const scores = (scoresRes.data ?? []) as TopicScoreRow[];
-
-    // Trending topic (by probability, with threshold)
-    const trending = scores.find((t) => t.student_count >= MIN_STUDENTS);
-    if (trending) {
-      insights.push({
-        id: `trend:${trending.topic_id}`,
-        headline: `${trending.topic_name} is trending in this class`,
-        metric: `${trending.student_count} students`,
-        source: "study_session",
-        topic: trending.topic_name,
-        studentCount: trending.student_count,
-        signalCount: trending.student_count,
-        confidence: bandFor(trending.student_count, trending.student_count),
-      });
-    }
-
-    // High miss-rate concept
-    const struggled = scores
-      .filter((t) => t.student_count >= MIN_STUDENTS && t.miss_rate >= 40)
-      .sort((a, b) => b.miss_rate - a.miss_rate)[0];
-    if (struggled) {
-      insights.push({
-        id: `miss:${struggled.topic_id}`,
-        headline: `${Math.round(struggled.miss_rate)}% struggled with ${struggled.topic_name}`,
-        metric: `${struggled.student_count} students`,
-        source: "study_session",
-        topic: struggled.topic_name,
-        studentCount: struggled.student_count,
-        signalCount: struggled.student_count,
-        confidence: bandFor(struggled.student_count, struggled.student_count),
-      });
-    }
-
-    // Post-exam mentions (what actually showed up)
-    const examTopic = scores
-      .filter((t) => t.student_count >= MIN_STUDENTS && t.post_exam_mentions >= 2)
-      .sort((a, b) => b.post_exam_mentions - a.post_exam_mentions)[0];
-    if (examTopic) {
-      insights.push({
-        id: `exam:${examTopic.topic_id}`,
-        headline: `${examTopic.topic_name} appeared on ${examTopic.post_exam_mentions} recent exams`,
-        source: "exam_debrief",
-        topic: examTopic.topic_name,
-        studentCount: examTopic.student_count,
-        signalCount: examTopic.post_exam_mentions,
-        confidence: bandFor(
-          examTopic.student_count,
-          examTopic.post_exam_mentions * 5
-        ),
-      });
-    }
-
+    return buildTopicInsights((scoresRes.data ?? []) as TopicScoreRow[]);
   } catch (err) {
     warn("getAggregateInsightsForClass", err);
   }
@@ -320,7 +349,7 @@ export async function getAggregateInsightsForClass(
   // other students' captures from the client. Once a `capture_signals`
   // aggregate view exists we can add "N students scanned this chapter".
 
-  return insights;
+  return [];
 }
 
 /**

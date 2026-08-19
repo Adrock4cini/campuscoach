@@ -26,15 +26,13 @@ import {
   type CanvasConnectionStatus,
 } from "@/lib/canvas/integration";
 
-const DEFAULT_CANVAS_URL = "https://usu.instructure.com";
-
 export default function CanvasConnectionPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const callbackHandled = useRef(false);
   const statusRef = useRef<CanvasConnectionStatus | null>(null);
   const [status, setStatus] = useState<CanvasConnectionStatus | null>(null);
-  const [canvasUrl, setCanvasUrl] = useState(DEFAULT_CANVAS_URL);
+  const [canvasUrl, setCanvasUrl] = useState("");
   const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
   const [showCalendarFallback, setShowCalendarFallback] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -151,7 +149,7 @@ export default function CanvasConnectionPage() {
         </div>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Canvas</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Bring your real classes and deadlines into one plan.
+          Optional: connect Canvas if your school uses it, or set up classes manually.
         </p>
       </div>
 
@@ -217,9 +215,9 @@ export default function CanvasConnectionPage() {
           ) : (
             <div className="space-y-5">
               <div>
-                <h2 className="font-display text-lg font-semibold">Connect your school</h2>
+                <h2 className="font-display text-lg font-semibold">Connect Canvas (optional)</h2>
                 <p className="text-sm text-muted-foreground">
-                  Import courses, assignments, quizzes, tests, and due dates.
+                  If your school uses Canvas, import classes, assignments, quizzes, tests, and due dates.
                 </p>
               </div>
               <div className="space-y-2">
@@ -233,6 +231,10 @@ export default function CanvasConnectionPage() {
                   placeholder="https://school.instructure.com"
                   className="h-12 rounded-xl"
                 />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Leave this blank if your school does not use Canvas. You can add every class and
+                  syllabus yourself instead.
+                </p>
               </div>
               <Button
                 className="h-12 w-full rounded-xl bg-gradient-calm"
@@ -244,18 +246,36 @@ export default function CanvasConnectionPage() {
                   : <Link2 className="mr-2 h-4 w-4" />}
                 Continue to Canvas
               </Button>
-              <div className="border-t border-border/40 pt-4">
-                <button
-                  type="button"
-                  className="flex min-h-11 w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowCalendarFallback((value) => !value)}
-                  aria-expanded={showCalendarFallback}
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  Can’t connect automatically?
-                </button>
+              <div className="space-y-3 border-t border-border/40 pt-4">
+                <div>
+                  <h3 className="text-sm font-medium">Other ways to get set up</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Manual setup works for every school. A private calendar feed is another option
+                    when your school uses Canvas but automatic connection is unavailable.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 rounded-xl"
+                    onClick={() => navigate("/classes")}
+                  >
+                    Set up classes manually
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 rounded-xl"
+                    onClick={() => setShowCalendarFallback((value) => !value)}
+                    aria-expanded={showCalendarFallback}
+                  >
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    Use Canvas calendar feed
+                  </Button>
+                </div>
                 {showCalendarFallback && (
-                  <div className="mt-3 space-y-3 rounded-2xl border border-border/50 bg-background/20 p-4">
+                  <div className="space-y-3 rounded-2xl border border-border/50 bg-background/20 p-4">
                     <div>
                       <h3 className="text-sm font-medium">Use your Canvas calendar</h3>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">

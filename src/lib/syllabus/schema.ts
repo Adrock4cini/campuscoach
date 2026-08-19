@@ -189,14 +189,14 @@ export const syllabusReviewDraftSchema = z.object({
       context.addIssue({
         code: "custom",
         path: [value.semesterStartDate ? "semesterEndDate" : "semesterStartDate"],
-        message: "Semester start and end dates are required for recurring class days",
+        message: "Term start and end dates are required for recurring class days",
       });
     }
     if (value.startTime && value.endTime && value.startTime >= value.endTime) {
       context.addIssue({ code: "custom", path: ["endTime"], message: "End time must be after start time" });
     }
     if (value.semesterStartDate && value.semesterEndDate && value.semesterStartDate > value.semesterEndDate) {
-      context.addIssue({ code: "custom", path: ["semesterEndDate"], message: "Semester end must be on or after its start" });
+      context.addIssue({ code: "custom", path: ["semesterEndDate"], message: "Term end must be on or after its start" });
     }
   }),
   assignments: z.array(z.object({
@@ -282,6 +282,39 @@ function assertUniqueKeys(keys: string[]) {
   if (new Set(keys).size !== keys.length) throw new Error("Syllabus item identities must be unique");
 }
 
+export const MAX_SYLLABUS_TOPICS = 100;
+export const MAX_SYLLABUS_TOPIC_LENGTH = 200;
+
+/**
+ * Turn whatever the extractor returned into a full, bounded topic list.
+ *
+ * Models often collapse a cumulative topic list into one comma-joined string
+ * ("Cumulative: functions, systems, ..."). Splitting it here keeps every topic
+ * the document actually stated instead of letting a per-item length cap or a
+ * single-string row quietly drop the tail of the list. Nothing is invented:
+ * only separators are removed.
+ */
+export function normalizeSyllabusTopics(values: unknown): string[] {
+  const source = Array.isArray(values) ? values : values == null ? [] : [values];
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  for (const entry of source) {
+    if (typeof entry !== "string") continue;
+    const withoutLeadIn = entry.replace(/^\s*(cumulative|topics?|covers?|includes?|units?|chapters?)\s*[:\-–]\s*/i, "");
+    for (const part of withoutLeadIn.split(/[,;•\n]+/)) {
+      const topic = part.replace(/\s+/g, " ").trim().replace(/^[-–]\s*/, "").slice(0, MAX_SYLLABUS_TOPIC_LENGTH).trim();
+      if (!topic) continue;
+      const dedupeKey = topic.toLowerCase();
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      topics.push(topic);
+      if (topics.length >= MAX_SYLLABUS_TOPICS) return topics;
+    }
+  }
+  return topics;
+}
+
+
 export function createSyllabusReviewDraft(
   parsed: ParsedSyllabus,
   selectedClassIndex = 0,
@@ -307,7 +340,7 @@ export function createSyllabusReviewDraft(
     assignments: buildStableSyllabusItemKeys("assignment", source.assignments ?? [], (item) => item.label)
       .map(({ item, key }) => ({ key, included: true, title: item.label, dueDate: item.dueDate ?? "" })),
     exams: buildStableSyllabusItemKeys("exam", source.examDates ?? [], (item) => item.label)
-      .map(({ item, key }) => ({ key, included: true, title: item.label, examDate: item.date ?? "", topics: item.topics ?? [] })),
+      .map(({ item, key }) => ({ key, included: true, title: item.label, examDate: item.date ?? "", topics: normalizeSyllabusTopics(item.topics) })),
     schedule: buildStableSyllabusItemKeys("schedule", sourceSchedule, (item) => item.topic)
       .map(({ item, key }) => ({
         key,

@@ -1,3 +1,5 @@
+import { KNOWN_SCHOOLS, schoolMatchKey } from "./schoolDirectory";
+
 const SCHOOL_ALIASES: Record<string, string> = {
   usu: "Utah State University",
   "utah state": "Utah State University",
@@ -13,10 +15,14 @@ function normalizedLookup(value: string) {
   return value.trim().toLowerCase().replace(/[.]/g, "").replace(/\s+/g, " ");
 }
 
-/** Resolve common abbreviations to one canonical school name. */
+/** Resolve common abbreviations and known school names to one canonical name. */
 export function canonicalizeSchoolName(value: string): string {
   const trimmed = value.trim().replace(/\s+/g, " ");
-  return SCHOOL_ALIASES[normalizedLookup(trimmed)] ?? trimmed;
+  const alias = SCHOOL_ALIASES[normalizedLookup(trimmed)];
+  if (alias) return alias;
+  const key = schoolMatchKey(trimmed);
+  const known = key ? KNOWN_SCHOOLS.find((s) => schoolMatchKey(s.name) === key) : undefined;
+  return known?.name ?? trimmed;
 }
 
 export function academicTermOptions(now = new Date()): string[] {

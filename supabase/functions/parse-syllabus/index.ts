@@ -33,21 +33,21 @@ const SUPPORTED_MIME_TYPES = new Set([
   "image/heif",
 ]);
 
-const SYSTEM = `You extract structured class information from a college syllabus, class schedule, or timetable.
+const SYSTEM = `You extract structured class information for a student from class materials such as a syllabus, class schedule, or timetable.
 Return ONLY JSON matching this schema, no prose:
 {
   "student": { "name": string|null, "school": string|null, "term": string|null },
   "classes": [
     {
-      "name": string,                       // course title e.g. "Organic Chemistry I"
-      "code": string|null,                  // e.g. "CHEM 201"
-      "professor": string|null,
+      "name": string,                       // class title e.g. "Algebra I"
+      "code": string|null,                  // e.g. "MATH 101"
+      "professor": string|null,             // teacher or instructor name
       "location": string|null,
       "days": string[],                     // subset of ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
       "time": string|null,                  // e.g. "10:00 AM" (start time only)
       "endTime": string|null,               // e.g. "11:15 AM"
-      "semesterStartDate": string|null,     // ISO YYYY-MM-DD when stated
-      "semesterEndDate": string|null,       // ISO YYYY-MM-DD when stated
+      "semesterStartDate": string|null,     // term start date, ISO YYYY-MM-DD when stated
+      "semesterEndDate": string|null,       // term end date, ISO YYYY-MM-DD when stated
       "textbook": string|null,
       "examDates": [ { "label": string, "date": string, "topics": string[] } ], // ISO YYYY-MM-DD; include stated exam topics
       "assignments": [ { "label": string, "dueDate": string } ], // ISO YYYY-MM-DD
@@ -61,7 +61,9 @@ Rules:
 - Never invent data. Use null / [] when unknown.
 - Normalize days to 3-letter form.
 - Convert dates to ISO YYYY-MM-DD; if only month/day is present, use the term's year when obvious, else null.
-- Preserve dated agenda/course-calendar topics in schedule. Put each dated reading, quiz, paper, or other deliverable in assignments too; never leave it only in dueItems.
+- Preserve dated agenda/class-calendar topics in schedule. Put each dated reading, quiz, paper, or other deliverable in assignments too; never leave it only in dueItems.
+- List exam/quiz topics as separate array entries, one topic per entry. Never merge them into a single comma-joined string, never summarise with "etc.", and never drop the end of a stated list — a cumulative final that names seven topics must return all seven.
+- Keep the document's own wording for graded work labels (for example "Quiz 1", "Unit 2 Test") so the app can tell quizzes, tests, and homework apart.
 - If the document covers a single class, still return an array of length 1.`;
 
 interface VerifiedTargetClass {

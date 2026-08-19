@@ -16,6 +16,10 @@ const ONBOARDED_KEY = "cc_onboarded_real_v1";
 const DEMO_MODE_KEY = "cc_demo_mode_v1";
 const CACHE_KEY = "cc_onboarding_cache_v1";
 
+function onboardingCacheKey(userId?: string) {
+  return userId ? `${CACHE_KEY}:${userId}` : CACHE_KEY;
+}
+
 export function isOnboarded(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem(ONBOARDED_KEY) === "1";
@@ -33,21 +37,30 @@ export function markDemoMode() {
 export function clearOnboarding() {
   localStorage.removeItem(ONBOARDED_KEY);
   localStorage.removeItem(DEMO_MODE_KEY);
-  localStorage.removeItem(CACHE_KEY);
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key === CACHE_KEY || key?.startsWith(`${CACHE_KEY}:`)) localStorage.removeItem(key);
+  }
 }
 
-export function loadCachedOnboarding(): OnboardingData | null {
+export function loadCachedOnboarding(userId?: string): OnboardingData | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(onboardingCacheKey(userId));
     return raw ? (JSON.parse(raw) as OnboardingData) : null;
   } catch {
     return null;
   }
 }
 
+export function cacheOnboardingDraft(data: OnboardingData, userId: string): void {
+  if (!userId) return;
+  localStorage.setItem(onboardingCacheKey(userId), JSON.stringify(data));
+}
+
 export async function saveOnboarding(data: OnboardingData, explicitUserId?: string): Promise<void> {
   const userId = explicitUserId || getAnonUserId();
-  localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  const cacheKey = onboardingCacheKey(userId);
+  cacheOnboardingDraft(data, userId);
 
   // school (dedupe by lowercase name)
   let schoolId: string | null = null;
@@ -173,6 +186,7 @@ export async function saveOnboarding(data: OnboardingData, explicitUserId?: stri
 
   localStorage.setItem(ONBOARDED_KEY, "1");
   localStorage.removeItem(DEMO_MODE_KEY);
+  localStorage.removeItem(cacheKey);
 }
 
 export async function saveSyllabusDeadlines(

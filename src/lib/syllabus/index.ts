@@ -3,8 +3,10 @@ export {
   MAX_SYLLABUS_BYTES,
   SYLLABUS_BUCKET,
   SYLLABUS_MIME_TYPES,
+  MAX_SYLLABUS_TOPICS,
   createSyllabusReviewDraft,
   isValidIsoDate,
+  normalizeSyllabusTopics,
   normalizeTime,
   normalizeWeekdays,
   parseParsedSyllabus,
@@ -53,3 +55,7 @@ export type {
   CommitClassSyllabusResult,
   UploadedSyllabusSource,
 } from "./repository";
+export { buildSyllabusTopicTargets } from "./topicTargets";
+export type { SyllabusTopicTarget } from "./topicTargets";
+export { describeSyllabusImportSummary, summarizeSyllabusReview } from "./importSummary";
+export type { SyllabusImportSummary } from "./importSummary";

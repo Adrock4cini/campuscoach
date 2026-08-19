@@ -62,7 +62,9 @@ import type { ClassInfo } from "@/data/demo";
 
 const ACCEPTED_FILE_TYPES = "application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif";
 
-type WorkState = "idle" | "parsing" | "saving";
+import { summarizeSyllabusReview } from "@/lib/syllabus/importSummary";
+
+type WorkState = "idle" | "parsing" | "uploading" | "saving";
 
 interface PendingSyllabusCommit {
   requestId: string;
@@ -181,11 +183,15 @@ export default function ClassSyllabusPage() {
   const [pendingCommit, setPendingCommit] = useState<PendingSyllabusCommit | null>(null);
 
   const destination = classInfo ? `/classes/${classInfo.id}` : "/classes";
+  // After a successful save the student lands on the class with one obvious
+  // next study step instead of an unchanged-looking class page.
+  const savedDestination = classInfo ? `/classes/${classInfo.id}?saved=syllabus` : "/classes";
   const target = useMemo(() => classInfo ? targetContext(classInfo) : null, [classInfo]);
   const review = selectedClassIndex === null ? null : drafts[selectedClassIndex] ?? null;
   const detectedClass = parsed && selectedClassIndex !== null ? parsed.classes[selectedClassIndex] : null;
   const mismatch = Boolean(classInfo && detectedClass && syllabusMismatch(classInfo, detectedClass));
   const validation = useMemo(() => review ? validateSyllabusReview(review) : null, [review]);
+  const summary = useMemo(() => review ? summarizeSyllabusReview(review) : null, [review]);
   const canSave = Boolean(
     file
     && parsed
@@ -303,7 +309,7 @@ export default function ClassSyllabusPage() {
   const save = async () => {
     if (!classInfo?.uuid || !file || !parsed || !review || !canSave) return;
     setPageError("");
-    setWorkState("saving");
+    setWorkState(pendingCommit ? "saving" : "uploading");
     let attempt = pendingCommit;
 
     const finish = () => {
@@ -314,7 +320,7 @@ export default function ClassSyllabusPage() {
       toast.success(existing ? "Syllabus replaced" : "Syllabus saved", {
         description: `Reviewed assignments, exams, dates, and study topics are now connected to ${classInfo.name}.`,
       });
-      navigate(destination, { replace: true });
+      navigate(savedDestination, { replace: true });
     };
 
     const cleanupDuplicateSource = async (storagePath: string | null | undefined) => {
@@ -335,6 +341,7 @@ export default function ClassSyllabusPage() {
         attempt = { requestId, source, parsed, review };
         setPendingCommit(attempt);
       }
+      setWorkState("saving");
       const result = await commitClassSyllabus({
         classUuid: classInfo.uuid,
         clientClassId: classInfo.id,
@@ -438,7 +445,7 @@ export default function ClassSyllabusPage() {
           className="h-11 w-11 shrink-0"
           aria-label={`Back to ${classInfo.name}`}
           onClick={() => navigate(destination)}
-          disabled={workState === "saving" || Boolean(pendingCommit)}
+          disabled={workState === "uploading" || workState === "saving" || Boolean(pendingCommit)}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -509,7 +516,11 @@ export default function ClassSyllabusPage() {
               <FileText aria-hidden="true" className="h-5 w-5 text-primary" />
               {existing ? "Replace this class’s syllabus" : "Add this class’s syllabus"}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or one clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
+            <p className="mt-2 rounded-xl border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Have several paper pages?</span>{" "}
+              Combine them into one PDF with your phone’s document scanner. On iPhone, open Files, tap More (…), choose Scan Documents, scan every page, tap Done, save the PDF, then choose it here.
+            </p>
             <p className="mt-2 text-sm text-muted-foreground">Checked items will appear in this class, your calendar and dashboard. Exam topics help Study Lab focus the notes and captures you save for this class.</p>
           </div>
 
@@ -557,6 +568,15 @@ export default function ClassSyllabusPage() {
             </Button>
           </div>
 
+          {(workState === "uploading" || workState === "saving") && (
+            <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm" role="status" aria-live="polite">
+              <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-primary" />
+              {workState === "uploading"
+                ? `Uploading your private copy to ${classInfo.name}…`
+                : `Saving reviewed dates to ${classInfo.name}…`}
+            </div>
+          )}
+
           {workState === "parsing" && (
             <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm" role="status" aria-live="polite">
               <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-primary" />
@@ -564,7 +584,7 @@ export default function ClassSyllabusPage() {
             </div>
           )}
 
-          {pendingCommit && workState !== "saving" && (
+          {pendingCommit && workState === "idle" && (
             <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm" role="status">
               <RefreshCw aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p>Campus Companion is holding the exact prior upload for a safe retry. Confirm the save again; it will not create another copy.</p>
@@ -631,10 +651,28 @@ export default function ClassSyllabusPage() {
                     </div>
                   )}
 
+                  {summary && (
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-sm">
+                      <p className="font-medium text-foreground">Found in this file for {classInfo.name}</p>
+                      <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground sm:grid-cols-3">
+                        <li>{summary.assignments} assignment{summary.assignments === 1 ? "" : "s"}</li>
+                        <li>{summary.quizzes} quiz{summary.quizzes === 1 ? "" : "zes"}</li>
+                        <li>{summary.exams} test{summary.exams === 1 ? "" : "s"}</li>
+                        <li>{summary.scheduleDays} class day{summary.scheduleDays === 1 ? "" : "s"}</li>
+                        <li>{summary.topics} test topic{summary.topics === 1 ? "" : "s"}</li>
+                      </ul>
+                      {summary.needsAttention.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Needs a quick look: {summary.needsAttention.join(" · ")}.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <SyllabusReviewForm
                     value={review}
                     validation={validation ?? undefined}
-                    disabled={workState === "saving" || Boolean(pendingCommit)}
+                    disabled={workState !== "idle" || Boolean(pendingCommit)}
                     onChange={(next) => setDrafts((current) => ({
                       ...current,
                       [next.selectedClassIndex]: next,
@@ -642,7 +680,7 @@ export default function ClassSyllabusPage() {
                   />
 
                   <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-5 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="ghost" className="min-h-11" disabled={workState === "saving" || Boolean(pendingCommit)} onClick={() => navigate(destination)}>
+                    <Button type="button" variant="ghost" className="min-h-11" disabled={workState === "uploading" || workState === "saving" || Boolean(pendingCommit)} onClick={() => navigate(destination)}>
                       Cancel
                     </Button>
                     <Button
@@ -651,8 +689,8 @@ export default function ClassSyllabusPage() {
                       disabled={!canSave}
                       onClick={() => existing ? setReplaceConfirmOpen(true) : void save()}
                     >
-                      {workState === "saving"
-                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+                      {workState === "uploading" || workState === "saving"
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workState === "uploading" ? "Uploading…" : "Saving…"}</>
                         : pendingCommit
                           ? "Confirm save"
                           : existing ? "Review and replace" : "Save syllabus"}
@@ -669,7 +707,11 @@ export default function ClassSyllabusPage() {
             </div>
           )}
           <p className="sr-only" role="status" aria-live="polite">
-            {workState === "parsing" ? "Reading syllabus" : workState === "saving" ? "Saving syllabus" : ""}
+            {workState === "parsing"
+              ? "Reading syllabus"
+              : workState === "uploading"
+                ? "Uploading syllabus"
+                : workState === "saving" ? "Saving syllabus" : ""}
           </p>
         </CardContent>
       </Card>

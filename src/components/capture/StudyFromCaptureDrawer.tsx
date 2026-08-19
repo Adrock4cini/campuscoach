@@ -40,6 +40,7 @@ import { contributeStudySignal } from "@/hooks/useClassIntelligence";
 import {
   updateReadinessAfterStudy,
   type ReadinessChange,
+  type StudyPersistenceMode,
 } from "@/lib/intelligence/readinessEngine";
 import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
 import { getClassLearningSnapshot, getTopLearningRecommendation } from "@/lib/intelligence/learningEngine";
@@ -52,6 +53,7 @@ interface Props {
   classId: string;
   className?: string;
   initialMode?: StudyMode;
+  persistence: StudyPersistenceMode;
 }
 
 type Stage = "preview" | "running" | "done";
@@ -63,6 +65,7 @@ export function StudyFromCaptureDrawer({
   classId,
   className,
   initialMode,
+  persistence,
 }: Props) {
   const [stage, setStage] = useState<Stage>("preview");
   const [modeOverride, setModeOverride] = useState<StudyMode | undefined>(
@@ -113,37 +116,39 @@ export function StudyFromCaptureDrawer({
     const accuracy =
       answered > 0 ? Math.round((correct / answered) * 100) : undefined;
 
-    // Feed the Student Model with a lightweight topic-level signal.
-    void contributeStudySignal({
-      classId,
-      topicId: session.topic,
-      topicName: session.topic,
-      timeSpentMinutes: session.estimatedMinutes,
-      accuracy,
-      sourceType: `study-from-capture:${session.mode}`,
-      sourceId: item.id,
-    }).catch(() => undefined);
+    if (persistence === "remote") {
+      // Feed the Student Model with a lightweight topic-level signal.
+      void contributeStudySignal({
+        classId,
+        topicId: session.topic,
+        topicName: session.topic,
+        timeSpentMinutes: session.estimatedMinutes,
+        accuracy,
+        sourceType: `study-from-capture:${session.mode}`,
+        sourceId: item.id,
+      }).catch(() => undefined);
 
-    // Aggregate-safe mirror for shared Campus Brain intelligence.
-    void (async () => {
-      try {
-        const {
-          extractAggregateSignalFromStudySession,
-          updateCampusBrainAggregate,
-        } = await import("@/lib/intelligence/aggregateSignals");
-        await updateCampusBrainAggregate(
-          extractAggregateSignalFromStudySession({
-            clientClassId: classId,
-            topic: session.topic,
-            mode: session.mode,
-            accuracy,
-            durationMinutes: session.estimatedMinutes,
-          }),
-        );
-      } catch {
-        /* offline — safe to skip */
-      }
-    })();
+      // Aggregate-safe mirror for shared Campus Brain intelligence.
+      void (async () => {
+        try {
+          const {
+            extractAggregateSignalFromStudySession,
+            updateCampusBrainAggregate,
+          } = await import("@/lib/intelligence/aggregateSignals");
+          await updateCampusBrainAggregate(
+            extractAggregateSignalFromStudySession({
+              clientClassId: classId,
+              topic: session.topic,
+              mode: session.mode,
+              accuracy,
+              durationMinutes: session.estimatedMinutes,
+            }),
+          );
+        } catch {
+          /* offline — safe to skip */
+        }
+      })();
+    }
 
     // Update Momentum + Readiness + write session/brain rows + broadcast.
     void updateReadinessAfterStudy({
@@ -155,14 +160,14 @@ export function StudyFromCaptureDrawer({
       completed: true,
       captureId: item.id,
       targetedWeakConcept: item.keyConcepts.length > 0,
-    })
+    }, { persistence })
       .then(setChange)
       .catch(() => undefined);
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-lg">
         <SheetHeader className="text-left">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5" />
@@ -208,6 +213,7 @@ export function StudyFromCaptureDrawer({
           <DoneStage
             session={session}
             classId={classId}
+            persistence={persistence}
             correct={correct}
             answered={answered}
             change={change}
@@ -484,6 +490,7 @@ function RunningStage({
 function DoneStage({
   session,
   classId,
+  persistence,
   correct,
   answered,
   change,
@@ -493,6 +500,7 @@ function DoneStage({
 }: {
   session: StudySession;
   classId: string;
+  persistence: StudyPersistenceMode;
   correct: number;
   answered: number;
   change: ReadinessChange | null;
@@ -503,6 +511,7 @@ function DoneStage({
   const accuracy =
     answered > 0 ? Math.round((correct / answered) * 100) : undefined;
   const nba = getNextBestActionForClass(classId);
+  const sample = persistence === "local-only";
 
   return (
     <div className="mt-6 space-y-5">
@@ -532,7 +541,7 @@ function DoneStage({
           </div>
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
             <p className="text-[10px] uppercase tracking-wide text-primary font-medium">
-              {change.className} readiness
+              {sample ? "Demo readiness estimate" : `${change.className} readiness`}
             </p>
             <p className="font-display text-lg text-foreground">
               {change.baseReadiness}%{" "}
@@ -545,12 +554,12 @@ function DoneStage({
 
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <div className="flex items-center gap-2 mb-1 text-primary text-xs font-medium">
-          <Brain className="h-3.5 w-3.5" /> Campus Brain updated today's plan
+          <Brain className="h-3.5 w-3.5" /> {sample ? "Demo practice saved on this device" : "Campus Brain updated today's plan"}
         </div>
         <p className="text-sm text-foreground">
           {change?.reason ??
             `Momentum bumped for ${session.topic}. Come back tomorrow for one more quick pass to lock this in.`}
-          {change && (
+          {change && !sample && (
             <>
               {" "}
               Estimated grade tracking{" "}
@@ -562,7 +571,12 @@ function DoneStage({
             </>
           )}
         </p>
-        {nba?.nextAction && (
+        {sample && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            This estimate is for the demo only. It was not saved to an account or used to change the dashboard plan.
+          </p>
+        )}
+        {!sample && nba?.nextAction && (
           <p className="text-xs text-muted-foreground mt-2">
             Next best action: {nba.nextAction.label.toLowerCase()}.
           </p>

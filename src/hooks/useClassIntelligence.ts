@@ -1,5 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDemoClassIntelligence } from "@/lib/demo/classIntelligenceSampleAdapter";
+import {
+  getSupabaseNetworkMode,
+  type SupabaseNetworkMode,
+} from "@/lib/demo/supabaseNetworkPolicy";
 
 export interface AggregatedTopic {
   topic_id: string;
@@ -44,7 +49,11 @@ export interface ClassIntelligenceSummary {
   reload: () => Promise<void>;
 }
 
-export function useClassIntelligence(classId: string | null | undefined): ClassIntelligenceSummary {
+export function useClassIntelligence(
+  classId: string | null | undefined,
+  mode: SupabaseNetworkMode = getSupabaseNetworkMode(),
+  localDemoDebriefs: AggregatedDebrief[] = [],
+): ClassIntelligenceSummary {
   const [topics, setTopics] = useState<AggregatedTopic[]>([]);
   const [debriefs, setDebriefs] = useState<AggregatedDebrief[]>([]);
   const [signalCount, setSignalCount] = useState(0);
@@ -53,8 +62,16 @@ export function useClassIntelligence(classId: string | null | undefined): ClassI
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    // Demo and unresolved-auth surfaces are fixture/empty only. Do not even
+    // construct a Supabase query: the demo is a product tour, not a tenant.
+    if (mode !== "real") return;
     if (!classId) {
-      setTopics([]); setDebriefs([]); setLoading(false);
+      setTopics([]);
+      setDebriefs([]);
+      setSignalCount(0);
+      setSignalUsers(0);
+      setWeekly(0);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -75,27 +92,46 @@ export function useClassIntelligence(classId: string | null | undefined): ClassI
     setSignalCount(signalsRes.count ?? 0);
     setWeekly((weeklySignalsRes.count ?? 0) + (weeklyDebriefsRes.count ?? 0));
     setLoading(false);
-  }, [classId]);
+  }, [classId, mode]);
 
   useEffect(() => { load(); }, [load]);
 
   // Realtime: refresh when new contributions land for this class
   useEffect(() => {
-    if (!classId) return;
+    if (mode !== "real" || !classId) return;
     const channel = supabase
       .channel(`ci-${classId}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "topic_scores", filter: `class_id=eq.${classId}` }, () => load())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "exam_debriefs", filter: `class_id=eq.${classId}` }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [classId, load]);
+  }, [classId, load, mode]);
+
+  const demoSample = mode === "demo"
+    ? getDemoClassIntelligence(classId)
+    : null;
+  const visibleTopics = mode === "loading" ? [] : demoSample?.topics ?? topics;
+  const visibleDebriefs = mode === "loading"
+    ? []
+    : demoSample
+      ? [
+          ...localDemoDebriefs.filter((row) => row.class_id === classId),
+          ...demoSample.debriefs,
+        ]
+      : debriefs;
+  const visibleSignalCount = demoSample?.signalCount ?? signalCount;
+  const visibleSignalUsers = demoSample?.signalUsers ?? signalUsers;
+  const localWeekly = demoSample
+    ? localDemoDebriefs.filter((row) => row.class_id === classId).length
+    : 0;
+  const visibleWeekly = (demoSample?.weeklyContributions ?? weekly) + localWeekly;
 
   // Derived aggregates from debriefs
   const formatMap: Record<string, number> = {};
   const studyMoreMap: Record<string, number> = {};
   const adviceSet = new Set<string>();
   let diffSum = 0;
-  debriefs.forEach((d) => {
+  visibleDebriefs.forEach((d) => {
     d.format_tags?.forEach((f) => { formatMap[f] = (formatMap[f] || 0) + 1; });
     d.study_more_tags?.forEach((t) => { studyMoreMap[t] = (studyMoreMap[t] || 0) + 1; });
     if (d.advice_notes) adviceSet.add(d.advice_notes.trim());
@@ -106,16 +142,16 @@ export function useClassIntelligence(classId: string | null | undefined): ClassI
   const studyMoreCounts = Object.entries(studyMoreMap).map(([topic, mentions]) => ({ topic, mentions })).sort((a, b) => b.mentions - a.mentions);
 
   return {
-    topics,
-    debriefs,
-    totalContributors: signalUsers + debriefs.length,
-    totalContributions: signalCount + debriefs.length,
-    weeklyContributions: weekly,
+    topics: visibleTopics,
+    debriefs: visibleDebriefs,
+    totalContributors: visibleSignalUsers + visibleDebriefs.length,
+    totalContributions: visibleSignalCount + visibleDebriefs.length,
+    weeklyContributions: visibleWeekly,
     formatCounts,
     studyMoreCounts,
     adviceTrends: Array.from(adviceSet).slice(0, 6),
-    averageDifficulty: debriefs.length ? Math.round((diffSum / debriefs.length) * 10) / 10 : 0,
-    loading,
+    averageDifficulty: visibleDebriefs.length ? Math.round((diffSum / visibleDebriefs.length) * 10) / 10 : 0,
+    loading: mode === "loading" ? true : mode === "demo" ? false : loading,
     reload: load,
   };
 }
@@ -132,10 +168,28 @@ export async function contributeStudySignal(input: {
   incorrectCount?: number;
   sourceType?: string;
   sourceId?: string;
-}) {
+  /** Pin a long-running write to the account that initiated it. */
+  ownerId?: string;
+  /** Use when sourceId is a stable operation id protected by a DB unique index. */
+  idempotent?: boolean;
+}, mode: SupabaseNetworkMode = getSupabaseNetworkMode()) {
+  if (mode !== "real") {
+    return {
+      data: null,
+      error: null,
+      demoOnly: mode === "demo",
+    };
+  }
+  const userId = input.ownerId ?? getAnonUserId();
+  if (input.ownerId && getAuthenticatedUserId() !== input.ownerId) {
+    return {
+      data: null,
+      error: new Error(AUTH_OWNER_CHANGED_MESSAGE),
+    };
+  }
   const slug = input.topicId.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return supabase.from("topic_signals").insert({
-    user_id: getAnonUserId(),
+  const response = await supabase.from("topic_signals").insert({
+    user_id: userId,
     class_id: input.classId,
     topic_id: slug || "general",
     topic_name: input.topicName,
@@ -147,15 +201,27 @@ export async function contributeStudySignal(input: {
     source_type: input.sourceType ?? "study-session",
     source_id: input.sourceId ?? null,
   });
+  if (input.idempotent && response.error?.code === "23505") {
+    return { ...response, error: null };
+  }
+  return response;
 }
 
 // Returns the current user's id. Prefers the authenticated Supabase session
 // (kept in sync via `setAuthUserId` from AuthContext); falls back to a stable
 // per-browser anonymous uuid for demo mode / signed-out users.
 let cachedAuthUserId: string | null = null;
+export const AUTH_OWNER_CHANGED_MESSAGE =
+  "Your account changed while this capture was saving. Sign back into the original account and try again.";
+
 export function setAuthUserId(id: string | null) {
   cachedAuthUserId = id;
 }
+
+export function getAuthenticatedUserId(): string | null {
+  return cachedAuthUserId;
+}
+
 function getAnonUserId(): string {
   if (cachedAuthUserId) return cachedAuthUserId;
   const KEY = "cc_anon_user_id";

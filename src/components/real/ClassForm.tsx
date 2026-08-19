@@ -124,8 +124,8 @@ export function ClassForm({ mode, initialValues, onSubmit, onCancel }: ClassForm
               name="professor"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Professor or instructor <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
-                  <FormControl><Input {...field} placeholder="Dr. Chen" className="min-h-11 text-base sm:text-sm" /></FormControl>
+                  <FormLabel>Teacher or instructor <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
+                  <FormControl><Input {...field} placeholder="Ms. Chen" className="min-h-11 text-base sm:text-sm" /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -174,7 +174,7 @@ export function ClassForm({ mode, initialValues, onSubmit, onCancel }: ClassForm
               <CalendarRange className="h-5 w-5 text-primary" /> Schedule
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Optional for online classes. Term dates prevent meetings from repeating after the semester.
+              Optional for online classes. Term dates prevent meetings from repeating after the term.
             </p>
           </div>
 

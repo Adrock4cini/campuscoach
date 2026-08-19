@@ -6,11 +6,13 @@ import type { CoachRecommendation } from "@/lib/coach/recommend";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  reload: vi.fn(),
+  error: null as string | null,
   recommendations: [] as CoachRecommendation[],
 }));
 
 vi.mock("@/lib/coach/useCoachRecommendations", () => ({
-  useCoachRecommendations: () => ({ recommendations: mocks.recommendations, loading: false }),
+  useCoachRecommendations: () => ({ recommendations: mocks.recommendations, loading: false, error: mocks.error, reload: mocks.reload }),
 }));
 
 vi.mock("@/lib/coachFunctions/useCoachFunction", () => ({
@@ -20,6 +22,8 @@ vi.mock("@/lib/coachFunctions/useCoachFunction", () => ({
 describe("real coach hero hierarchy", () => {
   beforeEach(() => {
     mocks.execute.mockClear();
+    mocks.reload.mockClear();
+    mocks.error = null;
     mocks.recommendations = [reviewRecommendation(), scienceRecommendation()];
   });
 
@@ -70,7 +74,32 @@ describe("real coach hero hierarchy", () => {
     }];
 
     renderHero();
-    expect(screen.getByRole("link", { name: /capture now/i })).toHaveAttribute("href", "/classes/science");
+    expect(screen.getByRole("link", { name: /capture now/i })).toHaveAttribute("href", "/classes/science?capture=1");
+  });
+
+  it("does not repeat the headline reason as evidence", () => {
+    mocks.recommendations = [{
+      ...reviewRecommendation(),
+      why: "Unit 1 Test is in 14 days.",
+      evidence: [{ type: "exam", label: "Unit 1 Test in 14d", weight: 1 }],
+    }];
+
+    renderHero();
+    const region = screen.getByRole("region", { name: "Math" });
+
+    expect(within(region).getByText("Unit 1 Test is in 14 days.")).toBeInTheDocument();
+    expect(within(region).queryByText(/Recommended because/i)).not.toBeInTheDocument();
+  });
+
+
+  it("fails closed when required coach data cannot be loaded", () => {
+    mocks.error = "We couldn’t load your assignments.";
+    renderHero();
+
+    expect(screen.getByText("Couldn’t load today’s focus")).toBeInTheDocument();
+    expect(screen.queryByText("7 concepts are ready for review.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(mocks.reload).toHaveBeenCalledTimes(1);
   });
 });
 

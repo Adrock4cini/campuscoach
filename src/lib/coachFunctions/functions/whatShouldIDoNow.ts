@@ -72,7 +72,7 @@ export const whatShouldIDoNow: CoachFunctionDefinition<Input, WhatShouldIDoNowPa
         next_review_at: m.next_review_at, attempts: m.attempts,
       })),
       exams: exams.map((e) => ({ class_id: e.class_id, exam_date: e.exam_date, title: e.title, weight: e.weight })),
-      assignments: assignments.map((a) => ({ class_id: a.class_id, due_date: a.due_date, title: a.title })),
+      assignments: assignments.map((a) => ({ class_id: a.class_id, due_date: a.due_date, title: a.title, status: a.status })),
     });
 
     const top = recs[0];

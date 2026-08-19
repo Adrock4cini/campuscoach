@@ -59,6 +59,18 @@ describe("Study Lab class handoff", () => {
     expect(screen.getByRole("button", { name: "Science" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("drops a stale capture scope when the student switches class by hand", () => {
+    render(
+      <MemoryRouter initialEntries={["/study-lab?classId=math&captureId=math-note"]}>
+        <RouteHarness />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("real-study-set")).toHaveTextContent("math:math-note");
+    fireEvent.click(screen.getByRole("button", { name: "Science" }));
+    expect(screen.getByTestId("real-study-set")).toHaveTextContent("science:none");
+  });
+
   it("follows a new capture URL when the page is already open", () => {
     render(
       <MemoryRouter initialEntries={["/study-lab?classId=math&captureId=math-note"]}>

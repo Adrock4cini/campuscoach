@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { canonicalizeSchoolName } from "@/lib/onboarding/options";
+import { searchKnownSchools } from "@/lib/onboarding/schoolDirectory";
 
 interface SchoolRow {
   id: string;
@@ -59,14 +60,20 @@ export function SchoolCombobox({
   }, [query]);
 
   const canonicalQuery = canonicalizeSchoolName(query);
+  const directoryRows: SchoolRow[] = searchKnownSchools(query, 8).map((s) => ({
+    id: `known-${s.name}`,
+    name: s.name,
+  }));
   const aliasMatch = canonicalQuery !== query.trim()
     ? { id: `alias-${canonicalQuery}`, name: canonicalQuery }
     : null;
-  const visibleRows = aliasMatch && !rows.some((r) => r.name.toLowerCase() === aliasMatch.name.toLowerCase())
-    ? [aliasMatch, ...rows]
-    : rows;
-  const officialNameCandidate = query.trim().length > 3 &&
-    /\b(university|college|institute|school)\b/i.test(query) &&
+  const merged: SchoolRow[] = [];
+  for (const row of [...(aliasMatch ? [aliasMatch] : []), ...directoryRows, ...rows]) {
+    if (!merged.some((r) => r.name.toLowerCase() === row.name.toLowerCase())) merged.push(row);
+  }
+  const visibleRows = merged;
+  const customNameCandidate = canonicalQuery.length >= 2 &&
+    /[\p{L}\p{N}]/u.test(canonicalQuery) &&
     !visibleRows.some((r) => r.name.toLowerCase() === canonicalQuery.toLowerCase());
 
   return (
@@ -117,8 +124,8 @@ export function SchoolCombobox({
                 ))}
               </CommandGroup>
             )}
-            {officialNameCandidate && (
-              <CommandGroup heading="Official name">
+            {customNameCandidate && (
+              <CommandGroup heading="Use your school name">
                 <CommandItem
                   value={`__create__${query}`}
                   onSelect={() => {
@@ -127,14 +134,14 @@ export function SchoolCombobox({
                   }}
                 >
                   <span className="text-sm">
-                    Use official name “<span className="font-medium">{canonicalQuery}</span>”
+                    Use “<span className="font-medium">{canonicalQuery}</span>”
                   </span>
                 </CommandItem>
               </CommandGroup>
             )}
-            {!loading && query.trim().length > 0 && visibleRows.length === 0 && !officialNameCandidate && (
+            {!loading && query.trim().length > 0 && visibleRows.length === 0 && !customNameCandidate && (
               <div className="px-3 py-2 text-xs text-muted-foreground">
-                Choose a school above, or type its full official name (for example, “Utah State University”).
+                Type at least two letters, then use your school name even if it is not listed yet.
               </div>
             )}
           </CommandList>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import {
   ArrowRight, Sparkles, Trophy
 } from "lucide-react";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { readStudyLabState } from "@/lib/study/studyLabState";
 
 const secondaryModes: { icon: React.ElementType; label: string; mode: StudyMode }[] = [
   { icon: Brain, label: "Flashcards", mode: "flashcards" },
@@ -45,9 +46,14 @@ export default function StudyLab() {
   const preselectedClass = searchParams.get("classId");
   const requestedCaptureId = searchParams.get("captureId") || undefined;
   const requestedExamId = searchParams.get("examId") || undefined;
-  const requestedFormat = searchParams.get("format") === "multiple_choice"
+  const requestedFormatParam = searchParams.get("format");
+  const requestedFormat = requestedFormatParam === "multiple_choice"
     ? "multiple_choice"
-    : "flashcards";
+    : requestedFormatParam === "matching"
+      ? "matching"
+      : requestedFormatParam === "flashcards"
+        ? "flashcards"
+        : null;
   const coachConceptIds = parseCoachConceptIds(searchParams.get("conceptIds"));
   const coachStudyScope = buildCoachStudyScope(coachConceptIds);
   const [selectedDuration, setSelectedDuration] = useState(25);
@@ -57,10 +63,22 @@ export default function StudyLab() {
   // already mounted. Follow the newest URL instead of retaining the previous
   // class selection and silently dropping the new capture scope.
   useEffect(() => {
-    setSelectedClass(preselectedClass || "");
+    if (!preselectedClass) return;
+    setSelectedClass(preselectedClass);
   }, [preselectedClass]);
 
-  const effectiveClass = selectedClass || availableClasses[0]?.id || "";
+  // With no explicit link, return the student to the class they last studied
+  // — but only while that class still exists.
+  const rememberedState = useMemo(
+    () => readStudyLabState({ allowedClassIds: availableClasses.map((item) => item.id) }),
+    [availableClasses],
+  );
+
+  const effectiveClass = selectedClass
+    || preselectedClass
+    || rememberedState?.classId
+    || availableClasses[0]?.id
+    || "";
   const activeCaptureId = effectiveClass === preselectedClass
     ? requestedCaptureId
     : undefined;
@@ -127,10 +145,12 @@ export default function StudyLab() {
       )}
       {isRealUser && !classesError && effectiveClass && (
         <RealStudySet
+          className={availableClasses.find((c) => c.id === effectiveClass)?.name}
+          classTopic={availableClasses.find((c) => c.id === effectiveClass)?.currentTopic}
           classId={effectiveClass}
           initialCaptureId={activeCaptureId}
           initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
-          initialKind={requestedFormat}
+          initialKind={requestedFormat ?? rememberedState?.kind ?? "flashcards"}
           initialConceptIds={coachConceptIds}
           initialStudyScope={coachStudyScope ?? undefined}
           autoStart={Boolean(coachStudyScope || activeCaptureId)}

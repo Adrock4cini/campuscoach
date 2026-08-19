@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,17 +17,22 @@ import {
   markPasskeyOfferPending,
   signInWithPasskey,
 } from "@/lib/auth/passkeys";
+import { isFamilyBetaStaging, publicSignupsEnabled } from "@/lib/legal/familyBeta";
 
 export default function Login() {
   const nav = useNavigate();
   const loc = useLocation();
-  const { enableDemoMode } = useAuth();
+  const { user, enableDemoMode } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
   const passkeyOk = useMemo(() => canUsePasskeys(), []);
+  const openRegistration = publicSignupsEnabled();
+  const stagingBeta = isFamilyBetaStaging();
+
+  if (user) return <Navigate to="/" replace />;
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,14 +96,32 @@ export default function Login() {
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
+          {stagingBeta && (
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+              Family Beta · staging
+            </p>
+          )}
           <h1 className="font-display text-3xl font-semibold">Welcome back</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to Campus Companion</p>
         </div>
         <Card className="shadow-elevated">
           <CardContent className="p-6 space-y-4">
-            <Button variant="outline" className="w-full" onClick={onGoogle} disabled={busy || passkeyBusy}>
-              Continue with Google
-            </Button>
+            {!openRegistration && (
+              <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center text-xs text-muted-foreground">
+                Invited family beta — sign in with the account details you received.
+              </p>
+            )}
+            {stagingBeta && (
+              <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
+                Private family beta on a separate staging backend. You can upload real school work for this test — just know
+                this is still staging, so data may be reset and nothing here touches the public app.
+              </p>
+            )}
+            {openRegistration && (
+              <Button variant="outline" className="w-full h-11" onClick={onGoogle} disabled={busy || passkeyBusy}>
+                Continue with Google
+              </Button>
+            )}
             {passkeyOk && (
               <Button
                 type="button"
@@ -111,9 +134,11 @@ export default function Login() {
                 {passkeyBusy ? "Waiting for your device\u2026" : "Use Face ID or a passkey"}
               </Button>
             )}
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
-              <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
-            </div>
+            {(openRegistration || passkeyOk) && (
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
+                <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
+              </div>
+            )}
             <form className="space-y-3" onSubmit={onEmailSubmit}>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
@@ -127,13 +152,20 @@ export default function Login() {
                 {busy ? "Signing in\u2026" : "Sign in with password"}
               </Button>
             </form>
+            {openRegistration && (
+              <Button asChild className="h-12 w-full bg-gradient-calm border-0 text-primary-foreground">
+                <Link to="/signup">Create family beta account</Link>
+              </Button>
+            )}
             <div className="flex items-center justify-between text-xs">
               <Link to="/forgot-password" className="text-muted-foreground hover:text-foreground">Forgot password?</Link>
-              <Link to="/signup" className="text-primary hover:underline">Create account</Link>
+              {!openRegistration && (
+                <Link to="/signup" className="text-primary hover:underline">Invitation info</Link>
+              )}
             </div>
           </CardContent>
         </Card>
-        <div className="mt-4 text-center">
+        {openRegistration && <div className="mt-4 text-center">
           <Button
             variant="ghost"
             size="sm"
@@ -144,7 +176,7 @@ export default function Login() {
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" /> Continue as demo
           </Button>
-        </div>
+        </div>}
       </div>
     </div>
   );

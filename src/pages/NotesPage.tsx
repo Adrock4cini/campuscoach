@@ -113,7 +113,7 @@ export function RealNotesPage() {
             <StickyNote className="h-4 w-4 mr-1.5" /> Quick note
           </Button>
           <Button variant="outline" size="sm" onClick={() => openCapture("professor-hint")}>
-            <MessageSquareQuote className="h-4 w-4 mr-1.5" /> Professor hint
+            <MessageSquareQuote className="h-4 w-4 mr-1.5" /> Teacher hint
           </Button>
         </div>
       </div>
@@ -175,7 +175,7 @@ export function RealNotesPage() {
                 <StickyNote className="h-8 w-8 text-muted-foreground mx-auto" />
                 <div>
                   <p className="font-medium text-foreground">No captures here yet</p>
-                  <p className="text-sm text-muted-foreground mt-1">Save a quick note or a professor hint to build Class Memory.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Save a quick note or a teacher hint to build Class Memory.</p>
                 </div>
                 <Button size="sm" onClick={() => openCapture("quick-note", activeClass === "all" ? undefined : activeClass)}>
                   <Plus className="h-4 w-4 mr-1.5" /> Add a note
@@ -290,7 +290,7 @@ function DemoNotesPage() {
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
             📢 <strong>Reminder:</strong> Always check your school and instructor's policies before recording lectures. 
-            Some professors require permission first.
+            Some teachers or instructors require permission first.
           </p>
         </CardContent>
       </Card>

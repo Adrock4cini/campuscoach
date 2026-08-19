@@ -19,11 +19,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildRealStudyLabPath } from "@/lib/learningArtifacts/studyRoute";
+import type { StudyPersistenceMode } from "@/lib/intelligence/readinessEngine";
 
 export default function StudySession() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { mode: authMode } = useAuth();
+  const studyPersistence: StudyPersistenceMode =
+    authMode === "real" ? "remote" : "local-only";
   const initialMode = (searchParams.get("mode") as StudyMode) || "flashcards";
   const initialClassId = searchParams.get("classId") || undefined;
   const initialTopic = searchParams.get("topic") || undefined;
@@ -176,6 +179,7 @@ export default function StudySession() {
           incorrect={session.incorrectCount}
           skipped={session.skippedCount}
           elapsed={elapsed}
+          persistence={studyPersistence}
           onRetryMissed={handleRetryMissed}
           onReplay={handleReplay}
           onSwitchMode={handleSwitchMode}

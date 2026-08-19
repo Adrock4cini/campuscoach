@@ -31,10 +31,16 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import FamilyBetaAgreement from "./pages/FamilyBetaAgreement";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 import NotFound from "./pages/NotFound";
 import { RealComingSoon } from "@/components/real/RealComingSoon";
+import { RealOnly } from "@/components/real/RealOnly";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
+import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
+import { getOnboardingRedirect } from "@/lib/auth/protectedRoute";
 
 
 function DemoOnly({
@@ -54,19 +60,52 @@ function DemoOnly({
 }
 
 function RootGate() {
-  const { user, isDemoMode, loading, onboarded } = useAuth();
+  const { user, isDemoMode, loading, onboarded, refreshOnboarded, signOut } = useAuth();
   if (loading) return null;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
-  if (user && onboarded === null) return null; // still checking profile
+  if (user && !hasFamilyBetaAgreement(user)) return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;
+  if (user && onboarded === null) {
+    return (
+      <section className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center" aria-live="polite">
+        <h1 className="font-display text-xl font-semibold text-foreground">Checking your account setup…</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          If this takes more than a moment, check your connection and try again. Nothing will be changed.
+        </p>
+        <button
+          type="button"
+          className="mt-4 min-h-11 rounded-xl border border-border px-4 text-sm font-medium text-primary hover:bg-primary/5"
+          onClick={() => { void refreshOnboarded(); }}
+        >
+          Try again
+        </button>
+        <button
+          type="button"
+          className="mt-2 min-h-11 rounded-xl px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
+          onClick={() => { void signOut(); }}
+        >
+          Sign out
+        </button>
+      </section>
+    );
+  }
   if (user && !onboarded) return <Navigate to="/onboarding" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, isDemoMode, loading } = useAuth();
+  const { user, isDemoMode, loading, onboarded } = useAuth();
   const loc = useLocation();
   if (loading) return null;
-  if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: loc.pathname }} />;
+  if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
+  if (user && !hasFamilyBetaAgreement(user)) {
+    return <Navigate to="/family-beta-agreement" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
+  }
+  const onboardingRedirect = getOnboardingRedirect({
+    signedIn: Boolean(user),
+    onboarded,
+    pathname: loc.pathname,
+  });
+  if (onboardingRedirect) return <Navigate to={onboardingRedirect} replace />;
   return <>{children}</>;
 }
 
@@ -85,6 +124,9 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/family-beta-agreement" element={<FamilyBetaAgreement />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
 
             {/* Everything else lives inside the app shell */}
             <Route
@@ -93,15 +135,15 @@ const App = () => (
                 <AppLayout>
                   <Routes>
                     <Route path="/" element={<RootGate />} />
-                    <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+                    <Route path="/onboarding" element={<Protected><RealOnly><Onboarding /></RealOnly></Protected>} />
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
-                    <Route path="/classes/new" element={<Protected><ClassEditorPage /></Protected>} />
-                    <Route path="/classes/:classId/edit" element={<Protected><ClassEditorPage /></Protected>} />
-                    <Route path="/classes/:classId/syllabus" element={<Protected><ClassSyllabusPage /></Protected>} />
+                    <Route path="/classes/new" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
+                    <Route path="/classes/:classId/edit" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
+                    <Route path="/classes/:classId/syllabus" element={<Protected><RealOnly><ClassSyllabusPage /></RealOnly></Protected>} />
                     <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
                     <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-                    <Route path="/integrations/canvas" element={<Protected><CanvasConnectionPage /></Protected>} />
+                    <Route path="/integrations/canvas" element={<Protected><RealOnly><CanvasConnectionPage /></RealOnly></Protected>} />
                     <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
                     <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
                     <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />

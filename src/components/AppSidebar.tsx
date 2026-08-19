@@ -17,10 +17,11 @@ import {
   LogIn,
   Link2,
   ScanFace,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -55,10 +56,9 @@ interface SidebarGroupDefinition {
   items: SidebarItemDefinition[];
 }
 
-// These destinations remain part of the product and should stay discoverable.
-// Signed-in students get a guarded preview until each page is backed by their
-// real data, rather than having the feature disappear from navigation.
-const PREVIEW_ONLY_FOR_REAL = new Set<string>([
+// These destinations remain discoverable, but signed-in students get a static
+// coming-soon boundary until each page is backed by their real data.
+const COMING_SOON_FOR_REAL = new Set<string>([
   "/your-week",
   "/path-to-graduation",
   "/scholarships",
@@ -130,10 +130,11 @@ function buildGroups(
 }
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, isDemoMode, signOut, mode } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const { classes: myClasses } = useMyClasses();
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   // Single source of truth: mode drives which class list we show.
@@ -141,8 +142,21 @@ export function AppSidebar() {
   // "demo" → demo tour classes. Loading stays neutral in AppLayout.
   const realMode = mode === "real";
   const classList = realMode ? myClasses : mode === "demo" ? demoClasses : [];
-  const groups = buildGroups(classList);
+  const groups = buildGroups(classList)
+    .map((group) => ({
+      ...group,
+      items: realMode
+        ? group.items.filter((item) => !COMING_SOON_FOR_REAL.has(item.url))
+        : group.items,
+    }))
+    .filter((group) => group.items.length > 0);
   const canSavePasskey = !!user && realMode && canUsePasskeys();
+
+  // The mobile sheet stays mounted while routes change. Close it after every
+  // navigation so the destination is immediately visible and reachable.
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [isMobile, location.pathname, location.search, setOpenMobile]);
 
   async function onSavePasskey() {
     setPasskeyBusy(true);
@@ -169,15 +183,15 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarContent className="pt-4">
 
-        <div className={`px-4 pb-4 ${collapsed ? "px-2" : ""}`}>
+        <div className={`flex items-start px-4 pb-4 ${collapsed ? "px-2" : ""}`}>
           {collapsed ? (
-            <div className="flex items-center justify-center">
+            <div className="flex flex-1 items-center justify-center">
               <div className="h-8 w-8 rounded-lg bg-gradient-calm flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">C</span>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <div className="h-9 w-9 rounded-lg bg-gradient-calm flex items-center justify-center flex-shrink-0">
                 <span className="text-primary-foreground font-bold text-base">C</span>
               </div>
@@ -187,6 +201,14 @@ export function AppSidebar() {
               </div>
             </div>
           )}
+          <button
+            type="button"
+            aria-label="Close navigation"
+            className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring md:hidden"
+            onClick={() => setOpenMobile(false)}
+          >
+            <X aria-hidden="true" className="h-5 w-5" />
+          </button>
         </div>
 
         {groups.map((group) => (
@@ -215,9 +237,9 @@ export function AppSidebar() {
                         {!collapsed && (
                           <span className="tracking-tight truncate flex-1 flex items-center gap-1.5">
                             <span className="truncate">{item.title}</span>
-                            {realMode && PREVIEW_ONLY_FOR_REAL.has(item.url) && (
+                            {realMode && COMING_SOON_FOR_REAL.has(item.url) && (
                               <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-muted-foreground/70 border border-border rounded px-1 py-0.5">
-                                Preview
+                                Coming soon
                               </span>
                             )}
                           </span>
@@ -236,7 +258,7 @@ export function AppSidebar() {
               type="button"
               disabled={passkeyBusy}
               onClick={() => void onSavePasskey()}
-              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors disabled:opacity-50"
+              className="w-full flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors disabled:opacity-50"
             >
               <ScanFace className="h-4 w-4 flex-shrink-0" />
               {!collapsed && (
@@ -250,7 +272,7 @@ export function AppSidebar() {
                 await signOut();
                 nav("/login", { replace: true });
               }}
-              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors"
+              className="w-full flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors"
             >
               <LogOut className="h-4 w-4 flex-shrink-0" />
               {!collapsed && <span className="truncate">Sign out</span>}
@@ -258,7 +280,7 @@ export function AppSidebar() {
           ) : isDemoMode ? (
             <button
               onClick={() => nav("/login")}
-              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-primary hover:bg-sidebar-accent/60 transition-colors"
+              className="w-full flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm text-primary hover:bg-sidebar-accent/60 transition-colors"
             >
               <LogIn className="h-4 w-4 flex-shrink-0" />
               {!collapsed && <span className="truncate">Sign in \u00b7 demo mode</span>}

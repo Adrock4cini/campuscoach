@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,6 +15,7 @@ import {
   CAPTURE_LABELS,
   PROCESSING_STEPS,
   commitCapture,
+  createCaptureAttemptId,
 } from "@/lib/capture/processor";
 import type {
   CaptureContext,
@@ -31,7 +32,18 @@ import {
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
 import { DatePickerField } from "@/components/forms/DatePickerField";
-import { todayDateKey } from "@/lib/calendar/dateKey";
+import { isPastDateKey, todayDateKey } from "@/lib/calendar/dateKey";
+import {
+  readLastCaptureClassId,
+  writeLastCaptureClassId,
+} from "@/lib/capture/captureClassPreference";
+import {
+  captureContextLabel,
+  inferCaptureClass,
+  type CaptureClassInference,
+} from "@/lib/capture/captureContextInference";
+
+
 
 interface Props {
   open: boolean;
@@ -54,12 +66,12 @@ const MENU: {
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
-  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into test practice", requiresImages: true, availableForRealUsers: true },
-  { kind: "scan-material",   icon: Images,        hint: "Photo pages → study cards & games", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into study material", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
-  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the professor emphasized", requiresText: true, availableForRealUsers: true },
+  { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
   { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },
 ];
 
@@ -74,7 +86,7 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "queued", label: "Saving private photos…", duration: 350 },
   { id: "class-detected", label: "Linking to your class", duration: 300 },
   { id: "concepts-found", label: "Reading the pages for concepts", duration: 350 },
-  { id: "added-to-brain", label: "Building study cards & memory", duration: 300 },
+  { id: "added-to-brain", label: "Adding concepts to Class Memory", duration: 300 },
 ];
 
 export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
@@ -88,6 +100,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   } = useMyClasses();
   const realMode = !!user && !isDemoMode;
   const classes = realMode ? myClasses : demoClasses;
+  const attemptIdRef = useRef<string | null>(null);
+  if (!attemptIdRef.current) attemptIdRef.current = createCaptureAttemptId();
+  const draftOwnerIdRef = useRef<string | null>(realMode ? user?.id ?? null : null);
 
   const [stage, setStage] = useState<Stage>("menu");
   const [kind, setKind] = useState<CaptureKind | null>(null);
@@ -96,8 +111,39 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     () => (!open || realMode ? null : detectCurrentClass(new Date())),
     [open, realMode],
   );
-  const defaultClassId =
-    initialClassId ?? detected?.id ?? (!realMode ? classes[0]?.id ?? "" : "");
+  // A remembered class is only ever reused when it is still one of the
+  // student's own classes, so a deleted class can never poison a capture.
+  const rememberedClassId = useMemo(
+    () =>
+      open && realMode && !classesLoading
+        ? readLastCaptureClassId({ allowedClassIds: classes.map((item) => item.id) })
+        : null,
+    [classes, classesLoading, open, realMode],
+  );
+  // Zero-form capture: infer the class before asking anything, and only ever
+  // ask when the evidence is genuinely ambiguous.
+  const inference = useMemo<CaptureClassInference | null>(() => {
+    if (!open) return null;
+    if (!realMode) {
+      const demoId = initialClassId ?? detected?.id ?? classes[0]?.id ?? "";
+      return {
+        classId: demoId,
+        source: initialClassId ? "entry" : detected?.id ? "schedule" : "only-class",
+        confidence: "high",
+        needsClass: !demoId,
+      };
+    }
+    if (classesLoading) return null;
+    return inferCaptureClass({
+      entryClassId: initialClassId,
+      rememberedClassId,
+      classes,
+    });
+  }, [classes, classesLoading, detected?.id, initialClassId, open, realMode, rememberedClassId]);
+  const defaultClassId = inference?.classId ?? "";
+
+
+
 
   const [ctx, setCtx] = useState<CaptureContext>(() => ({
     // Real global capture must never guess a class. A wrong default poisons
@@ -112,6 +158,11 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<CaptureResult | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  // Forms are correction, not the default: details stay collapsed behind
+  // "Change" until the student says the inferred context is wrong.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [classChangedManually, setClassChangedManually] = useState(false);
+
   const [imageSelection, setImageSelection] = useState<{
     files: File[];
     rejectedCount: number;
@@ -126,33 +177,99 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     items: examItems,
     loading: examsLoading,
   } = useRealExams(ctx.classId || "__no-class__", realMode && imageKind);
-  const captureTargets = useMemo(
-    () => filterCaptureTargets(ctx.classId, assignmentItems, examItems),
-    [assignmentItems, ctx.classId, examItems],
-  );
+  const captureTargets = useMemo(() => {
+    const targets = filterCaptureTargets(ctx.classId, assignmentItems, examItems);
+    return {
+      ...targets,
+      exams: targets.exams.filter((exam) => !isPastDateKey(exam.exam_date)),
+    };
+  }, [assignmentItems, ctx.classId, examItems]);
   const imageValidation = useMemo(() => validateCaptureImages(images), [images]);
   const imageLimitReached = images.length >= CAPTURE_IMAGE_LIMITS.maxFiles;
 
-  // Reset every open
+  // Reset only when the sheet actually opens. Anything that changes while the
+  // student is mid-capture (classes finishing loading, a re-render from a
+  // parent) must never wipe their photos, note text, or class choice.
+  const wasOpenRef = useRef(false);
+  const openedWithKindRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
+    attemptIdRef.current = createCaptureAttemptId();
+    draftOwnerIdRef.current = realMode ? user?.id ?? null : null;
     const initialMeta = initialKind ? MENU.find((item) => item.kind === initialKind) : null;
     const canOpenInitial = !!initialKind && (!realMode || initialMeta?.availableForRealUsers);
+    openedWithKindRef.current = Boolean(canOpenInitial);
     setStage(canOpenInitial ? "context" : "menu");
     setKind(canOpenInitial ? initialKind : null);
     setStepIndex(0);
     setResult(null);
     setCaptureError(null);
     setImageSelection({ files: [], rejectedCount: 0 });
+    setDetailsOpen(false);
+    setClassChangedManually(false);
+
     setCtx({
       classId: defaultClassId,
       date: todayDateKey(),
       topic: detected?.currentTopic ?? "",
       text: "",
     });
-  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic]);
+  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id]);
+
+  // Fill (never overwrite) the class once it becomes known — from the default
+  // for this entry point, or from the student's last capture so the habit of
+  // "open Campus Coach in class" stays a one-tap action.
+  useEffect(() => {
+    if (!open) return;
+    const fill = defaultClassId || rememberedClassId;
+    if (!fill) return;
+    setCtx((current) => (current.classId ? current : { ...current, classId: fill }));
+  }, [defaultClassId, open, rememberedClassId]);
+
+
 
   const meta = kind ? MENU.find((m) => m.kind === kind)! : null;
+
+  const activeClass = classes.find((item) => item.id === ctx.classId) ?? null;
+  const classesReady = !classesLoading && !classesError;
+  // The one question we ever ask up front, and only when nothing reliable
+  // points at a single class.
+  const needsClassAnswer = classesReady && classes.length > 0 && !ctx.classId;
+  const contextSource =
+    classChangedManually || !inference || inference.classId !== ctx.classId
+      ? "manual"
+      : inference.source;
+  const contextLabel = captureContextLabel({
+    className: activeClass?.name,
+    dateKey: ctx.date,
+    todayKey: todayDateKey(),
+    topic: ctx.topic,
+  });
+
+
+  const requestClose = () => {
+    if (stage !== "processing") onClose();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (stage === "processing") {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      onClose();
+    };
+    window.addEventListener("keydown", handleEscape, true);
+    return () => window.removeEventListener("keydown", handleEscape, true);
+  }, [onClose, open, stage]);
 
   const chooseKind = (k: CaptureKind) => {
     const selected = MENU.find((item) => item.kind === k);
@@ -161,12 +278,24 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       navigate("/classes?intent=syllabus");
       return;
     }
+    // Coming back to the same capture keeps the draft (photos, note, class).
+    // Switching to a different capture drops photos that no longer apply.
+    if (kind !== k) {
+      attemptIdRef.current = createCaptureAttemptId();
+      setImageSelection({ files: [], rejectedCount: 0 });
+    }
+    draftOwnerIdRef.current = realMode ? user?.id ?? null : null;
     setKind(k);
     setStage("context");
   };
 
+
   const startProcessing = async () => {
     if (!kind) return;
+    const ownerId = realMode ? user?.id : undefined;
+    const attemptId = attemptIdRef.current ?? createCaptureAttemptId();
+    attemptIdRef.current = attemptId;
+    if (realMode && (!ownerId || draftOwnerIdRef.current !== ownerId)) return;
     setStage("processing");
     setStepIndex(0);
     setCaptureError(null);
@@ -178,6 +307,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       simulateDerivedContent: !realMode,
       requireRemotePersistence: realMode,
       attachments: images,
+      attemptId,
+      ownerId,
     })
       .then((value) => ({ value, error: null as Error | null }))
       .catch((error: unknown) => ({
@@ -191,8 +322,10 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     for (let i = 0; i < processingSteps.length; i++) {
       setStepIndex(i);
       await new Promise((r) => setTimeout(r, processingSteps[i].duration));
+      if (realMode && draftOwnerIdRef.current !== ownerId) return;
     }
     const outcome = await commitPromise;
+    if (realMode && draftOwnerIdRef.current !== ownerId) return;
     if (outcome.error || !outcome.value) {
       setCaptureError(
         outcome.error?.message ?? "We couldn't save this capture. Check your connection and try again.",
@@ -200,8 +333,12 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       setStage("error");
       return;
     }
+    if (realMode && outcome.value.context.classId) {
+      writeLastCaptureClassId(outcome.value.context.classId);
+    }
     setResult(outcome.value);
     setStage("done");
+
   };
 
   const canContinue =
@@ -211,12 +348,14 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     classes.some((classInfo) => classInfo.id === ctx.classId) &&
     !!ctx.date &&
     (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0) &&
+    // Assignment name and due date are read from the photo and reviewed later,
+    // so nothing has to be typed before the picture is taken.
     (!meta?.requiresImages || (
       imageValidation.ok &&
       !assignmentsLoading &&
-      !examsLoading &&
-      (kind !== "scan-assignment" || !!ctx.assignmentId || !!ctx.assignmentTitle?.trim())
+      !examsLoading
     ));
+
 
   return (
     <AnimatePresence>
@@ -226,7 +365,7 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={requestClose}
         >
           <motion.div
             data-testid="capture-sheet"
@@ -243,19 +382,29 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
               <div className="absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-accent/20 blur-[100px]" />
             </div>
 
-            <div className="relative min-w-0 p-4 sm:p-5 md:p-6">
+            <div className="relative min-w-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5 md:p-6">
               {/* Header */}
               <div className="flex items-center gap-2 mb-4">
                 {stage !== "menu" && stage !== "done" && (
                   <button
-                    onClick={() => (stage === "context" ? setStage("menu") : null)}
+                    onClick={() => {
+                      // Opened straight into one capture type: there is no
+                      // previous step, so Back closes instead of dropping the
+                      // student into a menu they never saw.
+                      if (stage === "context") {
+                        if (openedWithKindRef.current) requestClose();
+                        else setStage("menu");
+                      }
+                      if (stage === "error") setStage("context");
+                    }}
                     disabled={stage === "processing"}
-                    className="h-8 w-8 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    className="h-11 w-11 shrink-0 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
                     aria-label="Back"
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </button>
                 )}
+
                 <div className="flex-1 min-w-0">
                   <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-primary/90">
                     <Sparkles className="h-3 w-3" />
@@ -266,7 +415,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
                     {stage === "done" && (
-                      result?.processingStatus === "failed"
+                      !realMode
+                        ? "Saved in this demo"
+                        : result?.processingStatus === "failed"
                         ? "Saved to Class Memory"
                         : "Added to Campus Brain"
                     )}
@@ -274,8 +425,9 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                   </h2>
                 </div>
                 <button
-                  onClick={onClose}
-                  className="h-8 w-8 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  onClick={requestClose}
+                  disabled={stage === "processing"}
+                  className="h-11 w-11 shrink-0 rounded-full border border-border/40 bg-background/30 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" />
@@ -361,74 +513,194 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                         <ClassesLoadError compact onRetry={() => void reloadClasses()} />
                       </div>
                     </div>
-                  ) : (
-                    <Field label="Class">
-                      {classesLoading ? (
-                      <div className="h-11 px-3 rounded-xl border border-border/50 bg-background/40 text-sm text-muted-foreground flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading your classes…
-                      </div>
-                    ) : classes.length === 0 ? (
-                      <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
-                        <p className="text-sm text-foreground">Add a class before saving a professor hint.</p>
-                        <button
-                          type="button"
-                          onClick={() => { onClose(); navigate("/classes/new"); }}
-                          className="mt-2 text-xs font-medium text-primary"
-                        >
-                          Set up classes →
-                        </button>
-                      </div>
-                    ) : (
-                      <select
-                        aria-label="Class"
-                        value={ctx.classId}
-                        onChange={(e) => {
-                          setCtx((c) => ({
-                            ...c,
-                            classId: e.target.value,
-                            assignmentId: undefined,
-                            assignmentTitle: undefined,
-                            assignmentDueDate: undefined,
-                            examId: undefined,
-                          }));
-                          setImageSelection({ files: [], rejectedCount: 0 });
-                        }}
-                        className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
+                  ) : classesLoading ? (
+                    <div className="flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-background/40 px-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading your classes…
+                    </div>
+                  ) : classes.length === 0 ? (
+                    <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                      <p className="text-sm text-foreground">Add a class before saving this capture.</p>
+                      <button
+                        type="button"
+                        onClick={() => { onClose(); navigate("/classes/new"); }}
+                        className="mt-2 text-xs font-medium text-primary"
                       >
-                        {realMode && (
-                          <option value="" disabled>Choose a class</option>
-                        )}
-                        {classes.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
+                        Set up classes →
+                      </button>
+                    </div>
+                  ) : needsClassAnswer ? (
+                    /* The single question. One tap answers it — no form. */
+                    <div
+                      className="rounded-2xl border border-primary/30 bg-primary/5 p-3"
+                      data-testid="capture-class-question"
+                    >
+                      <p className="text-sm font-medium text-foreground">Which class is this for?</p>
+                      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Which class is this for?">
+                        {classes.map((classInfo) => (
+                          <button
+                            key={classInfo.id}
+                            type="button"
+                            onClick={() => {
+                              setCtx((current) => ({ ...current, classId: classInfo.id }));
+                              setClassChangedManually(true);
+                            }}
+                            className="inline-flex min-h-11 touch-manipulation items-center rounded-xl border border-border/60 bg-background/40 px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10"
+                          >
+                            {classInfo.name}
+                          </button>
                         ))}
-                      </select>
-                      )}
-                    </Field>
+                      </div>
+                    </div>
+                  ) : (
+                    /* High/medium confidence: a compact chip, not a form. */
+                    <div className="flex items-center justify-between gap-2 rounded-2xl border border-border/60 bg-background/40 px-3 py-2">
+                      <div className="min-w-0">
+                        <p
+                          className="truncate text-sm font-medium text-foreground"
+                          data-testid="capture-context-chip"
+                        >
+                          {contextLabel}
+                        </p>
+                        {contextSource === "schedule" && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Looks like the class you're in right now.
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDetailsOpen((value) => !value)}
+                        aria-expanded={detailsOpen}
+                        className="inline-flex min-h-11 shrink-0 items-center rounded-xl px-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        {detailsOpen ? "Done" : "Change"}
+                      </button>
+                    </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <DatePickerField
-                      id="capture-date"
-                      label="Capture date"
-                      value={ctx.date}
-                      onChange={(date) => setCtx((current) => ({ ...current, date }))}
-                      required
-                    />
-                    <Field label="Topic / Chapter">
-                      <input
-                        type="text"
-                        value={ctx.topic ?? ""}
-                        placeholder="Auto-detect if empty"
-                        onChange={(e) => setCtx((c) => ({ ...c, topic: e.target.value }))}
-                        className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
-                      />
-                    </Field>
-                  </div>
+                  {detailsOpen && classesReady && classes.length > 0 && (
+                    <div className="space-y-3 rounded-2xl border border-border/50 bg-background/20 p-3">
+                      <Field label="Class">
+                        <select
+                          aria-label="Class"
+                          value={ctx.classId}
+                          onChange={(e) => {
+                            setCtx((c) => ({
+                              ...c,
+                              classId: e.target.value,
+                              assignmentId: undefined,
+                              assignmentTitle: undefined,
+                              assignmentDueDate: undefined,
+                              examId: undefined,
+                            }));
+                            setClassChangedManually(true);
+                          }}
+                          className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
+                        >
+                          {realMode && (
+                            <option value="" disabled>Choose a class</option>
+                          )}
+                          {classes.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <DatePickerField
+                          id="capture-date"
+                          label="Capture date"
+                          value={ctx.date}
+                          onChange={(date) => setCtx((current) => ({ ...current, date }))}
+                        />
+                        <Field label="Topic / Chapter (optional)">
+                          <input
+                            type="text"
+                            value={ctx.topic ?? ""}
+                            placeholder="Campus Coach reads this from the material"
+                            onChange={(e) => setCtx((c) => ({ ...c, topic: e.target.value }))}
+                            className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
+                          />
+                        </Field>
+                      </div>
+                      {meta.requiresImages && (
+                        <>
+                          {meta.kind === "scan-assignment" && (
+                            <>
+                              <Field label="Assignment (optional)">
+                                <select
+                                  aria-label="Assignment"
+                                  value={ctx.assignmentId ?? ""}
+                                  onChange={(event) => setCtx((current) => ({
+                                    ...current,
+                                    assignmentId: event.target.value || undefined,
+                                  }))}
+                                  className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
+                                >
+                                  <option value="">New assignment</option>
+                                  {captureTargets.assignments.map((assignment) => (
+                                    <option key={assignment.id} value={assignment.id}>
+                                      {assignment.title}
+                                      {assignment.due_date ? ` · due ${assignment.due_date}` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              {!ctx.assignmentId && (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <Field label="Assignment name (optional)">
+                                    <input
+                                      aria-label="Assignment name"
+                                      value={ctx.assignmentTitle ?? ""}
+                                      onChange={(event) => setCtx((current) => ({
+                                        ...current,
+                                        assignmentTitle: event.target.value,
+                                      }))}
+                                      placeholder="Read from your photo"
+                                      className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
+                                    />
+                                  </Field>
+                                  <DatePickerField
+                                    id="captured-assignment-due-date"
+                                    label="Due date"
+                                    value={ctx.assignmentDueDate ?? ""}
+                                    onChange={(assignmentDueDate) => setCtx((current) => ({
+                                      ...current,
+                                      assignmentDueDate: assignmentDueDate || undefined,
+                                    }))}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <Field label="Preparing for (optional)">
+                            <select
+                              aria-label="Preparing for"
+                              value={ctx.examId ?? ""}
+                              onChange={(event) => setCtx((current) => ({
+                                ...current,
+                                examId: event.target.value || undefined,
+                              }))}
+                              className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
+                            >
+                              <option value="">No specific test</option>
+                              {captureTargets.exams.map((exam) => (
+                                <option key={exam.id} value={exam.id}>
+                                  {exam.title}
+                                  {exam.exam_date ? ` · ${exam.exam_date}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </>
+                      )}
+                    </div>
+                  )}
+
 
                   {meta.requiresText && (
                     <Field label={
                       meta.kind === "quick-note" ? "Note" :
-                      meta.kind === "professor-hint" ? "What did the professor say?" :
+                      meta.kind === "professor-hint" ? "What did the teacher or instructor say?" :
                       "Your question"
                     }>
                       <textarea
@@ -443,82 +715,14 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
                   {meta.requiresImages && (
                     <div className="space-y-3">
-                      {meta.kind === "scan-assignment" && (
-                        <>
-                          <Field label="Assignment">
-                            <select
-                              aria-label="Assignment"
-                              value={ctx.assignmentId ?? ""}
-                              onChange={(event) => setCtx((current) => ({
-                                ...current,
-                                assignmentId: event.target.value || undefined,
-                              }))}
-                              className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
-                            >
-                              <option value="">New assignment</option>
-                              {captureTargets.assignments.map((assignment) => (
-                                <option key={assignment.id} value={assignment.id}>
-                                  {assignment.title}
-                                  {assignment.due_date ? ` · due ${assignment.due_date}` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
-                          {!ctx.assignmentId && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <Field label="Assignment name">
-                                <input
-                                  aria-label="Assignment name"
-                                  value={ctx.assignmentTitle ?? ""}
-                                  onChange={(event) => setCtx((current) => ({
-                                    ...current,
-                                    assignmentTitle: event.target.value,
-                                  }))}
-                                  placeholder="Chapter 4 homework"
-                                  className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
-                                />
-                              </Field>
-                              <DatePickerField
-                                id="captured-assignment-due-date"
-                                label="Due date"
-                                value={ctx.assignmentDueDate ?? ""}
-                                onChange={(assignmentDueDate) => setCtx((current) => ({
-                                  ...current,
-                                  assignmentDueDate: assignmentDueDate || undefined,
-                                }))}
-                              />
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      <Field label="Preparing for (optional)">
-                        <select
-                          aria-label="Preparing for"
-                          value={ctx.examId ?? ""}
-                          onChange={(event) => setCtx((current) => ({
-                            ...current,
-                            examId: event.target.value || undefined,
-                          }))}
-                          className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground sm:text-sm"
-                        >
-                          <option value="">No specific test</option>
-                          {captureTargets.exams.map((exam) => (
-                            <option key={exam.id} value={exam.id}>
-                              {exam.title}
-                              {exam.exam_date ? ` · ${exam.exam_date}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-
                       <div className="rounded-2xl border border-dashed border-primary/35 bg-primary/5 p-3">
                         <p className="text-sm font-medium text-foreground">
                           {meta.kind === "scan-assignment" ? "Photograph every problem page" : "Photograph notes or book pages"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Add up to 4 photos. Have more than 4? Save the first 4, then start another capture.
+                          Add up to 4 pages to this one capture — one class and date covers all of them.
                           Campus Brain keeps the originals private.
+
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <label
@@ -667,16 +871,32 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
 
               {/* DONE */}
               {stage === "done" && result && (
-                <DoneSummary
+                <CaptureDoneSummary
                   result={result}
+                  sample={!realMode}
                   className={classes.find((c) => c.id === result.context.classId)?.name}
-                  onClose={onClose}
+                  onClose={requestClose}
                   onOpenClass={() => {
-                    onClose();
+                    requestClose();
                     navigate(`/classes/${result.context.classId}`);
                   }}
+                  onPractice={
+                    realMode &&
+                    (result.processingStatus ?? "ready") === "ready" &&
+                    result.context.classId
+                      ? () => {
+                          requestClose();
+                          navigate(
+                            `/study-lab?classId=${encodeURIComponent(result.context.classId)}` +
+                              `&captureId=${encodeURIComponent(result.id)}&format=flashcards`,
+                          );
+                        }
+                      : undefined
+                  }
+
                 />
               )}
+
 
               {/* ERROR */}
               {stage === "error" && (
@@ -832,16 +1052,21 @@ function ProcessingTimeline({
   );
 }
 
-function DoneSummary({
-  result, onClose, onOpenClass, className,
+export function CaptureDoneSummary({
+  result, sample, onClose, onOpenClass, onPractice, className,
 }: {
   result: CaptureResult;
+  sample: boolean;
   onClose: () => void;
   onOpenClass: () => void;
+  /** One compact next action. Omitted when there is nothing safe to study yet. */
+  onPractice?: () => void;
   className?: string;
 }) {
+
   const cls = { name: className || "your class" };
   const processingFailed = result.processingStatus === "failed";
+  const stillProcessing = !sample && result.processingStatus === "processing";
   return (
     <div className="space-y-4">
       <div className={`rounded-2xl border p-4 flex items-start gap-3 ${
@@ -855,9 +1080,13 @@ function DoneSummary({
           <Check className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Saved to {cls?.name}</p>
+          <p className="text-sm font-medium text-foreground">
+            {sample ? `Saved in this demo for ${cls.name}` : `Saved to ${cls.name}`}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {processingFailed
+            {sample
+              ? "Stored on this device for the demo only. It wasn’t uploaded or shared."
+              : processingFailed
               ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
               : result.summary}
           </p>
@@ -869,6 +1098,14 @@ function DoneSummary({
           Open the class and tap Retry. Study tools will stay off until the concepts are ready.
         </p>
       )}
+
+      {stillProcessing && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Campus Brain is still reading this. Study material isn’t ready yet — open the class in a
+          minute to practice it.
+        </p>
+      )}
+
 
       {result.keyConcepts.length > 0 && (
         <div>
@@ -885,24 +1122,59 @@ function DoneSummary({
 
       {result.flashcardCount > 0 && (
         <div className="text-xs text-muted-foreground">
-          {result.flashcardCount} flashcards generated · Campus Brain updated.
+          {sample
+            ? `${result.flashcardCount} sample flashcards created for this demo.`
+            : `${result.flashcardCount} flashcards generated · Campus Brain updated.`}
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
-        <button
-          onClick={onOpenClass}
-          className="flex-1 h-11 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground hover:border-primary/40"
-        >
-          Open class
-        </button>
-        <button
-          onClick={onClose}
-          className="btn-glow flex-1 h-11 rounded-2xl text-sm font-medium"
-        >
-          Done
-        </button>
-      </div>
+      {onPractice ? (
+        <div className="space-y-2 pt-1">
+          {result.kind === "scan-assignment" && (
+            <p className="text-xs text-muted-foreground">
+              Campus Coach turns this problem into practice on the concepts behind it — it
+              won’t just hand over the answer.
+            </p>
+          )}
+          <button
+            onClick={onPractice}
+            className="btn-glow inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-medium"
+          >
+            <Sparkles className="h-4 w-4" />
+            {result.kind === "scan-assignment" ? "Understand this problem" : "Practice this now"}
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onOpenClass}
+              className="h-11 flex-1 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground hover:border-primary/40"
+            >
+              Open class
+            </button>
+            <button
+              onClick={onClose}
+              className="h-11 flex-1 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              Save for later
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onOpenClass}
+            className="flex-1 h-11 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground hover:border-primary/40"
+          >
+            Open class
+          </button>
+          <button
+            onClick={onClose}
+            className="btn-glow flex-1 h-11 rounded-2xl text-sm font-medium"
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
+
 }

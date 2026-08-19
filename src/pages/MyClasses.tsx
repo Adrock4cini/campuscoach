@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText } from "lucide-react";
+import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText, Pencil } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 
@@ -36,7 +36,7 @@ export default function MyClasses() {
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl font-display font-semibold text-foreground">
-                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your semester"}
+                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your term"}
               </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
                 {choosingSyllabusClass
@@ -62,18 +62,20 @@ export default function MyClasses() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">My Classes</h1>
-        <Link
-          to="/path-to-graduation"
-          aria-label="Degree path preview"
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-        >
-          <Map className="h-4 w-4 text-primary" />
-          <span>Degree path</span>
-          <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
-            Preview
-          </Badge>
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
+        {!realMode && (
+          <Link
+            to="/path-to-graduation"
+            aria-label="Degree path coming soon"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+          >
+            <Map className="h-4 w-4 text-primary" />
+            <span>Degree path</span>
+            <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
+              Coming soon
+            </Badge>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        )}
       </div>
 
       {choosingSyllabusClass && (
@@ -192,6 +194,20 @@ export default function MyClasses() {
                 </CardContent>
               </Card>
             </Link>
+            {realMode && !choosingSyllabusClass && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild>
+                  <Link to={`/classes/${encodeURIComponent(c.id)}/edit`} aria-label={`Edit ${c.name}`}>
+                    <Pencil className="mr-1.5 h-4 w-4" /> Edit class
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild>
+                  <Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`} aria-label={`Add or view syllabus for ${c.name}`}>
+                    <FileText className="mr-1.5 h-4 w-4" /> Syllabus
+                  </Link>
+                </Button>
+              </div>
+            )}
           </motion.div>
           );
         })}
@@ -201,8 +217,8 @@ export default function MyClasses() {
         <Link to="/classes/new"><Plus className="h-4 w-4" /> Add class</Link>
       </Button>
       {isReal && (
-        <Button variant="ghost" className="h-11 w-full" onClick={() => navigate("/integrations/canvas")}>
-          <Link2 className="mr-2 h-4 w-4" /> Canvas
+        <Button variant="ghost" className="h-12 w-full rounded-2xl" onClick={() => navigate("/integrations/canvas")}>
+          <Link2 className="mr-2 h-4 w-4" /> Connect Canvas
         </Button>
       )}
     </div>
