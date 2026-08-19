@@ -1,4 +1,5 @@
 import { boundGroundedText } from "./grounded-excerpt.ts";
+import { isNonExplanatoryFragment } from "./grounding-quality.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
 
 export type GeneratedArtifactKind =
