@@ -98,18 +98,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const explicitSignOutRef = useRef(false);
+  const [recovering, setRecovering] = useState<boolean>(
+    () => typeof window !== "undefined" && hasRememberedSession(),
+  );
+
   useEffect(() => {
     let active = true;
     let authRevision = 0;
     setSupabaseNetworkMode("loading");
 
-    const applySession = (nextSession: Session | null) => {
+    const applySession = (nextSession: Session | null, event: string) => {
       if (!active) return;
       profileRequestVersion.current += 1;
-      setSupabaseNetworkMode(nextSession?.user ? "real" : "demo");
-      setSession(nextSession);
-      setAuthUserId(nextSession?.user?.id ?? null);
-      if (nextSession) {
+      if (nextSession?.user) {
+        rememberSignedIn(nextSession.user.id);
+        setRecovering(false);
+        setSupabaseNetworkMode("real");
+        setSession(nextSession);
+        setAuthUserId(nextSession.user.id);
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
         setOnboarded(null);
@@ -117,16 +124,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
           if (active) void loadProfile(nextSession.user.id);
         }, 0);
-      } else {
-        setOnboarded(null);
-        setProfile(null);
+        return;
       }
+
+      // No session. Decide whether this is a real sign-out or a device that is
+      // simply offline / mid-refresh. Guessing "signed out" would eject a
+      // signed-in student to the login screen, which is what iPhone users hit.
+      const decision = classifySessionLoss({
+        event,
+        explicit: explicitSignOutRef.current,
+        online: typeof navigator === "undefined" ? undefined : navigator.onLine,
+        remembered: hasRememberedSession(),
+      });
+
+      if (decision === "recovering") {
+        setRecovering(true);
+        // Keep the last known session object in place: React Query and page
+        // state stay mounted while Supabase retries its refresh.
+        return;
+      }
+
+      forgetSignedIn();
+      setRecovering(false);
+      setSupabaseNetworkMode("demo");
+      setSession(null);
+      setAuthUserId(null);
+      setOnboarded(null);
+      setProfile(null);
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       authRevision += 1;
-      applySession(nextSession);
+      applySession(nextSession, event);
       setLoading(false);
       if (event === "SIGNED_IN" && nextSession?.user?.id) {
         completeOAuthPasskeyOffer(nextSession.user.id);
@@ -139,22 +169,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data, error }) => {
         if (!active || authRevision !== bootstrapRevision) return;
         if (error) {
+          // A failed read is a network problem, never proof of a logout.
           console.warn("[auth] session restore failed", error);
+          if (hasRememberedSession()) setRecovering(true);
           return;
         }
-        applySession(data.session);
+        applySession(data.session, "bootstrap");
       })
       .catch((error) => {
-        if (active) console.warn("[auth] session restore failed", error);
+        if (!active) return;
+        console.warn("[auth] session restore failed", error);
+        if (hasRememberedSession()) setRecovering(true);
       })
       .finally(() => {
         if (active) setLoading(false);
       });
 
+    // Backgrounding, tab suspension, and regained connectivity all resume here.
+    // We only ever *ask* Supabase to re-read the persisted session; a failure
+    // leaves the student exactly where they were.
+    const resume = () => {
+      if (!active) return;
+      void supabase.auth
+        .getSession()
+        .then(({ data, error }) => {
+          if (!active || error) return;
+          if (data.session) applySession(data.session, "resume");
+        })
+        .catch(() => {
+          /* Offline resume: stay put. */
+        });
+    };
+    const onVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") resume();
+    };
+
+    if (typeof window !== "undefined") {
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("pageshow", resume);
+      window.addEventListener("online", resume);
+      window.addEventListener("focus", onVisible);
+    }
+
     return () => {
       active = false;
       setSupabaseNetworkMode("loading");
       sub.subscription.unsubscribe();
+      if (typeof window !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("pageshow", resume);
+        window.removeEventListener("online", resume);
+        window.removeEventListener("focus", onVisible);
+      }
     };
   }, []);
 
@@ -162,13 +228,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ? "loading"
     : session?.user
       ? "real"
-      : "demo"; // anonymous visitors use the sample tour
+      : recovering
+        ? "loading" // reconnecting: never fall back to sample data
+        : "demo"; // anonymous visitors use the sample tour
 
   const value = useMemo<AuthState>(
     () => ({
       session,
       user: session?.user ?? null,
       loading,
+      recovering,
       onboarded,
       isDemoMode,
       profile,
@@ -187,15 +256,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setDemo(true);
       },
       signOut: async () => {
-        await supabase.auth.signOut();
-        setAuthUserId(null);
-        setOnboarded(null);
-        setProfile(null);
+        // The only intentional exit. Everything else is treated as recoverable.
+        explicitSignOutRef.current = true;
+        forgetSignedIn();
+        clearLastRoute();
+        clearStudyRunnerState();
+        clearCaptureDraft();
+        try {
+          await supabase.auth.signOut();
+        } finally {
+          setRecovering(false);
+          setSession(null);
+          setAuthUserId(null);
+          setOnboarded(null);
+          setProfile(null);
+          explicitSignOutRef.current = false;
+        }
       },
       refreshOnboarded: () => loadProfile(session?.user?.id),
     }),
-    [session, loading, isDemoMode, onboarded, profile, mode]
+    [session, loading, recovering, isDemoMode, onboarded, profile, mode]
   );
+
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
