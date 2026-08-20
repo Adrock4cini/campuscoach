@@ -33,7 +33,7 @@ export default function ExamDetail() {
   }
 
   const days = getDaysUntil(e.date);
-  const gradeEstimate = e.readiness >= 80 ? "A-/B+" : e.readiness >= 65 ? "B/B-" : e.readiness >= 45 ? "C+/B-" : "C/C-";
+  const readiness = labelTestReadiness(e.readiness);
 
   const editFields: EditField[] = [
     { key: "title", label: "Exam Title", type: "text" },
@@ -61,13 +61,13 @@ export default function ExamDetail() {
         <Card className={`shadow-card ${getReadinessBg(e.readiness)}`}>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display font-semibold text-foreground">Overall Readiness</h3>
-              <span className={`text-2xl font-bold ${getReadinessColor(e.readiness)}`}>{e.readiness}%</span>
+              <h3 className="font-display font-semibold text-foreground">Test readiness</h3>
+              <span className={`text-lg font-bold ${getReadinessColor(e.readiness)}`}>{readiness.label}</span>
             </div>
             <Progress value={e.readiness} className="h-3 mb-2" />
             <p className="text-sm text-muted-foreground">
-              {getReadinessLabel(e.readiness)} · Estimated grade today: <strong>{gradeEstimate}</strong>.
-              {e.readiness < 70 ? " But there's still time to improve!" : " Keep it up!"}
+              {readiness.meaning}
+              {e.readiness < 70 ? " There's still time to change it." : " Keep spacing your reviews."}
             </p>
           </CardContent>
         </Card>
