@@ -1,6 +1,13 @@
 import { boundGroundedText } from "./grounded-excerpt.ts";
 import { containsSourceFurniture, isNonExplanatoryFragment } from "./grounding-quality.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
+import {
+  NO_USEFUL_MNEMONIC_ERROR,
+  selectBestMnemonicCandidate,
+  type MnemonicCandidate,
+} from "./mnemonic-quality.ts";
+
+export { NO_USEFUL_MNEMONIC_ERROR } from "./mnemonic-quality.ts";
 
 export type GeneratedArtifactKind =
   | "flashcards"
@@ -62,6 +69,13 @@ export interface ArtifactValidationOptions {
   exactTargetByConcept?: Map<string, string>;
   /** Allows a strictly validated 1-6 AI remainder before final 3-6 assembly. */
   allowPartialMatching?: boolean;
+  /** Subject family, used only to rank Make It Stick candidates. */
+  subjectProfileId?: string | null;
+  taskKind?: string | null;
+  /** Technique families the student already rejected ("try another way"). */
+  rejectFamilies?: string[];
+  /** Techniques this student has rated unhelpful. */
+  avoidTechniques?: string[];
 }
 
 export type ArtifactValidationResult =
