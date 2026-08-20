@@ -309,7 +309,7 @@ describe("AuthProvider session restoration", () => {
 
   it("keeps a returning student signed in when the session read fails on resume", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    localStorage.setItem("campus-coach:known-session", "1");
+    localStorage.setItem(KNOWN_SESSION_KEY, "1");
     mocks.getSession.mockRejectedValue(new Error("network down"));
 
     render(
@@ -337,17 +337,17 @@ describe("AuthProvider session restoration", () => {
     );
 
     expect(await screen.findByText("student-1")).toBeInTheDocument();
-    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+    expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
 
     await act(async () => {
       mocks.authCallback?.("SIGNED_OUT", null);
     });
-    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+    expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     });
-    await waitFor(() => expect(localStorage.getItem("campus-coach:known-session")).toBeNull());
+    await waitFor(() => expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBeNull());
   });
 });
 
