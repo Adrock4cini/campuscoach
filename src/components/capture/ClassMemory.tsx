@@ -473,8 +473,11 @@ export function ClassMemory({ classId, className }: Props) {
                 retrying={retryingId === item.id}
               />
             ))}
+            </div>
+            )}
           </div>
         )}
+
       </CardContent>
 
       <CaptureDetailDrawer
