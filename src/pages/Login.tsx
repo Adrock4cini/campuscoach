@@ -106,11 +106,6 @@ export default function Login() {
         </div>
         <Card className="shadow-elevated">
           <CardContent className="p-6 space-y-4">
-            {!openRegistration && (
-              <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center text-xs text-muted-foreground">
-                Invited family beta — sign in with the account details you received.
-              </p>
-            )}
             {stagingBeta && (
               <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
                 Private family beta on a separate staging backend. You can upload real school work for this test — just know
@@ -160,7 +155,7 @@ export default function Login() {
             <div className="flex items-center justify-between text-xs">
               <Link to="/forgot-password" className="text-muted-foreground hover:text-foreground">Forgot password?</Link>
               {!openRegistration && (
-                <Link to="/signup" className="text-primary hover:underline">Invitation info</Link>
+                <Link to="/signup" className="text-primary hover:underline">Need an account?</Link>
               )}
             </div>
           </CardContent>
