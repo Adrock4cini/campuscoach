@@ -825,7 +825,18 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                             />
                           </label>
                         </div>
+                        {photosNeedRetake && images.length === 0 && (
+                          <p
+                            role="status"
+                            aria-live="polite"
+                            className="mt-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground"
+                          >
+                            Your class, date, topic, and notes came back. Photos can't be saved by the
+                            phone when the tab reloads — take or choose them again and you're set.
+                          </p>
+                        )}
                         {images.length > 0 && (
+
                           <div className="mt-3 space-y-2">
                             <div className="grid grid-cols-2 gap-2" role="list" aria-label="Selected photos">
                               {images.map((file, index) => (
