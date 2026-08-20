@@ -42,7 +42,12 @@ export function ClassUpNext({ classId, className }: Props) {
     .filter((e) => e.exam_date && (daysUntil(e.exam_date) ?? -1) >= 0)
     .sort((a, b) => (a.exam_date ?? "").localeCompare(b.exam_date ?? ""))[0];
 
+  const { open: openCapture } = useCapture();
+  const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
+  const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
+
   const loading = assignmentsLoading || examsLoading || coachLoading;
+
 
   return (
     <Card className="overflow-hidden border-primary/25 bg-primary/5 shadow-card">
