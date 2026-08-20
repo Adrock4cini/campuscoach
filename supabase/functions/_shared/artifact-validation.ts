@@ -1,5 +1,5 @@
 import { boundGroundedText } from "./grounded-excerpt.ts";
-import { isNonExplanatoryFragment } from "./grounding-quality.ts";
+import { containsSourceFurniture, isNonExplanatoryFragment } from "./grounding-quality.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
 
 export type GeneratedArtifactKind =
@@ -384,6 +384,9 @@ function validateMultipleChoice(raw: unknown, options: ArtifactValidationOptions
     for (const rawChoice of rawItem.choices) {
       const choice = cleanString(rawChoice, "choice", 1, 240);
       if ("error" in choice) return { ok: false, error: choice.error };
+      if (containsSourceFurniture(choice.value)) {
+        return { ok: false, error: "answer choices must not contain page numbers or copyright text" };
+      }
       const key = duplicateKey(choice.value);
       if (seenChoices.has(key)) return { ok: false, error: "answer choices must be unique" };
       seenChoices.add(key);

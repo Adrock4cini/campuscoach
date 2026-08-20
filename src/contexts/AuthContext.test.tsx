@@ -50,6 +50,7 @@ vi.mock("@/lib/demo/supabaseNetworkPolicy", () => ({
   setSupabaseNetworkMode: mocks.setSupabaseNetworkMode,
 }));
 
+import { KNOWN_SESSION_KEY } from "@/lib/auth/sessionResilience";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 function sessionFor(userId: string): Session {
@@ -309,7 +310,7 @@ describe("AuthProvider session restoration", () => {
 
   it("keeps a returning student signed in when the session read fails on resume", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    localStorage.setItem("campus-coach:known-session", "1");
+    localStorage.setItem(KNOWN_SESSION_KEY, "1");
     mocks.getSession.mockRejectedValue(new Error("network down"));
 
     render(
@@ -326,9 +327,10 @@ describe("AuthProvider session restoration", () => {
     warn.mockRestore();
   });
 
-  it("only forgets the remembered account on an explicit sign out", async () => {
+  it("keeps the remembered account through an offline session loss and clears it on explicit sign out", async () => {
     mocks.getSession.mockResolvedValue({ data: { session: sessionFor("student-1") }, error: null });
     mocks.signOut.mockResolvedValue({ error: null });
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
 
     render(
       <AuthProvider>
@@ -337,17 +339,20 @@ describe("AuthProvider session restoration", () => {
     );
 
     expect(await screen.findByText("student-1")).toBeInTheDocument();
-    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+    expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
 
+    // Offline blip: Supabase reports no session, but this is not a logout.
     await act(async () => {
       mocks.authCallback?.("SIGNED_OUT", null);
     });
-    expect(localStorage.getItem("campus-coach:known-session")).toBe("1");
+    expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
+    onLine.mockRestore();
+
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     });
-    await waitFor(() => expect(localStorage.getItem("campus-coach:known-session")).toBeNull());
+    await waitFor(() => expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBeNull());
   });
 });
 

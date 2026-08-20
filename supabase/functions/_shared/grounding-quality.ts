@@ -39,6 +39,15 @@ export function stripSourceFurniture(rawText: string): string {
 }
 
 /**
+ * True when the text carries publisher furniture (copyright line, running head,
+ * page/slide number). Such text is never knowledge, so it may not appear as an
+ * answer choice, match pair, or mnemonic target even when it is short.
+ */
+export function containsSourceFurniture(rawText: string): boolean {
+  return FURNITURE_LINE.test(rawText);
+}
+
+/**
  * True when the text reads like a heading, label, running head, or page
  * fragment rather than something a student could learn from.
  *
@@ -59,14 +68,20 @@ export function isNonExplanatoryFragment(rawText: string): boolean {
   const words = stripped.split(/\s+/).filter(Boolean);
   const hasExplanation = EXPLANATORY_SIGNAL.test(stripped);
   const hasSentenceEnd = /[.!?:]/.test(stripped);
+  // Short formulas ("F = ma", "a² + b² = c²") teach as well as sentences.
+  const looksLikeEquation = /[=<>]/.test(stripped) && words.length <= 12;
 
-  // A heading is short, has no verb, and does not finish a thought.
-  if (!hasExplanation && (words.length < 12 || !hasSentenceEnd)) return true;
+  // ALL-CAPS running heads.
+  if (words.length <= 12 && stripped === stripped.toUpperCase() && /[A-Z]/.test(stripped) && !looksLikeEquation) {
+    return true;
+  }
+  if (looksLikeEquation) return false;
   // Furniture with nothing but a title left behind is still a heading.
   if (hadFurniture && !hasExplanation) return true;
-  // ALL-CAPS running heads.
-  if (words.length <= 12 && stripped === stripped.toUpperCase() && /[A-Z]/.test(stripped)) return true;
-  return false;
+  if (hasExplanation) return false;
+  // No recognised verb: only a finished sentence of real length still teaches.
+  return !(hasSentenceEnd && words.length >= 5 && !hadFurniture);
+
 }
 
 /**

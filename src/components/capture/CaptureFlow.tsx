@@ -167,6 +167,10 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   // "Change" until the student says the inferred context is wrong.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [classChangedManually, setClassChangedManually] = useState(false);
+  // A restored draft can carry the fact that photos were pending. The files
+  // themselves are in-memory and cannot survive an iOS tab reload, so we say so.
+  const [photosNeedRetake, setPhotosNeedRetake] = useState(false);
+
 
   const [imageSelection, setImageSelection] = useState<{
     files: File[];
@@ -226,6 +230,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setResult(null);
     setCaptureError(null);
     setImageSelection({ files: [], rejectedCount: 0 });
+    setPhotosNeedRetake(Boolean(restorable && draft!.hadPhotos));
+
     setDetailsOpen(false);
     setClassChangedManually(false);
 
@@ -244,7 +250,13 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       });
   }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id, classes]);
 
+  // Once photos are back, drop the "re-take" notice.
+  useEffect(() => {
+    if (images.length > 0) setPhotosNeedRetake(false);
+  }, [images.length]);
+
   // Keep the draft warm while the student is actually composing something.
+
   useEffect(() => {
     if (!open || !kind || stage !== "context") return;
     writeCaptureDraft({
@@ -819,7 +831,18 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
                             />
                           </label>
                         </div>
+                        {photosNeedRetake && images.length === 0 && (
+                          <p
+                            role="status"
+                            aria-live="polite"
+                            className="mt-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground"
+                          >
+                            Your class, date, topic, and notes came back. Photos can't be saved by the
+                            phone when the tab reloads — take or choose them again and you're set.
+                          </p>
+                        )}
                         {images.length > 0 && (
+
                           <div className="mt-3 space-y-2">
                             <div className="grid grid-cols-2 gap-2" role="list" aria-label="Selected photos">
                               {images.map((file, index) => (
