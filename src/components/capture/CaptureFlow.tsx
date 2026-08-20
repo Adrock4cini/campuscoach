@@ -230,6 +230,8 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
     setResult(null);
     setCaptureError(null);
     setImageSelection({ files: [], rejectedCount: 0 });
+    setPhotosNeedRetake(Boolean(restorable && draft!.hadPhotos));
+
     setDetailsOpen(false);
     setClassChangedManually(false);
 
