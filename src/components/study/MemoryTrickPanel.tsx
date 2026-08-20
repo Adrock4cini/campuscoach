@@ -19,6 +19,12 @@ import {
   recordStrategyFeedbackOutcome,
   useStrategyEvidence,
 } from "@/lib/study/strategyEvidence";
+import {
+  isNoUsefulTrickMessage,
+  nextTechniqueFamily,
+  techniqueDisplayLabel,
+  techniqueFamily,
+} from "@/lib/study/mnemonicQuality";
 import { evidenceAdjustment, evidenceNote } from "@/lib/study/strategyEvidence";
 
 export interface MemoryTrickFeedbackContext {
@@ -150,6 +156,21 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
     );
   }
 
+  // Preferable to a forced trick: say so plainly and point at practice.
+  if (isNoUsefulTrickMessage(error)) {
+    return (
+      <div role="status" aria-live="polite" className="space-y-2">
+        <p data-testid="memory-trick-fallback" className="text-sm font-medium text-foreground">
+          No useful memory trick for this one. Let’s practice it instead.
+        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Some facts stick faster through retrieval, a worked example, or comparing
+          it with the term next to it than through a word trick.
+        </p>
+      </div>
+    );
+  }
+
   if (error || !trick) {
     return (
       <div role="alert" aria-live="assertive" className="space-y-3">
@@ -169,7 +190,12 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
 
 interface MemoryTrickResultProps extends MemoryTrickPanelProps {
   trick: MemoryTrickContent;
-  generate: (options?: { regenerate?: boolean; count?: number; strategyId?: string }) => Promise<unknown>;
+  generate: (options?: {
+    regenerate?: boolean;
+    count?: number;
+    strategyId?: string;
+    rejectFamilies?: string[];
+  }) => Promise<unknown>;
 }
 
 function MemoryTrickResult({
@@ -242,7 +268,22 @@ function MemoryTrickResult({
     recordOutcome(false);
     try {
       await onTryAnother?.(feedback);
-      await generate({ regenerate: true, count: 1 });
+      const family = nextTechniqueFamily(trick.technique, {
+        target: trick.target,
+        conceptName: trick.target,
+        subjectProfileId,
+        taskKind: "memorize-terms",
+        rejectFamilies: [techniqueFamily(trick.technique)],
+      });
+      const nextStrategyId = alternatives.find(
+        (action) => action.strategyId !== currentStrategyId,
+      )?.strategyId;
+      await generate({
+        regenerate: true,
+        count: 1,
+        ...(nextStrategyId ? { strategyId: nextStrategyId } : {}),
+        rejectFamilies: [techniqueFamily(trick.technique), ...(family ? [] : [])],
+      });
     } finally {
       setTryingAnother(false);
     }
@@ -287,7 +328,7 @@ function MemoryTrickResult({
           <div className="space-y-1.5">
             <p className="break-words text-base font-medium leading-relaxed text-foreground">{trick.mnemonic}</p>
             <p className="text-[11px] text-muted-foreground">
-              {trick.provenanceLabel} · {trick.techniqueLabel}
+              {techniqueDisplayLabel(trick.technique)} · {trick.techniqueLabel}
             </p>
           </div>
 
