@@ -160,7 +160,9 @@ function listItems(target: string): string[] {
 }
 
 function acronymTokens(text: string): string[] {
-  return (text.match(/\b[A-Z][A-Z]{1,7}\b/g) ?? []).filter((token) => token !== "I");
+  // Standalone all-caps words only. "MITO-sis" is stylised emphasis inside a
+  // word, not an acronym the student has to decode.
+  return (text.match(/(?<![A-Za-z-])[A-Z]{2,7}(?![A-Za-z-])/g) ?? []);
 }
 
 /**
@@ -201,8 +203,8 @@ export function evaluateMnemonicCandidate(
       rejections.push("shortcut-missing-conditions");
     }
 
-    const acronyms = acronymTokens(mnemonic);
-    if (family === "acronymic" || acronyms.length > 0) {
+    const acronyms = family === "acronymic" ? acronymTokens(mnemonic) : [];
+    if (family === "acronymic") {
       const items = listItems(target);
       const letters = acronyms.length ? Math.max(...acronyms.map((token) => token.length)) : 0;
       if (family === "acronymic" && items.length < 3) {
