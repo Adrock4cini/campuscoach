@@ -21,6 +21,7 @@ import type { ClassInfo } from "@/data/demo";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { toDateKey } from "@/lib/calendar/dateKey";
 import { isDateWithinTerm, weekdayForDate } from "@/lib/calendar/classSchedule";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 type CalendarItem =
   | { kind: "class"; id: string; classId: string; className: string; title: string; time: string }
@@ -277,7 +278,11 @@ export function RealCalendarView() {
                           <span aria-hidden="true">·</span>
                           <Clock className="h-3 w-3" />
                           <span>{item.time}</span>
-                          {item.kind === "exam" && <span>· {item.readiness}% ready</span>}
+                          {item.kind === "exam" && (
+                            <span title={labelTestReadiness(item.readiness).meaning}>
+                              · {labelTestReadiness(item.readiness).label}
+                            </span>
+                          )}
                         </span>
                       </span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />

@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { CoachActionKind, CoachRecommendation } from "@/lib/coach/recommend";
+import { READINESS_MEANING } from "@/lib/intelligence/testReadinessLabel";
 
 const ACTION_ICON: Record<CoachActionKind, React.ElementType> = {
   study: BookOpen,
@@ -109,7 +110,10 @@ export function CoachHeroView({ recommendations, loading = false, weakSpots, act
               {top.impact.readinessDelta > 0 && (
                 <>
                   <span aria-hidden>·</span>
-                  <span>Est. <strong className="font-semibold text-primary">+{top.impact.readinessDelta} points</strong></span>
+                  <span title={READINESS_MEANING}>
+                    Should move test readiness up about{" "}
+                    <strong className="font-semibold text-primary">{top.impact.readinessDelta} points</strong>
+                  </span>
                 </>
               )}
             </div>

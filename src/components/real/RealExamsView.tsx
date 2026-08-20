@@ -14,6 +14,7 @@ import { useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { deleteExam } from "@/lib/realData/exams";
 import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 export function RealExamsView() {
   const navigate = useNavigate();
@@ -137,10 +138,13 @@ export function RealExamsView() {
                       {!isPast && (
                         <div>
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Readiness</span>
-                            <span className="font-medium text-foreground">{e.readiness}%</span>
+                            <span className="text-muted-foreground">Test readiness</span>
+                            <span className="font-medium text-foreground">{labelTestReadiness(e.readiness).label}</span>
                           </div>
                           <Progress value={e.readiness} className="h-2" />
+                          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                            {labelTestReadiness(e.readiness).meaning}
+                          </p>
                         </div>
                       )}
                       {e.topics.length > 0 && (

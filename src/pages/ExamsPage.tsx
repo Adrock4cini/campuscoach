@@ -15,7 +15,6 @@ import {
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { ClassTabs } from "@/components/ClassTabs";
 import {
-  estimateExamGrade,
   getStudyFormatRecommendation,
 } from "@/lib/intelligence";
 import {
@@ -26,6 +25,7 @@ import { RecommendationChips } from "@/components/intelligence/RecommendationChi
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealExamsView } from "@/components/real/RealExamsView";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 /**
  * ExamsPage — signed-in students see their real exams; demo/anon users see
@@ -76,7 +76,6 @@ function DemoExamsPage() {
       <div className="space-y-3">
         {sorted.map((e, i) => {
           const days = getDaysUntil(e.date);
-          const gradeEstimate = estimateExamGrade(e.readiness);
           const rec = getStudyFormatRecommendation(e.classId);
           const engine = engineByClass.get(e.classId);
           const isOpen = openId === e.id;
@@ -132,10 +131,13 @@ function DemoExamsPage() {
                       "inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border/40 bg-background/40 font-medium",
                       getReadinessColor(e.readiness),
                     )}>
-                      {e.readiness}% ready
+                      {labelTestReadiness(e.readiness).label}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border/40 bg-background/40 text-muted-foreground">
-                      <Target className="h-3 w-3" /> {gradeEstimate}
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border/40 bg-background/40 text-muted-foreground"
+                      title={labelTestReadiness(e.readiness).meaning}
+                    >
+                      <Target className="h-3 w-3" /> Test readiness
                     </span>
                   </div>
 
