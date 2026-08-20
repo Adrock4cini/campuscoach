@@ -77,17 +77,39 @@ export function ClassUpNext({ classId, className }: Props) {
           </div>
         )}
 
-        <Button asChild className="h-12 w-full rounded-2xl border-0 bg-gradient-calm text-primary-foreground hover:opacity-90">
-          <Link
-            to={nextExam
-              ? `/study-lab?classId=${encodeURIComponent(classId)}&examId=${encodeURIComponent(nextExam.id)}`
-              : `/study-lab?classId=${encodeURIComponent(classId)}`}
-          >
-            <Zap className="mr-1.5 h-4 w-4" />
-            {nextExam ? "Prepare for this test" : "Start a 10-minute study set"}
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Link>
-        </Button>
+        {!signalsLoading && !material.sufficient ? (
+          <div className="space-y-2 rounded-2xl border border-warning/40 bg-warning/10 p-3">
+            <div className="flex items-start gap-2">
+              <FileQuestion className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{material.label}</p>
+                <p className="text-xs text-muted-foreground">{material.detail}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={() => openCapture(undefined, classId)}
+              className="h-12 w-full rounded-2xl border-0 bg-gradient-calm text-primary-foreground hover:opacity-90"
+            >
+              <Camera className="mr-1.5 h-4 w-4" />
+              {nextExam ? "Add material for this test" : material.ctaLabel}
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button asChild className="h-12 w-full rounded-2xl border-0 bg-gradient-calm text-primary-foreground hover:opacity-90">
+            <Link
+              to={nextExam
+                ? `/study-lab?classId=${encodeURIComponent(classId)}&examId=${encodeURIComponent(nextExam.id)}`
+                : `/study-lab?classId=${encodeURIComponent(classId)}`}
+            >
+              <Zap className="mr-1.5 h-4 w-4" />
+              {nextExam ? "Prepare for this test" : "Start a 10-minute study set"}
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
+          </Button>
+        )}
+
       </CardContent>
     </Card>
   );
