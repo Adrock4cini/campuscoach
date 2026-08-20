@@ -15,7 +15,6 @@ import {
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import { ClassTabs } from "@/components/ClassTabs";
 import {
-  estimateExamGrade,
   getStudyFormatRecommendation,
 } from "@/lib/intelligence";
 import {
@@ -77,7 +76,6 @@ function DemoExamsPage() {
       <div className="space-y-3">
         {sorted.map((e, i) => {
           const days = getDaysUntil(e.date);
-          const gradeEstimate = estimateExamGrade(e.readiness);
           const rec = getStudyFormatRecommendation(e.classId);
           const engine = engineByClass.get(e.classId);
           const isOpen = openId === e.id;

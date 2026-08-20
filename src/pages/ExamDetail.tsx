@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { exams, getDaysUntil, getReadinessColor, getReadinessLabel, getReadinessBg } from "@/data/demo";
+import { exams, getDaysUntil, getReadinessColor, getReadinessBg } from "@/data/demo";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, XCircle, Brain, Target, Zap, Pencil, FileText,
 } from "lucide-react";
