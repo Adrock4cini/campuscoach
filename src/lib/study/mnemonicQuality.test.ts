@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   candidateFromVerifiedShortcut,
@@ -222,5 +224,23 @@ describe("Make It Stick — try another way", () => {
       explanation: "Touch your thumb, then trace the bone below it.",
     }], { ...anatomy, rejectFamilies: ["spatial"] });
     expect(rejected).toBeNull();
+  });
+});
+
+describe("Make It Stick — model-call and caching behaviour", () => {
+  const generator = readFileSync(
+    resolve(process.cwd(), "supabase/functions/generate-artifact/index.ts"),
+    "utf8",
+  );
+
+  it("asks for 2-3 candidates in ONE call and never retries for a better one", () => {
+    expect(generator).toContain('"alternates"');
+    expect(generator.match(/callGateway\(/g)?.length).toBe(2); // definition + single call site
+    expect(generator).toContain("NO_USEFUL_MNEMONIC_ERROR");
+    expect(generator).toContain("subjectProfileId: subject.primary");
+  });
+
+  it("returns the practice fallback instead of a 502 when nothing clears the gate", () => {
+    expect(generator).toMatch(/reason: NO_USEFUL_MNEMONIC_ERROR,\s*\},\s*422\)/);
   });
 });
