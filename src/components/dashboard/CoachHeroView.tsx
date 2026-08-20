@@ -109,7 +109,10 @@ export function CoachHeroView({ recommendations, loading = false, weakSpots, act
               {top.impact.readinessDelta > 0 && (
                 <>
                   <span aria-hidden>·</span>
-                  <span>Est. <strong className="font-semibold text-primary">+{top.impact.readinessDelta} points</strong></span>
+                  <span title={READINESS_MEANING}>
+                    Should move test readiness up about{" "}
+                    <strong className="font-semibold text-primary">{top.impact.readinessDelta} points</strong>
+                  </span>
                 </>
               )}
             </div>
