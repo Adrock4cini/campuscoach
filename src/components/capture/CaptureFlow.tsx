@@ -167,6 +167,10 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
   // "Change" until the student says the inferred context is wrong.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [classChangedManually, setClassChangedManually] = useState(false);
+  // A restored draft can carry the fact that photos were pending. The files
+  // themselves are in-memory and cannot survive an iOS tab reload, so we say so.
+  const [photosNeedRetake, setPhotosNeedRetake] = useState(false);
+
 
   const [imageSelection, setImageSelection] = useState<{
     files: File[];
