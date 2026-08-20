@@ -185,6 +185,8 @@ export function ClassMemory({ classId, className }: Props) {
   const [loadError, setLoadError] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [pollsUsed, setPollsUsed] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
+
   const requestVersion = useRef(0);
   const navigate = useNavigate();
 
