@@ -241,8 +241,15 @@ export function evaluateMnemonicCandidate(
     const novel = contentWords(mnemonic).filter((word) => !targetVocabulary.has(word));
     if (normalize(mnemonic).includes(normalize(target)) && target.length > 12) {
       rejections.push("circular");
-    } else if (novel.length < 2) {
+    } else if (new Set(novel).size < 2) {
       rejections.push("circular");
+    } else {
+      // Chanting the term is not a cue: "mitosis means mitosis, mitosis is
+      // just mitosis" adds a filler word and no hook.
+      const counts = new Map<string, number>();
+      for (const word of contentWords(mnemonic)) counts.set(word, (counts.get(word) ?? 0) + 1);
+      const chanted = [...counts.values()].some((count) => count >= 3);
+      if (chanted && new Set(novel).size < 4) rejections.push("circular");
     }
     if (explanation.length < 3) rejections.push("no-explanation");
   }
