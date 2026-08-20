@@ -50,6 +50,7 @@ vi.mock("@/lib/demo/supabaseNetworkPolicy", () => ({
   setSupabaseNetworkMode: mocks.setSupabaseNetworkMode,
 }));
 
+import { KNOWN_SESSION_KEY } from "@/lib/auth/sessionResilience";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 function sessionFor(userId: string): Session {
