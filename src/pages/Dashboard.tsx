@@ -76,10 +76,12 @@ export default function Dashboard() {
           coach={realMode
             ? <RealCoachHero />
             : demoModel ? <DemoCoachHero model={demoModel} /> : null}
+          glance={realMode ? <RealSchoolAtAGlance /> : null}
           agenda={realMode
             ? <RealTodaysPlan classes={ordered} />
             : demoModel ? <DemoTodaysPlan agenda={demoModel.agenda} /> : null}
         />
+
       )}
     </div>
   );
