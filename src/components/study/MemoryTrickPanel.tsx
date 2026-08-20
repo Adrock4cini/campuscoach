@@ -21,7 +21,6 @@ import {
 } from "@/lib/study/strategyEvidence";
 import {
   isNoUsefulTrickMessage,
-  nextTechniqueFamily,
   techniqueDisplayLabel,
   techniqueFamily,
 } from "@/lib/study/mnemonicQuality";
@@ -268,13 +267,6 @@ function MemoryTrickResult({
     recordOutcome(false);
     try {
       await onTryAnother?.(feedback);
-      const family = nextTechniqueFamily(trick.technique, {
-        target: trick.target,
-        conceptName: trick.target,
-        subjectProfileId,
-        taskKind: "memorize-terms",
-        rejectFamilies: [techniqueFamily(trick.technique)],
-      });
       const nextStrategyId = alternatives.find(
         (action) => action.strategyId !== currentStrategyId,
       )?.strategyId;
@@ -282,7 +274,7 @@ function MemoryTrickResult({
         regenerate: true,
         count: 1,
         ...(nextStrategyId ? { strategyId: nextStrategyId } : {}),
-        rejectFamilies: [techniqueFamily(trick.technique), ...(family ? [] : [])],
+        rejectFamilies: [techniqueFamily(trick.technique)],
       });
     } finally {
       setTryingAnother(false);

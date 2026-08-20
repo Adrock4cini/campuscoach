@@ -114,7 +114,14 @@ export function useLearningArtifact<K extends ArtifactKind>(
   }, [load]);
 
   const generate = useCallback(
-    async (opts?: { regenerate?: boolean; count?: number; strategyId?: string; modality?: string }) => {
+    async (opts?: {
+      regenerate?: boolean;
+      count?: number;
+      strategyId?: string;
+      modality?: string;
+      /** Technique families the student just rejected ("try another way"). */
+      rejectFamilies?: string[];
+    }) => {
       const request = ++requestVersion.current;
       setState((s) => ({
         artifact: s.scopeKey === scopeKey ? s.artifact : null,
@@ -136,6 +143,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
             regenerate: opts?.regenerate ?? false,
             strategyId: opts?.strategyId ?? null,
             modality: opts?.modality ?? null,
+            rejectFamilies: opts?.rejectFamilies ?? null,
           },
         });
         if (request !== requestVersion.current) return null;

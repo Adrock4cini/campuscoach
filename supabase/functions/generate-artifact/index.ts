@@ -72,6 +72,8 @@ interface Body {
   regenerate?: boolean; // if true, delete existing rows of same (kind, capture_id) first
   /** Optional toolbox request: "Show a math shortcut", "Visualize it", ... */
   strategyId?: string | null;
+  /** Technique families the student rejected via "try another way". */
+  rejectFamilies?: string[] | null;
   modality?: StrategyModality | null;
   studyScope?: {
     type: "recent" | "exam" | "class";
@@ -555,6 +557,9 @@ Deno.serve(async (req) => {
       subjectProfileId: subject.primary,
       taskKind,
       avoidTechniques: subjectTechniques.avoid,
+      rejectFamilies: Array.isArray(body.rejectFamilies)
+        ? body.rejectFamilies.filter((family): family is string => typeof family === "string").slice(0, 4)
+        : undefined,
     });
     if (!validated.ok) {
       // A rejected-for-usefulness set is not an error the student should
