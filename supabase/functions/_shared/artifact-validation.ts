@@ -469,7 +469,8 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
 
   for (const rawItem of root.items) {
     if (!isRecord(rawItem) || !hasOnlyKeys(rawItem, [
-      "target", "mnemonic", "technique", "explanation", "conceptId", "conceptName", "sourceExcerpt",
+      "target", "mnemonic", "technique", "explanation", "conceptId", "conceptName",
+      "sourceExcerpt", "alternates",
     ])) return { ok: false, error: "mnemonic has unsupported fields" };
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
     if ("error" in linked) return { ok: false, error: linked.error };
@@ -491,34 +492,67 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
       };
     }
 
-    const mnemonic = cleanString(rawItem.mnemonic, "mnemonic", 3, 500);
-    if ("error" in mnemonic) return { ok: false, error: mnemonic.error };
-    if (duplicateKey(mnemonic.value) === duplicateKey(exactTarget)) {
-      return { ok: false, error: "mnemonic must remain separate from the fact" };
-    }
-    const mnemonicKey = duplicateKey(mnemonic.value);
-    if (seenMnemonics.has(mnemonicKey)) return { ok: false, error: "mnemonics must be unique" };
-    seenMnemonics.add(mnemonicKey);
-    if (typeof rawItem.technique !== "string" || !MNEMONIC_TECHNIQUES.includes(rawItem.technique as MnemonicTechnique)) {
-      return { ok: false, error: "mnemonic technique is invalid" };
-    }
-    const explanation = cleanString(rawItem.explanation, "explanation", 3, 500);
-    if ("error" in explanation) return { ok: false, error: explanation.error };
+    // One model call may return 2-3 compact candidates. They are ranked and
+    // filtered deterministically here; no extra call is ever made.
+    const rawCandidates: unknown[] = [
+      { mnemonic: rawItem.mnemonic, technique: rawItem.technique, explanation: rawItem.explanation },
+      ...(Array.isArray(rawItem.alternates) ? rawItem.alternates.slice(0, 3) : []),
+    ];
     const excerpt = canonicalExcerpt(rawItem, linked.concept.id, options.sourceExcerptByConcept);
     if ("error" in excerpt) return { ok: false, error: excerpt.error };
+    const sourceExcerpt = excerpt.value
+      ?? options.sourceExcerptByConcept?.get(linked.concept.id)
+      ?? null;
+
+    const candidates: MnemonicCandidate[] = [];
+    for (const rawCandidate of rawCandidates) {
+      if (!isRecord(rawCandidate)) continue;
+      if (!hasOnlyKeys(rawCandidate, ["mnemonic", "technique", "explanation"])) continue;
+      const mnemonic = cleanString(rawCandidate.mnemonic, "mnemonic", 3, 500);
+      if ("error" in mnemonic) continue;
+      const explanation = cleanString(rawCandidate.explanation, "explanation", 3, 500);
+      if ("error" in explanation) continue;
+      if (
+        typeof rawCandidate.technique !== "string"
+        || !MNEMONIC_TECHNIQUES.includes(rawCandidate.technique as MnemonicTechnique)
+      ) continue;
+      if (duplicateKey(mnemonic.value) === duplicateKey(exactTarget)) continue;
+      if (seenMnemonics.has(duplicateKey(mnemonic.value))) continue;
+      candidates.push({
+        mnemonic: mnemonic.value,
+        technique: rawCandidate.technique,
+        explanation: explanation.value,
+      });
+    }
+    if (!candidates.length) return { ok: false, error: "mnemonic technique is invalid" };
+
+    const selection = selectBestMnemonicCandidate(candidates, {
+      target: exactTarget,
+      conceptName: linked.concept.name,
+      sourceExcerpt,
+      subjectProfileId: options.subjectProfileId ?? null,
+      taskKind: options.taskKind ?? "memorize-terms",
+      rejectFamilies: options.rejectFamilies,
+      avoidTechniques: options.avoidTechniques,
+    });
+    // A weak trick is worse than none: the caller shows practice instead.
+    if (!selection) return { ok: false, error: NO_USEFUL_MNEMONIC_ERROR };
+
+    seenMnemonics.add(duplicateKey(selection.candidate.mnemonic));
     items.push(withExcerpt({
       id: `mnemonic-${linked.concept.id}`,
       conceptId: linked.concept.id,
       conceptName: linked.concept.name,
       target: exactTarget,
-      mnemonic: mnemonic.value,
-      technique: rawItem.technique,
+      mnemonic: selection.candidate.mnemonic,
+      technique: selection.candidate.technique,
       origin: "ai_created",
-      explanation: explanation.value,
+      explanation: selection.candidate.explanation,
     }, excerpt.value));
   }
   return { ok: true, payload: { items } };
 }
+
 
 export function validateArtifactPayload(
   kind: GeneratedArtifactKind,
