@@ -400,6 +400,24 @@ export function ClassMemory({ classId, className }: Props) {
           </div>
         ) : (
           <div className="space-y-3">
+            {scopeIsCurrent && anyProcessing && pollsUsed >= MAX_STATUS_POLLS && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Still processing. This can take longer on a slow connection.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="min-h-11 shrink-0"
+                  onClick={() => {
+                    setPollsUsed(0);
+                    void quietRefresh();
+                  }}
+                >
+                  Check again
+                </Button>
+              </div>
+            )}
             <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
               {focusTopics.length > 0 && (
                 <div>
@@ -443,25 +461,6 @@ export function ClassMemory({ classId, className }: Props) {
 
             {showHistory && (
             <div className="space-y-2">
-
-            {scopeIsCurrent && anyProcessing && pollsUsed >= MAX_STATUS_POLLS && (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-muted/20 p-3">
-                <p className="text-xs text-muted-foreground">
-                  Still processing. This can take longer on a slow connection.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="min-h-11 shrink-0"
-                  onClick={() => {
-                    setPollsUsed(0);
-                    void quietRefresh();
-                  }}
-                >
-                  Check again
-                </Button>
-              </div>
-            )}
 
             {visibleItems.map((item) => (
               <MemoryRow
