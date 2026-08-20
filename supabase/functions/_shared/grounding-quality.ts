@@ -39,6 +39,15 @@ export function stripSourceFurniture(rawText: string): string {
 }
 
 /**
+ * True when the text carries publisher furniture (copyright line, running head,
+ * page/slide number). Such text is never knowledge, so it may not appear as an
+ * answer choice, match pair, or mnemonic target even when it is short.
+ */
+export function containsSourceFurniture(rawText: string): boolean {
+  return FURNITURE_LINE.test(rawText);
+}
+
+/**
  * True when the text reads like a heading, label, running head, or page
  * fragment rather than something a student could learn from.
  *
