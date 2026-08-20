@@ -193,7 +193,11 @@ describe("MemoryTrickPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try another way" }));
     fireEvent.click(screen.getByRole("button", { name: "A different memory trick" }));
     expect(onTryAnother).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: true, count: 1 }));
+    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({
+      regenerate: true,
+      count: 1,
+      rejectFamilies: ["association"],
+    }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Try another way" })).toBeEnabled());
   });
 

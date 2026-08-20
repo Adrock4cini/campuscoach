@@ -267,13 +267,11 @@ function MemoryTrickResult({
     recordOutcome(false);
     try {
       await onTryAnother?.(feedback);
-      const nextStrategyId = alternatives.find(
-        (action) => action.strategyId !== currentStrategyId,
-      )?.strategyId;
+      // Switch technique FAMILY. Regenerating another variant of the same
+      // family is exactly the "weird trick again" behaviour students reject.
       await generate({
         regenerate: true,
         count: 1,
-        ...(nextStrategyId ? { strategyId: nextStrategyId } : {}),
         rejectFamilies: [techniqueFamily(trick.technique)],
       });
     } finally {
