@@ -14,6 +14,7 @@ import { useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { deleteExam } from "@/lib/realData/exams";
 import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 export function RealExamsView() {
   const navigate = useNavigate();

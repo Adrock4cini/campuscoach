@@ -21,6 +21,7 @@ import type { ClassInfo } from "@/data/demo";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { toDateKey } from "@/lib/calendar/dateKey";
 import { isDateWithinTerm, weekdayForDate } from "@/lib/calendar/classSchedule";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 type CalendarItem =
   | { kind: "class"; id: string; classId: string; className: string; title: string; time: string }

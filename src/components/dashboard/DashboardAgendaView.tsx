@@ -10,6 +10,7 @@ import {
   ScanLine,
 } from "lucide-react";
 import type { DashboardAgendaItem } from "@/lib/calendar/dashboardAgenda";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 type DashboardAgendaViewProps = {
   agenda: DashboardAgendaItem[];

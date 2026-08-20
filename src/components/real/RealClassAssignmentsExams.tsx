@@ -14,6 +14,7 @@ import { AddExamDialog } from "./AddExamDialog";
 import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignments";
 import { toast } from "sonner";
 import { assessmentLabel, classifyAssessment } from "@/lib/assessments/classification";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 export function RealClassAssignmentsExams({ classId }: { classId: string }) {
   const {
