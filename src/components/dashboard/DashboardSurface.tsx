@@ -10,18 +10,22 @@ interface DashboardSurfaceProps {
   classes: ClassInfo[];
   coach: ReactNode;
   agenda: ReactNode;
+  /** Stable "school at a glance" summary. Optional so demo mode can omit it. */
+  glance?: ReactNode;
   sample?: boolean;
 }
 
 /** One dashboard information architecture, fed by either real or sample data. */
-export function DashboardSurface({ classes, coach, agenda, sample = false }: DashboardSurfaceProps) {
+export function DashboardSurface({ classes, coach, agenda, glance, sample = false }: DashboardSurfaceProps) {
   return (
     <>
       <div className="space-y-4">
         {sample && <DemoDataNotice />}
-        <ClassShortcutRail classes={classes} />
         {coach}
+        <ClassShortcutRail classes={classes} />
+        {glance}
       </div>
+
 
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:gap-6">
         <aside className="order-1 self-start lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4">
