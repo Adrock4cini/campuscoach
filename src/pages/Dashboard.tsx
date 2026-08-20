@@ -6,6 +6,8 @@ import { TopStrip } from "@/components/dashboard/TopStrip";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
+import { RealSchoolAtAGlance } from "@/components/real/RealSchoolAtAGlance";
+
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
 import { DemoCoachHero } from "@/components/dashboard/DemoCoachHero";
 import { DemoTodaysPlan } from "@/components/dashboard/DemoTodaysPlan";
