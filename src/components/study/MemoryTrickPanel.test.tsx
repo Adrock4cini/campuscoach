@@ -96,7 +96,7 @@ describe("MemoryTrickPanel", () => {
     expect(screen.getByTestId("academic-grounding")).toHaveTextContent(baseProps.exactTarget);
     expect(screen.getByTestId("academic-grounding")).toHaveTextContent(baseProps.sourceExcerpt);
     expect(screen.getByTestId("memory-trick-result")).toHaveTextContent("Dessert has two s's because you want seconds.");
-    expect(screen.getByText("AI-created memory trick · Association")).toBeInTheDocument();
+    expect(screen.getByText("Memory hook · Association")).toBeInTheDocument();
     expect(screen.getByText("How to use it")).toBeInTheDocument();
     expect(screen.getByText("Quick self-check")).toBeInTheDocument();
     expect(screen.queryByText("artifact-concept-desert")).not.toBeInTheDocument();
@@ -193,7 +193,11 @@ describe("MemoryTrickPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try another way" }));
     fireEvent.click(screen.getByRole("button", { name: "A different memory trick" }));
     expect(onTryAnother).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: true, count: 1 }));
+    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({
+      regenerate: true,
+      count: 1,
+      rejectFamilies: ["association"],
+    }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Try another way" })).toBeEnabled());
   });
 

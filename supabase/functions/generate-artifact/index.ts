@@ -20,6 +20,7 @@ import {
   type MnemonicTechniquePreferences,
   validateArtifactPayload,
 } from "../_shared/artifact-validation.ts";
+import { NO_USEFUL_MNEMONIC_ERROR } from "../_shared/mnemonic-quality.ts";
 import {
   buildExactMnemonicTarget,
   buildGroundedExcerptMap,
@@ -71,6 +72,8 @@ interface Body {
   regenerate?: boolean; // if true, delete existing rows of same (kind, capture_id) first
   /** Optional toolbox request: "Show a math shortcut", "Visualize it", ... */
   strategyId?: string | null;
+  /** Technique families the student rejected via "try another way". */
+  rejectFamilies?: string[] | null;
   modality?: StrategyModality | null;
   studyScope?: {
     type: "recent" | "exam" | "class";
@@ -192,10 +195,13 @@ Return ONLY JSON matching:
   "technique": one of the technique ids listed below,
   "explanation": string,
   "conceptId": string,
-  "conceptName": string
+  "conceptName": string,
+  "alternates": [ { "mnemonic": string, "technique": string, "explanation": string } ]
 } ] }
 Rules:
 - Return exactly the requested number of items and no duplicate concepts.
+- For each item give 2 "alternates" from DIFFERENT technique families than the main one. The server scores all candidates and keeps the single most useful; weak ones are discarded, so never pad.
+- A candidate that only restates the fact, encodes a heading, invents a word origin, or is harder to remember than the fact itself will be rejected. Returning fewer, honest candidates is better than forcing one.
 - Copy each supplied Exact target character-for-character into "target". The target is the fact; never rewrite it.
 - Put the creative memory aid only in "mnemonic". Never blend the trick into or change the target fact.
 - "explanation" briefly tells the student how the trick cues the exact target.
@@ -548,8 +554,22 @@ Deno.serve(async (req) => {
     const validated = validateArtifactPayload(generatedKind, gateway.payload, {
       ...validationOptions,
       exactTargetByConcept: body.kind === "mnemonic" ? exactTargetByConcept : undefined,
+      subjectProfileId: subject.primary,
+      taskKind,
+      avoidTechniques: subjectTechniques.avoid,
+      rejectFamilies: Array.isArray(body.rejectFamilies)
+        ? body.rejectFamilies.filter((family): family is string => typeof family === "string").slice(0, 4)
+        : undefined,
     });
     if (!validated.ok) {
+      // A rejected-for-usefulness set is not an error the student should
+      // retry: there simply is no good trick here, so offer practice.
+      if (validated.error === NO_USEFUL_MNEMONIC_ERROR) {
+        return json({
+          error: "No useful memory trick for this one. Let\u2019s practice it instead.",
+          reason: NO_USEFUL_MNEMONIC_ERROR,
+        }, 422);
+      }
       return json({
         error: "AI changed or malformed the memory trick's source fact. Please try again.",
       }, 502);
