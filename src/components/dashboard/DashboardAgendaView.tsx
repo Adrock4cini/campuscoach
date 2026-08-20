@@ -136,7 +136,11 @@ export function DashboardAgendaView({
                       <span aria-hidden="true">·</span>
                       <Clock className="h-3 w-3 shrink-0" />
                       <span className="truncate">{item.meta}</span>
-                      {item.kind === "exam" && <span className="shrink-0 text-primary">· {item.readiness}% ready</span>}
+                      {item.kind === "exam" && (
+                        <span className="shrink-0 text-primary" title={labelTestReadiness(item.readiness).meaning}>
+                          · {labelTestReadiness(item.readiness).label}
+                        </span>
+                      )}
                     </span>
                   </span>
                   {item.kind === "class" ? (

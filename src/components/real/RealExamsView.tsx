@@ -137,10 +137,13 @@ export function RealExamsView() {
                       {!isPast && (
                         <div>
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Readiness</span>
-                            <span className="font-medium text-foreground">{e.readiness}%</span>
+                            <span className="text-muted-foreground">Test readiness</span>
+                            <span className="font-medium text-foreground">{labelTestReadiness(e.readiness).label}</span>
                           </div>
                           <Progress value={e.readiness} className="h-2" />
+                          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                            {labelTestReadiness(e.readiness).meaning}
+                          </p>
                         </div>
                       )}
                       {e.topics.length > 0 && (

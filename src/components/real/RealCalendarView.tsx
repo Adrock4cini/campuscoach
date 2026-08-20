@@ -277,7 +277,11 @@ export function RealCalendarView() {
                           <span aria-hidden="true">·</span>
                           <Clock className="h-3 w-3" />
                           <span>{item.time}</span>
-                          {item.kind === "exam" && <span>· {item.readiness}% ready</span>}
+                          {item.kind === "exam" && (
+                            <span title={labelTestReadiness(item.readiness).meaning}>
+                              · {labelTestReadiness(item.readiness).label}
+                            </span>
+                          )}
                         </span>
                       </span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />

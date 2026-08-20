@@ -124,7 +124,9 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                     <div className="flex items-center gap-2">
                       <span className="flex-1 text-sm truncate text-foreground">{e.title}</span>
                       {e.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{e.readiness}%</span>
+                      <span className="text-[11px] text-muted-foreground" title={labelTestReadiness(e.readiness).meaning}>
+                        {labelTestReadiness(e.readiness).label}
+                      </span>
                       <Badge variant="outline" className="text-[10px]"><Calendar className="h-3 w-3 mr-0.5" />{chip}</Badge>
                     </div>
                     {e.topics.length > 0 && (
