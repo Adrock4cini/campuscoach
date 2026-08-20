@@ -34,7 +34,8 @@ describe("real coach hero hierarchy", () => {
     expect(within(region).getByText("Today's focus")).toBeInTheDocument();
     expect(within(region).getByText("7 concepts are ready for review.")).toBeInTheDocument();
     expect(within(region).getByText("10 min")).toBeInTheDocument();
-    expect(within(region).getByText("+4 points")).toBeInTheDocument();
+    expect(within(region).getByText(/Should move test readiness up about/)).toBeInTheDocument();
+    expect(within(region).getByText("4 points")).toBeInTheDocument();
     expect(within(region).getByText("Recommended because Fractions is overdue.")).toBeInTheDocument();
     expect(within(region).getByRole("link", { name: /start review/i })).toHaveAttribute(
       "href",
