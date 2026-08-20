@@ -9,9 +9,13 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CalendarClock, ClipboardList, Zap } from "lucide-react";
+import { ArrowRight, CalendarClock, Camera, ClipboardList, FileQuestion, Zap } from "lucide-react";
 import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
+import { useClassReadinessSignals } from "@/lib/intelligence/useClassReadinessSignals";
+import { assessMaterial } from "@/lib/intelligence/materialSufficiency";
+import { useCapture } from "@/contexts/CaptureContext";
+
 
 interface Props {
   classId: string;
