@@ -26,6 +26,7 @@ import { RecommendationChips } from "@/components/intelligence/RecommendationChi
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealExamsView } from "@/components/real/RealExamsView";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 /**
  * ExamsPage — signed-in students see their real exams; demo/anon users see

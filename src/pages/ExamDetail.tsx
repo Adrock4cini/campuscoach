@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ProfessorHints } from "@/components/ProfessorHints";
 import { EditItemModal, type EditField } from "@/components/EditItemModal";
 import type { ProfessorHint } from "@/data/demo";
+import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
 
 export default function ExamDetail() {
   const { examId } = useParams();
