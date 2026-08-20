@@ -89,5 +89,5 @@ export function useClassReadinessSignals(clientClassId: string, options: Options
     overdueAssignments: options.overdueAssignments ?? 0,
   });
 
-  return { explanation, loading, error, reload: load };
+  return { explanation, signals: raw, loading, error, reload: load };
 }
