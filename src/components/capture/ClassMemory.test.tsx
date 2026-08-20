@@ -76,6 +76,12 @@ const realCapture = {
   rawText: "x equals negative b plus or minus...",
 };
 
+
+async function expandHistory() {
+  const toggle = await screen.findByRole("button", { name: /(view|hide) class memory/i });
+  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+}
+
 describe("Class Memory data boundaries", () => {
   beforeEach(() => {
     mocks.mode = "real";
@@ -89,6 +95,7 @@ describe("Class Memory data boundaries", () => {
 
   it("never mixes browser-local demo captures into a signed-in student's memory", async () => {
     render(<ClassMemory classId="math" className="Math" />);
+    await expandHistory();
 
     expect(await screen.findByText("Quadratic Formula")).toBeInTheDocument();
     await waitFor(() => {
@@ -103,6 +110,7 @@ describe("Class Memory data boundaries", () => {
     ]);
 
     render(<ClassMemory classId="math" className="Math" />);
+    await expandHistory();
 
     expect(await screen.findAllByText("Flash cards")).toHaveLength(2);
   });
@@ -111,6 +119,7 @@ describe("Class Memory data boundaries", () => {
     mocks.mode = "demo";
 
     render(<ClassMemory classId="math" className="Math" />);
+    await expandHistory();
 
     expect(await screen.findByText("Atomic Composition")).toBeInTheDocument();
     expect(mocks.getCapturesForClass).not.toHaveBeenCalled();
@@ -120,6 +129,7 @@ describe("Class Memory data boundaries", () => {
   it("does not expose a class invite until a real join route exists", async () => {
     render(<ClassMemory classId="math" className="Math" />);
 
+    await expandHistory();
     await screen.findByText("Quadratic Formula");
     expect(mocks.invite).not.toHaveBeenCalled();
   });
@@ -127,6 +137,7 @@ describe("Class Memory data boundaries", () => {
   it("routes a signed-in capture into the concept-backed study lab", async () => {
     render(<ClassMemory classId="math" className="Math" />);
 
+    await expandHistory();
     await screen.findByText("Quadratic Formula");
     fireEvent.click(screen.getByRole("button", { name: /^study/i }));
 
@@ -153,6 +164,7 @@ describe("Class Memory data boundaries", () => {
     }]);
 
     render(<ClassMemory classId="math" className="Math" />);
+    await expandHistory();
 
     expect(await screen.findByText("needs attention")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^study/i })).not.toBeInTheDocument();
@@ -182,6 +194,7 @@ describe("Class Memory data boundaries", () => {
     await act(async () => {
       resolveScience([{ ...realCapture, id: "science-capture", topic: "Cell Division" }]);
     });
+    await expandHistory();
     expect(await screen.findByText("Cell Division")).toBeInTheDocument();
 
     await act(async () => { resolveMath([realCapture]); });
@@ -199,6 +212,7 @@ describe("Class Memory data boundaries", () => {
 
       render(<ClassMemory classId="math" className="Math" />);
       await act(async () => { await Promise.resolve(); });
+      await expandHistory();
 
       expect(screen.queryByRole("button", { name: /^study/i })).not.toBeInTheDocument();
 
@@ -239,6 +253,7 @@ describe("Class Memory data boundaries", () => {
 
   it("hides one student's captures immediately when the account changes", async () => {
     const { rerender } = render(<ClassMemory classId="math" className="Math" />);
+    await expandHistory();
     expect(await screen.findByText("Quadratic Formula")).toBeInTheDocument();
 
     let resolveSecond!: (rows: (typeof realCapture)[]) => void;
@@ -252,6 +267,7 @@ describe("Class Memory data boundaries", () => {
     await act(async () => {
       resolveSecond([{ ...realCapture, id: "student-b-capture", topic: "Linear Equations" }]);
     });
+    await expandHistory();
     expect(await screen.findByText("Linear Equations")).toBeInTheDocument();
   });
 });

@@ -25,6 +25,8 @@ import { useCapture } from "@/contexts/CaptureContext";
 import { RealClassAssignmentsExams } from "@/components/real/RealClassAssignmentsExams";
 import { SyllabusNextStep } from "@/components/real/SyllabusNextStep";
 import { ClassTopicTargets } from "@/components/real/ClassTopicTargets";
+import { ClassUpNext } from "@/components/real/ClassUpNext";
+import { ClassReadinessCard } from "@/components/real/ClassReadinessCard";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { formatDateKey } from "@/lib/calendar/dateKey";
 
@@ -113,31 +115,46 @@ export default function ClassDetail() {
         )}
 
 
-        <Card className="shadow-card">
-          <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
-            {c.professor && c.professor !== "TBD" && (
-              <div className="flex items-center gap-2"><User className="h-4 w-4" /> {c.professor}</div>
-            )}
-            {(c.days.length > 0 || c.time) && (
-              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {c.days.join(", ")}{c.time ? `${c.days.length ? " · " : ""}${c.time}${c.endTime ? `–${c.endTime}` : ""}` : ""}</div>
-            )}
-            {c.location && (
-              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {c.location}</div>
-            )}
-            {(c.courseCode || c.term || c.section) && (
-              <div className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> {[c.courseCode, c.term, c.section ? `Section ${c.section}` : ""].filter(Boolean).join(" · ")}</div>
-            )}
-            {(c.semesterStartDate || c.semesterEndDate) && (
-              <div className="flex items-center gap-2">
-                <CalendarRange className="h-4 w-4" />
-                {[c.semesterStartDate, c.semesterEndDate]
-                  .filter(Boolean)
-                  .map((date) => formatDateKey(date, { month: "short", day: "numeric" }))
-                  .join(" – ")}
+        <ClassUpNext classId={c.id} className={c.name} />
+
+        <ClassReadinessCard classId={c.id} />
+
+        <RealClassAssignmentsExams classId={c.id} />
+
+        <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
+          <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
+            <div>
+              <h3 className="font-display font-semibold text-foreground">Capture something from this class</h3>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                A photo, a note, or something your teacher emphasized. Campus Brain turns it into study sets.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Button className="h-12 w-full rounded-2xl bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture(undefined, c.id)}>
+                <Plus className="h-4 w-4 mr-1.5" /> Capture
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("scan-assignment", c.id)}>
+                  <Camera className="h-4 w-4 mr-1.5" /> Homework help
+                </Button>
+                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("professor-hint", c.id)}>
+                  <MessageSquare className="h-4 w-4 mr-1.5" /> Teacher hint
+                </Button>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => navigate(`/study-lab?classId=${c.id}`)}
+                className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary"
+              >
+                <FlaskConical className="h-4 w-4" /> Study this class
+              </button>
+            </div>
           </CardContent>
         </Card>
+
+        <ClassTopicTargets classId={c.id} className={c.name} schedule={c.schedule} />
+
+        <ClassMemory classId={c.id} className={c.name} />
 
         <Card className="shadow-card border-primary/20">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
@@ -178,42 +195,31 @@ export default function ClassDetail() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
-          <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
-            <div>
-              <h3 className="font-display font-semibold text-foreground">Capture something from this class</h3>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                A photo, a note, or something your teacher emphasized. Campus Brain turns it into study sets.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Button className="h-12 w-full rounded-2xl bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture(undefined, c.id)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Capture
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("scan-assignment", c.id)}>
-                  <Camera className="h-4 w-4 mr-1.5" /> Homework help
-                </Button>
-                <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("professor-hint", c.id)}>
-                  <MessageSquare className="h-4 w-4 mr-1.5" /> Teacher hint
-                </Button>
+        <Card className="shadow-card">
+          <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+            {c.professor && c.professor !== "TBD" && (
+              <div className="flex items-center gap-2"><User className="h-4 w-4" /> {c.professor}</div>
+            )}
+            {(c.days.length > 0 || c.time) && (
+              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {c.days.join(", ")}{c.time ? `${c.days.length ? " · " : ""}${c.time}${c.endTime ? `–${c.endTime}` : ""}` : ""}</div>
+            )}
+            {c.location && (
+              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {c.location}</div>
+            )}
+            {(c.courseCode || c.term || c.section) && (
+              <div className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> {[c.courseCode, c.term, c.section ? `Section ${c.section}` : ""].filter(Boolean).join(" · ")}</div>
+            )}
+            {(c.semesterStartDate || c.semesterEndDate) && (
+              <div className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4" />
+                {[c.semesterStartDate, c.semesterEndDate]
+                  .filter(Boolean)
+                  .map((date) => formatDateKey(date, { month: "short", day: "numeric" }))
+                  .join(" – ")}
               </div>
-              <button
-                type="button"
-                onClick={() => navigate(`/study-lab?classId=${c.id}`)}
-                className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary"
-              >
-                <FlaskConical className="h-4 w-4" /> Study this class
-              </button>
-            </div>
+            )}
           </CardContent>
         </Card>
-
-        <ClassTopicTargets classId={c.id} className={c.name} schedule={c.schedule} />
-
-        <RealClassAssignmentsExams classId={c.id} />
-
-        <ClassMemory classId={c.id} className={c.name} />
       </div>
     );
   }
