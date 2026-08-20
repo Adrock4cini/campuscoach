@@ -346,6 +346,20 @@ export function ClassMemory({ classId, className }: Props) {
   const visibleLoading = scopeIsCurrent ? loading : true;
   const visibleLoadError = scopeIsCurrent ? loadError : false;
 
+  // Summary first: what the class is focusing on, what needs attention.
+  const conceptCounts = new Map<string, number>();
+  for (const item of visibleItems) {
+    for (const concept of item.keyConcepts) {
+      conceptCounts.set(concept, (conceptCounts.get(concept) ?? 0) + 1);
+    }
+  }
+  const focusTopics = [...conceptCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([concept]) => concept);
+  const likelyImportant = focusTopics.slice(0, 3);
+  const needsAttention = visibleItems.filter((item) => item.processingStatus === "failed").length;
+
   return (
     <Card className="shadow-card">
       <CardContent className="p-5">
@@ -383,7 +397,51 @@ export function ClassMemory({ classId, className }: Props) {
             button to add a quick note or teacher hint. It will appear here.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
+              {focusTopics.length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    What your class is focusing on
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {focusTopics.map((topic) => (
+                      <Badge key={topic} variant="outline" className="text-[10px] border-primary/20 text-primary">
+                        {topic}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {likelyImportant.length > 0 && (
+                <p className="text-sm text-foreground">
+                  <span className="font-medium">Likely important for your next test:</span>{" "}
+                  {likelyImportant.join(", ")}
+                </p>
+              )}
+              {needsAttention > 0 && (
+                <p className="text-sm text-warning">
+                  {needsAttention} capture{needsAttention === 1 ? "" : "s"} needs attention before it can be studied.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Campus Coach has learned from {visibleItems.length} class material
+                {visibleItems.length === 1 ? "" : "s"}.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="min-h-11"
+                aria-expanded={showHistory}
+                onClick={() => setShowHistory((v) => !v)}
+              >
+                {showHistory ? "Hide class memory" : `View class memory (${visibleItems.length})`}
+              </Button>
+            </div>
+
+            {showHistory && (
+            <div className="space-y-2">
+
             {scopeIsCurrent && anyProcessing && pollsUsed >= MAX_STATUS_POLLS && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">
