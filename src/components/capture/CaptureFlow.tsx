@@ -250,7 +250,13 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
       });
   }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id, classes]);
 
+  // Once photos are back, drop the "re-take" notice.
+  useEffect(() => {
+    if (images.length > 0) setPhotosNeedRetake(false);
+  }, [images.length]);
+
   // Keep the draft warm while the student is actually composing something.
+
   useEffect(() => {
     if (!open || !kind || stage !== "context") return;
     writeCaptureDraft({
