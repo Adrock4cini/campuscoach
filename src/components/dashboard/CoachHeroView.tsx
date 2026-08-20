@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { CoachActionKind, CoachRecommendation } from "@/lib/coach/recommend";
+import { READINESS_MEANING } from "@/lib/intelligence/testReadinessLabel";
 
 const ACTION_ICON: Record<CoachActionKind, React.ElementType> = {
   study: BookOpen,
