@@ -50,9 +50,11 @@ function expectLandmarkOrder() {
   const agenda = screen.getByRole("heading", { name: "Up next" });
   const classes = screen.getByRole("heading", { name: "Your classes" });
 
-  expect(shortcuts.compareDocumentPosition(focus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(focus.compareDocumentPosition(agenda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Adaptive layer first, then the stable class rail, then the agenda and list.
+  expect(focus.compareDocumentPosition(shortcuts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(shortcuts.compareDocumentPosition(agenda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(agenda.compareDocumentPosition(classes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
 }
 
 function biology(): ClassInfo {
