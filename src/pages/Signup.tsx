@@ -149,22 +149,22 @@ function ClosedBetaSignup() {
       <Card className="w-full max-w-md shadow-elevated">
         <CardContent className="space-y-5 p-6 text-center sm:p-8">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">Limited family beta</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">Early access</p>
             <h1 className="mt-2 font-display text-3xl font-semibold">New accounts are created by invitation</h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              We are setting up one family at a time while school starts. If you were invited, ask the beta organizer to create your account, then sign in.
+              We are onboarding students in small groups while school starts. If your access is already set up, sign in with the account details you received.
             </p>
           </div>
           {supportEmail && (
             <a className="inline-flex min-h-11 items-center justify-center text-sm text-primary hover:underline" href={`mailto:${supportEmail}`}>
-              Contact the beta organizer
+              Contact support
             </a>
           )}
           <Button asChild className="h-12 w-full">
             <Link to="/login">Sign in</Link>
           </Button>
           <p className="text-xs text-muted-foreground">
-            For students age 13 and older. Read the <Link className="text-primary hover:underline" to="/privacy">privacy notice</Link> and <Link className="text-primary hover:underline" to="/terms">beta terms</Link>.
+            For students age 13 and older. Read the <Link className="text-primary hover:underline" to="/privacy">privacy notice</Link> and <Link className="text-primary hover:underline" to="/terms">terms</Link>.
           </p>
         </CardContent>
       </Card>

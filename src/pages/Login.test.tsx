@@ -90,11 +90,15 @@ describe("Login authentication choices", () => {
     mocks.stagingBeta = false;
     renderLogin();
 
-    expect(screen.getByText(/Invited family beta/i)).toBeInTheDocument();
+    // Launch copy regression: production is invite-managed, but students must
+    // never see internal "family beta" / invitation wording on Campus Coach Pro.
+    expect(document.body.textContent).not.toMatch(/family beta/i);
+    expect(document.body.textContent).not.toMatch(/invit/i);
+    expect(screen.getByText("Sign in to Campus Companion")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in with password" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue as demo" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Invitation info" })).toHaveAttribute("href", "/signup");
+    expect(screen.getByRole("link", { name: "Need an account?" })).toHaveAttribute("href", "/signup");
     expect(screen.queryByRole("link", { name: "Create family beta account" })).not.toBeInTheDocument();
   });
 
