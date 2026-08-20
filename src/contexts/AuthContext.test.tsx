@@ -327,9 +327,10 @@ describe("AuthProvider session restoration", () => {
     warn.mockRestore();
   });
 
-  it("only forgets the remembered account on an explicit sign out", async () => {
+  it("keeps the remembered account through an offline session loss and clears it on explicit sign out", async () => {
     mocks.getSession.mockResolvedValue({ data: { session: sessionFor("student-1") }, error: null });
     mocks.signOut.mockResolvedValue({ error: null });
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
 
     render(
       <AuthProvider>
@@ -340,10 +341,13 @@ describe("AuthProvider session restoration", () => {
     expect(await screen.findByText("student-1")).toBeInTheDocument();
     expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
 
+    // Offline blip: Supabase reports no session, but this is not a logout.
     await act(async () => {
       mocks.authCallback?.("SIGNED_OUT", null);
     });
     expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBe("1");
+    onLine.mockRestore();
+
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
