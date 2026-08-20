@@ -78,8 +78,8 @@ const realCapture = {
 
 
 async function expandHistory() {
-  const toggle = await screen.findByRole("button", { name: /view class memory/i });
-  fireEvent.click(toggle);
+  const toggle = await screen.findByRole("button", { name: /(view|hide) class memory/i });
+  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
 }
 
 describe("Class Memory data boundaries", () => {
