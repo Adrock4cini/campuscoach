@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Clock, Calendar, CheckCircle2 } from "lucide-react";
+import { Plus, Clock, Calendar, CheckCircle2, HelpCircle } from "lucide-react";
 import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
@@ -15,6 +15,7 @@ import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignme
 import { toast } from "sonner";
 import { assessmentLabel, classifyAssessment } from "@/lib/assessments/classification";
 import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
+import { useCapture } from "@/contexts/CaptureContext";
 
 export function RealClassAssignmentsExams({ classId }: { classId: string }) {
   const {
@@ -29,6 +30,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
     error: examsError,
     reload: reloadExams,
   } = useRealExams(classId);
+  const { open: openCapture } = useCapture();
   const [addA, setAddA] = useState(false);
   const [addE, setAddE] = useState(false);
 
