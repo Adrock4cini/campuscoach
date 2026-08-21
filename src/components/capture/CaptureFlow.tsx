@@ -54,8 +54,13 @@ interface Props {
   open: boolean;
   initialKind?: CaptureKind;
   initialClassId?: string;
+  /** Prefilled links from the entry point (assignment "Get help", exam prep). */
+  initialAssignmentId?: string;
+  initialExamId?: string;
+  initialTopic?: string;
   onClose: () => void;
 }
+
 
 type Stage = "menu" | "context" | "processing" | "done" | "error";
 
