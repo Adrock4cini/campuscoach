@@ -502,6 +502,8 @@ Deno.serve(async (req) => {
       if (masteryErr) {
         await releaseClaimAsFailed();
         return json({ error: "mastery seed failed", details: masteryErr.message }, 500);
+      }
+    }
   }
 
   // Concepts that already existed are reinforced, never reset: seed a mastery
@@ -529,8 +531,6 @@ Deno.serve(async (req) => {
     }
   }
 
-
-  }
 
   // 4. Persist processed_content row (summary + key_concepts strings)
   if (body.captureId) {
