@@ -10,6 +10,10 @@
  * - high confidence + wrong → larger strength drop, sooner review
  * - high confidence + correct → slightly stronger retention interval
  * - low confidence + correct → modest gain (lucky or shaky)
+ *
+ * Exam date (optional): never schedule the next review *after* the exam.
+ * Prefer a final review window the evening before when the pure interval
+ * would overshoot. Keeps spacing honest for short exam horizons.
  */
 
 export type ConfidenceLevel = "low" | "medium" | "high";
@@ -28,17 +32,25 @@ export interface MasteryUpdateInput {
   correct: boolean;
   /** Student self-rating before seeing feedback. Affects drop/gain size. */
   confidence?: ConfidenceLevel | null;
+  /**
+   * Upcoming exam (ISO date or datetime). When set, next_review_at is
+   * clamped so the student is prompted before the test, not after.
+   */
+  examDate?: string | Date | null;
   now?: Date;
 }
 
 const STRENGTH_UP = 0.15;
 const STRENGTH_DOWN = 0.1;
 const MAX_INTERVAL_HOURS = 24 * 30;
+/** Prefer a last look ~12h before the exam when we would otherwise overshoot. */
+const PRE_EXAM_BUFFER_MS = 12 * 3600 * 1000;
 
 export function applyMasteryUpdate({
   prev,
   correct,
   confidence = null,
+  examDate = null,
   now = new Date(),
 }: MasteryUpdateInput): MasteryRow {
   const p: MasteryRow = prev ?? {
@@ -71,7 +83,8 @@ export function applyMasteryUpdate({
     const base = 24 * Math.pow(2, Math.max(0, streak - 1));
     hours = Math.min(MAX_INTERVAL_HOURS, confidence === "low" ? Math.max(8, base * 0.6) : base);
   }
-  const next = new Date(now.getTime() + hours * 3600 * 1000);
+  let next = new Date(now.getTime() + hours * 3600 * 1000);
+  next = clampNextReviewToExam(next, now, examDate);
 
   return {
     attempts,
@@ -81,6 +94,40 @@ export function applyMasteryUpdate({
     last_seen_at: now.toISOString(),
     next_review_at: next.toISOString(),
   };
+}
+
+/**
+ * If an exam is coming up and the pure spaced interval lands after it,
+ * pull the review into the pre-exam window so spacing still serves the test.
+ */
+export function clampNextReviewToExam(
+  proposed: Date,
+  now: Date,
+  examDate?: string | Date | null,
+): Date {
+  if (!examDate) return proposed;
+  const exam = typeof examDate === "string" ? parseExamDate(examDate) : examDate;
+  if (Number.isNaN(exam.getTime())) return proposed;
+  if (exam.getTime() <= now.getTime()) return proposed;
+
+  const latestUseful = new Date(exam.getTime() - PRE_EXAM_BUFFER_MS);
+  // If the exam is sooner than the buffer, review as soon as practical (1h).
+  const floor = new Date(now.getTime() + 60 * 60 * 1000);
+  const deadline = latestUseful.getTime() > floor.getTime() ? latestUseful : floor;
+
+  if (proposed.getTime() > deadline.getTime()) {
+    return deadline;
+  }
+  return proposed;
+}
+
+function parseExamDate(value: string): Date {
+  // Date-only strings (YYYY-MM-DD) → local noon so timezone edge cases
+  // don't flip the calendar day for students.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`);
+  }
+  return new Date(value);
 }
 
 export function computeReadiness(strengths: number[]): number {
