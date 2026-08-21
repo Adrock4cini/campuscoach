@@ -7,6 +7,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { extractExactThinSource } from "../_shared/thin-source.ts";
 import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import {
+  dedupeConceptCandidates,
+  type ExistingConcept,
+} from "../_shared/concept-identity.ts";
+
 
 interface Body {
   captureId?: string;
@@ -402,9 +407,42 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3. Upsert concepts + mastery
+  // 3. Deduplicate against permanent memory, then upsert concepts + mastery.
+  //
+  // Re-photographing the same page, or a textbook example and an assignment
+  // question about the same idea, must reinforce ONE concept rather than
+  // multiplying near-identical rows and splitting mastery across them.
   const nowIso = new Date().toISOString();
-  const conceptRows = concepts.map((c, i) => ({
+
+  let existingClassConcepts: ExistingConcept[] = [];
+  if (resolvedClassId || resolvedClientClassId) {
+    let existingQuery = adminClient
+      .from("concepts")
+      .select("id, name, definition, professor_emphasis")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true })
+      .limit(500);
+    if (resolvedClassId) existingQuery = existingQuery.eq("class_id", resolvedClassId);
+    else existingQuery = existingQuery.eq("client_class_id", resolvedClientClassId!);
+    const { data: existingRows, error: existingClassErr } = await existingQuery;
+    if (existingClassErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "concept dedupe lookup failed", details: existingClassErr.message }, 500);
+    }
+    existingClassConcepts = (existingRows ?? []) as ExistingConcept[];
+  }
+
+  const isHint = body.kind === "professor-hint";
+  const indexed = concepts.map((concept, index) => ({ ...concept, __index: index }));
+  const dedupe = dedupeConceptCandidates(
+    indexed.map((concept) => ({
+      ...concept,
+      professor_emphasis: !!concept.professor_emphasis || isHint,
+    })),
+    existingClassConcepts,
+  );
+
+  const conceptRows = dedupe.fresh.map((c) => ({
     user_id: userId,
     class_id: resolvedClassId,
     client_class_id: resolvedClientClassId,
@@ -413,12 +451,26 @@ Deno.serve(async (req) => {
     slug: slugify(c.name),
     definition: c.definition ?? null,
     examples: c.examples ?? [],
-    professor_emphasis: !!c.professor_emphasis || body.kind === "professor-hint",
-    embedding: embeddings[i] ? (embeddings[i] as unknown as string) : null,
+    professor_emphasis: !!c.professor_emphasis,
+    embedding: embeddings[c.__index] ? (embeddings[c.__index] as unknown as string) : null,
     source_kind: body.kind ?? null,
   }));
 
-  let insertedIds: string[] = [];
+  // A teacher hint about an already-known concept raises IMPORTANCE, never
+  // mastery. Flip the emphasis flag on the existing row instead of cloning it.
+  if (dedupe.emphasiseConceptIds.length) {
+    const { error: emphasisErr } = await adminClient
+      .from("concepts")
+      .update({ professor_emphasis: true })
+      .eq("user_id", userId)
+      .in("id", dedupe.emphasiseConceptIds);
+    if (emphasisErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "concept emphasis update failed", details: emphasisErr.message }, 500);
+    }
+  }
+
+  let insertedIds: string[] = dedupe.merged.map((entry) => entry.conceptId);
   if (conceptRows.length) {
     const { data: inserted, error: insErr } = await adminClient
       .from("concepts")
@@ -428,7 +480,8 @@ Deno.serve(async (req) => {
       await releaseClaimAsFailed();
       return json({ error: "concepts insert failed", details: insErr.message }, 500);
     }
-    insertedIds = (inserted ?? []).map((r: { id: string }) => r.id);
+    insertedIds = [...insertedIds, ...(inserted ?? []).map((r: { id: string }) => r.id)];
+
 
     // seed mastery at strength 0.15 (exposed, not yet learned)
     const masteryRows = (inserted ?? []).map((r: { id: string; class_id: string | null }) => ({
@@ -452,6 +505,32 @@ Deno.serve(async (req) => {
       }
     }
   }
+
+  // Concepts that already existed are reinforced, never reset: seed a mastery
+  // row only when one is missing so a re-capture cannot wipe real progress.
+  if (dedupe.merged.length) {
+    const { error: reinforceErr } = await adminClient
+      .from("user_concept_mastery")
+      .upsert(
+        dedupe.merged.map((entry) => ({
+          user_id: userId,
+          concept_id: entry.conceptId,
+          class_id: resolvedClassId,
+          strength: 0.15,
+          attempts: 0,
+          correct: 0,
+          last_seen_at: nowIso,
+          next_review_at: nowIso,
+          streak: 0,
+        })),
+        { onConflict: "user_id,concept_id", ignoreDuplicates: true },
+      );
+    if (reinforceErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "mastery reinforce failed", details: reinforceErr.message }, 500);
+    }
+  }
+
 
   // 4. Persist processed_content row (summary + key_concepts strings)
   if (body.captureId) {

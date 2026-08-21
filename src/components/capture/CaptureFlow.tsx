@@ -54,8 +54,13 @@ interface Props {
   open: boolean;
   initialKind?: CaptureKind;
   initialClassId?: string;
+  /** Prefilled links from the entry point (assignment "Get help", exam prep). */
+  initialAssignmentId?: string;
+  initialExamId?: string;
+  initialTopic?: string;
   onClose: () => void;
 }
+
 
 type Stage = "menu" | "context" | "processing" | "done" | "error";
 
@@ -94,7 +99,16 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "added-to-brain", label: "Adding concepts to Class Memory", duration: 300 },
 ];
 
-export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
+export function CaptureFlow({
+  open,
+  initialKind,
+  initialClassId,
+  initialAssignmentId,
+  initialExamId,
+  initialTopic,
+  onClose,
+}: Props) {
+
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
   const {
@@ -241,14 +255,33 @@ export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Prop
         date: draft!.date || todayDateKey(),
         topic: draft!.topic,
         text: draft!.text,
+        assignmentId: initialAssignmentId,
+        examId: initialExamId,
       }
       : {
         classId: defaultClassId,
         date: todayDateKey(),
-        topic: detected?.currentTopic ?? "",
+        topic: initialTopic ?? detected?.currentTopic ?? "",
         text: "",
+        // Entry points that already know the target (Assignment → "Get help",
+        // Test → "Add material") pre-link it so the work lands on the right
+        // assignment/test without the student re-selecting anything.
+        assignmentId: initialAssignmentId,
+        examId: initialExamId,
       });
-  }, [open, initialKind, realMode, defaultClassId, detected?.currentTopic, user?.id, classes]);
+  }, [
+    open,
+    initialKind,
+    realMode,
+    defaultClassId,
+    detected?.currentTopic,
+    user?.id,
+    classes,
+    initialAssignmentId,
+    initialExamId,
+    initialTopic,
+  ]);
+
 
   // Once photos are back, drop the "re-take" notice.
   useEffect(() => {

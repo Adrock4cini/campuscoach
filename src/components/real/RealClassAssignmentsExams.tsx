@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Clock, Calendar, CheckCircle2 } from "lucide-react";
+import { Plus, Clock, Calendar, CheckCircle2, HelpCircle } from "lucide-react";
 import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
@@ -15,6 +15,7 @@ import { updateAssignment, type AssignmentStatus } from "@/lib/realData/assignme
 import { toast } from "sonner";
 import { assessmentLabel, classifyAssessment } from "@/lib/assessments/classification";
 import { labelTestReadiness } from "@/lib/intelligence/testReadinessLabel";
+import { useCapture } from "@/contexts/CaptureContext";
 
 export function RealClassAssignmentsExams({ classId }: { classId: string }) {
   const {
@@ -29,6 +30,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
     error: examsError,
     reload: reloadExams,
   } = useRealExams(classId);
+  const { open: openCapture } = useCapture();
   const [addA, setAddA] = useState(false);
   const [addE, setAddE] = useState(false);
 
@@ -70,25 +72,43 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                   days < 0 ? `${-days}d overdue` :
                   days === 0 ? "Today" : `${days}d`;
                 return (
-                  <li key={a.id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggle(a.id, a.status)}
-                      aria-label={a.status === "complete" ? `Mark ${a.title} not started` : `Mark ${a.title} complete`}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-                    >
-                      <CheckCircle2 className={`h-4 w-4 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
-                    </button>
-                    <span className={`flex-1 text-sm truncate ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                      {a.title}
-                    </span>
-                    {type !== "assignment" && (
-                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">{assessmentLabel(type)}</Badge>
+                  <li key={a.id} className="rounded-xl px-1 py-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggle(a.id, a.status)}
+                        aria-label={a.status === "complete" ? `Mark ${a.title} not started` : `Mark ${a.title} complete`}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                      >
+                        <CheckCircle2 className={`h-4 w-4 ${a.status === "complete" ? "text-success" : "text-muted-foreground/40"}`} />
+                      </button>
+                      <span className={`flex-1 text-sm truncate ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                        {a.title}
+                      </span>
+                      {type !== "assignment" && (
+                        <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">{assessmentLabel(type)}</Badge>
+                      )}
+                      {a.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
+                      <Badge variant="outline" className="text-[10px]"><Clock className="h-3 w-3 mr-0.5" />{chip}</Badge>
+                    </div>
+                    {a.status !== "complete" && (
+                      <div className="pl-11">
+                        {/* Homework help is the same brain as test prep: the photo
+                            is linked to this assignment, so its concepts land in
+                            Class Memory and later show up in study + readiness. */}
+                        <button
+                          type="button"
+                          onClick={() => openCapture("scan-assignment", { classId, assignmentId: a.id })}
+                          className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        >
+                          <HelpCircle className="h-3.5 w-3.5" />
+                          Get help with this
+                        </button>
+                      </div>
                     )}
-                    {a.source === "syllabus" && <Badge variant="outline" className="text-[10px]">Syllabus</Badge>}
-                    <Badge variant="outline" className="text-[10px]"><Clock className="h-3 w-3 mr-0.5" />{chip}</Badge>
                   </li>
                 );
+
               })}
             </ul>
           )}
