@@ -502,8 +502,34 @@ Deno.serve(async (req) => {
       if (masteryErr) {
         await releaseClaimAsFailed();
         return json({ error: "mastery seed failed", details: masteryErr.message }, 500);
-      }
+  }
+
+  // Concepts that already existed are reinforced, never reset: seed a mastery
+  // row only when one is missing so a re-capture cannot wipe real progress.
+  if (dedupe.merged.length) {
+    const { error: reinforceErr } = await adminClient
+      .from("user_concept_mastery")
+      .upsert(
+        dedupe.merged.map((entry) => ({
+          user_id: userId,
+          concept_id: entry.conceptId,
+          class_id: resolvedClassId,
+          strength: 0.15,
+          attempts: 0,
+          correct: 0,
+          last_seen_at: nowIso,
+          next_review_at: nowIso,
+          streak: 0,
+        })),
+        { onConflict: "user_id,concept_id", ignoreDuplicates: true },
+      );
+    if (reinforceErr) {
+      await releaseClaimAsFailed();
+      return json({ error: "mastery reinforce failed", details: reinforceErr.message }, 500);
     }
+  }
+
+
   }
 
   // 4. Persist processed_content row (summary + key_concepts strings)
