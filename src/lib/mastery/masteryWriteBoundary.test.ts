@@ -37,7 +37,10 @@ describe("server-only mastery write boundary", () => {
       "adminClient",
       "adminClient",
       "adminClient",
+      // Reinforcement upsert for concepts that already existed (dedupe path).
+      "adminClient",
     ]);
+
     expect(masteryClients(processCaptureImages)).toEqual([
       "adminClient",
       "adminClient",
