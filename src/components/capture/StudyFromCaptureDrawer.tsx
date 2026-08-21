@@ -44,6 +44,8 @@ import {
 } from "@/lib/intelligence/readinessEngine";
 import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
 import { getClassLearningSnapshot, getTopLearningRecommendation } from "@/lib/intelligence/learningEngine";
+import { VerifiedTrickCard } from "@/components/study/VerifiedTrickCard";
+import { selectVerifiedTrick } from "@/lib/study/verifiedTricks";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
 import {
   applyAssignmentHelpEvents,
@@ -310,6 +312,12 @@ function PreviewStage({
   onChangeMode: (m: StudyMode) => void;
 }) {
   const modes: StudyMode[] = ["flashcards", "quiz", "practice", "explain"];
+  // Instant, zero-cost help: a curated trick for what this capture is about.
+  const curatedTrick = selectVerifiedTrick({
+    conceptName: session.keyConcepts[0] ?? session.topic,
+    problemText: `${session.topic} ${session.summary ?? ""}`,
+    sourceExcerpt: session.summary ?? null,
+  });
   const engineRec = (() => {
     try {
       const snap = getClassLearningSnapshot(classId);
@@ -369,6 +377,15 @@ function PreviewStage({
               </Badge>
             ))}
           </div>
+        </div>
+      )}
+
+      {curatedTrick && (
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Before you start
+          </p>
+          <VerifiedTrickCard match={curatedTrick} />
         </div>
       )}
 
