@@ -32,18 +32,21 @@ export type {
 } from "../../../supabase/functions/_shared/verified-tricks";
 
 import type { StrategyEvidence } from "./strategyEvidence";
+import { STRATEGY_BY_ID } from "./strategyToolbox";
 
 /**
  * Turns the student's own observed effectiveness into a technique ordering.
  * This is a preference signal, never a learner-type label: it only breaks ties
- * between tricks that are already applicable, and it decays with the evidence.
+ * between tricks that are already applicable, it is scoped to subject + task,
+ * and it reverses as soon as the evidence does.
  */
 export function preferredTechniquesFromEvidence(
   evidence: readonly StrategyEvidence[],
 ): string[] {
   return evidence
-    .filter((entry) => !!entry.technique && entry.adjustment > 0)
-    .sort((a, b) => b.adjustment - a.adjustment)
-    .map((entry) => entry.technique as string)
+    .filter((entry) => entry.meaningful && entry.lift > 0 && !!entry.strategyId)
+    .sort((a, b) => b.lift - a.lift)
+    .map((entry) => STRATEGY_BY_ID[entry.strategyId as string]?.technique)
+    .filter((technique): technique is string => !!technique)
     .filter((technique, index, all) => all.indexOf(technique) === index);
 }
