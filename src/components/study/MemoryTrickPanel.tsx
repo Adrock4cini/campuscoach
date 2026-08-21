@@ -25,6 +25,8 @@ import {
   techniqueFamily,
 } from "@/lib/study/mnemonicQuality";
 import { evidenceAdjustment, evidenceNote } from "@/lib/study/strategyEvidence";
+import { selectVerifiedTrick } from "@/lib/study/verifiedTricks";
+import { VerifiedTrickCard } from "./VerifiedTrickCard";
 
 export interface MemoryTrickFeedbackContext {
   artifactId: string;
@@ -59,6 +61,19 @@ function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
     setOpenState(next);
     props.onOpenChange?.(next);
   };
+  const [preferGenerated, setPreferGenerated] = useState(false);
+  // Zero-cost first: a curated match is pure code, so the AI path (and its
+  // credits) is only reached when the library has nothing trustworthy.
+  const curated = useMemo(
+    () => preferGenerated
+      ? null
+      : selectVerifiedTrick({
+        conceptName: props.conceptName,
+        problemText: `${props.exactTarget} ${props.sourceExcerpt}`,
+        subjectProfileId: props.subjectProfileId,
+      }),
+    [preferGenerated, props.conceptName, props.exactTarget, props.sourceExcerpt, props.subjectProfileId],
+  );
   const panelId = useId();
   const headingId = `${panelId}-heading`;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +118,14 @@ function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
           className="mt-2 min-w-0 space-y-4 rounded-2xl border border-primary/25 bg-primary/5 p-4 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
         >
           <h3 id={headingId} className="sr-only">Memory trick for {props.conceptName}</h3>
-          <MemoryTrickLoader {...props} />
+          {curated
+            ? (
+              <VerifiedTrickCard
+                match={curated}
+                onTryAnother={() => setPreferGenerated(true)}
+              />
+            )
+            : <MemoryTrickLoader {...props} />}
         </div>
       )}
     </div>
