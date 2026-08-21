@@ -150,7 +150,7 @@ export function StudyFromCaptureDrawer({
     if (!masteryBearing) {
       setChange(null);
       setExposureNote(
-        evidence.applied.find((entry) => entry.outcome === "answer_shown_only")?.studentNote
+        evidence.applied[0]?.studentNote
           ?? "You saw a worked answer. Practice it once and it will count.",
       );
       return;
