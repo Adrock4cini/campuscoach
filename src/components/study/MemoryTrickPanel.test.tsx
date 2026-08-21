@@ -81,6 +81,27 @@ describe("MemoryTrickPanel", () => {
     expect(mocks.generate).not.toHaveBeenCalled();
   });
 
+  it("uses the curated library first and never spends an AI call on a known trick", () => {
+    render(
+      <MemoryTrickPanel
+        {...baseProps}
+        conceptId="concept-dessert"
+        conceptName="dessert vs desert"
+        exactTarget="Dessert has two s's; desert has one."
+        sourceExcerpt="A dessert is a sweet course served after a meal."
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Make it stick" }));
+
+    expect(screen.getByTestId("verified-trick-card")).toHaveAttribute("data-trick-id", "dessert-desert");
+    expect(mocks.hook).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show me a different approach" }));
+    expect(screen.queryByTestId("verified-trick-card")).not.toBeInTheDocument();
+    expect(mocks.hook).toHaveBeenCalled();
+  });
+
   it("loads an existing one-concept artifact and separates truth from the trick", async () => {
     mocks.state.artifact = mnemonicArtifact();
     render(<MemoryTrickPanel {...baseProps} />);
