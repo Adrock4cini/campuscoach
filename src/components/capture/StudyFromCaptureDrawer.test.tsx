@@ -61,6 +61,13 @@ function renderDrawer(persistence: "local-only" | "remote") {
 function finishSingleCardSession() {
   fireEvent.click(screen.getByRole("button", { name: /start · flashcards/i }));
   fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+  fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+  fireEvent.click(screen.getByRole("button", { name: /finish/i }));
+}
+
+function revealOnlySession() {
+  fireEvent.click(screen.getByRole("button", { name: /start · flashcards/i }));
+  fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: /finish/i }));
 }
 
@@ -118,5 +125,23 @@ describe("StudyFromCaptureDrawer persistence boundary", () => {
         { persistence: "remote" },
       );
     });
+  });
+});
+
+describe("StudyFromCaptureDrawer mastery boundary", () => {
+  beforeEach(() => {
+    mocks.contributeStudySignal.mockReset().mockResolvedValue({ error: null });
+    mocks.updateCampusBrainAggregate.mockReset().mockResolvedValue(undefined);
+    mocks.updateReadinessAfterStudy.mockReset().mockResolvedValue(null);
+  });
+
+  it("treats a revealed answer with no attempt as exposure, not mastery", async () => {
+    renderDrawer("remote");
+    revealOnlySession();
+
+    expect(await screen.findByText(/Practice it once and it will count/i)).toBeInTheDocument();
+    expect(mocks.updateReadinessAfterStudy).not.toHaveBeenCalled();
+    expect(mocks.contributeStudySignal).not.toHaveBeenCalled();
+    expect(mocks.updateCampusBrainAggregate).not.toHaveBeenCalled();
   });
 });

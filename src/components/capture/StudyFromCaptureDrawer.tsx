@@ -240,6 +240,9 @@ export function StudyFromCaptureDrawer({
             progress={progress}
             item={current}
             revealed={revealed}
+            answeredThisStep={
+              outcomes[step] !== undefined && outcomes[step] !== "answer_shown_only"
+            }
             onReveal={() => {
               recordOutcome("answer_shown_only");
               setRevealed(true);
@@ -413,6 +416,7 @@ function RunningStage({
   progress,
   item,
   revealed,
+  answeredThisStep,
   onReveal,
   onAnswer,
   onNext,
@@ -423,6 +427,7 @@ function RunningStage({
   progress: number;
   item: SessionItem;
   revealed: boolean;
+  answeredThisStep: boolean;
   onReveal: () => void;
   onAnswer: (correct: boolean) => void;
   onNext: () => void;
@@ -525,6 +530,18 @@ function RunningStage({
           <Button variant="outline" className="flex-1" onClick={onReveal}>
             Reveal
           </Button>
+        )}
+        {/* Retrieval has to be self-reported: seeing the back of a card is
+            exposure, not proof you knew it. */}
+        {session.mode === "flashcards" && revealed && !answeredThisStep && (
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => onAnswer(false)}>
+              Not yet
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => onAnswer(true)}>
+              Got it
+            </Button>
+          </>
         )}
         <Button
           className="flex-1 bg-gradient-calm border-0 text-primary-foreground hover:opacity-90"
