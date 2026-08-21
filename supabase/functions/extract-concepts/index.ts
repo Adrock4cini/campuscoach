@@ -7,6 +7,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { extractExactThinSource } from "../_shared/thin-source.ts";
 import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import {
+  dedupeConceptCandidates,
+  type ExistingConcept,
+} from "../_shared/concept-identity.ts";
+
 
 interface Body {
   captureId?: string;
