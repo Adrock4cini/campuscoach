@@ -69,8 +69,8 @@ function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
       ? null
       : selectVerifiedTrick({
         conceptName: props.conceptName,
-        problemText: `${props.exactTarget} ${props.sourceExcerpt}`,
-        subjectProfileId: props.subjectProfileId,
+        problemText: props.exactTarget,
+        sourceExcerpt: props.sourceExcerpt,
       }),
     [preferGenerated, props.conceptName, props.exactTarget, props.sourceExcerpt, props.subjectProfileId],
   );
