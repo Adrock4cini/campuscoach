@@ -2,8 +2,18 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 import { CaptureFlow } from "@/components/capture/CaptureFlow";
 import type { CaptureKind } from "@/lib/capture/types";
 
+/** Extra context an entry point already knows, so the student re-types nothing. */
+export interface CaptureOpenOptions {
+  classId?: string;
+  /** Attach the capture to a real assignment (Assignment → "Get help"). */
+  assignmentId?: string;
+  /** Attach the capture to a real test (Test → "Add material"). */
+  examId?: string;
+  topic?: string;
+}
+
 interface CaptureContextValue {
-  open: (kind?: CaptureKind, classId?: string) => void;
+  open: (kind?: CaptureKind, classIdOrOptions?: string | CaptureOpenOptions) => void;
   close: () => void;
 }
 
@@ -12,11 +22,15 @@ const Ctx = createContext<CaptureContextValue | null>(null);
 export function CaptureProvider({ children }: { children: ReactNode }) {
   const [isOpen, setOpen] = useState(false);
   const [initial, setInitial] = useState<CaptureKind | undefined>(undefined);
-  const [initialClassId, setInitialClassId] = useState<string | undefined>(undefined);
+  const [options, setOptions] = useState<CaptureOpenOptions>({});
 
-  const open = useCallback((kind?: CaptureKind, classId?: string) => {
+  const open = useCallback((kind?: CaptureKind, classIdOrOptions?: string | CaptureOpenOptions) => {
     setInitial(kind);
-    setInitialClassId(classId);
+    setOptions(
+      typeof classIdOrOptions === "string"
+        ? { classId: classIdOrOptions }
+        : classIdOrOptions ?? {},
+    );
     setOpen(true);
   }, []);
   const close = useCallback(() => setOpen(false), []);
@@ -27,7 +41,10 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
       <CaptureFlow
         open={isOpen}
         initialKind={initial}
-        initialClassId={initialClassId}
+        initialClassId={options.classId}
+        initialAssignmentId={options.assignmentId}
+        initialExamId={options.examId}
+        initialTopic={options.topic}
         onClose={close}
       />
     </Ctx.Provider>
