@@ -26,15 +26,15 @@ vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
 }));
 
 const baseProps: MemoryTrickPanelProps = {
-  conceptId: "concept-desert",
-  conceptName: "Desert vs. dessert",
-  exactTarget: "Dessert has two s's; desert has one.",
-  sourceExcerpt: "A dessert is a sweet course served after a meal.",
+  conceptId: "concept-homeostasis",
+  conceptName: "Homeostasis",
+  exactTarget: "Homeostasis is the maintenance of a stable internal environment.",
+  sourceExcerpt: "The body holds internal conditions steady despite outside change.",
   classId: "english",
   studyScope: { type: "exam", id: "exam-1", label: "Vocabulary test" },
 };
 
-function mnemonicArtifact(conceptId = "concept-desert", classId = "english") {
+function mnemonicArtifact(conceptId = "concept-homeostasis", classId = "english") {
   return {
     id: `artifact-${conceptId}`,
     kind: "mnemonic",
@@ -48,13 +48,13 @@ function mnemonicArtifact(conceptId = "concept-desert", classId = "english") {
       items: [{
         id: `item-${conceptId}`,
         conceptId,
-        conceptName: "Desert vs. dessert",
-        target: "Dessert has two s's; desert has one.",
+        conceptName: "Homeostasis",
+        target: "Homeostasis is the maintenance of a stable internal environment.",
         mnemonic: "Dessert has two s's because you want seconds.",
         technique: "association",
         origin: "ai_created",
         explanation: "Connect the second s in dessert with asking for seconds.",
-        sourceExcerpt: "A dessert is a sweet course served after a meal.",
+        sourceExcerpt: "The body holds internal conditions steady despite outside change.",
       }],
     },
   };
@@ -89,8 +89,8 @@ describe("MemoryTrickPanel", () => {
     expect(mocks.hook).toHaveBeenCalledWith("mnemonic", {
       classId: "english",
       captureId: undefined,
-      conceptIds: ["concept-desert"],
-      topic: "Desert vs. dessert",
+      conceptIds: ["concept-homeostasis"],
+      topic: "Homeostasis",
       studyScope: baseProps.studyScope,
     });
     expect(screen.getByTestId("academic-grounding")).toHaveTextContent(baseProps.exactTarget);
@@ -99,8 +99,8 @@ describe("MemoryTrickPanel", () => {
     expect(screen.getByText("Memory hook · Association")).toBeInTheDocument();
     expect(screen.getByText("How to use it")).toBeInTheDocument();
     expect(screen.getByText("Quick self-check")).toBeInTheDocument();
-    expect(screen.queryByText("artifact-concept-desert")).not.toBeInTheDocument();
-    expect(screen.queryByText("concept-desert")).not.toBeInTheDocument();
+    expect(screen.queryByText("artifact-concept-homeostasis")).not.toBeInTheDocument();
+    expect(screen.queryByText("concept-homeostasis")).not.toBeInTheDocument();
     expect(mocks.generate).not.toHaveBeenCalled();
 
     await waitFor(() => expect(screen.getByRole("region")).toHaveFocus());
@@ -118,7 +118,7 @@ describe("MemoryTrickPanel", () => {
 
     expect(mocks.hook).toHaveBeenCalledWith("mnemonic", expect.objectContaining({
       captureId: "capture-1",
-      conceptIds: ["concept-desert"],
+      conceptIds: ["concept-homeostasis"],
       studyScope: { type: "recent", id: "capture-capture-1", label: "This capture" },
     }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false, count: 1 }));
@@ -183,8 +183,8 @@ describe("MemoryTrickPanel", () => {
     expect(screen.getByText(/doesn’t change mastery/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
     expect(onHelpful).toHaveBeenCalledWith(expect.objectContaining({
-      artifactId: "artifact-concept-desert",
-      conceptId: "concept-desert",
+      artifactId: "artifact-concept-homeostasis",
+      conceptId: "concept-homeostasis",
       classId: "english",
       origin: "ai_created",
       technique: "association",
@@ -246,14 +246,14 @@ describe("MemoryTrickPanel", () => {
     expect(screen.getByText(/because you want seconds/i)).toBeInTheDocument();
     expect(mocks.hook).toHaveBeenCalledTimes(1);
 
-    mocks.state.artifact = mnemonicArtifact("concept-mitosis", "biology");
+    mocks.state.artifact = mnemonicArtifact("concept-checkpoints", "biology");
     rerender(
       <MemoryTrickPanel
         {...baseProps}
-        conceptId="concept-mitosis"
-        conceptName="Mitosis phases"
-        exactTarget="Mitosis proceeds through prophase, metaphase, anaphase, and telophase."
-        sourceExcerpt="PMAT gives the order of the four mitosis phases."
+        conceptId="concept-checkpoints"
+        conceptName="Cell cycle checkpoints"
+        exactTarget="Checkpoints halt the cycle until conditions are correct."
+        sourceExcerpt="The class note describes the G1 and G2 checkpoints."
         classId="biology"
       />,
     );
