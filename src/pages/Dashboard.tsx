@@ -7,6 +7,7 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 import { RealSchoolAtAGlance } from "@/components/real/RealSchoolAtAGlance";
+import { useRealClassAlerts } from "@/components/real/RealClassAlerts";
 
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
 import { DemoCoachHero } from "@/components/dashboard/DemoCoachHero";
@@ -36,6 +37,7 @@ export default function Dashboard() {
     [demoMode],
   );
   const ordered = realMode ? myClasses : demoModel?.classes ?? [];
+  const classAlerts = useRealClassAlerts(realMode ? ordered : []);
 
   // In real mode with no classes yet → show empty state, hide demo-derived widgets.
   const hasNoRealData = realMode && !loading && ordered.length === 0;
@@ -75,10 +77,11 @@ export default function Dashboard() {
         <DashboardSurface
           classes={ordered}
           sample={demoMode}
+          classAlerts={classAlerts}
           coach={realMode
             ? <RealCoachHero />
             : demoModel ? <DemoCoachHero model={demoModel} /> : null}
-          glance={realMode ? <RealSchoolAtAGlance /> : null}
+          glance={realMode ? <RealSchoolAtAGlance classes={ordered} /> : null}
           agenda={realMode
             ? <RealTodaysPlan classes={ordered} />
             : demoModel ? <DemoTodaysPlan agenda={demoModel.agenda} /> : null}

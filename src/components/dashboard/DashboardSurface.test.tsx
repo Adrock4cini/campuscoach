@@ -37,25 +37,27 @@ function surface(sample: boolean) {
       <DashboardSurface
         classes={[biology()]}
         sample={sample}
+        classAlerts={{ "bio/101": { text: "Test Fri · Getting there", tone: "warning", secondary: "+ assignment today" } }}
         coach={<section aria-labelledby="test-focus"><h2 id="test-focus">Today's focus</h2></section>}
         agenda={<section aria-labelledby="test-agenda"><h2 id="test-agenda">Up next</h2></section>}
+        glance={<section aria-label="Next up" />}
       />
     </MemoryRouter>
   );
 }
 
 function expectLandmarkOrder() {
-  const shortcuts = screen.getByRole("navigation", { name: "Class shortcuts" });
   const focus = screen.getByRole("heading", { name: "Today's focus" });
   const agenda = screen.getByRole("heading", { name: "Up next" });
   const classes = screen.getByRole("heading", { name: "Your classes" });
+  const nextUp = screen.getByRole("region", { name: "Next up" });
 
-  // Adaptive layer first, then the stable class rail, then the agenda and list.
-  expect(focus.compareDocumentPosition(shortcuts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(shortcuts.compareDocumentPosition(agenda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(agenda.compareDocumentPosition(classes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
+  // Classes first, then the compact next-up strip, then the recommendation.
+  expect(classes.compareDocumentPosition(nextUp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(nextUp.compareDocumentPosition(focus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(agenda).toBeInTheDocument();
 }
+
 
 function biology(): ClassInfo {
   return {
