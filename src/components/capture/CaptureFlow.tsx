@@ -99,7 +99,16 @@ const IMAGE_PROCESSING_STEPS: ProcessingStep[] = [
   { id: "added-to-brain", label: "Adding concepts to Class Memory", duration: 300 },
 ];
 
-export function CaptureFlow({ open, initialKind, initialClassId, onClose }: Props) {
+export function CaptureFlow({
+  open,
+  initialKind,
+  initialClassId,
+  initialAssignmentId,
+  initialExamId,
+  initialTopic,
+  onClose,
+}: Props) {
+
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
   const {
