@@ -79,6 +79,8 @@ export interface VerifiedTrick {
   requirePattern?: RegExp;
   /** Disqualifying form — a different concept that shares vocabulary. */
   forbidPattern?: RegExp;
+  /** Extra structural check that a regex cannot express. */
+  guard?: (text: string) => boolean;
   /** Builds a worked line from the student's own numbers, when possible. */
   instance?: (text: string) => string | null;
 }
@@ -94,9 +96,31 @@ const P_TIMES_FIVE = /(-?\d+(?:\.\d+)?)\s*(?:x|\*|×)\s*5(?!\d)/i;
 const P_TIMES_ELEVEN = /(\d{2})\s*(?:x|\*|×)\s*11(?!\d)/;
 const P_TIMES_25 = /(-?\d+(?:\.\d+)?)\s*(?:x|\*|×)\s*25(?!\d)/i;
 const P_SQUARE_END_5 = /(\d*[1-9]\d*5)\s*(?:\^2|²|\bsquared\b|\s*(?:x|\*|×)\s*\1)/i;
-const P_DIFF_SQUARES = /([a-z0-9]+)\s*(?:\^2|²)\s*-\s*([a-z0-9]+)\s*(?:\^2|²)/i;
+const P_DIFF_SQUARES = /([a-z]\w*|\d+)\s*(?:\^2|²)\s*[-\u2212]\s*(?:([a-z]\w*)\s*(?:\^2|²)|(\d+))/i;
 const P_FRACTION_DIVISION = /(\d+\s*\/\s*\d+|\bfractions?\b)[^\n]{0,24}(÷|\/\s*\d+\s*\/|\bdivided by\b|\bdivide\b)|(÷|\bdivided by\b)[^\n]{0,16}\d+\s*\/\s*\d+/i;
-const P_TWO_BINOMIALS = /\(\s*[^()]+[+\-][^()]+\)\s*(?:x|\*|×)?\s*\(\s*[^()]+[+\-][^()]+\)/;
+const P_TWO_BINOMIALS = /\(([^()]+)\)\s*(?:x|\*|×)?\s*\(([^()]+)\)/;
+
+/** A binomial has exactly two terms: one internal + or - sign. */
+function isBinomial(factor: string): boolean {
+  const terms = factor.trim().split(/\s*[+\u2212-]\s*/).filter(Boolean);
+  return terms.length === 2;
+}
+
+function guardTwoBinomials(text: string): boolean {
+  const m = P_TWO_BINOMIALS.exec(text);
+  return !!m && isBinomial(m[1]) && isBinomial(m[2]);
+}
+
+/** Only a genuine difference of two perfect squares factors this way. */
+function guardDifferenceOfSquares(text: string): boolean {
+  const m = P_DIFF_SQUARES.exec(text);
+  if (!m) return false;
+  if (m[2]) return true;
+  const constant = Number(m[3]);
+  if (!Number.isFinite(constant) || constant <= 0) return false;
+  const root = Math.round(Math.sqrt(constant));
+  return root * root === constant;
+}
 const P_PROPORTION = /\d+\s*\/\s*\d*[a-z0-9]*\s*=\s*\d*[a-z0-9]*\s*\/\s*\d+|\bproportion\b|\bratios? .{0,12}equal\b/i;
 
 /* ------------------------------------------------------------------ *
@@ -310,6 +334,7 @@ export const VERIFIED_TRICKS: readonly VerifiedTrick[] = [
     sourceType: "mathematical_identity",
     aliases: ["difference square", "factor square", "factoring square"],
     requirePattern: P_DIFF_SQUARES,
+    guard: guardDifferenceOfSquares,
   },
   {
     id: "of-means-multiply",
@@ -495,7 +520,7 @@ export const VERIFIED_TRICKS: readonly VerifiedTrick[] = [
     ],
     examples: ["47 × 8 = 376 → (2 × 8 = 16 → 7) and (3 + 7 + 6 = 16 → 7) — consistent"],
     sourceType: "mathematical_identity",
-    aliases: ["check answer", "error check arithmetic", "casting out nine"],
+    aliases: ["check answer", "checking answer", "error check arithmetic", "casting out nine"],
   },
   {
     id: "foil-binomials",
@@ -515,6 +540,7 @@ export const VERIFIED_TRICKS: readonly VerifiedTrick[] = [
     sourceType: "mathematical_identity",
     aliases: ["multiply binomial", "expand bracket", "distributive multiply"],
     requirePattern: P_TWO_BINOMIALS,
+    guard: guardTwoBinomials,
   },
   {
     id: "slope-rise-run",
@@ -1133,6 +1159,7 @@ export function selectVerifiedTricks(
     // A trick with a required form is disqualified unless that form is present,
     // no matter how well the vocabulary matches.
     if (trick.requirePattern && !patternHit) continue;
+    if (trick.guard && !trick.guard(text)) continue;
     const alias = aliasHit(trick.aliases, tokens);
     if (!patternHit && !alias) continue;
 
