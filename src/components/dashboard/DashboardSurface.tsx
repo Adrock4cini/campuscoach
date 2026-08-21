@@ -3,41 +3,40 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import type { ClassInfo } from "@/data/demo";
-import { ClassShortcutRail } from "./ClassShortcutRail";
+import type { ClassAlert } from "@/lib/dashboard/classAlerts";
 import { RealClassCard } from "./RealClassCard";
 
 interface DashboardSurfaceProps {
   classes: ClassInfo[];
   coach: ReactNode;
   agenda: ReactNode;
-  /** Stable "school at a glance" summary. Optional so demo mode can omit it. */
+  /** Compact cross-class "next test / next due" strip. Optional in demo mode. */
   glance?: ReactNode;
+  /** One headline alert per class id. */
+  classAlerts?: Record<string, ClassAlert>;
   sample?: boolean;
 }
 
-/** One dashboard information architecture, fed by either real or sample data. */
-export function DashboardSurface({ classes, coach, agenda, glance, sample = false }: DashboardSurfaceProps) {
+/**
+ * One dashboard information architecture: classes first, then the compact
+ * next-up strip, then the coach recommendation. A calm school status board.
+ */
+export function DashboardSurface({ classes, coach, agenda, glance, classAlerts, sample = false }: DashboardSurfaceProps) {
   return (
-    <>
-      <div className="space-y-4">
+    <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:gap-6">
+      <aside className="order-2 self-start lg:order-none lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4">
+        {agenda}
+      </aside>
+
+      <div className="order-1 space-y-4 lg:order-none lg:col-start-1 lg:row-start-1">
         {sample && <DemoDataNotice />}
-        {coach}
-        <ClassShortcutRail classes={classes} />
-        {glance}
-      </div>
-
-
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:gap-6">
-        <aside className="order-1 self-start lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4">
-          {agenda}
-        </aside>
 
         <motion.section
           aria-labelledby="dashboard-classes-title"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.05 }}
-          className="order-2 space-y-3 lg:col-start-1 lg:row-start-1"
+          className="space-y-3"
         >
           <div className="flex items-baseline justify-between px-1">
             <h2 id="dashboard-classes-title" className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -47,11 +46,16 @@ export function DashboardSurface({ classes, coach, agenda, glance, sample = fals
           </div>
           <div className="overflow-hidden rounded-3xl border border-border/50 bg-card/65 shadow-sm backdrop-blur-md">
             {classes.map((classInfo, index) => (
-              <RealClassCard key={classInfo.id} c={classInfo} index={index} />
+              <RealClassCard
+                key={classInfo.id}
+                c={classInfo}
+                index={index}
+                alert={classAlerts?.[classInfo.id]}
+              />
             ))}
           </div>
           {!sample && (
-            <div className="pt-2">
+            <div className="pt-1">
               <Link
                 to="/classes/new"
                 className="inline-flex min-h-11 items-center gap-1.5 text-xs text-primary hover:underline"
@@ -61,8 +65,11 @@ export function DashboardSurface({ classes, coach, agenda, glance, sample = fals
             </div>
           )}
         </motion.section>
+
+        {glance}
+        {coach}
       </div>
-    </>
+    </div>
   );
 }
 

@@ -1,16 +1,20 @@
 /**
- * Real "school at a glance" — stable Today summary fed by the signed-in
- * student's own assignments and exams.
+ * Real "next up" strip — the stable cross-class anchor on Today, fed by the
+ * signed-in student's own assignments and exams.
  */
 import { useMemo } from "react";
+import type { ClassInfo } from "@/data/demo";
 import { useRealAssignments, useRealExams } from "@/lib/realData/hooks";
-import { buildWeekGlance } from "@/lib/calendar/weekGlance";
-import { SchoolAtAGlance } from "@/components/dashboard/SchoolAtAGlance";
+import { buildNextUpSummary } from "@/lib/dashboard/classAlerts";
+import { NextUpStrip } from "@/components/dashboard/NextUpStrip";
 
-export function RealSchoolAtAGlance({ now = new Date() }: { now?: Date }) {
+export function RealSchoolAtAGlance({ classes = [], now = new Date() }: { classes?: ClassInfo[]; now?: Date }) {
   const { items: assignments, loading: assignmentsLoading } = useRealAssignments();
   const { items: exams, loading: examsLoading } = useRealExams();
-  const glance = useMemo(() => buildWeekGlance(assignments, exams, now), [assignments, exams, now]);
+  const summary = useMemo(
+    () => buildNextUpSummary(classes, assignments, exams, now),
+    [classes, assignments, exams, now],
+  );
 
-  return <SchoolAtAGlance glance={glance} loading={assignmentsLoading || examsLoading} />;
+  return <NextUpStrip summary={summary} loading={assignmentsLoading || examsLoading} />;
 }

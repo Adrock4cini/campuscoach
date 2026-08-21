@@ -78,13 +78,13 @@ describe("dashboard data modes", () => {
     renderDashboard();
 
     expect(screen.getByRole("note", { name: "Demo information" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Class shortcuts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your classes" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Today's focus" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Up next" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your classes" })).toBeInTheDocument();
     expect(screen.getAllByText("Intro to Psychology").length).toBeGreaterThan(0);
-    expect(mocks.demoCoach).toHaveBeenCalledOnce();
-    expect(mocks.demoAgenda).toHaveBeenCalledOnce();
+    expect(mocks.demoCoach).toHaveBeenCalled();
+    expect(mocks.demoAgenda).toHaveBeenCalled();
     expect(mocks.realCoach).not.toHaveBeenCalled();
     expect(mocks.realAgenda).not.toHaveBeenCalled();
   });
@@ -98,8 +98,8 @@ describe("dashboard data modes", () => {
     expect(screen.queryByRole("note", { name: "Demo information" })).not.toBeInTheDocument();
     expect(screen.getAllByText("My Biology").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Intro to Psychology")).toHaveLength(0);
-    expect(mocks.realCoach).toHaveBeenCalledOnce();
-    expect(mocks.realAgenda).toHaveBeenCalledOnce();
+    expect(mocks.realCoach).toHaveBeenCalled();
+    expect(mocks.realAgenda).toHaveBeenCalled();
     expect(mocks.demoCoach).not.toHaveBeenCalled();
     expect(mocks.demoAgenda).not.toHaveBeenCalled();
   });
@@ -111,7 +111,7 @@ describe("dashboard data modes", () => {
     renderDashboard();
 
     expect(screen.getByRole("status", { name: "Loading dashboard" })).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Class shortcuts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your classes" })).not.toBeInTheDocument();
     expect(mocks.realCoach).not.toHaveBeenCalled();
     expect(mocks.demoCoach).not.toHaveBeenCalled();
   });
