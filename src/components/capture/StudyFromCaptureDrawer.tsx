@@ -45,6 +45,10 @@ import {
 import { getNextBestActionForClass } from "@/lib/intelligence/readinessEngine";
 import { getClassLearningSnapshot, getTopLearningRecommendation } from "@/lib/intelligence/learningEngine";
 import { RecommendationChips } from "@/components/intelligence/RecommendationChips";
+import {
+  applyAssignmentHelpEvents,
+  type AssignmentHelpOutcome,
+} from "@/lib/assignments/assignmentHelpEvidence";
 
 interface Props {
   open: boolean;
@@ -76,6 +80,10 @@ export function StudyFromCaptureDrawer({
   const [correct, setCorrect] = useState(0);
   const [answered, setAnswered] = useState(0);
   const [change, setChange] = useState<ReadinessChange | null>(null);
+  // Outcome per item, so "I only looked at the answer" can never be scored as
+  // retrieval practice. See src/lib/assignments/assignmentHelpEvidence.ts.
+  const [outcomes, setOutcomes] = useState<AssignmentHelpOutcome[]>([]);
+  const [exposureNote, setExposureNote] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -90,6 +98,8 @@ export function StudyFromCaptureDrawer({
       setCorrect(0);
       setAnswered(0);
       setChange(null);
+      setOutcomes([]);
+      setExposureNote(null);
     }
   }, [open, initialMode]);
 
@@ -105,16 +115,47 @@ export function StudyFromCaptureDrawer({
   const current = items[step];
   const progress = total ? Math.round(((step + (stage === "done" ? 1 : 0)) / total) * 100) : 0;
 
+  const recordOutcome = (outcome: AssignmentHelpOutcome) => {
+    setOutcomes((prev) => {
+      const nextOutcomes = [...prev];
+      nextOutcomes[step] = outcome;
+      return nextOutcomes;
+    });
+  };
+
   const next = () => {
     setRevealed(false);
-    if (step + 1 >= total) finish();
+    const settled = [...outcomes];
+    if (!settled[step]) settled[step] = "answer_shown_only";
+    setOutcomes(settled);
+    if (step + 1 >= total) finish(settled);
     else setStep((s) => s + 1);
   };
 
-  const finish = () => {
+  const finish = (finalOutcomes: AssignmentHelpOutcome[] = outcomes) => {
     setStage("done");
     const accuracy =
       answered > 0 ? Math.round((correct / answered) * 100) : undefined;
+
+    // Only real retrieval attempts are evidence. Seeing a worked answer is
+    // exposure: it must not move readiness, momentum, or mastery.
+    const evidence = applyAssignmentHelpEvents(
+      finalOutcomes.map((outcome, index) => ({
+        conceptId: `${item.id}:${index}`,
+        outcome,
+        eventId: `${item.id}:${index}:${outcome}`,
+      })),
+    );
+    const masteryBearing = evidence.applied.some((entry) => entry.recordsMastery);
+    if (!masteryBearing) {
+      setChange(null);
+      setExposureNote(
+        evidence.applied.find((entry) => entry.outcome === "answer_shown_only")?.studentNote
+          ?? "You saw a worked answer. Practice it once and it will count.",
+      );
+      return;
+    }
+    setExposureNote(null);
 
     if (persistence === "remote") {
       // Feed the Student Model with a lightweight topic-level signal.
@@ -199,10 +240,18 @@ export function StudyFromCaptureDrawer({
             progress={progress}
             item={current}
             revealed={revealed}
-            onReveal={() => setRevealed(true)}
+            onReveal={() => {
+              recordOutcome("answer_shown_only");
+              setRevealed(true);
+            }}
             onAnswer={(isCorrect) => {
               setAnswered((a) => a + 1);
               if (isCorrect) setCorrect((c) => c + 1);
+              recordOutcome(
+                isCorrect
+                  ? revealed ? "solved_after_help" : "solved_unaided"
+                  : revealed ? "missed_after_help" : "needed_hint",
+              );
               setRevealed(true);
             }}
             onNext={next}
@@ -217,6 +266,7 @@ export function StudyFromCaptureDrawer({
             correct={correct}
             answered={answered}
             change={change}
+            exposureNote={exposureNote}
             onRestart={() => {
               setStage("preview");
               setStep(0);
@@ -224,6 +274,8 @@ export function StudyFromCaptureDrawer({
               setCorrect(0);
               setAnswered(0);
               setChange(null);
+              setOutcomes([]);
+              setExposureNote(null);
             }}
             onGoLab={() => {
               onOpenChange(false);
@@ -494,6 +546,7 @@ function DoneStage({
   correct,
   answered,
   change,
+  exposureNote,
   onRestart,
   onGoLab,
   onClose,
@@ -504,6 +557,7 @@ function DoneStage({
   correct: number;
   answered: number;
   change: ReadinessChange | null;
+  exposureNote?: string | null;
   onRestart: () => void;
   onGoLab: () => void;
   onClose: () => void;
@@ -527,6 +581,15 @@ function DoneStage({
           )}
         </p>
       </div>
+
+      {exposureNote && (
+        <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+          <p className="text-sm text-foreground">{exposureNote}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Nothing changed in your readiness yet — answering once is what counts.
+          </p>
+        </div>
+      )}
 
       {/* Momentum + Readiness deltas */}
       {change && (
