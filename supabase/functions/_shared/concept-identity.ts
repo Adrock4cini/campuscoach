@@ -108,7 +108,10 @@ export function conceptTokens(value: string): string[] {
  */
 export function conceptCanonicalKey(name: string, definition?: string | null): string {
   const tokens = conceptTokens(name);
-  if (tokens.length) return [...tokens].sort().join("-");
+  // A name that reduces to nothing but the numeric placeholder ("12", "3/4")
+  // carries no identity of its own — keep it distinct via its definition.
+  const meaningful = tokens.length > 0 && !(tokens.length === 1 && tokens[0] === "number");
+  if (meaningful) return [...tokens].sort().join("-");
 
   // A name made only of stopwords/numbers keeps a definition-derived key so it
   // still de-duplicates against itself instead of collapsing all of them.

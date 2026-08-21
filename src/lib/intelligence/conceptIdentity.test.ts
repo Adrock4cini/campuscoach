@@ -53,8 +53,9 @@ describe("dedupeConceptCandidates", () => {
     );
 
     expect(result.fresh.map((c) => c.name)).toEqual(["Percent increase"]);
-    expect(result.merged).toHaveLength(1);
-    expect(result.merged[0].conceptId).toBe("existing-1");
+    // Both wordings point at the same permanent concept.
+    expect(result.merged).toHaveLength(2);
+    expect(result.merged.every((entry) => entry.conceptId === "existing-1")).toBe(true);
   });
 
   it("raises emphasis on an existing concept instead of cloning it for a teacher hint", () => {
