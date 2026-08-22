@@ -117,9 +117,9 @@ export default function ClassDetail() {
 
         <ClassUpNext classId={c.id} className={c.name} />
 
-        <ClassReadinessCard classId={c.id} />
-
         <RealClassAssignmentsExams classId={c.id} />
+
+        <ClassReadinessCard classId={c.id} />
 
         <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
           <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">

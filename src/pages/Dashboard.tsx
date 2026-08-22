@@ -7,6 +7,8 @@ import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
 import { RealSchoolAtAGlance } from "@/components/real/RealSchoolAtAGlance";
+import { RealWeekAhead } from "@/components/real/RealWeekAhead";
+import { RealUrgentAttention } from "@/components/real/RealUrgentAttention";
 import { useRealClassAlerts } from "@/components/real/RealClassAlerts";
 
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
@@ -82,6 +84,8 @@ export default function Dashboard() {
             ? <RealCoachHero />
             : demoModel ? <DemoCoachHero model={demoModel} /> : null}
           glance={realMode ? <RealSchoolAtAGlance classes={ordered} /> : null}
+          week={realMode ? <RealWeekAhead classes={ordered} /> : null}
+          urgent={realMode ? <RealUrgentAttention classes={ordered} /> : null}
           agenda={realMode
             ? <RealTodaysPlan classes={ordered} />
             : demoModel ? <DemoTodaysPlan agenda={demoModel.agenda} /> : null}

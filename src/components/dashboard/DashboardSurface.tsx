@@ -73,6 +73,8 @@ export function DashboardSurface({ classes, coach, agenda, glance, week, urgent,
         </motion.section>
 
         {glance}
+        {week}
+        {urgent}
         {coach}
       </div>
     </div>
