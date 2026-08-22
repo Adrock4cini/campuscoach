@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWeekGlance, describeWeek } from "./weekGlance";
+import { buildWeekGlance, countClassMeetings, describeWeek } from "./weekGlance";
 
 // Wed 2026-08-19; week runs Mon 2026-08-17 → Sun 2026-08-23.
 const now = new Date("2026-08-19T09:00:00");
