@@ -30,7 +30,8 @@ export function RealUrgentAttention({ classes = [], now = new Date() }: { classe
     setBusyId(item.id);
     const patch =
       resolution === "complete" ? { status: "complete" as const }
-      : resolution === "still-doing" ? { status: "in_progress" as const, due_date: toDateKey(new Date(now)) }
+      // Never falsify the teacher-assigned due date: record progress only.
+      : resolution === "still-doing" ? { status: "in_progress" as const }
       : { source_archived_at: new Date().toISOString() };
 
     const updated = await updateAssignment(item.id, patch);
@@ -41,7 +42,7 @@ export function RealUrgentAttention({ classes = [], now = new Date() }: { classe
     }
     toast.success(
       resolution === "complete" ? "Nice — marked done."
-      : resolution === "still-doing" ? "Moved to today."
+      : resolution === "still-doing" ? "Marked in progress — the real due date stays as it is."
       : "Archived. It won’t nag you again.",
     );
     window.dispatchEvent(new CustomEvent("real-assignments:changed"));
