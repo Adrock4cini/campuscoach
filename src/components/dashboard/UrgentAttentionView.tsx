@@ -74,7 +74,7 @@ export function UrgentAttentionView({ items, loading = false, busyId = null, onR
                   onClick={() => onResolve(item, "complete")}
                 />
                 <ResolveButton
-                  label="Still doing it"
+                  label="Still working on it"
                   icon={RotateCcw}
                   disabled={busyId === item.id}
                   onClick={() => onResolve(item, "still-doing")}
