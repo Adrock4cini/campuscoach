@@ -12,16 +12,21 @@ interface DashboardSurfaceProps {
   agenda: ReactNode;
   /** Compact cross-class "next test / next due" strip. Optional in demo mode. */
   glance?: ReactNode;
+  /** This week / next week orientation strip. */
+  week?: ReactNode;
+  /** Short "needs attention" list with a resolution path. */
+  urgent?: ReactNode;
   /** One headline alert per class id. */
   classAlerts?: Record<string, ClassAlert>;
   sample?: boolean;
 }
 
 /**
- * One dashboard information architecture: classes first, then the compact
- * next-up strip, then the coach recommendation. A calm school status board.
+ * One dashboard information architecture: orient, then act, then learn.
+ * Classes → this week / next week → what needs attention → the coach's
+ * recommendation last. A calm school status board, not a study prompt.
  */
-export function DashboardSurface({ classes, coach, agenda, glance, classAlerts, sample = false }: DashboardSurfaceProps) {
+export function DashboardSurface({ classes, coach, agenda, glance, week, urgent, classAlerts, sample = false }: DashboardSurfaceProps) {
   return (
     <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:gap-6">
       <aside className="order-2 self-start lg:order-none lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4">
@@ -29,6 +34,7 @@ export function DashboardSurface({ classes, coach, agenda, glance, classAlerts, 
       </aside>
 
       <div className="order-1 space-y-4 lg:order-none lg:col-start-1 lg:row-start-1">
+
         {sample && <DemoDataNotice />}
 
         <motion.section
