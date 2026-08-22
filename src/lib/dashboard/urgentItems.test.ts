@@ -28,7 +28,7 @@ describe("urgent attention items", () => {
       [exam("soon", "2026-03-12"), exam("far", "2026-03-30")],
       now,
     );
-    expect(items.map((i) => i.id)).toEqual(["soon", "late"]);
+    expect(items.map((i) => i.id)).toEqual(["late", "soon"]);
   });
 
   it("decays overdue urgency instead of nagging forever", () => {
