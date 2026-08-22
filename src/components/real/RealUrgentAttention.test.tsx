@@ -2,8 +2,7 @@
  * Overdue resolution must never falsify the teacher-assigned due date.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { RealUrgentAttention } from "./RealUrgentAttention";
 
@@ -46,7 +45,7 @@ describe("overdue resolution semantics", () => {
       </MemoryRouter>,
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /still working on it/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /still working on it/i }));
 
     await waitFor(() => expect(updateAssignment).toHaveBeenCalled());
     const [, patch] = updateAssignment.mock.calls[0] as unknown as [string, Record<string, unknown>];
