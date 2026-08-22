@@ -22,7 +22,7 @@ describe("shared dashboard surface", () => {
   it("uses the same production class row and route in sample mode", () => {
     renderSurface(true);
 
-    expect(screen.getByRole("link", { name: "Open Biology, 64% ready" }))
+    expect(screen.getByRole("link", { name: "Open Biology" }))
       .toHaveAttribute("href", "/classes/bio%2F101");
   });
 });

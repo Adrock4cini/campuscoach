@@ -76,33 +76,28 @@ export function CoachHeroView({ recommendations, loading = false, weakSpots, act
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className="relative overflow-hidden rounded-[30px] border border-primary/35 bg-gradient-to-br from-card/95 via-card/90 to-primary/10 p-5 shadow-elegant md:p-7"
+      className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-md md:p-5"
     >
-      <div className="pointer-events-none absolute inset-0 opacity-75" aria-hidden>
-        <div className="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-[105px]" />
-        <div className="absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-accent/15 blur-[110px]" />
-      </div>
-
       <div className="relative">
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-[10.5px] uppercase tracking-[0.22em] text-primary">
-          <Sparkles className="h-3.5 w-3.5" />
-          Today&apos;s focus
+        <div className="mb-3 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          <Sparkles className="h-3 w-3 text-primary" />
+          Recommended next
         </div>
 
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-calm shadow-elegant">
-            <Icon className="h-6 w-6 text-primary-foreground" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-calm shadow-sm">
+            <Icon className="h-5 w-5 text-primary-foreground" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 id="today-focus-title" className="font-display text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-3xl">
+            <h2 id="today-focus-title" className="font-display text-lg font-semibold leading-tight tracking-tight text-foreground md:text-xl">
               {top.className}
             </h2>
-            <p className="mt-1 break-words text-lg font-medium leading-snug text-primary md:text-xl">
+            <p className="mt-0.5 break-words text-sm font-medium leading-snug text-primary">
               {top.why}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <Clock3 className="h-4 w-4" />
                 {top.minutes} min
@@ -119,7 +114,7 @@ export function CoachHeroView({ recommendations, loading = false, weakSpots, act
             </div>
 
             {visibleEvidence && (
-              <p className="mt-4 break-words border-t border-border/40 pt-4 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-3 break-words border-t border-border/40 pt-3 text-xs leading-relaxed text-muted-foreground">
                 <BookOpen className="mr-2 inline h-4 w-4 text-primary" />
                 Recommended because {evidenceSentence(visibleEvidence.label)}.
               </p>
@@ -129,10 +124,10 @@ export function CoachHeroView({ recommendations, loading = false, weakSpots, act
 
         <Link
           to={topAction.href}
-          className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-calm px-5 text-base font-semibold text-primary-foreground shadow-elegant transition-opacity hover:opacity-95 active:scale-[0.995]"
+          className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-calm px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-95 active:scale-[0.995]"
         >
           {topAction.label}
-          <ArrowRight className="h-5 w-5" />
+          <ArrowRight className="h-4 w-4" />
         </Link>
 
         <button

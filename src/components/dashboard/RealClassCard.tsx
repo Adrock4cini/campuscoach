@@ -33,7 +33,7 @@ export function RealClassCard({ c, index = 0, alert }: { c: ClassInfo; index?: n
     >
       <Link
         to={`/classes/${encodeURIComponent(c.id)}`}
-        aria-label={`Open ${c.name}, ${c.readiness}% ready`}
+        aria-label={`Open ${c.name}`}
         className="group flex min-h-[82px] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 md:px-5"
       >
         <span
@@ -66,41 +66,8 @@ export function RealClassCard({ c, index = 0, alert }: { c: ClassInfo; index?: n
           )}
         </span>
 
-        <ReadinessRing value={c.readiness} />
         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
       </Link>
     </motion.article>
-  );
-}
-
-function ReadinessRing({ value }: { value: number }) {
-  const safeValue = Math.max(0, Math.min(100, Math.round(value)));
-  const radius = 17;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (safeValue / 100) * circumference;
-
-  return (
-    <span
-      className="relative flex h-12 w-12 shrink-0 items-center justify-center"
-      role="img"
-      aria-label={`${safeValue}% ready`}
-    >
-      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={radius} fill="none" stroke="currentColor" strokeWidth="4" className="text-muted/70" />
-        <circle
-          cx="22"
-          cy="22"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="text-primary"
-        />
-      </svg>
-      <span className="text-[10px] font-semibold tabular-nums text-foreground">{safeValue}%</span>
-    </span>
   );
 }

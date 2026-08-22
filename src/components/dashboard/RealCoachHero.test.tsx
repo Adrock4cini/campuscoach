@@ -31,7 +31,7 @@ describe("real coach hero hierarchy", () => {
     const { container } = renderHero();
     const region = screen.getByRole("region", { name: "Math" });
 
-    expect(within(region).getByText("Today's focus")).toBeInTheDocument();
+    expect(within(region).getByText("Recommended next")).toBeInTheDocument();
     expect(within(region).getByText("7 concepts are ready for review.")).toBeInTheDocument();
     expect(within(region).getByText("10 min")).toBeInTheDocument();
     expect(within(region).getByText(/Should move test readiness up about/)).toBeInTheDocument();

@@ -6,6 +6,15 @@
  * already overdue. No prediction, no artifacts — just the schedule.
  */
 
+import { toDateKey } from "./dateKey";
+import { isDateWithinTerm, weekdayForDate } from "./classSchedule";
+
+export interface MeetingClass {
+  days?: string[];
+  semesterStartDate?: string | null;
+  semesterEndDate?: string | null;
+}
+
 export interface GlanceAssignment {
   due_date: string | null;
   status?: string | null;
@@ -94,4 +103,34 @@ export function describeWeek(counts: WeekCounts): string {
     parts.push(`${counts.tests} test${counts.tests === 1 ? "" : "s"}`);
   }
   return parts.length > 0 ? parts.join(" · ") : "Nothing scheduled";
+}
+
+/**
+ * Class meetings in the current and next calendar week, from each class's
+ * recurring meeting days (bounded by its term dates). Schedule only — no
+ * prediction. Returns zeros when classes carry no meeting days.
+ */
+export function countClassMeetings(
+  classes: MeetingClass[],
+  now: Date = new Date(),
+): { thisWeek: number; nextWeek: number } {
+  const weekStart = startOfWeek(now);
+  let thisWeek = 0;
+  let nextWeek = 0;
+
+  for (let offset = 0; offset < 14; offset += 1) {
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + offset);
+    const dateKey = toDateKey(day);
+    const weekday = weekdayForDate(day);
+    for (const item of classes) {
+      const meets = (item.days ?? []).includes(weekday)
+        && isDateWithinTerm(dateKey, item.semesterStartDate, item.semesterEndDate);
+      if (!meets) continue;
+      if (offset < 7) thisWeek += 1;
+      else nextWeek += 1;
+    }
+  }
+
+  return { thisWeek, nextWeek };
 }

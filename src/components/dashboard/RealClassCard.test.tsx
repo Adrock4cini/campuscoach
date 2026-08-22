@@ -28,7 +28,7 @@ describe("real class dashboard card", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("img", { name: "61% ready" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Math, 61% ready" })).toHaveAttribute("href", "/classes/math-101");
+    expect(screen.queryByText("61%")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Math" })).toHaveAttribute("href", "/classes/math-101");
   });
 });
