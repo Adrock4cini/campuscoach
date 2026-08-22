@@ -27,7 +27,7 @@ const toneText: Record<ReadinessTone, string> = {
 
 export function ClassReadinessCard({ classId, daysToExam, overdueAssignments }: Props) {
   const [open, setOpen] = useState(false);
-  const { explanation, loading } = useClassReadinessSignals(classId, { daysToExam, overdueAssignments });
+  const { explanation, signals, loading } = useClassReadinessSignals(classId, { daysToExam, overdueAssignments });
   const scored = explanation.status === "scored" && explanation.percent !== null;
 
   return (
@@ -45,7 +45,14 @@ export function ClassReadinessCard({ classId, daysToExam, overdueAssignments }: 
               {loading ? "Checking your evidence…" : explanation.label}
             </p>
             {!loading && (
-              <p className="mt-1 text-sm text-muted-foreground">{explanation.headline}</p>
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">{explanation.headline}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {`Based on ${signals.attempts} practice question${signals.attempts === 1 ? "" : "s"} · `}
+                  {`${signals.conceptCount} concept${signals.conceptCount === 1 ? "" : "s"} from `}
+                  {`${signals.captureCount} class material${signals.captureCount === 1 ? "" : "s"}`}
+                </p>
+              </>
             )}
           </div>
           {scored && (

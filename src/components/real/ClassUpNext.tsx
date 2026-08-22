@@ -57,7 +57,9 @@ export function ClassUpNext({ classId, className }: Props) {
           <h2 className="mt-0.5 font-display text-lg font-semibold text-foreground">
             {loading
               ? "Checking what needs you…"
-              : rec?.why ?? "Nothing urgent — capture something or run a quick review."}
+              : nextExam || nextAssignment
+                ? rec?.why ?? "Here's what's coming up in this class."
+                : "Nothing scheduled for this class yet."}
           </h2>
         </div>
 
@@ -104,6 +106,23 @@ export function ClassUpNext({ classId, className }: Props) {
               {nextExam ? "Add material for this test" : material.ctaLabel}
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
+          </div>
+        ) : !nextExam && !nextAssignment ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Add what you already know about this class — due dates and test dates first. Studying gets smarter once
+              Campus Coach knows the schedule.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button asChild variant="outline" className="min-h-11 rounded-xl">
+                <Link to={`/classes/${encodeURIComponent(classId)}/syllabus`}>Add syllabus</Link>
+              </Button>
+              <Button asChild variant="outline" className="min-h-11 rounded-xl">
+                <Link to={`/study-lab?classId=${encodeURIComponent(classId)}`}>
+                  <Zap className="mr-1.5 h-4 w-4" /> Study this class
+                </Link>
+              </Button>
+            </div>
           </div>
         ) : (
           <Button asChild className="h-12 w-full rounded-2xl border-0 bg-gradient-calm text-primary-foreground hover:opacity-90">
