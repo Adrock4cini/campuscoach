@@ -5,16 +5,19 @@
  * preparing for, and what should I do next. Reads only permanent memory
  * (via the coach recommender) plus real assignments/exams.
  */
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CalendarClock, Camera, ClipboardList, FileQuestion, Zap } from "lucide-react";
+import { ArrowRight, CalendarClock, Camera, ClipboardList, FileQuestion, GraduationCap, Plus, Zap } from "lucide-react";
 import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hooks";
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
 import { useClassReadinessSignals } from "@/lib/intelligence/useClassReadinessSignals";
 import { assessMaterial } from "@/lib/intelligence/materialSufficiency";
 import { useCapture } from "@/contexts/CaptureContext";
+import { AddAssignmentDialog } from "./AddAssignmentDialog";
+import { AddExamDialog } from "./AddExamDialog";
 
 
 interface Props {
@@ -43,6 +46,8 @@ export function ClassUpNext({ classId, className }: Props) {
     .sort((a, b) => (a.exam_date ?? "").localeCompare(b.exam_date ?? ""))[0];
 
   const { open: openCapture } = useCapture();
+  const [addAssignment, setAddAssignment] = useState(false);
+  const [addExam, setAddExam] = useState(false);
   const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
   const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
 
@@ -110,18 +115,34 @@ export function ClassUpNext({ classId, className }: Props) {
         ) : !nextExam && !nextAssignment ? (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Add what you already know about this class — due dates and test dates first. Studying gets smarter once
-              Campus Coach knows the schedule.
+              Add what you already know — one assignment or test date is enough to start. Or upload the syllabus and
+              Campus Coach will pull the dates out for you.
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button asChild variant="outline" className="min-h-11 rounded-xl">
-                <Link to={`/classes/${encodeURIComponent(classId)}/syllabus`}>Add syllabus</Link>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 rounded-xl"
+                onClick={() => setAddAssignment(true)}
+              >
+                <Plus className="mr-1.5 h-4 w-4" /> Add assignment
               </Button>
-              <Button asChild variant="outline" className="min-h-11 rounded-xl">
-                <Link to={`/study-lab?classId=${encodeURIComponent(classId)}`}>
-                  <Zap className="mr-1.5 h-4 w-4" /> Study this class
-                </Link>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 rounded-xl"
+                onClick={() => setAddExam(true)}
+              >
+                <GraduationCap className="mr-1.5 h-4 w-4" /> Add test
               </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-xs">
+              <Link to={`/classes/${encodeURIComponent(classId)}/syllabus`} className="text-primary hover:underline">
+                Upload syllabus instead
+              </Link>
+              <Link to={`/study-lab?classId=${encodeURIComponent(classId)}`} className="text-primary hover:underline">
+                Study this class
+              </Link>
             </div>
           </div>
         ) : (
@@ -139,6 +160,8 @@ export function ClassUpNext({ classId, className }: Props) {
         )}
 
       </CardContent>
+      <AddAssignmentDialog open={addAssignment} onOpenChange={setAddAssignment} defaultClientClassId={classId} />
+      <AddExamDialog open={addExam} onOpenChange={setAddExam} defaultClientClassId={classId} />
     </Card>
   );
 }

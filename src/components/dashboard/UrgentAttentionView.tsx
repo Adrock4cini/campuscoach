@@ -1,10 +1,12 @@
 /**
  * Urgent attention — the short "handle this" list.
  *
- * Every overdue row offers a way OUT: done, still doing it, or no longer
- * relevant. Nothing is allowed to nag forever; after two weeks the row goes
- * quiet and simply asks for a decision. Shame-free by construction.
+ * Every overdue row offers a way OUT: done, still working on it, or no longer
+ * relevant. The real due date is never changed by any of these — "still
+ * working on it" only records progress. Nothing nags forever: after two weeks
+ * the row goes quiet and simply asks for a decision. Shame-free by construction.
  */
+
 import { Link } from "react-router-dom";
 import { AlertTriangle, Check, CircleSlash, ClipboardList, GraduationCap, RotateCcw } from "lucide-react";
 import type { UrgentItem } from "@/lib/dashboard/urgentItems";
@@ -72,7 +74,7 @@ export function UrgentAttentionView({ items, loading = false, busyId = null, onR
                   onClick={() => onResolve(item, "complete")}
                 />
                 <ResolveButton
-                  label="Still doing it"
+                  label="Still working on it"
                   icon={RotateCcw}
                   disabled={busyId === item.id}
                   onClick={() => onResolve(item, "still-doing")}
