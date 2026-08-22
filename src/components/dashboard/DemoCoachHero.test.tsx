@@ -12,7 +12,7 @@ describe("sample dashboard coach", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Today's focus")).toBeInTheDocument();
+    expect(screen.getByText("Recommended next")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open class" })).toHaveAttribute(
       "href",
       expect.stringMatching(/^\/classes\//),
