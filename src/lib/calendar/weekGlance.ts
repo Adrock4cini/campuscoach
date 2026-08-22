@@ -106,21 +106,26 @@ export function describeWeek(counts: WeekCounts): string {
 }
 
 /**
- * Class meetings in the current and next calendar week, from each class's
- * recurring meeting days (bounded by its term dates). Schedule only — no
- * prediction. Returns zeros when classes carry no meeting days.
+ * Class meetings still ahead in the current week, and every meeting in the
+ * next calendar week, from each class's recurring meeting days (bounded by
+ * its term dates). Meetings that already happened today or earlier this week
+ * are not counted — "this week" on Today means what is still coming.
+ * Schedule only, no prediction: classes with no meeting days count zero, so
+ * the caller omits the number rather than showing a wrong one.
  */
 export function countClassMeetings(
   classes: MeetingClass[],
   now: Date = new Date(),
 ): { thisWeek: number; nextWeek: number } {
   const weekStart = startOfWeek(now);
+  const today = startOfDay(now);
   let thisWeek = 0;
   let nextWeek = 0;
 
   for (let offset = 0; offset < 14; offset += 1) {
     const day = new Date(weekStart);
     day.setDate(day.getDate() + offset);
+    if (offset < 7 && day < today) continue;
     const dateKey = toDateKey(day);
     const weekday = weekdayForDate(day);
     for (const item of classes) {
@@ -134,3 +139,4 @@ export function countClassMeetings(
 
   return { thisWeek, nextWeek };
 }
+
