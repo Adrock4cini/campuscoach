@@ -64,7 +64,7 @@ export function UrgentAttentionView({ items, loading = false, busyId = null, onR
             </div>
 
             {item.kind === "assignment" && (
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-6.5">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[26px]">
                 <ResolveButton
                   label="Done"
                   icon={Check}

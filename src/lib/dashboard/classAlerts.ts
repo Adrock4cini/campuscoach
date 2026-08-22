@@ -100,9 +100,14 @@ function examAlertText(exam: RealExam, now: Date): string {
   return `${timing} · ${word}`;
 }
 
+/** Past this many days late, an item stops shouting and asks for a decision. */
+export const STALE_OVERDUE_DAYS = 14;
+
 function assignmentAlertText(assignment: RealAssignment, now: Date): string {
   const when = whenLabel(assignment.due_date!, now);
-  return when.endsWith("overdue") ? `Assignment ${when}` : `Assignment due ${when}`;
+  if (!when.endsWith("overdue")) return `Assignment due ${when}`;
+  const days = Math.abs(daysBetween(assignment.due_date!, now) ?? 0);
+  return days > STALE_OVERDUE_DAYS ? `Assignment still open · ${when}` : `Assignment ${when}`;
 }
 
 /**
@@ -131,14 +136,15 @@ export function buildClassAlerts(
     const examDays = exam ? daysBetween(exam.exam_date!, now) : null;
 
     let alert: ClassAlert | null = null;
-    if (assignment && assignmentDays !== null && assignmentDays < 0) {
+    const staleOverdue = assignmentDays !== null && assignmentDays < -STALE_OVERDUE_DAYS;
+    if (assignment && assignmentDays !== null && assignmentDays < 0 && !staleOverdue) {
       alert = { text: assignmentAlertText(assignment, now), tone: "danger" };
     } else if (assignment && assignmentDays !== null && assignmentDays <= 1) {
       alert = { text: assignmentAlertText(assignment, now), tone: "warning" };
     } else if (exam && examDays !== null && examDays <= 7) {
       alert = { text: examAlertText(exam, now), tone: examDays <= 2 ? "danger" : "warning" };
     } else if (assignment) {
-      alert = { text: assignmentAlertText(assignment, now), tone: "calm" };
+      alert = { text: assignmentAlertText(assignment, now), tone: staleOverdue ? "calm" : "calm" };
     } else if (exam) {
       alert = { text: examAlertText(exam, now), tone: "calm" };
     }

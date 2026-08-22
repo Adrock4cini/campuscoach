@@ -238,15 +238,23 @@ export function RealCalendarView() {
             ) : selectedItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border/60 px-5 py-9 text-center">
                 <CalendarDays className="h-8 w-8 mx-auto text-muted-foreground/60" />
-                <p className="mt-3 text-sm font-medium text-foreground">Nothing scheduled</p>
-                <p className="mt-1 text-xs text-muted-foreground">Add a syllabus and due dates fill in here.</p>
-                <Button
-                  size="sm"
-                  className="mt-4 min-h-11"
+                <p className="mt-3 text-sm font-medium text-foreground">Nothing scheduled today.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Add what you know and it shows up here.</p>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <Button size="sm" className="min-h-11" onClick={() => navigate("/assignments")}>
+                    Add assignment
+                  </Button>
+                  <Button size="sm" variant="outline" className="min-h-11" onClick={() => navigate("/exams")}>
+                    Add test
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  className="mt-3 min-h-11 text-xs text-primary hover:underline"
                   onClick={() => navigate("/classes?intent=syllabus")}
                 >
-                  Add a syllabus
-                </Button>
+                  Or import a syllabus
+                </button>
               </div>
 
             ) : (
