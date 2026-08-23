@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CaptureDoneSummary } from "./CaptureFlow";
 import type { CaptureResult } from "@/lib/capture/types";
@@ -45,5 +45,41 @@ describe("capture done summary", () => {
 
     expect(screen.getByRole("button", { name: /practice this now/i })).toBeInTheDocument();
     expect(screen.queryByText(/still reading this/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("failed capture recovery", () => {
+  it("retries processing in place instead of sending the student to the class page", async () => {
+    const onRetryProcessing = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CaptureDoneSummary
+        result={result({ processingStatus: "failed", captureId: "db-capture-1" })}
+        sample={false}
+        className="Algebra II"
+        onClose={vi.fn()}
+        onOpenClass={vi.fn()}
+        onRetryProcessing={onRetryProcessing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /retry processing/i }));
+    await waitFor(() => expect(onRetryProcessing).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the capture safe and explains a failed retry", async () => {
+    const onRetryProcessing = vi.fn().mockRejectedValue(new Error("Campus Brain is busy."));
+    render(
+      <CaptureDoneSummary
+        result={result({ processingStatus: "failed", captureId: "db-capture-1" })}
+        sample={false}
+        className="Algebra II"
+        onClose={vi.fn()}
+        onOpenClass={vi.fn()}
+        onRetryProcessing={onRetryProcessing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /retry processing/i }));
+    await waitFor(() => expect(screen.getByText("Campus Brain is busy.")).toBeInTheDocument());
   });
 });
