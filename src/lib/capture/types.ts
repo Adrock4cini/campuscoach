@@ -65,4 +65,8 @@ export interface CaptureResult {
   processingStatus?: "ready" | "processing" | "failed";
   /** Student-safe explanation when the note saved but AI processing did not. */
   processingMessage?: string;
+  /** Durable capture row id — present once a real capture is saved. Enables retry in place. */
+  captureId?: string;
+  /** Uploaded page/material ids for this capture, used to retry image processing. */
+  materialIds?: string[];
 }

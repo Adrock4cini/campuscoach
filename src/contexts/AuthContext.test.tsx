@@ -356,3 +356,70 @@ describe("AuthProvider session restoration", () => {
   });
 });
 
+
+function SetupStateSnapshot() {
+  const { setupStatus, setupError, refreshOnboarded } = useAuth();
+  return (
+    <div>
+      <output aria-label="Setup resolution">{setupStatus}:{setupError ?? "none"}</output>
+      <button type="button" onClick={() => void refreshOnboarded()}>Try again</button>
+    </div>
+  );
+}
+
+describe("account setup resolves to a terminal state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    mocks.authCallback = undefined;
+    localStorage.clear();
+    mocks.classesIs.mockResolvedValue({ count: 1, error: null });
+    mocks.getSession.mockResolvedValue({ data: { session: sessionFor("student-1") }, error: null });
+  });
+
+  const renderSetup = async () => {
+    render(<AuthProvider><SetupStateSnapshot /></AuthProvider>);
+    return screen.findByLabelText("Setup resolution");
+  };
+
+  it("resolves onboarded when the profile row is complete", async () => {
+    mocks.profileMaybeSingle.mockResolvedValue({ data: { onboarded_at: "2026-01-01", schools: null }, error: null });
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("onboarded:none"));
+  });
+
+  it("resolves needs_onboarding when the row exists without completion", async () => {
+    mocks.profileMaybeSingle.mockResolvedValue({ data: { onboarded_at: null, schools: null }, error: null });
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("needs_onboarding:none"));
+  });
+
+  it("resolves needs_onboarding when the profile row is missing", async () => {
+    mocks.profileMaybeSingle.mockResolvedValue({ data: null, error: null });
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("needs_onboarding:none"));
+  });
+
+  it("never stays in checking after a profile query error", async () => {
+    mocks.profileMaybeSingle.mockResolvedValue({ data: null, error: { message: "permission denied" } });
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("error:query"));
+  });
+
+  it("turns a stalled profile read into a recoverable timeout", async () => {
+    mocks.profileMaybeSingle.mockReturnValue(new Promise(() => {}));
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("error:timeout"), { timeout: 9000 });
+  }, 15000);
+
+  it("retry re-enters checking and can succeed after an error", async () => {
+    mocks.profileMaybeSingle.mockResolvedValue({ data: null, error: { message: "permission denied" } });
+    const out = await renderSetup();
+    await waitFor(() => expect(out).toHaveTextContent("error:query"));
+
+    mocks.profileMaybeSingle.mockResolvedValue({ data: { onboarded_at: "2026-01-01", schools: null }, error: null });
+    fireEvent.click(screen.getByText("Try again"));
+    await waitFor(() => expect(out).toHaveTextContent("onboarded:none"));
+    expect(mocks.profileMaybeSingle).toHaveBeenCalledTimes(2);
+  });
+});

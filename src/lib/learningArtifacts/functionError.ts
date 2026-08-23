@@ -37,6 +37,14 @@ export async function describeFunctionError(error: FunctionInvokeError): Promise
   if (response?.status === 404) {
     return "No study concepts were found yet. Add a quick note or teacher hint, then try again.";
   }
+  if (response?.status === 429) {
+    // Rate limited: never a dead end. Saved study sets stay usable meanwhile.
+    const retryAfter = Number(response.headers?.get?.("retry-after") ?? "");
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0
+      ? `about ${Math.max(1, Math.ceil(retryAfter / 60))} minute${Math.ceil(retryAfter / 60) === 1 ? "" : "s"}`
+      : "a minute";
+    return `You've generated a lot of study material just now. Wait ${wait} and try again — everything you already made is still saved.`;
+  }
   if (response?.status === 401) {
     return "Your session expired. Sign in again, then retry.";
   }

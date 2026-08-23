@@ -41,7 +41,9 @@ import { RealOnly } from "@/components/real/RealOnly";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
 import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
-import { getOnboardingRedirect } from "@/lib/auth/protectedRoute";
+import { getOnboardingRedirect, getSetupGate } from "@/lib/auth/protectedRoute";
+import { setupErrorCopy } from "@/lib/auth/setupStatus";
+
 import { readLastRoute, writeLastRoute } from "@/lib/app/routeMemory";
 
 
@@ -105,43 +107,57 @@ function RouteMemory() {
   return null;
 }
 
+/** Visible, terminal setup states. Never an endless spinner. */
+function SetupPanel({ gate }: { gate: "checking" | "error" }) {
+  const { setupError, refreshOnboarded, signOut } = useAuth();
+  const copy = gate === "checking"
+    ? {
+        title: "Checking your account setup…",
+        description: "This only takes a moment. Nothing will be changed.",
+      }
+    : setupErrorCopy(setupError);
+
+  return (
+    <section className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center" aria-live="polite">
+      <h1 className="font-display text-xl font-semibold text-foreground">{copy.title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{copy.description}</p>
+      {gate === "error" && (
+        <>
+          <button
+            type="button"
+            className="mt-4 min-h-11 rounded-xl border border-border px-4 text-sm font-medium text-primary hover:bg-primary/5"
+            onClick={() => { void refreshOnboarded(); }}
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            className="mt-2 min-h-11 rounded-xl px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
+            onClick={() => { void signOut(); }}
+          >
+            Sign out
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
 function RootGate() {
-  const { user, isDemoMode, loading, recovering, onboarded, refreshOnboarded, signOut } = useAuth();
+  const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
   if (loading) return null;
   if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
   if (user && !hasFamilyBetaAgreement(user)) return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;
-  if (user && onboarded === null) {
-    return (
-      <section className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center" aria-live="polite">
-        <h1 className="font-display text-xl font-semibold text-foreground">Checking your account setup…</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          If this takes more than a moment, check your connection and try again. Nothing will be changed.
-        </p>
-        <button
-          type="button"
-          className="mt-4 min-h-11 rounded-xl border border-border px-4 text-sm font-medium text-primary hover:bg-primary/5"
-          onClick={() => { void refreshOnboarded(); }}
-        >
-          Try again
-        </button>
-        <button
-          type="button"
-          className="mt-2 min-h-11 rounded-xl px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
-          onClick={() => { void signOut(); }}
-        >
-          Sign out
-        </button>
-      </section>
-    );
-  }
-  if (user && !onboarded) return <Navigate to="/onboarding" replace />;
+  const gate = getSetupGate({ signedIn: Boolean(user), setupStatus });
+  if (gate) return <SetupPanel gate={gate} />;
+  if (user && setupStatus === "needs_onboarding") return <Navigate to="/onboarding" replace />;
   // Returning students land back where they were, not on a generic Today page.
   return <Navigate to={(user && readLastRoute()) || "/dashboard"} replace />;
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, isDemoMode, loading, recovering, onboarded } = useAuth();
+  const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
   const loc = useLocation();
   if (loading) return null;
   // A transient session read failure must never look like a logout.
@@ -150,14 +166,17 @@ function Protected({ children }: { children: React.ReactNode }) {
   if (user && !hasFamilyBetaAgreement(user)) {
     return <Navigate to="/family-beta-agreement" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
   }
+  const gate = getSetupGate({ signedIn: Boolean(user), setupStatus });
+  if (gate) return <SetupPanel gate={gate} />;
   const onboardingRedirect = getOnboardingRedirect({
     signedIn: Boolean(user),
-    onboarded,
+    setupStatus,
     pathname: loc.pathname,
   });
   if (onboardingRedirect) return <Navigate to={onboardingRedirect} replace />;
   return <>{children}</>;
 }
+
 
 
 const queryClient = new QueryClient();
@@ -179,6 +198,8 @@ const App = () => (
             <Route path="/family-beta-agreement" element={<FamilyBetaAgreement />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            {/* Compatibility alias: older builds linked /beta-terms. Never 404 a legal page. */}
+            <Route path="/beta-terms" element={<TermsPage />} />
 
             {/* Everything else lives inside the app shell */}
             <Route
