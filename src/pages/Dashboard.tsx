@@ -75,23 +75,19 @@ export default function Dashboard() {
             Add your first class
           </Link>
         </motion.section>
+      ) : realMode ? (
+        <RealMobileDashboard classes={ordered} classesLoading={loading} />
       ) : (
         <DashboardSurface
           classes={ordered}
           sample={demoMode}
           classAlerts={classAlerts}
-          coach={realMode
-            ? <RealCoachHero />
-            : demoModel ? <DemoCoachHero model={demoModel} /> : null}
-          glance={realMode ? <RealSchoolAtAGlance classes={ordered} /> : null}
-          week={realMode ? <RealWeekAhead classes={ordered} /> : null}
-          urgent={realMode ? <RealUrgentAttention classes={ordered} /> : null}
-          agenda={realMode
-            ? <RealTodaysPlan classes={ordered} />
-            : demoModel ? <DemoTodaysPlan agenda={demoModel.agenda} /> : null}
+          coach={demoModel ? <DemoCoachHero model={demoModel} /> : null}
+          agenda={demoModel ? <DemoTodaysPlan agenda={demoModel.agenda} /> : null}
         />
 
       )}
+
     </div>
   );
 }
