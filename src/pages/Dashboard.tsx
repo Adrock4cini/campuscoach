@@ -5,11 +5,9 @@ import { Sparkles, Plus } from "lucide-react";
 import { TopStrip } from "@/components/dashboard/TopStrip";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { RealTodaysPlan } from "@/components/real/RealTodaysPlan";
-import { RealSchoolAtAGlance } from "@/components/real/RealSchoolAtAGlance";
-import { RealWeekAhead } from "@/components/real/RealWeekAhead";
-import { RealUrgentAttention } from "@/components/real/RealUrgentAttention";
+import { RealMobileDashboard } from "@/components/real/RealMobileDashboard";
 import { useRealClassAlerts } from "@/components/real/RealClassAlerts";
+
 
 import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
 import { DemoCoachHero } from "@/components/dashboard/DemoCoachHero";
