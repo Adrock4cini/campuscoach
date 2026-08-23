@@ -425,13 +425,19 @@ export function CaptureFlow({
 
   };
 
+  // Deterministic junk check: keeps obviously unusable notes out of the AI path
+  // without rejecting short but real facts.
+  const notePreflight = meta?.requiresText
+    ? assessQuickNoteText(ctx.text ?? "")
+    : ({ usable: true } as const);
+
   const canContinue =
     !!kind &&
     (!realMode || !!meta?.availableForRealUsers) &&
     !classesLoading &&
     classes.some((classInfo) => classInfo.id === ctx.classId) &&
     !!ctx.date &&
-    (!meta?.requiresText || (ctx.text?.trim().length ?? 0) > 0) &&
+    (!meta?.requiresText || notePreflight.usable) &&
     // Assignment name and due date are read from the photo and reviewed later,
     // so nothing has to be typed before the picture is taken.
     (!meta?.requiresImages || (
@@ -975,6 +981,28 @@ export function CaptureFlow({
                     requestClose();
                     navigate(`/classes/${result.context.classId}`);
                   }}
+                  onRetryProcessing={
+                    realMode && result.processingStatus === "failed" && result.captureId
+                      ? async () => {
+                          const captureId = result.captureId!;
+                          const { retryCaptureConcepts, retryCaptureImages } = await import(
+                            "@/lib/supabase/capturePersistence"
+                          );
+                          if (result.materialIds?.length) {
+                            await retryCaptureImages(captureId, result.materialIds);
+                          } else {
+                            await retryCaptureConcepts({
+                              id: captureId,
+                              kind: result.kind,
+                              clientClassId: result.context.classId,
+                              topic: result.context.topic ?? null,
+                              rawText: result.context.text ?? null,
+                            });
+                          }
+                          setResult({ ...result, processingStatus: "processing", processingMessage: undefined });
+                        }
+                      : undefined
+                  }
                   onPractice={
                     realMode &&
                     (result.processingStatus ?? "ready") === "ready" &&
@@ -1148,18 +1176,22 @@ function ProcessingTimeline({
 }
 
 export function CaptureDoneSummary({
-  result, sample, onClose, onOpenClass, onPractice, className,
+  result, sample, onClose, onOpenClass, onPractice, onRetryProcessing, className,
 }: {
   result: CaptureResult;
   sample: boolean;
   onClose: () => void;
   onOpenClass: () => void;
+  /** Retry AI processing in place — no trip through the class page. */
+  onRetryProcessing?: () => Promise<void>;
   /** One compact next action. Omitted when there is nothing safe to study yet. */
   onPractice?: () => void;
   className?: string;
 }) {
 
   const cls = { name: className || "your class" };
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const processingFailed = result.processingStatus === "failed";
   const stillProcessing = !sample && result.processingStatus === "processing";
   return (
@@ -1189,9 +1221,36 @@ export function CaptureDoneSummary({
       </div>
 
       {processingFailed && (
-        <p className="text-xs text-muted-foreground">
-          Open the class and tap Retry. Study tools will stay off until the concepts are ready.
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Study tools stay off until the concepts are ready.
+          </p>
+          {onRetryProcessing && (
+            <button
+              type="button"
+              disabled={retrying}
+              onClick={async () => {
+                setRetrying(true);
+                setRetryError(null);
+                try {
+                  await onRetryProcessing();
+                } catch (error) {
+                  setRetryError(
+                    error instanceof Error
+                      ? error.message
+                      : "That didn't work. Your capture is still saved — try again in a moment.",
+                  );
+                } finally {
+                  setRetrying(false);
+                }
+              }}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-border px-4 text-sm font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
+            >
+              {retrying ? "Trying again…" : "Retry processing"}
+            </button>
+          )}
+          {retryError && <p className="text-xs text-danger">{retryError}</p>}
+        </div>
       )}
 
       {stillProcessing && (
