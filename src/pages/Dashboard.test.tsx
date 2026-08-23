@@ -33,17 +33,15 @@ vi.mock("@/components/dashboard/TopStrip", () => ({
   TopStrip: () => <header>Greeting</header>,
 }));
 
-vi.mock("@/components/dashboard/RealCoachHero", () => ({
-  RealCoachHero: () => {
+vi.mock("@/components/real/RealMobileDashboard", () => ({
+  RealMobileDashboard: ({ classes }: { classes: ClassInfo[] }) => {
     mocks.realCoach();
-    return <section aria-label="Real coach"><h2>Today's focus</h2></section>;
-  },
-}));
-
-vi.mock("@/components/real/RealTodaysPlan", () => ({
-  RealTodaysPlan: () => {
     mocks.realAgenda();
-    return <section aria-label="Real agenda"><h2>Up next</h2></section>;
+    return (
+      <section aria-label="Real dashboard">
+        {classes.map((c) => <span key={c.id}>{c.name}</span>)}
+      </section>
+    );
   },
 }));
 
