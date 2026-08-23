@@ -464,11 +464,15 @@ export async function persistCaptureResult(
     return null;
   }
   assertActiveCaptureOwner(userId);
+  // Surface the durable ids so a failed capture can be retried from the
+  // confirmation screen instead of forcing a trip through the class page.
+  result.captureId = captureId;
 
   if (hasImages) {
     let materialIds: string[];
     try {
       materialIds = await uploadCaptureImages(captureId, attachments, userId);
+      result.materialIds = materialIds;
     } catch (err) {
       if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.upload", err);
