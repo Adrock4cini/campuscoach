@@ -22,6 +22,7 @@ import {
   prepareNewOnboardingClass,
 } from "@/lib/onboarding/classIdentity";
 import { normalizeTimeKey } from "@/lib/calendar/classSchedule";
+import { shouldSkipCompletedOnboarding } from "@/lib/onboarding/onboardingEntry";
 import { isDateKey } from "@/lib/calendar/dateKey";
 
 
@@ -42,7 +43,13 @@ export default function Onboarding() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const importSyllabusMode = searchParams.get("import") === "syllabus";
-  const { refreshOnboarded, profile, user } = useAuth();
+  const { refreshOnboarded, profile, user, setupStatus } = useAuth();
+  // A finished account must never silently re-run setup: that is how duplicate
+  // classes appear. Explicit intent (?intent=add) still allows a re-entry.
+  const skipCompletedSetup = shouldSkipCompletedOnboarding({
+    setupStatus,
+    intent: searchParams.get("intent"),
+  });
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(() => ({
     ...emptyOnboarding,
@@ -100,6 +107,10 @@ export default function Onboarding() {
   // an unscoped file. Every syllabus now belongs to one already-chosen class.
   if (importSyllabusMode) {
     return <Navigate to="/classes?intent=syllabus" replace />;
+  }
+
+  if (skipCompletedSetup) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   const update = (patch: Partial<OnboardingData>) => setData((d) => ({ ...d, ...patch }));

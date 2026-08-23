@@ -11,6 +11,8 @@ import type { OnboardingData } from "./types";
 import { canonicalizeSchoolName } from "./options";
 import { buildSyllabusDeadlineRows } from "./syllabusDeadlines";
 import { browserTimeZone, normalizeTimeKey, normalizeWeekdays } from "@/lib/calendar/classSchedule";
+import { matchExistingClass, type ExistingClassIdentity } from "./onboardingEntry";
+
 
 const ONBOARDED_KEY = "cc_onboarded_real_v1";
 const DEMO_MODE_KEY = "cc_demo_mode_v1";
@@ -104,18 +106,36 @@ export async function saveOnboarding(data: OnboardingData, explicitUserId?: stri
   if (profileError) throw profileError;
 
   // classes + enrollments
+  // An interrupted setup that is retried must reuse the rows it already wrote.
+  // Without this, a fresh draft generates new client ids and silently
+  // duplicates every class.
+  const { data: existingClasses, error: existingClassesError } = await supabase
+    .from("classes")
+    .select("id, client_class_id, name, term, section")
+    .eq("user_id", userId);
+  if (existingClassesError) throw existingClassesError;
+  const existing = (existingClasses ?? []) as ExistingClassIdentity[];
+
   for (const c of data.classes) {
     if (!c.name.trim()) continue;
+    const alreadySaved = matchExistingClass(existing, {
+      name: c.name,
+      term: data.term || null,
+      section: c.section || null,
+    });
     // New onboarding drafts always carry a random UUID. The legacy fallback
     // only keeps older cached drafts retry-safe during the rollout.
-    const clientClassId = c.clientClassId || `u-${userId.slice(0, 8)}-${slugify(c.name)}`;
-    const rowId = isUuid(clientClassId) ? clientClassId : undefined;
+    const clientClassId = alreadySaved?.client_class_id
+      || c.clientClassId
+      || `u-${userId.slice(0, 8)}-${slugify(c.name)}`;
+    const rowId = alreadySaved?.id ?? (isUuid(clientClassId) ? clientClassId : undefined);
     const weekdays = normalizeWeekdays(c.days);
     const startTime = normalizeTimeKey(c.time);
     const endTime = normalizeTimeKey(c.endTime);
     const { data: inserted, error } = await supabase
       .from("classes")
       .upsert(
+
           {
             ...(rowId ? { id: rowId } : {}),
             user_id: userId,

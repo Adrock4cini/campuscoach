@@ -25,6 +25,14 @@ import {
 import { clearLastRoute } from "@/lib/app/routeMemory";
 import { clearStudyRunnerState } from "@/lib/study/studyRunnerState";
 import { clearCaptureDraft } from "@/lib/capture/captureDraft";
+import {
+  classifySetupError,
+  resolveSetupStatus,
+  SETUP_RESOLUTION_TIMEOUT_MS,
+  type SetupErrorKind,
+  type SetupStatus,
+} from "@/lib/auth/setupStatus";
+
 
 const DEMO_KEY = "cc_demo_mode_v1";
 
@@ -52,7 +60,10 @@ type AuthState = {
   loading: boolean;
   /** True when a known session could not be read yet (offline / refresh in flight). */
   recovering: boolean;
-  onboarded: boolean | null; // null = still loading
+  onboarded: boolean | null; // derived from setupStatus; null = not yet resolved
+  /** Terminal setup resolution: checking | onboarded | needs_onboarding | error. */
+  setupStatus: SetupStatus;
+  setupError: SetupErrorKind;
   isDemoMode: boolean;
   profile: Profile;
   mode: DataMode;
@@ -67,7 +78,8 @@ const AuthCtx = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [setupStatus, setSetupStatus] = useState<SetupStatus>("checking");
+  const [setupError, setSetupError] = useState<SetupErrorKind>(null);
   const [profile, setProfile] = useState<Profile>(null);
   const profileRequestVersion = useRef(0);
   const [isDemoMode, setDemo] = useState<boolean>(
@@ -77,37 +89,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = async (userId: string | undefined | null) => {
     const request = ++profileRequestVersion.current;
     if (!userId) {
-      setOnboarded(null);
+      setSetupStatus("checking");
+      setSetupError(null);
       setProfile(null);
       return;
     }
+    // A retry must visibly re-enter "checking" before producing a new answer.
+    setSetupStatus("checking");
+    setSetupError(null);
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), SETUP_RESOLUTION_TIMEOUT_MS);
+    });
+
     try {
-      const profileResult = await supabase
+      const query = supabase
         .from("profiles")
         .select("display_name, onboarded_at, learner_type, term, school_id, work_schedule, schools(name)")
         .eq("user_id", userId)
         .maybeSingle();
+
+      const outcome = await Promise.race([
+        Promise.resolve(query).then((value) => ({ kind: "result" as const, value })),
+        timeout.then(() => ({ kind: "timeout" as const })),
+      ]);
       if (request !== profileRequestVersion.current) return;
-      if (profileResult.error) {
-        console.warn("[auth] profile load failed", profileResult.error);
+
+      if (outcome.kind === "timeout") {
+        console.warn("[auth] profile load timed out");
         setProfile(null);
-        // Setup completion is an explicit marker. A class may have been saved
-        // just before a later onboarding write failed, so class count alone is
-        // never proof that the whole setup completed.
-        setOnboarded(null);
+        setSetupStatus("error");
+        setSetupError("timeout");
         return;
       }
 
-      const nextProfile = profileResult.data as Profile;
+      const profileResult = outcome.value as {
+        data: unknown;
+        error: { message?: string } | null;
+      };
+      if (profileResult.error) {
+        console.warn("[auth] profile load failed", profileResult.error);
+        setProfile(null);
+        setSetupStatus("error");
+        setSetupError(classifySetupError(profileResult.error?.message ?? ""));
+        return;
+      }
+
+      const nextProfile = (profileResult.data ?? null) as Profile;
       setProfile(nextProfile ?? null);
-      setOnboarded(Boolean(nextProfile?.onboarded_at));
+      const resolved = resolveSetupStatus({
+        ok: true,
+        hasRow: Boolean(nextProfile),
+        onboardedAt: nextProfile?.onboarded_at ?? null,
+      });
+      setSetupStatus(resolved.status);
+      setSetupError(resolved.error);
     } catch (error) {
       if (request !== profileRequestVersion.current) return;
       console.warn("[auth] setup status load failed", error);
       setProfile(null);
-      setOnboarded(null);
+      setSetupStatus("error");
+      setSetupError(classifySetupError(error));
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   };
+
 
   const explicitSignOutRef = useRef(false);
   const [recovering, setRecovering] = useState<boolean>(
@@ -130,7 +178,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthUserId(nextSession.user.id);
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
-        setOnboarded(null);
+        setSetupStatus("checking");
+        setSetupError(null);
         setProfile(null);
         setTimeout(() => {
           if (active) void loadProfile(nextSession.user.id);
@@ -160,7 +209,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSupabaseNetworkMode("demo");
       setSession(null);
       setAuthUserId(null);
-      setOnboarded(null);
+      setSetupStatus("checking");
+      setSetupError(null);
       setProfile(null);
     };
 
@@ -249,7 +299,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       loading,
       recovering,
-      onboarded,
+      onboarded: setupStatus === "onboarded" ? true : setupStatus === "needs_onboarding" ? false : null,
+      setupStatus,
+      setupError,
       isDemoMode,
       profile,
       mode,
@@ -279,14 +331,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRecovering(false);
           setSession(null);
           setAuthUserId(null);
-          setOnboarded(null);
+          setSetupStatus("checking");
+          setSetupError(null);
           setProfile(null);
           explicitSignOutRef.current = false;
         }
       },
       refreshOnboarded: () => loadProfile(session?.user?.id),
     }),
-    [session, loading, recovering, isDemoMode, onboarded, profile, mode]
+    [session, loading, recovering, isDemoMode, setupStatus, setupError, profile, mode]
   );
 
 
