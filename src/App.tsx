@@ -110,12 +110,24 @@ function RouteMemory() {
 /** Visible, terminal setup states. Never an endless spinner. */
 function SetupPanel({ gate }: { gate: "checking" | "error" }) {
   const { setupError, refreshOnboarded, signOut } = useAuth();
+  // A fast setup read shouldn't flash a scary panel; only show it if the
+  // check is actually taking noticeable time.
+  const [showChecking, setShowChecking] = useState(false);
+  useEffect(() => {
+    if (gate !== "checking") return;
+    const t = window.setTimeout(() => setShowChecking(true), 700);
+    return () => window.clearTimeout(t);
+  }, [gate]);
+
   const copy = gate === "checking"
     ? {
         title: "Checking your account setup…",
         description: "This only takes a moment. Nothing will be changed.",
       }
     : setupErrorCopy(setupError);
+
+  if (gate === "checking" && !showChecking) return null;
+
 
   return (
     <section className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center" aria-live="polite">
