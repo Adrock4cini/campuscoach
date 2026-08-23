@@ -22,3 +22,25 @@ describe("describeFunctionError", () => {
       .resolves.toContain("existing study set is still safe");
   });
 });
+
+describe("rate limited generation", () => {
+  it("offers a wait-and-retry path instead of a dead end", async () => {
+    const message = await describeFunctionError({
+      message: "non-2xx",
+      context: new Response(JSON.stringify({ error: "Too many requests" }), {
+        status: 429,
+        headers: { "retry-after": "120" },
+      }),
+    });
+    expect(message).toMatch(/wait about 2 minutes/i);
+    expect(message).toMatch(/still saved/i);
+  });
+
+  it("falls back to a generic wait when no retry-after header is sent", async () => {
+    const message = await describeFunctionError({
+      message: "non-2xx",
+      context: new Response("{}", { status: 429 }),
+    });
+    expect(message).toMatch(/wait a minute/i);
+  });
+});
