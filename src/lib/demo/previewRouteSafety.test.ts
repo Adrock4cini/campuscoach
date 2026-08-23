@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const GUARDED_CONCEPT_ROUTES = [
   "/focus-sprint",
-  "/assignments/:assignmentId",
   "/exams/:examId",
   "/notes/:noteId",
   "/progress",
@@ -25,6 +24,15 @@ const REAL_ONLY_ROUTES = [
 ];
 
 describe("concept route preview safety", () => {
+  it("serves real assignment details to signed-in students through a mode split", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+    const start = source.indexOf('<Route path="/assignments/:assignmentId"');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const routeSource = source.slice(start, source.indexOf("<Route path=", start + 1));
+    expect(routeSource).toContain("AssignmentDetailRoute");
+    expect(routeSource).not.toContain("<DemoOnly");
+  });
+
   it("keeps every unreleased interactive page inside the fail-closed boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
 
