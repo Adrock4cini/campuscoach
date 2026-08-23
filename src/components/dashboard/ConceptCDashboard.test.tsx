@@ -1,5 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
@@ -84,7 +83,7 @@ describe("Concept C dashboard", () => {
     expect(screen.getByRole("link", { name: "Add your first class" })).toHaveAttribute("href", "/classes/new");
   });
 
-  it("caps Today at three rows and offers the rest behind +N more", async () => {
+  it("caps Today at three rows and offers the rest behind +N more", () => {
     const onOpenItem = vi.fn();
     wrap(<TodayList items={[urgent("1"), urgent("2"), urgent("3"), urgent("4"), urgent("5")]} onOpenItem={onOpenItem} />);
 
@@ -92,7 +91,7 @@ describe("Concept C dashboard", () => {
     expect(screen.getByRole("link", { name: "+2 more · view all" })).toHaveAttribute("href", "/assignments");
     expect(screen.getByRole("link", { name: /View full calendar/ })).toHaveAttribute("href", "/calendar");
 
-    await userEvent.click(screen.getAllByRole("button")[0]);
+    fireEvent.click(screen.getAllByRole("button")[0]);
     expect(onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ id: "1" }));
   });
 
@@ -131,14 +130,14 @@ describe("Concept C dashboard", () => {
     expect(screen.queryByRole("heading", { name: "Recommended next" })).not.toBeInTheDocument();
   });
 
-  it("offers only shipped capture actions", async () => {
+  it("offers only shipped capture actions", () => {
     const onAction = vi.fn();
     wrap(<QuickActionsRow onAction={onAction} />);
 
     expect(screen.queryByRole("button", { name: /ask brain/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /upload file/i })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Teacher hint" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher hint" }));
     expect(onAction).toHaveBeenCalledWith("professor-hint");
   });
 });
