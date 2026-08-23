@@ -58,6 +58,15 @@ describe("bottom-safe study and capture surfaces", () => {
     expect(dialog).toContain("w-[calc(100vw_-_1rem)]");
     expect(dialog).toContain("max-h-[calc(100dvh-1rem)]");
     expect(dialog).toContain("overflow-x-hidden");
+    // The fixed mobile bottom nav must never cover a dialog's primary action.
+    expect(dialog).toContain("pb-[calc(1.5rem+5rem+env(safe-area-inset-bottom))]");
+    expect(dialog).toContain("sm:pb-6");
+  });
+
+  it("lifts drawer footers above the fixed mobile bottom nav", () => {
+    const drawer = read("src/components/ui/drawer.tsx");
+    expect(drawer).toContain("pb-[calc(1rem+5rem+env(safe-area-inset-bottom))]");
+    expect(drawer).toContain("md:pb-4");
   });
 });
 

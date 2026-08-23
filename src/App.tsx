@@ -198,6 +198,8 @@ const App = () => (
             <Route path="/family-beta-agreement" element={<FamilyBetaAgreement />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            {/* Compatibility alias: older builds linked /beta-terms. Never 404 a legal page. */}
+            <Route path="/beta-terms" element={<TermsPage />} />
 
             {/* Everything else lives inside the app shell */}
             <Route
