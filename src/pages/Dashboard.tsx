@@ -9,7 +9,7 @@ import { RealMobileDashboard } from "@/components/real/RealMobileDashboard";
 import { useRealClassAlerts } from "@/components/real/RealClassAlerts";
 
 
-import { RealCoachHero } from "@/components/dashboard/RealCoachHero";
+
 import { DemoCoachHero } from "@/components/dashboard/DemoCoachHero";
 import { DemoTodaysPlan } from "@/components/dashboard/DemoTodaysPlan";
 import { DashboardSurface } from "@/components/dashboard/DashboardSurface";
