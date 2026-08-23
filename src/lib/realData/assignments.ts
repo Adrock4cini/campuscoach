@@ -77,6 +77,20 @@ export async function createAssignment(userId: string, input: NewAssignmentInput
   return data as RealAssignment;
 }
 
+/** Single assignment for the real detail page. */
+export async function getAssignment(id: string): Promise<RealAssignment | null> {
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    console.warn("[assignments:get]", error);
+    throw error;
+  }
+  return (data as RealAssignment) ?? null;
+}
+
 export async function updateAssignment(id: string, patch: Partial<RealAssignment>): Promise<RealAssignment | null> {
   const { data, error } = await supabase
     .from("assignments")
