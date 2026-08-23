@@ -261,6 +261,17 @@ export default function ClassSyllabusPage() {
     setWorkState("parsing");
     try {
       const nextParsed = await parseClassSyllabus(nextFile, target);
+      if (!nextParsed.classes.length) {
+        // A 200 with nothing detected must never look like "nothing happened".
+        setFile(null);
+        setParsed(null);
+        setSelectedClassIndex(null);
+        setDrafts({});
+        setPageError(
+          "We read that file but couldn’t find any class dates or topics in it. Try a clearer scan of the syllabus pages that list dates, or choose another file.",
+        );
+        return;
+      }
       setFile(nextFile);
       setParsed(nextParsed);
       setDrafts({});
@@ -272,6 +283,7 @@ export default function ClassSyllabusPage() {
         // Never guess when a document appears to contain more than one class.
         setSelectedClassIndex(null);
       }
+
     } catch (parseError) {
       console.warn("[class-syllabus] parse failed", parseError);
       setPageError(readableError(parseError, "We couldn’t read that syllabus. Try a clearer PDF or photo."));

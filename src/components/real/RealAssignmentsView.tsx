@@ -13,7 +13,7 @@ import { updateAssignment, deleteAssignment, type AssignmentStatus } from "@/lib
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -28,6 +28,7 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 export function RealAssignmentsView() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedClassId = searchParams.get("classId") || undefined;
   const selectedAssignmentId = searchParams.get("assignmentId") || undefined;
@@ -141,9 +142,13 @@ export function RealAssignmentsView() {
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`font-medium ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/assignments/${a.id}`)}
+                        className={`text-left font-medium hover:underline ${a.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}
+                      >
                         {a.title}
-                      </p>
+                      </button>
                       <Badge variant="secondary" className={`text-[10px] ${PRIORITY_TONE[a.priority] ?? ""}`}>
                         {a.priority}
                       </Badge>

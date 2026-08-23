@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
+import { checkCaptureConceptReadiness } from "./captureReadiness";
 import { describeFunctionError } from "./functionError";
 
 export interface LearningArtifactScope {
@@ -131,6 +132,29 @@ export function useLearningArtifact<K extends ArtifactKind>(
         scopeKey,
       }));
       try {
+        // A capture is only studyable once concept extraction wrote rows for
+        // it. Ask first so a fast tap shows "still reading" instead of a 404.
+        if (scope.captureId) {
+          const readiness = await checkCaptureConceptReadiness(scope.captureId);
+          if (request !== requestVersion.current) return null;
+          if (readiness.state === "processing") {
+            setState((s) => ({
+              ...s,
+              generating: false,
+              error: "Still reading your capture — Retry in a few seconds. Your capture is saved.",
+            }));
+            return null;
+          }
+          if (readiness.state === "empty") {
+            setState((s) => ({
+              ...s,
+              generating: false,
+              error: "We couldn’t pull anything studyable out of this capture. Add a note or a clearer photo, then try again.",
+            }));
+            return null;
+          }
+        }
+
         const { data, error } = await supabase.functions.invoke("generate-artifact", {
           body: {
             kind,
@@ -148,7 +172,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         });
         if (request !== requestVersion.current) return null;
         if (error) {
-          const message = await describeFunctionError(error);
+          const message = await describeFunctionError(error, scope.captureId ? { scope: "capture" } : {});
           if (request !== requestVersion.current) return null;
           setState((s) => ({ ...s, generating: false, error: message }));
           return null;

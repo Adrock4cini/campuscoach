@@ -134,6 +134,16 @@ describe("ClassSyllabusPage", () => {
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue("11111111-1111-4111-8111-111111111111");
   });
 
+  it("says plainly when a readable file contained no detectable class dates", async () => {
+    mocks.parseClassSyllabus.mockResolvedValue({ student: {}, classes: [] });
+
+    renderPage();
+    choosePdf("blank.pdf");
+
+    expect(await screen.findByText(/couldn’t find any class dates or topics/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save syllabus" })).not.toBeInTheDocument();
+  });
+
   it("explains how an iPhone family can combine a paper syllabus before upload", async () => {
     renderPage();
 

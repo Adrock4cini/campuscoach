@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { sidebarClassLabel } from "@/lib/app/sidebarClassLabel";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -69,12 +70,12 @@ const COMING_SOON_FOR_REAL = new Set<string>([
 ]);
 
 function buildGroups(
-  classList: { id: string; name: string; color: string }[],
+  classList: { id: string; name: string; color: string; courseCode?: string | null }[],
 ): SidebarGroupDefinition[] {
   const classItems = [
     { title: "All Classes", url: "/classes", icon: BookOpen },
     ...classList.map((c) => ({
-      title: c.name.split(" ").slice(0, 2).join(" "),
+      title: sidebarClassLabel(c),
       url: `/classes/${c.id}`,
       icon: BookOpen,
       dotColor: c.color,

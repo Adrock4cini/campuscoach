@@ -15,11 +15,22 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   Unauthorized: "Your session expired. Sign in again, then retry.",
 };
 
+export interface DescribeFunctionErrorOptions {
+  /**
+   * Set when the request was scoped to one freshly saved capture. A 404 then
+   * means "this capture isn't ready yet", not "you have no notes".
+   */
+  scope?: "capture";
+}
+
 /**
  * Supabase's FunctionsHttpError hides the response body on `context`.
  * Read it so students see a useful next step instead of “non-2xx”.
  */
-export async function describeFunctionError(error: FunctionInvokeError): Promise<string> {
+export async function describeFunctionError(
+  error: FunctionInvokeError,
+  options: DescribeFunctionErrorOptions = {},
+): Promise<string> {
   const response = error.context instanceof Response ? error.context : null;
   let body: ErrorBody | null = null;
 
@@ -32,11 +43,22 @@ export async function describeFunctionError(error: FunctionInvokeError): Promise
   }
 
   const serverMessage = body?.error?.trim();
+
+  if (!response) {
+    // FunctionsFetchError / transport failure: no HTTP status was reached.
+    return "Couldn’t build this set yet — check your connection and Retry. Nothing you saved was lost.";
+  }
+
+  if (response.status === 404 && options.scope === "capture") {
+    return "Couldn’t build this set yet — Retry in a moment. Your capture is still saved.";
+  }
+
   if (serverMessage && FRIENDLY_ERRORS[serverMessage]) return FRIENDLY_ERRORS[serverMessage];
 
   if (response?.status === 404) {
     return "No study concepts were found yet. Add a quick note or teacher hint, then try again.";
   }
+
   if (response?.status === 429) {
     // Rate limited: never a dead end. Saved study sets stay usable meanwhile.
     const retryAfter = Number(response.headers?.get?.("retry-after") ?? "");
