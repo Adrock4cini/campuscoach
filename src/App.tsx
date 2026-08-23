@@ -15,7 +15,7 @@ import StudyLab from "./pages/StudyLab";
 import StudySession from "./pages/StudySession";
 import FocusSprint from "./pages/FocusSprint";
 import AssignmentsPage from "./pages/AssignmentsPage";
-import AssignmentDetail from "./pages/AssignmentDetail";
+import AssignmentDetailRoute from "./pages/AssignmentDetailRoute";
 import ExamsPage from "./pages/ExamsPage";
 import ExamDetail from "./pages/ExamDetail";
 import NotesPage from "./pages/NotesPage";
@@ -233,7 +233,7 @@ const App = () => (
                     <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
                     <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />
                     <Route path="/assignments" element={<Protected><AssignmentsPage /></Protected>} />
-                    <Route path="/assignments/:assignmentId" element={<Protected><DemoOnly title="Assignment details — coming soon" description="Detailed assignment views for your real assignments are on the way. For now, manage them from the Assignments list."><AssignmentDetail /></DemoOnly></Protected>} />
+                    <Route path="/assignments/:assignmentId" element={<Protected><AssignmentDetailRoute /></Protected>} />
                     <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
                     <Route path="/exams/:examId" element={<Protected><DemoOnly title="Exam details — coming soon" description="Detailed exam readiness views for your real exams are on the way. For now, manage them from the Exams list."><ExamDetail /></DemoOnly></Protected>} />
                     <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
