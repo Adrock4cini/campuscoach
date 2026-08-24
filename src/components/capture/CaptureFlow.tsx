@@ -277,6 +277,8 @@ export function CaptureFlow({
         examId: initialExamId,
       });
   }, [
+    inference?.source,
+
     open,
     initialKind,
     realMode,
