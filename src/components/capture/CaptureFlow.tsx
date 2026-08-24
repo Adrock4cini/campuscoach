@@ -252,13 +252,19 @@ export function CaptureFlow({
 
     setCtx(restorable
       ? {
-        classId: draft!.classId || defaultClassId,
+        // An explicit entry class (opened from a class page or a class action)
+        // always wins over a retained draft from a previous class, so Quick
+        // Capture from BIOL can never preselect last session's class.
+        classId: inference?.source === "entry" && defaultClassId
+          ? defaultClassId
+          : draft!.classId || defaultClassId,
         date: draft!.date || todayDateKey(),
         topic: draft!.topic,
         text: draft!.text,
         assignmentId: initialAssignmentId,
         examId: initialExamId,
       }
+
       : {
         classId: defaultClassId,
         date: todayDateKey(),
@@ -271,6 +277,8 @@ export function CaptureFlow({
         examId: initialExamId,
       });
   }, [
+    inference?.source,
+
     open,
     initialKind,
     realMode,

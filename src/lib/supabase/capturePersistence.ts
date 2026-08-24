@@ -755,7 +755,9 @@ export interface RetryCaptureInput {
   rawText?: string | null;
 }
 
-export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<void> {
+export async function retryCaptureConcepts(
+  capture: RetryCaptureInput,
+): Promise<"processing" | "ready"> {
   const rawText = (capture.rawText ?? "").trim();
   if (!rawText) throw new Error("This capture has no source text to process.");
   const userId = getAnonUserId();
@@ -770,6 +772,7 @@ export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<
       rawText,
     }, userId);
     if (extractionStatus === "ready") dispatchConceptsExtracted(capture.id);
+    return extractionStatus;
   } catch (err) {
     await setCaptureProcessingStatus(capture.id, "failed", userId);
     throw err;
@@ -779,15 +782,57 @@ export async function retryCaptureConcepts(capture: RetryCaptureInput): Promise<
 export async function retryCaptureImages(
   captureId: string,
   materialIds: string[],
-): Promise<void> {
+): Promise<"processing" | "ready"> {
   if (!materialIds.length) throw new Error("This capture has no saved images to process.");
   const userId = getAnonUserId();
   await setCaptureProcessingStatus(captureId, "processing", userId);
   try {
     const status = await invokeImageProcessing(captureId, materialIds, userId);
     if (status === "ready") dispatchConceptsExtracted(captureId);
+    return status;
   } catch (err) {
     await setCaptureProcessingStatus(captureId, "failed", userId);
     throw err;
   }
 }
+
+/**
+ * Retry one stuck capture by id, from a surface (Study Lab) that only knows
+ * the capture id. Text captures rerun concept extraction, image captures rerun
+ * OCR. The edge functions own idempotency: if concepts already exist they
+ * repair the capture to `ready` without calling paid AI again.
+ */
+export async function retryCaptureProcessing(
+  captureId: string,
+): Promise<"processing" | "ready"> {
+  const userId = getAnonUserId();
+  const { data: capture, error } = await supabase
+    .from("captures")
+    .select("id, kind, raw_text, client_class_id, topic")
+    .eq("id", captureId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !capture) throw new Error("We couldn't find this capture to retry.");
+
+  const rawText = (capture.raw_text ?? "").trim();
+  if (rawText) {
+    return retryCaptureConcepts({
+      id: capture.id,
+      kind: capture.kind,
+      clientClassId: capture.client_class_id ?? "",
+      topic: capture.topic,
+      rawText,
+    });
+  }
+
+  const { data: materials, error: materialsError } = await supabase
+    .from("materials")
+    .select("id")
+    .eq("capture_id", captureId)
+    .eq("user_id", userId)
+    .order("page_index", { ascending: true });
+  if (materialsError) throw new Error("We couldn't find this capture to retry.");
+  const materialIds = (materials ?? []).map((material) => material.id as string);
+  return retryCaptureImages(captureId, materialIds);
+}
+

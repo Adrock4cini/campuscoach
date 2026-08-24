@@ -56,10 +56,30 @@ Rules:
 const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "concept";
 
-const EXTRACTION_CLAIM_MS = 5 * 60 * 1000;
+// A synchronous extraction finishes in seconds. Anything older than this is
+// an orphaned claim (lost response, client cancellation, cold-start kill) and
+// must be reclaimable so a student is never stuck waiting minutes.
+const EXTRACTION_CLAIM_MS = 90 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+interface ClaimGuard { release: (() => Promise<void>) | null }
+
+// No branch may leak the extraction claim. Any unexpected throw after the
+// claim is acquired releases it as `failed` so the capture reaches a terminal,
+// retryable state instead of staying "processing" forever.
 Deno.serve(async (req) => {
+  const guard: ClaimGuard = { release: null };
+  try {
+    return await handleRequest(req, guard);
+  } catch (error) {
+    try { await guard.release?.(); } catch { /* best effort */ }
+    console.error("[extract-concepts] unhandled failure", error);
+    const details = error instanceof Error ? error.message : "unexpected error";
+    return json({ error: "extraction failed", details }, 500);
+  }
+});
+
+async function handleRequest(req: Request, guard: ClaimGuard): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -325,6 +345,7 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .eq("concept_extraction_claim_id", claimId);
   };
+  if (claimId) guard.release = releaseClaimAsFailed;
 
   const userPrompt = [
     body.className ? `Class: ${body.className}` : null,
@@ -567,7 +588,7 @@ Deno.serve(async (req) => {
   }
 
   return json({ ok: true, summary, concepts, conceptIds: insertedIds });
-});
+}
 
 function insufficientSource() {
   return json({

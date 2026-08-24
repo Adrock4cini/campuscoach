@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
 import * as captureProcessor from "@/lib/capture/processor";
 import { readLastCaptureClassId, writeLastCaptureClassId } from "@/lib/capture/captureClassPreference";
+import { CAPTURE_DRAFT_KEY } from "@/lib/capture/captureDraft";
 import { CaptureDoneSummary, CaptureFlow } from "./CaptureFlow";
 
 const mocks = vi.hoisted(() => ({
@@ -145,6 +146,21 @@ describe("CaptureFlow class boundaries", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("uses the class the capture was opened from, even when a draft names another class", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    writeLastCaptureClassId("math");
+    sessionStorage.setItem(
+      CAPTURE_DRAFT_KEY,
+      JSON.stringify({ kind: "quick-note", classId: "math", date: "2026-08-24", topic: "", text: "Cell walls" }),
+    );
+
+    renderCapture("science");
+
+    expect(screen.getByText(/Science/)).toBeTruthy();
+    expect(screen.queryByText(/^Math$/)).toBeNull();
   });
 
   it("labels a device-only demo capture without implying an account update", () => {

@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   invoke: vi.fn(),
   scopes: [] as unknown[],
+  captureProcessing: false,
+  retryCaptureProcessing: vi.fn(),
   exams: [] as Array<{
     id: string;
     title: string;
@@ -30,10 +32,15 @@ vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
     loading: false,
     generating: false,
     error: null,
+    captureProcessing: mocks.captureProcessing,
     generate: mocks.generate,
     reload: mocks.reload,
     });
   },
+}));
+
+vi.mock("@/lib/supabase/capturePersistence", () => ({
+  retryCaptureProcessing: (...args: unknown[]) => mocks.retryCaptureProcessing(...args),
 }));
 
 vi.mock("@/lib/realData/hooks", () => ({
@@ -406,5 +413,33 @@ describe("real study set freshness", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(mocks.reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("stuck capture recovery", () => {
+  beforeEach(() => {
+    mocks.artifact = null;
+    mocks.captureProcessing = false;
+    mocks.generate.mockReset().mockResolvedValue(undefined);
+    mocks.retryCaptureProcessing.mockReset().mockResolvedValue("ready");
+  });
+
+  it("offers no retry while nothing is stuck", () => {
+    render(<RealStudySet classId="math" kind="flashcards" initialCaptureId="capture-1" />);
+    expect(screen.queryByRole("button", { name: /retry processing/i })).toBeNull();
+  });
+
+  it("lets the student reclaim a stuck capture and rebuild the set", async () => {
+    mocks.captureProcessing = true;
+    render(<RealStudySet classId="math" kind="flashcards" initialCaptureId="capture-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /retry processing/i }));
+
+    await waitFor(() => {
+      expect(mocks.retryCaptureProcessing).toHaveBeenCalledWith("capture-1");
+    });
+    await waitFor(() => {
+      expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false });
+    });
   });
 });

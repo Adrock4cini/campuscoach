@@ -172,8 +172,28 @@ export function RealStudySet({
     conceptIds: isCoachTarget ? initialConceptIds : undefined,
     captureId: isCaptureTarget ? initialCaptureId : undefined,
   }), [classId, initialCaptureId, initialConceptIds, isCaptureTarget, isCoachTarget, studyScope]);
-  const { artifact, loading, generating, error, generate, reload } =
+  const { artifact, loading, generating, error, captureProcessing, generate, reload } =
     useLearningArtifact(kind, scope);
+  const [retryingCapture, setRetryingCapture] = useState(false);
+  const startGenerationRef = useRef<((regenerate: boolean) => Promise<void>) | null>(null);
+
+
+  // A capture that is still extracting must never be an infinite wait: give
+  // the student one explicit, non-AI retry that reclaims a stale/orphaned
+  // extraction claim and rechecks readiness.
+  const retryCaptureProcessingNow = useCallback(async () => {
+    if (!scope.captureId) return;
+    setRetryingCapture(true);
+    try {
+      const { retryCaptureProcessing } = await import("@/lib/supabase/capturePersistence");
+      await retryCaptureProcessing(scope.captureId);
+    } catch {
+      /* the generation attempt below reports the resulting state */
+    } finally {
+      setRetryingCapture(false);
+    }
+    await startGenerationRef.current?.(false);
+  }, [scope.captureId]);
 
   // Remember where the student was so leaving Study Lab and coming back does
   // not silently reset them to the first class in flashcard mode.
@@ -232,6 +252,8 @@ export function RealStudySet({
       }
     }
   }, [generate, generationKey, reload]);
+  startGenerationRef.current = startGeneration;
+
 
   useEffect(() => {
     if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
@@ -458,6 +480,28 @@ export function RealStudySet({
           <p role="alert" className="text-xs text-destructive">
             {error}
           </p>
+        )}
+
+        {captureProcessing && scope.captureId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-11 w-full rounded-xl"
+            disabled={retryingCapture || generating}
+            onClick={() => { void retryCaptureProcessingNow(); }}
+          >
+            {retryingCapture ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Retrying…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Retry processing
+              </>
+            )}
+          </Button>
         )}
 
         <div className="space-y-2">
