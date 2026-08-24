@@ -819,3 +819,46 @@ describe("CaptureFlow class memory and next action", () => {
     expect(screen.getByRole("button", { name: /save for later/i })).toBeInTheDocument();
   });
 });
+
+describe("Quick Capture tile dispatch", () => {
+  beforeEach(() => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    mocks.error = null;
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const cases: Array<[string, string]> = [
+    ["Quick Note", "Quick Note"],
+    ["Scan Assignment", "Scan Assignment"],
+    ["Scan Notes or Book", "Scan Notes or Book"],
+    ["Teacher Hint", "Teacher Hint"],
+  ];
+
+  it.each(cases)("opens the %s composer from its own tile", (tile, heading) => {
+    render(
+      <MemoryRouter>
+        <CaptureFlow open onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${tile}`) }));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(heading);
+  });
+
+  it("keeps the typed-note composer for Quick Note, not the photo composer", () => {
+    render(
+      <MemoryRouter>
+        <CaptureFlow open onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Quick Note/ }));
+    expect(screen.getByPlaceholderText("Type here…")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Take photo — assignment/i)).not.toBeInTheDocument();
+  });
+});
