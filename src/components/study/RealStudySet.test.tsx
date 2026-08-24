@@ -425,13 +425,13 @@ describe("stuck capture recovery", () => {
   });
 
   it("offers no retry while nothing is stuck", () => {
-    render(<RealStudySet classId="math" kind="flashcards" captureId="capture-1" />);
+    render(<RealStudySet classId="math" kind="flashcards" initialCaptureId="capture-1" />);
     expect(screen.queryByRole("button", { name: /retry processing/i })).toBeNull();
   });
 
   it("lets the student reclaim a stuck capture and rebuild the set", async () => {
     mocks.captureProcessing = true;
-    render(<RealStudySet classId="math" kind="flashcards" captureId="capture-1" />);
+    render(<RealStudySet classId="math" kind="flashcards" initialCaptureId="capture-1" />);
 
     fireEvent.click(screen.getByRole("button", { name: /retry processing/i }));
 
