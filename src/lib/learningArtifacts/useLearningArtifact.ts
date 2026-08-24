@@ -28,6 +28,8 @@ interface UseLearningArtifactState<K extends ArtifactKind> {
   loading: boolean;
   generating: boolean;
   error: string | null;
+  /** True when generation was blocked because the capture is still extracting. */
+  captureProcessing: boolean;
   scopeKey: string;
 }
 
@@ -50,6 +52,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
     loading: true,
     generating: false,
     error: null,
+    captureProcessing: false,
     scopeKey,
   });
   const requestVersion = useRef(0);
@@ -61,6 +64,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       loading: true,
       generating: false,
       error: null,
+      captureProcessing: false,
       scopeKey,
     }));
     try {
@@ -87,7 +91,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       const { data, error } = await q.maybeSingle();
       if (request !== requestVersion.current) return;
       if (error) {
-        setState({ artifact: null, loading: false, generating: false, error: error.message, scopeKey });
+        setState({ artifact: null, loading: false, generating: false, error: error.message, captureProcessing: false, scopeKey });
         return;
       }
       setState({
@@ -95,6 +99,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         loading: false,
         generating: false,
         error: null,
+        captureProcessing: false,
         scopeKey,
       });
     } catch (error) {
@@ -104,6 +109,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         loading: false,
         generating: false,
         error: error instanceof Error ? error.message : "Couldn’t load this study set.",
+        captureProcessing: false,
         scopeKey,
       });
     }
@@ -129,6 +135,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         loading: false,
         generating: true,
         error: null,
+        captureProcessing: false,
         scopeKey,
       }));
       try {
@@ -141,7 +148,8 @@ export function useLearningArtifact<K extends ArtifactKind>(
             setState((s) => ({
               ...s,
               generating: false,
-              error: "Still reading your capture — Retry in a few seconds. Your capture is saved.",
+              captureProcessing: true,
+              error: "Still reading your capture. Your capture is saved — retry processing if this does not clear.",
             }));
             return null;
           }
@@ -178,7 +186,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
           return null;
         }
         const artifact = ((data as { artifact: unknown } | null)?.artifact ?? null) as LearningArtifact<K> | null;
-        setState({ artifact, loading: false, generating: false, error: null, scopeKey });
+        setState({ artifact, loading: false, generating: false, error: null, captureProcessing: false, scopeKey });
         return artifact;
       } catch (error) {
         if (request !== requestVersion.current) return null;
@@ -195,7 +203,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
 
   const visibleState = state.scopeKey === scopeKey
     ? state
-    : { artifact: null, loading: true, generating: false, error: null, scopeKey };
+    : { artifact: null, loading: true, generating: false, error: null, captureProcessing: false, scopeKey };
 
   return { ...visibleState, reload: load, generate };
 }
