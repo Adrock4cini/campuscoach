@@ -252,6 +252,8 @@ export function RealStudySet({
       }
     }
   }, [generate, generationKey, reload]);
+  startGenerationRef.current = startGeneration;
+
 
   useEffect(() => {
     if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
