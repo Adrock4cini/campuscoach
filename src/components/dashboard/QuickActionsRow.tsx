@@ -1,12 +1,13 @@
 /**
  * Quick actions — only shipped, working capture entry points.
  * Nothing that is still "coming next" appears here as an active action.
+ * The persistent global Capture button is the primary capture entry point, so
+ * the generic "Capture" tile is intentionally omitted here.
  */
-import { Camera, Lightbulb, ScanLine, StickyNote } from "lucide-react";
+import { ScanLine, Lightbulb, StickyNote } from "lucide-react";
 import type { CaptureKind } from "@/lib/capture/types";
 
-const ACTIONS: { kind: CaptureKind | undefined; label: string; Icon: typeof Camera }[] = [
-  { kind: undefined, label: "Capture", Icon: Camera },
+const ACTIONS: { kind: CaptureKind | undefined; label: string; Icon: typeof ScanLine }[] = [
   { kind: "scan-assignment", label: "Scan homework", Icon: ScanLine },
   { kind: "professor-hint", label: "Teacher hint", Icon: Lightbulb },
   { kind: "quick-note", label: "Quick note", Icon: StickyNote },
@@ -16,7 +17,7 @@ export function QuickActionsRow({ onAction }: { onAction: (kind?: CaptureKind) =
   return (
     <section aria-label="Quick actions" className="space-y-2.5">
       <h2 className="px-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Quick actions</h2>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-2.5">
         {ACTIONS.map((action) => (
           <button
             key={action.label}
@@ -32,3 +33,4 @@ export function QuickActionsRow({ onAction }: { onAction: (kind?: CaptureKind) =
     </section>
   );
 }
+

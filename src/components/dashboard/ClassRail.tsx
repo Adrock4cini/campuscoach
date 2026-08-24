@@ -6,7 +6,6 @@
  * bare unexplained percentage.
  */
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
 import type { ClassInfo } from "@/data/demo";
 import type { ClassAlert } from "@/lib/dashboard/classAlerts";
 import { sidebarClassLabel } from "@/lib/app/sidebarClassLabel";
@@ -52,39 +51,38 @@ export function ClassRail({
       ) : (
         <ul
           aria-label="Class summaries"
-          className="-mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {classes.map((classInfo) => {
             const alert = alerts[classInfo.id];
             const signal = alert?.text ?? "Nothing urgent";
             return (
-              <li key={classInfo.id} className="w-[58%] min-w-[168px] max-w-[220px] shrink-0 snap-start sm:w-[220px]">
+              <li key={classInfo.id} className="w-[28%] min-w-[92px] max-w-[110px] shrink-0 snap-start sm:w-[120px]">
                 <Link
                   to={`/classes/${encodeURIComponent(classInfo.id)}`}
                   aria-label={`Open ${classInfo.name}. ${signal}`}
-                  className="flex h-full min-h-[116px] flex-col justify-between rounded-2xl border border-border/50 bg-card/65 p-3.5 shadow-sm backdrop-blur-md transition-colors hover:border-primary/40 hover:bg-primary/5 active:bg-primary/10"
+                  className="flex h-full min-h-[96px] flex-col justify-between rounded-2xl border border-border/50 bg-card/65 p-2.5 shadow-sm backdrop-blur-md transition-colors hover:border-primary/40 hover:bg-primary/5 active:bg-primary/10"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5">
                     <span
                       className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-display text-sm font-semibold text-primary-foreground",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-xl font-display text-xs font-semibold text-primary-foreground",
                         classInfo.color,
                       )}
                       aria-hidden
                     >
                       {classInfo.name.trim().charAt(0)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-foreground">
+                    <span className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground" title={classInfo.name}>
                       {sidebarClassLabel({ name: classInfo.name, courseCode: classInfo.courseCode })}
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   </span>
-                  <span className="mt-2 block">
-                    <span className={cn("block text-xs font-medium leading-snug", alert ? alertTone[alert.tone] : "text-muted-foreground")}>
+                  <span className="mt-1.5 block">
+                    <span className={cn("block text-[10px] font-medium leading-tight", alert ? alertTone[alert.tone] : "text-muted-foreground")}>
                       {signal}
                     </span>
                     {alert?.secondary && (
-                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{alert.secondary}</span>
+                      <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">{alert.secondary}</span>
                     )}
                   </span>
                 </Link>
@@ -96,3 +94,4 @@ export function ClassRail({
     </section>
   );
 }
+
