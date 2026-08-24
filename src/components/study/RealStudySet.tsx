@@ -175,6 +175,8 @@ export function RealStudySet({
   const { artifact, loading, generating, error, captureProcessing, generate, reload } =
     useLearningArtifact(kind, scope);
   const [retryingCapture, setRetryingCapture] = useState(false);
+  const startGenerationRef = useRef<((regenerate: boolean) => Promise<void>) | null>(null);
+
 
   // A capture that is still extracting must never be an infinite wait: give
   // the student one explicit, non-AI retry that reclaims a stale/orphaned
