@@ -124,14 +124,14 @@ export default function ClassDetail() {
         <Card className="shadow-card border-primary/20 bg-primary/5 overflow-hidden">
           <CardContent className="p-4 sm:p-5 space-y-3 min-w-0">
             <div>
-              <h3 className="font-display font-semibold text-foreground">Capture something from this class</h3>
+              <h3 className="font-display font-semibold text-foreground">Add from class</h3>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                A photo, a note, or something your teacher emphasized. Campus Brain turns it into study sets.
+                A photo, a note, or something your teacher emphasized. What you add helps Campus Companion with assignments and test prep.
               </p>
             </div>
             <div className="space-y-2">
               <Button className="h-12 w-full rounded-2xl bg-gradient-calm border-0 text-primary-foreground hover:opacity-90" onClick={() => openCapture(undefined, c.id)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Capture
+                <Plus className="h-4 w-4 mr-1.5" /> Add from class
               </Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => openCapture("scan-assignment", c.id)}>

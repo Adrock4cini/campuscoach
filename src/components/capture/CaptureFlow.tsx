@@ -507,10 +507,10 @@ export function CaptureFlow({
                 <div className="flex-1 min-w-0">
                   <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-primary/90">
                     <Sparkles className="h-3 w-3" />
-                    Quick Capture
+                    Add from class
                   </div>
                   <h2 className="font-display text-lg font-semibold text-foreground truncate">
-                    {stage === "menu" && "What are you capturing?"}
+                    {stage === "menu" && "What do you want to add?"}
                     {stage === "context" && meta && CAPTURE_LABELS[meta.kind]}
                     {stage === "processing" && "Campus Brain is working…"}
                     {stage === "done" && (
