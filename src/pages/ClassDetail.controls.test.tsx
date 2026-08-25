@@ -57,7 +57,7 @@ function renderClass() {
 describe("class detail control hierarchy", () => {
   it("offers one primary capture action instead of a button wall", () => {
     renderClass();
-    const capture = screen.getByRole("button", { name: /^capture$/i });
+    const capture = screen.getByRole("button", { name: /^add from class$/i });
     expect(capture).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /homework help/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /teacher hint/i })).toBeInTheDocument();
