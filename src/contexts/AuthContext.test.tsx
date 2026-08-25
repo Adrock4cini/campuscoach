@@ -265,6 +265,7 @@ describe("AuthProvider session restoration", () => {
       mocks.authCallback?.("TOKEN_REFRESHED", sessionFor("student-1"));
     });
     expect(screen.getByText("student-1")).toBeInTheDocument();
+    expect(mocks.profileMaybeSingle).toHaveBeenCalledTimes(1);
     expect(mocks.completeOAuthPasskeyOffer).not.toHaveBeenCalled();
 
     await act(async () => {

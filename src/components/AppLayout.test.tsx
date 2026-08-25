@@ -75,4 +75,18 @@ describe("AppLayout auth boundary", () => {
 
     expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("");
   });
+
+  it("keeps owner-scoped drafts through a transient mode refresh", () => {
+    auth.mode = "real";
+    auth.user = { id: "child-a" };
+    const { rerender } = render(<AppLayout><div>Real route content</div></AppLayout>);
+    fireEvent.change(screen.getByRole("textbox", { name: "Capture draft" }), { target: { value: "Keep this note" } });
+
+    auth.mode = "loading";
+    rerender(<AppLayout><div>Real route content</div></AppLayout>);
+    auth.mode = "real";
+    rerender(<AppLayout><div>Real route content</div></AppLayout>);
+
+    expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("Keep this note");
+  });
 });

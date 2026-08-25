@@ -162,6 +162,12 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     if (open && pendingFinal) completionRef.current?.focus();
   }, [open, pendingFinal]);
 
+  // Defense in depth: malformed/empty artifacts must close cleanly instead of
+  // leaving the parent in a true "studying" state with a null dialog.
+  useEffect(() => {
+    if (open && items.length === 0) onOpenChange(false);
+  }, [items.length, onOpenChange, open]);
+
   const record = (wasCorrect: boolean) => {
     if (!confidence || pendingFinal) return;
 

@@ -188,6 +188,7 @@ export function ClassMemory({ classId, className }: Props) {
   const [showHistory, setShowHistory] = useState(false);
 
   const requestVersion = useRef(0);
+  const loadedScopeRef = useRef(scopeKey);
   const navigate = useNavigate();
 
   const openStudy = (item: MemoryItem, requestedMode?: StudyMode) => {
@@ -228,7 +229,8 @@ export function ClassMemory({ classId, className }: Props) {
 
     () => async () => {
       const request = ++requestVersion.current;
-      const sameScope = loadedScope === scopeKey;
+      const sameScope = loadedScopeRef.current === scopeKey;
+      loadedScopeRef.current = scopeKey;
       setLoadedScope(scopeKey);
       if (!sameScope) {
         setItems([]);
@@ -261,13 +263,13 @@ export function ClassMemory({ classId, className }: Props) {
         if (request === requestVersion.current) setLoading(false);
       }
     },
-    [classId, loadedScope, mode, scopeKey],
+    [classId, mode, scopeKey],
   );
 
   useEffect(() => {
     setPollsUsed(0);
     void refresh();
-    const onCommit = () => void refresh();
+    const onCommit = () => void quietRefresh();
     window.addEventListener("capture:committed", onCommit);
     window.addEventListener("concepts:extracted", onCommit);
     return () => {
@@ -275,7 +277,7 @@ export function ClassMemory({ classId, className }: Props) {
       window.removeEventListener("capture:committed", onCommit);
       window.removeEventListener("concepts:extracted", onCommit);
     };
-  }, [refresh]);
+  }, [quietRefresh, refresh]);
 
   // Extraction finishes on the server with no push channel. Re-read the same
   // rows a bounded number of times so a capture that was still processing when

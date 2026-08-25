@@ -155,7 +155,7 @@ function SetupPanel({ gate }: { gate: "checking" | "error" }) {
 
 function RootGate() {
   const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
-  if (loading) return null;
+  if (loading) return <RouteLoading />;
   if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
   if (user && !hasFamilyBetaAgreement(user)) return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;

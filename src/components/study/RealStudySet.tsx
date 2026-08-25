@@ -258,7 +258,7 @@ export function RealStudySet({
   useEffect(() => {
     if (!autoStart || (!isCoachTarget && !isCaptureTarget) || loading || generating || error) return;
 
-    if (artifact && !needsRefresh) {
+    if (artifact && !needsRefresh && count > 0 && !matchingUnusable) {
       const key = `open:${kind}:${artifact.id}`;
       if (autoStartKey.current === key) return;
       autoStartKey.current = key;
@@ -279,6 +279,8 @@ export function RealStudySet({
     isCaptureTarget,
     kind,
     loading,
+    count,
+    matchingUnusable,
     needsRefresh,
     startGeneration,
     studyScope.id,
@@ -512,6 +514,7 @@ export function RealStudySet({
               onClick={() => {
                 setSelectedTarget("class");
                 setStudying(false);
+                autoStartKey.current = null;
               }}
             >
               Study the whole class instead
