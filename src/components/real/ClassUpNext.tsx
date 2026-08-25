@@ -196,7 +196,9 @@ export function ClassUpNext({ classId, className }: Props) {
                 : `/study-lab?classId=${encodeURIComponent(classId)}`}
             >
               <Zap className="mr-1.5 h-4 w-4" />
-              {nextExam ? "Prepare for this test" : "Start a 10-minute study set"}
+              {nextExam
+                ? testAction.action === "study-now" ? "Study now" : "Keep practicing"
+                : "Start a 10-minute study set"}
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </Link>
           </Button>
