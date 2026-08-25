@@ -414,7 +414,7 @@ describe("CaptureFlow class boundaries", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(onClose).toHaveBeenCalled();
-    expect(screen.queryByText("What are you capturing?")).not.toBeInTheDocument();
+    expect(screen.queryByText("What do you want to add?")).not.toBeInTheDocument();
   });
 
   it("keeps the draft when the student steps back to the menu and returns", () => {
@@ -431,7 +431,7 @@ describe("CaptureFlow class boundaries", () => {
       target: { files: [photo("card-1.jpg")] },
     });
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByText("What are you capturing?")).toBeInTheDocument();
+    expect(screen.getByText("What do you want to add?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /scan notes or book/i }));
     expect(screen.getByText("1 of 4 photo ready")).toBeInTheDocument();

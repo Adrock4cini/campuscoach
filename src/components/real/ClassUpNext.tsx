@@ -15,6 +15,7 @@ import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hook
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
 import { useClassReadinessSignals } from "@/lib/intelligence/useClassReadinessSignals";
 import { assessMaterial } from "@/lib/intelligence/materialSufficiency";
+import { coverageSignal, nextTestAction, practiceSignal } from "@/lib/intelligence/testSignals";
 import { useCapture } from "@/contexts/CaptureContext";
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
@@ -50,6 +51,11 @@ export function ClassUpNext({ classId, className }: Props) {
   const [addExam, setAddExam] = useState(false);
   const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
   const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
+  // Three honest signals, shown separately: urgency (the date chip),
+  // coverage (do we have material), practice (what the student demonstrated).
+  const coverage = coverageSignal(signals);
+  const practice = practiceSignal(signals);
+  const testAction = nextTestAction(coverage, practice);
 
   const loading = assignmentsLoading || examsLoading || coachLoading;
 
@@ -71,23 +77,60 @@ export function ClassUpNext({ classId, className }: Props) {
         {(nextExam || nextAssignment) && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {nextExam && (
-              <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 p-3">
-                <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Next test</p>
-                  <p className="truncate text-sm text-foreground">{nextExam.title}</p>
+              <div className="rounded-xl border border-border/50 bg-background/50 p-3">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Next test</p>
+                    <p className="truncate text-sm text-foreground">{nextExam.title}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextExam.exam_date))}</Badge>
                 </div>
-                <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextExam.exam_date))}</Badge>
+                {!signalsLoading && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${coverage.level === "good-coverage" ? "border-success/30 text-success" : "border-warning/40 text-warning"}`}
+                    >
+                      {coverage.label}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${practice.level === "strong" ? "border-success/30 text-success" : practice.level === "not-practiced" ? "text-muted-foreground" : "border-primary/30 text-primary"}`}
+                    >
+                      {practice.label}
+                    </Badge>
+                  </div>
+                )}
               </div>
             )}
             {nextAssignment && (
-              <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 p-3">
-                <ClipboardList className="h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Next due</p>
-                  <p className="truncate text-sm text-foreground">{nextAssignment.title}</p>
+              <div className="rounded-xl border border-border/50 bg-background/50 p-3">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Next due</p>
+                    <p className="truncate text-sm text-foreground">{nextAssignment.title}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextAssignment.due_date))}</Badge>
                 </div>
-                <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextAssignment.due_date))}</Badge>
+                {/* Act first, manage status later: open the assignment or get
+                    help without any status ceremony. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-0 pl-6">
+                  <Link
+                    to={`/assignments/${encodeURIComponent(nextAssignment.id)}`}
+                    className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline"
+                  >
+                    {nextAssignment.status === "not_started" ? "Start" : "Continue"}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => openCapture("scan-assignment", { classId, assignmentId: nextAssignment.id })}
+                    className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline"
+                  >
+                    Get help
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -153,7 +196,9 @@ export function ClassUpNext({ classId, className }: Props) {
                 : `/study-lab?classId=${encodeURIComponent(classId)}`}
             >
               <Zap className="mr-1.5 h-4 w-4" />
-              {nextExam ? "Prepare for this test" : "Start a 10-minute study set"}
+              {nextExam
+                ? testAction.action === "study-now" ? "Study now" : "Keep practicing"
+                : "Start a 10-minute study set"}
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </Link>
           </Button>

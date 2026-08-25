@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assessSourceSufficiency,
   containsSourceFurniture,
+  isLogisticsLine,
   isNonExplanatoryFragment,
 } from "./grounding-quality";
 
@@ -42,5 +43,39 @@ describe("OCR furniture and heading fragments", () => {
         "An exclusive right-to-sell listing pays the broker regardless of who finds the buyer.",
       ),
     ).toBe(false);
+  });
+});
+
+describe("logistics and schedule lines", () => {
+  it.each([
+    "Test Friday",
+    "Test on Friday",
+    "The test is on Friday",
+    "Homework is due Monday",
+    "Homework due next week",
+    "Quiz tomorrow",
+    "Our final is next week",
+    "Due on Wednesday",
+    "No class tomorrow",
+    "Class is cancelled",
+    "Remember: exam this week",
+  ])("flags schedule info as logistics, never knowledge: %s", (line) => {
+    expect(isLogisticsLine(line)).toBe(true);
+    expect(isNonExplanatoryFragment(line)).toBe(true);
+  });
+
+  it.each([
+    "Decimals are fractions whose denominator is a power of ten.",
+    "The final exam tests your understanding of integrals.",
+    "Professor said mitosis will be on the test.",
+    "The reading shows that osmosis moves water across a membrane.",
+    "2+2=4",
+  ])("leaves real academic content usable: %s", (line) => {
+    expect(isLogisticsLine(line)).toBe(false);
+  });
+
+  it("a logistics-only quick note is not a sufficient source", () => {
+    expect(assessSourceSufficiency("Homework is due Monday").sufficient).toBe(false);
+    expect(assessSourceSufficiency("The test is on Friday").sufficient).toBe(false);
   });
 });

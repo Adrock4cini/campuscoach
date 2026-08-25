@@ -23,6 +23,44 @@ const FURNITURE_LINE =
 const EXPLANATORY_SIGNAL =
   /\b(is|are|was|were|means|refers|defined|definition|because|when|which|that|who|requires|allows|includes|equals|causes|results|must|can|may|do|does|has|have|will|said|says|need|needs|becomes|occurs|happens|makes|gives|shows)\b/i;
 
+const WEEKDAY =
+  "(?:mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:rs?|rsday|thursday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)";
+const ASSESSMENT_NOUN =
+  "(?:test|quiz|exam|midterm|final|homework|hw|assignment|project|paper|essay|lab|reading)";
+
+/**
+ * Logistics and schedule lines: "Test Friday", "Homework is due Monday",
+ * "Quiz next week", "No class tomorrow", "Class is cancelled". These carry a
+ * verb, so they slip past the explanatory-signal check — but they are
+ * planning information, never knowledge, and must not become a concept
+ * definition, an answer key, or a match pair.
+ *
+ * Anchored to the whole line and always requires an assessment/logistics
+ * noun plus a time or due word, so real content ("The final exam tests your
+ * understanding of integrals") is untouched.
+ */
+const LOGISTICS_LINE = new RegExp(
+  `^(?:remember[:,]?\\s*)?(?:` +
+  `(?:the\\s+|our\\s+|my\\s+)?${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due\\s+)?(?:on\\s+)?(?:this\\s+|next\\s+)?${WEEKDAY}\\b[^.!?\\n]{0,20}?` +
+  `|(?:the\\s+|our\\s+|my\\s+)?${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due|tomorrow|today|tonight|next\\s+week|this\\s+week)\\b[^.!?\\n]{0,20}?` +
+  `|due\\s+(?:on\\s+)?(?:this\\s+|next\\s+)?${WEEKDAY}\\b` +
+  `|no\\s+class\\b[^.!?\\n]{0,30}?` +
+  `|class\\s+(?:is\\s+)?(?:cancelled|canceled)\\b[^.!?\\n]{0,30}?` +
+  `)[.!\\s]*$`,
+  "i",
+);
+
+/**
+ * True when the whole line is a schedule/logistics note rather than
+ * learnable content. Exact equations stay learnable.
+ */
+export function isLogisticsLine(rawText: string): boolean {
+  const text = rawText.trim();
+  if (!text) return false;
+  if (extractExactThinSource(text)) return false;
+  return LOGISTICS_LINE.test(text);
+}
+
 /**
  * Removes trailing source furniture ("… © Stringham Schools 159") so the real
  * sentence can be judged on its own merits.
@@ -60,6 +98,8 @@ export function isNonExplanatoryFragment(rawText: string): boolean {
   if (!original) return true;
   // Equations and other exact thin sources are legitimate answers.
   if (extractExactThinSource(original)) return false;
+  // Schedule lines ("Test is Friday") are planning info, never an answer.
+  if (isLogisticsLine(original)) return true;
 
   const stripped = stripSourceFurniture(original);
   if (!stripped) return true;

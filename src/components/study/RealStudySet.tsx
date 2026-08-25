@@ -483,25 +483,40 @@ export function RealStudySet({
         )}
 
         {captureProcessing && scope.captureId && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-11 w-full rounded-xl"
-            disabled={retryingCapture || generating}
-            onClick={() => { void retryCaptureProcessingNow(); }}
-          >
-            {retryingCapture ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Retrying…
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Retry processing
-              </>
-            )}
-          </Button>
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 w-full rounded-xl"
+              disabled={retryingCapture || generating}
+              onClick={() => { void retryCaptureProcessingNow(); }}
+            >
+              {retryingCapture ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Retrying…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  Retry processing
+                </>
+              )}
+            </Button>
+            {/* Never an infinite wait: the class-wide path already works and
+                switching targets triggers no AI until the student asks. */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-11 w-full rounded-xl text-primary"
+              onClick={() => {
+                setSelectedTarget("class");
+                setStudying(false);
+              }}
+            >
+              Study the whole class instead
+            </Button>
+          </div>
         )}
 
         <div className="space-y-2">
