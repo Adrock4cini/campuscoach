@@ -481,10 +481,12 @@ export function ClassMemory({ classId, className }: Props) {
               />
             ))}
             </div>
+            </>
+            )}
           </div>
         )}
         </div>
-        )}
+
 
 
       </CardContent>
