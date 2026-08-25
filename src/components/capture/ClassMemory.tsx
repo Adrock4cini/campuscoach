@@ -391,14 +391,12 @@ export function ClassMemory({ classId, className }: Props) {
             )}
           </div>
           <span className="shrink-0 text-xs text-muted-foreground">
-            {showHistory ? "Hide" : `View class memory (${visibleItems.length})`}
+            {showHistory ? "Hide class memory" : `View class memory (${visibleItems.length})`}
           </span>
           <ArrowRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showHistory ? "rotate-90" : ""}`} />
         </button>
 
-        {showHistory && (
-        <div className="mt-3">
-        <ClassBrainAggregateStrip key={scopeKey} classId={classId} className="mb-3" />
+        <div className="mt-3 space-y-3">
         {visibleLoading ? (
           <div className="rounded-lg border border-border/40 p-6 text-center text-sm text-muted-foreground">
             Loading Class Memory…
@@ -438,6 +436,10 @@ export function ClassMemory({ classId, className }: Props) {
                 </Button>
               </div>
             )}
+            {showHistory && (
+            <>
+            <ClassBrainAggregateStrip key={scopeKey} classId={classId} />
+
             <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
               {focusTopics.length > 0 && (
                 <div>
