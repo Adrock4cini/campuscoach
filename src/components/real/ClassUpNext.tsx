@@ -15,6 +15,7 @@ import { useRealAssignments, useRealExams, daysUntil } from "@/lib/realData/hook
 import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
 import { useClassReadinessSignals } from "@/lib/intelligence/useClassReadinessSignals";
 import { assessMaterial } from "@/lib/intelligence/materialSufficiency";
+import { coverageSignal, nextTestAction, practiceSignal } from "@/lib/intelligence/testSignals";
 import { useCapture } from "@/contexts/CaptureContext";
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { AddExamDialog } from "./AddExamDialog";
@@ -50,6 +51,11 @@ export function ClassUpNext({ classId, className }: Props) {
   const [addExam, setAddExam] = useState(false);
   const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
   const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
+  // Three honest signals, shown separately: urgency (the date chip),
+  // coverage (do we have material), practice (what the student demonstrated).
+  const coverage = coverageSignal(signals);
+  const practice = practiceSignal(signals);
+  const testAction = nextTestAction(coverage, practice);
 
   const loading = assignmentsLoading || examsLoading || coachLoading;
 
