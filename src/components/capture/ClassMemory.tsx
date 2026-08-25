@@ -362,23 +362,41 @@ export function ClassMemory({ classId, className }: Props) {
   const likelyImportant = focusTopics.slice(0, 3);
   const needsAttention = visibleItems.filter((item) => item.processingStatus === "failed").length;
 
+  const conceptTotal = conceptCounts.size;
+
   return (
     <Card className="shadow-card">
       <CardContent className="p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs font-medium text-primary mb-1">
-              🧠 Class Memory
-            </p>
+        <button
+          type="button"
+          aria-expanded={showHistory}
+          onClick={() => setShowHistory((v) => !v)}
+          className="flex min-h-11 w-full items-center gap-3 text-left"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-primary mb-1">🧠 Class Memory</p>
             <h3 className="font-display font-semibold text-foreground">
-              What Campus Brain remembers for this class
+              Campus Brain · {visibleItems.length} class material{visibleItems.length === 1 ? "" : "s"}
+              {conceptTotal > 0 ? ` · ${conceptTotal} concept${conceptTotal === 1 ? "" : "s"}` : ""}
             </h3>
+            {likelyImportant.length > 0 && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                Likely important: {likelyImportant.join(", ")}
+              </p>
+            )}
+            {needsAttention > 0 && (
+              <p className="mt-0.5 text-xs text-warning">
+                {needsAttention} capture{needsAttention === 1 ? "" : "s"} needs attention before it can be studied.
+              </p>
+            )}
           </div>
-          <Badge variant="secondary" className="text-xs">
-            {visibleItems.length}
-          </Badge>
-        </div>
-        <ClassBrainAggregateStrip key={scopeKey} classId={classId} className="mb-3" />
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {showHistory ? "Hide class memory" : `View class memory (${visibleItems.length})`}
+          </span>
+          <ArrowRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showHistory ? "rotate-90" : ""}`} />
+        </button>
+
+        <div className="mt-3 space-y-3">
         {visibleLoading ? (
           <div className="rounded-lg border border-border/40 p-6 text-center text-sm text-muted-foreground">
             Loading Class Memory…
@@ -418,6 +436,10 @@ export function ClassMemory({ classId, className }: Props) {
                 </Button>
               </div>
             )}
+            {showHistory && (
+            <>
+            <ClassBrainAggregateStrip key={scopeKey} classId={classId} />
+
             <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
               {focusTopics.length > 0 && (
                 <div>
@@ -439,29 +461,13 @@ export function ClassMemory({ classId, className }: Props) {
                   {likelyImportant.join(", ")}
                 </p>
               )}
-              {needsAttention > 0 && (
-                <p className="text-sm text-warning">
-                  {needsAttention} capture{needsAttention === 1 ? "" : "s"} needs attention before it can be studied.
-                </p>
-              )}
               <p className="text-xs text-muted-foreground">
                 Campus Coach has learned from {visibleItems.length} class material
                 {visibleItems.length === 1 ? "" : "s"}.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11"
-                aria-expanded={showHistory}
-                onClick={() => setShowHistory((v) => !v)}
-              >
-                {showHistory ? "Hide class memory" : `View class memory (${visibleItems.length})`}
-              </Button>
             </div>
 
-            {showHistory && (
             <div className="space-y-2">
-
             {visibleItems.map((item) => (
               <MemoryRow
                 key={`${item.source}-${item.id}`}
@@ -475,9 +481,13 @@ export function ClassMemory({ classId, className }: Props) {
               />
             ))}
             </div>
+            </>
             )}
           </div>
         )}
+        </div>
+
+
 
       </CardContent>
 
