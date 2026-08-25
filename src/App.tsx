@@ -43,6 +43,7 @@ import ClassEditorPage from "./pages/ClassEditorPage";
 import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
 import { getOnboardingRedirect, getSetupGate } from "@/lib/auth/protectedRoute";
 import { setupErrorCopy } from "@/lib/auth/setupStatus";
+import { AppContentErrorBoundary } from "@/components/AppContentErrorBoundary";
 
 import { readLastRoute, writeLastRoute } from "@/lib/app/routeMemory";
 
@@ -126,11 +127,8 @@ function SetupPanel({ gate }: { gate: "checking" | "error" }) {
       }
     : setupErrorCopy(setupError);
 
-  if (gate === "checking" && !showChecking) return null;
-
-
   return (
-    <section className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center" aria-live="polite">
+    <section className={`mx-auto max-w-lg rounded-2xl border border-border/60 bg-card/70 p-6 text-center transition-opacity ${gate === "checking" && !showChecking ? "opacity-60" : "opacity-100"}`} aria-live="polite">
       <h1 className="font-display text-xl font-semibold text-foreground">{copy.title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{copy.description}</p>
       {gate === "error" && (
@@ -171,7 +169,7 @@ function RootGate() {
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
   const loc = useLocation();
-  if (loading) return null;
+  if (loading) return <RouteLoading />;
   // A transient session read failure must never look like a logout.
   if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
@@ -187,6 +185,47 @@ function Protected({ children }: { children: React.ReactNode }) {
   });
   if (onboardingRedirect) return <Navigate to={onboardingRedirect} replace />;
   return <>{children}</>;
+}
+
+function RouteLoading() {
+  return <div role="status" className="py-20 text-center text-sm text-muted-foreground">Loading Campus Companion…</div>;
+}
+
+function ProtectedContentRoutes() {
+  const location = useLocation();
+  return (
+    <AppContentErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+      <Routes>
+        <Route path="/" element={<RootGate />} />
+        <Route path="/onboarding" element={<Protected><RealOnly><Onboarding /></RealOnly></Protected>} />
+        <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+        <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
+        <Route path="/classes/new" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
+        <Route path="/classes/:classId/edit" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
+        <Route path="/classes/:classId/syllabus" element={<Protected><RealOnly><ClassSyllabusPage /></RealOnly></Protected>} />
+        <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
+        <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
+        <Route path="/integrations/canvas" element={<Protected><RealOnly><CanvasConnectionPage /></RealOnly></Protected>} />
+        <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
+        <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
+        <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />
+        <Route path="/assignments" element={<Protected><AssignmentsPage /></Protected>} />
+        <Route path="/assignments/:assignmentId" element={<Protected><AssignmentDetailRoute /></Protected>} />
+        <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
+        <Route path="/exams/:examId" element={<Protected><DemoOnly title="Exam details — coming soon" description="Detailed exam readiness views for your real exams are on the way. For now, manage them from the Exams list."><ExamDetail /></DemoOnly></Protected>} />
+        <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
+        <Route path="/notes/:noteId" element={<Protected><DemoOnly title="Note details — coming soon" description="Detailed views for your real captures are on the way."><NoteDetail /></DemoOnly></Protected>} />
+        <Route path="/progress" element={<Protected><DemoOnly title="Progress — coming soon" description="Your real study progress and streaks will show up here soon."><ProgressPage /></DemoOnly></Protected>} />
+        <Route path="/settings" element={<Protected><DemoOnly title="Settings — coming soon" description="Account settings backed by your real profile are being finished. Nothing shown here will pretend to save until it can be stored securely."><SettingsPage /></DemoOnly></Protected>} />
+        <Route path="/exam-debrief" element={<Protected><DemoOnly title="Exam Debrief — coming soon" description="Post-exam reflections tied to your real exams are on the way."><ExamDebriefPage /></DemoOnly></Protected>} />
+        <Route path="/course-intelligence" element={<Protected><DemoOnly title="Class Intelligence — coming soon" description="Peer-driven class intelligence for your real classes is not ready yet."><CourseIntelligencePage /></DemoOnly></Protected>} />
+        <Route path="/your-week" element={<Protected><DemoOnly title="Your Week — coming soon" description="A week-at-a-glance built from your real schedule is on the way."><YourWeekPage /></DemoOnly></Protected>} />
+        <Route path="/path-to-graduation" element={<Protected><DemoOnly title="Path to Graduation — coming soon" description="Long-term degree planning for your real record isn't ready yet."><PathToGraduation /></DemoOnly></Protected>} />
+        <Route path="/scholarships" element={<Protected><DemoOnly title="Scholarships — coming soon" description="Personalized scholarship matches for your real profile aren't ready yet."><ScholarshipsPage /></DemoOnly></Protected>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AppContentErrorBoundary>
+  );
 }
 
 
@@ -218,36 +257,7 @@ const App = () => (
               path="*"
               element={
                 <AppLayout>
-                  <Routes>
-                    <Route path="/" element={<RootGate />} />
-                    <Route path="/onboarding" element={<Protected><RealOnly><Onboarding /></RealOnly></Protected>} />
-                    <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-                    <Route path="/classes" element={<Protected><MyClasses /></Protected>} />
-                    <Route path="/classes/new" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
-                    <Route path="/classes/:classId/edit" element={<Protected><RealOnly><ClassEditorPage /></RealOnly></Protected>} />
-                    <Route path="/classes/:classId/syllabus" element={<Protected><RealOnly><ClassSyllabusPage /></RealOnly></Protected>} />
-                    <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
-                    <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-                    <Route path="/integrations/canvas" element={<Protected><RealOnly><CanvasConnectionPage /></RealOnly></Protected>} />
-                    <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
-                    <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
-                    <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />
-                    <Route path="/assignments" element={<Protected><AssignmentsPage /></Protected>} />
-                    <Route path="/assignments/:assignmentId" element={<Protected><AssignmentDetailRoute /></Protected>} />
-                    <Route path="/exams" element={<Protected><ExamsPage /></Protected>} />
-                    <Route path="/exams/:examId" element={<Protected><DemoOnly title="Exam details — coming soon" description="Detailed exam readiness views for your real exams are on the way. For now, manage them from the Exams list."><ExamDetail /></DemoOnly></Protected>} />
-                    <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
-                    <Route path="/notes/:noteId" element={<Protected><DemoOnly title="Note details — coming soon" description="Detailed views for your real captures are on the way."><NoteDetail /></DemoOnly></Protected>} />
-                    <Route path="/progress" element={<Protected><DemoOnly title="Progress — coming soon" description="Your real study progress and streaks will show up here soon."><ProgressPage /></DemoOnly></Protected>} />
-                    <Route path="/settings" element={<Protected><DemoOnly title="Settings — coming soon" description="Account settings backed by your real profile are being finished. Nothing shown here will pretend to save until it can be stored securely."><SettingsPage /></DemoOnly></Protected>} />
-                    <Route path="/exam-debrief" element={<Protected><DemoOnly title="Exam Debrief — coming soon" description="Post-exam reflections tied to your real exams are on the way."><ExamDebriefPage /></DemoOnly></Protected>} />
-                    <Route path="/course-intelligence" element={<Protected><DemoOnly title="Class Intelligence — coming soon" description="Peer-driven class intelligence for your real classes is not ready yet."><CourseIntelligencePage /></DemoOnly></Protected>} />
-                    <Route path="/your-week" element={<Protected><DemoOnly title="Your Week — coming soon" description="A week-at-a-glance built from your real schedule is on the way."><YourWeekPage /></DemoOnly></Protected>} />
-                    <Route path="/path-to-graduation" element={<Protected><DemoOnly title="Path to Graduation — coming soon" description="Long-term degree planning for your real record isn't ready yet."><PathToGraduation /></DemoOnly></Protected>} />
-                    <Route path="/scholarships" element={<Protected><DemoOnly title="Scholarships — coming soon" description="Personalized scholarship matches for your real profile aren't ready yet."><ScholarshipsPage /></DemoOnly></Protected>} />
-
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                  <ProtectedContentRoutes />
                 </AppLayout>
               }
             />

@@ -228,12 +228,15 @@ export function ClassMemory({ classId, className }: Props) {
 
     () => async () => {
       const request = ++requestVersion.current;
+      const sameScope = loadedScope === scopeKey;
       setLoadedScope(scopeKey);
-      setItems([]);
-      setSelected(null);
-      setDrawerOpen(false);
-      setStudyItem(null);
-      setStudyOpen(false);
+      if (!sameScope) {
+        setItems([]);
+        setSelected(null);
+        setDrawerOpen(false);
+        setStudyItem(null);
+        setStudyOpen(false);
+      }
       setLoadError(false);
       if (mode === "loading") {
         setItems([]);
@@ -258,7 +261,7 @@ export function ClassMemory({ classId, className }: Props) {
         if (request === requestVersion.current) setLoading(false);
       }
     },
-    [classId, mode, scopeKey],
+    [classId, loadedScope, mode, scopeKey],
   );
 
   useEffect(() => {
@@ -376,7 +379,7 @@ export function ClassMemory({ classId, className }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-primary mb-1">🧠 Class Memory</p>
             <h3 className="font-display font-semibold text-foreground">
-              Campus Brain · {visibleItems.length} class material{visibleItems.length === 1 ? "" : "s"}
+              Campus Brain · {visibleLoading && visibleItems.length === 0 ? "Loading class materials" : `${visibleItems.length} class material${visibleItems.length === 1 ? "" : "s"}`}
               {conceptTotal > 0 ? ` · ${conceptTotal} concept${conceptTotal === 1 ? "" : "s"}` : ""}
             </h3>
             {likelyImportant.length > 0 && (

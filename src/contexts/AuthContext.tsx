@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [setupStatus, setSetupStatus] = useState<SetupStatus>("checking");
   const [setupError, setSetupError] = useState<SetupErrorKind>(null);
   const [profile, setProfile] = useState<Profile>(null);
+  const activeUserIdRef = useRef<string | null>(null);
   const profileRequestVersion = useRef(0);
   const [isDemoMode, setDemo] = useState<boolean>(
     typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
@@ -169,8 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const applySession = (nextSession: Session | null, event: string) => {
       if (!active) return;
-      profileRequestVersion.current += 1;
       if (nextSession?.user) {
+        const sameUser = activeUserIdRef.current === nextSession.user.id;
+        activeUserIdRef.current = nextSession.user.id;
         rememberSignedIn(nextSession.user.id);
         setRecovering(false);
         setSupabaseNetworkMode("real");
@@ -178,6 +180,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthUserId(nextSession.user.id);
         localStorage.removeItem(DEMO_KEY);
         setDemo(false);
+        // INITIAL_SESSION, TOKEN_REFRESHED, focus and mobile resume routinely
+        // repeat the same account. They update credentials only; clearing the
+        // settled profile/setup state here used to unmount every protected page.
+        if (sameUser) return;
+        profileRequestVersion.current += 1;
         setSetupStatus("checking");
         setSetupError(null);
         setProfile(null);
@@ -205,6 +212,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       forgetSignedIn();
+      activeUserIdRef.current = null;
+      profileRequestVersion.current += 1;
       setRecovering(false);
       setSupabaseNetworkMode("demo");
       setSession(null);
