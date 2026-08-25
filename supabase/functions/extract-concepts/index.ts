@@ -6,7 +6,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { extractExactThinSource } from "../_shared/thin-source.ts";
-import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import { assessSourceSufficiency, isLogisticsLine } from "../_shared/grounding-quality.ts";
 import {
   dedupeConceptCandidates,
   type ExistingConcept,
@@ -402,6 +402,14 @@ async function handleRequest(req: Request, guard: ClaimGuard): Promise<Response>
     summary = parsed.summary ?? "";
     concepts = Array.isArray(parsed.concepts) ? parsed.concepts.slice(0, 8) : [];
   }
+
+  // Schedule lines ("Test Friday", "Homework is due Monday") are planning
+  // info, not knowledge — they can never be a concept definition or an
+  // answer key, so drop them before they reach permanent memory.
+  concepts = concepts.filter((concept) =>
+    !isLogisticsLine(concept.name ?? "") &&
+    !(concept.definition && isLogisticsLine(concept.definition))
+  );
 
   if (!concepts.length) {
     await releaseClaimAsFailed();
