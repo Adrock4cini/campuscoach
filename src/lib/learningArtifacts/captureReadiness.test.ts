@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   conceptError: null as unknown,
   captureStatus: "ready" as string | null,
   captureError: null as unknown,
+  updates: [] as unknown[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       const chain = {
         select: () => chain,
         eq: () => chain,
+        update: (value: unknown) => { state.updates.push(value); return chain; },
         maybeSingle: () => Promise.resolve({
           data: state.captureStatus === null ? null : { processing_status: state.captureStatus },
           error: state.captureError,
@@ -37,12 +39,21 @@ describe("checkCaptureConceptReadiness", () => {
     state.conceptError = null;
     state.captureStatus = "ready";
     state.captureError = null;
+    state.updates = [];
   });
 
   it("reports ready once concepts exist for the capture", async () => {
     state.conceptCount = 3;
     await expect(checkCaptureConceptReadiness("capture-1"))
       .resolves.toEqual({ state: "ready", conceptCount: 3 });
+  });
+
+  it("repairs a stale processing marker when concepts already exist", async () => {
+    state.conceptCount = 2;
+    state.captureStatus = "processing";
+    await expect(checkCaptureConceptReadiness("capture-1"))
+      .resolves.toEqual({ state: "ready", conceptCount: 2 });
+    expect(state.updates).toEqual([{ processing_status: "ready" }]);
   });
 
   it("reports processing while extraction is still running", async () => {

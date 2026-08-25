@@ -156,6 +156,27 @@ describe("Class Memory data boundaries", () => {
     expect(screen.queryByText(/nothing captured yet/i)).not.toBeInTheDocument();
   });
 
+  it("retains seven settled materials throughout a background refetch", async () => {
+    const seven = Array.from({ length: 7 }, (_, index) => ({
+      ...realCapture,
+      id: `capture-${index}`,
+      topic: `Material ${index + 1}`,
+    }));
+    let finishRefresh!: (rows: typeof seven) => void;
+    mocks.getCapturesForClass
+      .mockResolvedValueOnce(seven)
+      .mockReturnValueOnce(new Promise((resolve) => { finishRefresh = resolve; }));
+    render(<ClassMemory classId="math" className="Math" />);
+    expect(await screen.findByText(/Campus Brain · 7 class materials/i)).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new CustomEvent("capture:committed")));
+    expect(screen.getByText(/Campus Brain · 7 class materials/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing captured yet/i)).not.toBeInTheDocument();
+
+    await act(async () => finishRefresh(seven));
+    expect(screen.getByText(/Campus Brain · 7 class materials/i)).toBeInTheDocument();
+  });
+
   it("repairs a legacy false-ready capture and offers a safe retry instead of Study", async () => {
     mocks.getCapturesForClass.mockResolvedValueOnce([{
       ...realCapture,

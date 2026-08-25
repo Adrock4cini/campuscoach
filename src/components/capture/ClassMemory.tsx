@@ -188,6 +188,7 @@ export function ClassMemory({ classId, className }: Props) {
   const [showHistory, setShowHistory] = useState(false);
 
   const requestVersion = useRef(0);
+  const loadedScopeRef = useRef(scopeKey);
   const navigate = useNavigate();
 
   const openStudy = (item: MemoryItem, requestedMode?: StudyMode) => {
@@ -228,12 +229,16 @@ export function ClassMemory({ classId, className }: Props) {
 
     () => async () => {
       const request = ++requestVersion.current;
+      const sameScope = loadedScopeRef.current === scopeKey;
+      loadedScopeRef.current = scopeKey;
       setLoadedScope(scopeKey);
-      setItems([]);
-      setSelected(null);
-      setDrawerOpen(false);
-      setStudyItem(null);
-      setStudyOpen(false);
+      if (!sameScope) {
+        setItems([]);
+        setSelected(null);
+        setDrawerOpen(false);
+        setStudyItem(null);
+        setStudyOpen(false);
+      }
       setLoadError(false);
       if (mode === "loading") {
         setItems([]);
@@ -264,7 +269,7 @@ export function ClassMemory({ classId, className }: Props) {
   useEffect(() => {
     setPollsUsed(0);
     void refresh();
-    const onCommit = () => void refresh();
+    const onCommit = () => void quietRefresh();
     window.addEventListener("capture:committed", onCommit);
     window.addEventListener("concepts:extracted", onCommit);
     return () => {
@@ -272,7 +277,7 @@ export function ClassMemory({ classId, className }: Props) {
       window.removeEventListener("capture:committed", onCommit);
       window.removeEventListener("concepts:extracted", onCommit);
     };
-  }, [refresh]);
+  }, [quietRefresh, refresh]);
 
   // Extraction finishes on the server with no push channel. Re-read the same
   // rows a bounded number of times so a capture that was still processing when
@@ -376,7 +381,7 @@ export function ClassMemory({ classId, className }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-primary mb-1">🧠 Class Memory</p>
             <h3 className="font-display font-semibold text-foreground">
-              Campus Brain · {visibleItems.length} class material{visibleItems.length === 1 ? "" : "s"}
+              Campus Brain · {visibleLoading && visibleItems.length === 0 ? "Loading class materials" : `${visibleItems.length} class material${visibleItems.length === 1 ? "" : "s"}`}
               {conceptTotal > 0 ? ` · ${conceptTotal} concept${conceptTotal === 1 ? "" : "s"}` : ""}
             </h3>
             {likelyImportant.length > 0 && (

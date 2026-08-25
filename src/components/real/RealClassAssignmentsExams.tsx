@@ -54,7 +54,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>
-          {assignmentsLoading ? (
+          {assignmentsLoading && assignments.length === 0 ? (
             <p className="text-xs text-muted-foreground">Loading assignments…</p>
           ) : assignmentsError ? (
             <button className="text-xs text-primary" onClick={() => void reloadAssignments()}>
@@ -124,7 +124,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
               <Plus className="h-3.5 w-3.5 mr-1" /> Add
             </Button>
           </div>
-          {examsLoading ? (
+          {examsLoading && exams.length === 0 ? (
             <p className="text-xs text-muted-foreground">Loading exams…</p>
           ) : examsError ? (
             <button className="text-xs text-primary" onClick={() => void reloadExams()}>

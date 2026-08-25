@@ -36,7 +36,19 @@ export async function checkCaptureConceptReadiness(
     if (conceptResult.error || captureResult.error) return { state: "unknown" };
 
     const conceptCount = conceptResult.count ?? 0;
-    if (conceptCount > 0) return { state: "ready", conceptCount };
+    if (conceptCount > 0) {
+      const status = (captureResult.data as { processing_status?: string } | null)?.processing_status;
+      // Concepts are the durable source of truth. Repair a stale processing
+      // marker without invoking extraction or any paid AI again.
+      if (status === "queued" || status === "processing") {
+        const { error } = await supabase
+          .from("captures")
+          .update({ processing_status: "ready" })
+          .eq("id", captureId);
+        if (error) console.warn("[capture-readiness] status reconciliation failed", error);
+      }
+      return { state: "ready", conceptCount };
+    }
 
     const status = (captureResult.data as { processing_status?: string } | null)?.processing_status;
     // No visible capture row yet means the insert is still settling — that is

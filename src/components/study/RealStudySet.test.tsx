@@ -358,6 +358,34 @@ describe("real study set freshness", () => {
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
   });
 
+  it("does not open a null runner for an empty auto-start artifact", async () => {
+    mocks.artifact = {
+      ...artifact(CURRENT_ARTIFACT_PROMPT_VERSION),
+      payload: { cards: [] },
+    };
+    render(<RealStudySet classId="math" initialCaptureId="capture-1" autoStart />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rebuild from notes/i })).toBeInTheDocument();
+  });
+
+  it("switches a processing capture to class scope without generating", () => {
+    mocks.artifact = null;
+    mocks.captureProcessing = true;
+    render(<RealStudySet classId="math" initialCaptureId="capture-1" autoStart={false} />);
+    const callsBefore = mocks.generate.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: /study the whole class instead/i }));
+
+    expect(mocks.scopes.at(-1)).toMatchObject({
+      classId: "math",
+      captureId: undefined,
+      studyScope: { type: "class", id: "class" },
+    });
+    expect(mocks.generate).toHaveBeenCalledTimes(callsBefore);
+    expect(screen.getByText(/no flashcards here yet/i)).toBeInTheDocument();
+  });
+
   it("ignores a rapid second build tap for the same study target", () => {
     mocks.artifact = null;
     render(<RealStudySet classId="math" />);

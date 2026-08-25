@@ -92,8 +92,10 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { mode, user } = useAuth();
-  const ownerKey = `${mode}:${user?.id ?? "anonymous"}`;
+  const { user } = useAuth();
+  // Only an identity change may clear owner-scoped drafts. Transient auth
+  // loading/recovery states must not reconstruct providers or wipe forms.
+  const ownerKey = user?.id ?? "anonymous";
 
   return (
     <FocusModeProvider key={ownerKey}>
