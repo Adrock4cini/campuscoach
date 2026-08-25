@@ -41,11 +41,11 @@ const ASSESSMENT_NOUN =
  */
 const LOGISTICS_LINE = new RegExp(
   `^(?:remember[:,]?\\s*)?(?:` +
-  `${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due\\s+)?(?:on\\s+)?(?:this\\s+|next\\s+)?${WEEKDAY}\\b` +
-  `|${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due|tomorrow|today|tonight|next\\s+week|this\\s+week)\\b` +
+  `(?:the\\s+|our\\s+|my\\s+)?${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due\\s+)?(?:on\\s+)?(?:this\\s+|next\\s+)?${WEEKDAY}\\b[^.!?\\n]{0,20}?` +
+  `|(?:the\\s+|our\\s+|my\\s+)?${ASSESSMENT_NOUN}\\b[^.!?\\n]{0,40}?\\b(?:due|tomorrow|today|tonight|next\\s+week|this\\s+week)\\b[^.!?\\n]{0,20}?` +
   `|due\\s+(?:on\\s+)?(?:this\\s+|next\\s+)?${WEEKDAY}\\b` +
-  `|no\\s+class\\b` +
-  `|class\\s+(?:is\\s+)?(?:cancelled|canceled)\\b` +
+  `|no\\s+class\\b[^.!?\\n]{0,30}?` +
+  `|class\\s+(?:is\\s+)?(?:cancelled|canceled)\\b[^.!?\\n]{0,30}?` +
   `)[.!\\s]*$`,
   "i",
 );
