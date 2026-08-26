@@ -1,5 +1,8 @@
 import { boundGroundedText } from "./grounded-excerpt.ts";
 import { containsSourceFurniture, isNonExplanatoryFragment } from "./grounding-quality.ts";
+import { isTeachableAnswer, isTeachableConceptName } from "./teachable-content.ts";
+import { buildSolvableProblemChoices, extractSolvableProblem } from "./problem-source.ts";
+import { conceptCanonicalKey } from "./concept-identity.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
 import {
   NO_USEFUL_MNEMONIC_ERROR,
