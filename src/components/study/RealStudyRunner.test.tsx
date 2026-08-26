@@ -238,7 +238,7 @@ describe("real flashcard runner", () => {
 
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole("alertdialog")).toHaveTextContent(/leave study session/i);
-    expect(screen.getByText(/answers have not been saved/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing to lose|progress so far is saved/i)).toBeInTheDocument();
   });
 
   it("returns a miss once and saves the first-attempt score plus recovery", async () => {

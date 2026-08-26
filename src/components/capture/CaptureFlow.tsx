@@ -562,27 +562,9 @@ export function CaptureFlow({
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-border/40 bg-background/20 p-3">
-                        <div className="flex items-center justify-between gap-3 mb-2.5">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                            Coming next
-                          </p>
-                          <span className="text-[10px] text-muted-foreground">Not tappable yet</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-2" role="list" aria-label="Coming next">
-                          {MENU.filter((item) => !item.availableForRealUsers).map((m) => (
-                            <div
-                              key={m.kind}
-                              role="listitem"
-                              aria-disabled="true"
-                              className="flex items-center gap-2 min-w-0 text-muted-foreground/75"
-                            >
-                              <m.icon className="h-4 w-4 shrink-0" />
-                              <span className="text-xs truncate">{CAPTURE_LABELS[m.kind]}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      {/* Locked roadmap items are intentionally not advertised in the
+                          primary capture sheet. The components/routes still exist; they
+                          are surfaced again once they actually work for students. */}
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">

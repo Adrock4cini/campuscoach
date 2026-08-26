@@ -10,6 +10,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import { isTeachableAnswer, isTeachableConceptName } from "../_shared/teachable-content.ts";
+import { conceptCanonicalKey } from "../_shared/concept-identity.ts";
 import {
   MNEMONIC_TECHNIQUE_CATALOG,
   buildDeterministicFlashcards,
@@ -162,6 +164,8 @@ Rules:
 - Use the student's wording when it is already clear. Never invent umbrella labels or terminology absent from the source.
 - Avoid awkward phrases such as "as defined in our class materials" and unnecessary capitalization.
 - Distractors must be plausible and grounded in adjacent provided ideas or simple errors — never invent unrelated facts.
+- Author each distractor yourself as a short, same-shaped wrong answer. NEVER paste a raw unrelated source fragment, schedule line, heading, or capture label as a choice.
+- If the concept contains a solvable numeric problem, ask that problem directly and make the distractors realistic miscalculations.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,
     describe: (n) => `Generate exactly ${n} multiple-choice questions covering these concepts.`,
@@ -397,7 +401,7 @@ Deno.serve(async (req) => {
   );
   if (sourceResult instanceof Response) return sourceResult;
   const sourceByConcept = sourceResult;
-  const groundedCandidates = rankedCandidates.filter(({ concept }) => {
+  const teachableCandidates = rankedCandidates.filter(({ concept }) => {
     const exactCaptureEvidence = sourceByConcept.get(concept.id);
     // A concept extracted from a capture must retain a relevant exact excerpt
     // from that capture before it can become a graded answer. Fewer questions
@@ -407,13 +411,28 @@ Deno.serve(async (req) => {
     if (concept.capture_id && !exactCaptureEvidence) return false;
     const evidence = exactCaptureEvidence
       ?? [concept.definition, ...(concept.examples ?? [])].filter(Boolean).join(" ");
-    return assessSourceSufficiency(evidence).sufficient;
+    if (!assessSourceSufficiency(evidence).sufficient) return false;
+    // Source evidence is not teaching content: logistics ("Test Friday"),
+    // the student's own confusion, and capture/QA metadata may inform signals
+    // but must never be served back as a correct answer.
+    if (!isTeachableConceptName(concept.name)) return false;
+    return isTeachableAnswer(evidence);
+  });
+  // Collapse near-synonym concepts deterministically so one idea cannot occupy
+  // two slots (and matching cannot pit two synonyms against one definition).
+  const seenConceptKeys = new Set<string>();
+  const groundedCandidates = teachableCandidates.filter(({ concept }) => {
+    const key = conceptCanonicalKey(concept.name, concept.definition);
+    if (seenConceptKeys.has(key)) return false;
+    seenConceptKeys.add(key);
+    return true;
   });
   if (!groundedCandidates.length) {
     return json({
-      error: "Your captured pages only have headings or page furniture so far — no explanation to study yet. Snap the paragraph under the heading (or add a definition, example, equation, or teacher hint) and try again.",
+      error: "Your captured pages only have headings, schedule notes, or page furniture so far — no explanation to study yet. Snap the paragraph under the heading (or add a definition, example, equation, or teacher hint) and try again.",
     }, 422);
   }
+
   const recentDefault = resolvedScope.type === "recent"
     && !body.captureId
     && !body.conceptIds?.length

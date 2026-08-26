@@ -391,7 +391,7 @@ export function ClassMemory({ classId, className }: Props) {
             )}
             {needsAttention > 0 && (
               <p className="mt-0.5 text-xs text-warning">
-                {needsAttention} capture{needsAttention === 1 ? "" : "s"} needs attention before it can be studied.
+                {needsAttention} capture{needsAttention === 1 ? " needs" : "s need"} attention before {needsAttention === 1 ? "it" : "they"} can be studied.
               </p>
             )}
           </div>

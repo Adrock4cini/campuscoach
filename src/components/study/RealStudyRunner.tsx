@@ -38,6 +38,7 @@ import {
   readStudyRunnerState,
   writeStudyRunnerState,
 } from "@/lib/study/studyRunnerState";
+import { leaveSessionCopy, pendingEvidenceSegment } from "@/lib/study/incrementalEvidence";
 
 interface Props {
   open: boolean;
@@ -94,7 +95,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const attemptIdRef = useRef(createStudyAttemptId());
+  const savedCountRef = useRef(0);
+  const flushingRef = useRef(false);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
   const completionRef = useRef<HTMLDivElement>(null);
@@ -127,6 +131,9 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setExitConfirmOpen(false);
     setSubmitting(false);
     setStartedAt(Date.now());
+    setSavedCount(0);
+    savedCountRef.current = 0;
+    flushingRef.current = false;
     attemptIdRef.current = createStudyAttemptId();
   }, [open, artifact.id, items.length]);
 
@@ -168,6 +175,36 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     if (open && items.length === 0) onOpenChange(false);
   }, [items.length, onOpenChange, open]);
 
+  /**
+   * Persist evidence as it is earned. Each flush is its own attempt id, so a
+   * crash or a closed tab on card 7 can never erase cards 1-6.
+   */
+  const flushEvidence = async (all: AnswerResult[]) => {
+    const segment = pendingEvidenceSegment(all, savedCountRef.current);
+    if (!segment || flushingRef.current) return;
+    flushingRef.current = true;
+    const attemptId = createStudyAttemptId();
+    try {
+      const { error } = await supabase.functions.invoke("record-study-result", {
+        body: {
+          attemptId,
+          artifactId: artifact.id,
+          correct: segment.correct,
+          total: segment.total,
+          durationSeconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+          perConcept: summarizeStudyResults(segment.results),
+        },
+      });
+      if (error) throw error;
+      savedCountRef.current += segment.total;
+      setSavedCount(savedCountRef.current);
+    } catch {
+      // Silent: the answers stay in memory and the final save retries them.
+    } finally {
+      flushingRef.current = false;
+    }
+  };
+
   const record = (wasCorrect: boolean) => {
     if (!confidence || pendingFinal) return;
 
@@ -201,6 +238,9 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       return;
     }
 
+    // Save what has just been earned before moving on.
+    void flushEvidence(nextResults);
+
     setPosition((value) => value + 1);
     setRevealed(false);
     setPicked(null);
@@ -215,15 +255,16 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSubmitting(true);
     setSaveError(null);
     const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+    const segment = pendingEvidenceSegment(results, savedCountRef.current, { final: true });
     try {
       const { data, error } = await supabase.functions.invoke("record-study-result", {
         body: {
           attemptId: attemptIdRef.current,
           artifactId: artifact.id,
-          correct: finalCorrect,
-          total,
+          correct: segment ? segment.correct : finalCorrect,
+          total: segment ? segment.total : total,
           durationSeconds,
-          perConcept: summarizeStudyResults(results),
+          perConcept: summarizeStudyResults(segment ? segment.results : results),
         },
       });
       if (error) throw error;
@@ -238,6 +279,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
         throw new Error("The saved session could not be confirmed.");
       }
 
+      savedCountRef.current = results.length;
+      setSavedCount(results.length);
       setDone(true);
       // Saved work is no longer "in progress"; a resume must not replay it.
       clearStudyRunnerState();
@@ -261,6 +304,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     }
   };
 
+
   const reset = () => {
     clearStudyRunnerState();
     setQueue(buildInitialQueue(items.length));
@@ -280,12 +324,15 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSaveError(null);
     setExitConfirmOpen(false);
     setSubmitting(false);
+    setSavedCount(0);
+    savedCountRef.current = 0;
+    flushingRef.current = false;
     attemptIdRef.current = createStudyAttemptId();
   };
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (submitting) return;
-    const hasUnsavedAnswers = !done && (answerResults.length > 0 || pendingFinal !== null);
+    const hasUnsavedAnswers = !done && (answerResults.length > savedCountRef.current || pendingFinal !== null);
     if (!nextOpen && hasUnsavedAnswers) {
       setExitConfirmOpen(true);
       return;
@@ -595,7 +642,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">Leave study session?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your answers have not been saved. Keep studying to protect your progress.
+              {leaveSessionCopy(savedCount)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
