@@ -164,6 +164,8 @@ Rules:
 - Use the student's wording when it is already clear. Never invent umbrella labels or terminology absent from the source.
 - Avoid awkward phrases such as "as defined in our class materials" and unnecessary capitalization.
 - Distractors must be plausible and grounded in adjacent provided ideas or simple errors — never invent unrelated facts.
+- Author each distractor yourself as a short, same-shaped wrong answer. NEVER paste a raw unrelated source fragment, schedule line, heading, or capture label as a choice.
+- If the concept contains a solvable numeric problem, ask that problem directly and make the distractors realistic miscalculations.
 - Vary answerIndex across questions.
 - No prose outside JSON.`,
     describe: (n) => `Generate exactly ${n} multiple-choice questions covering these concepts.`,
