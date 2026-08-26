@@ -332,7 +332,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (submitting) return;
-    const hasUnsavedAnswers = !done && (answerResults.length > 0 || pendingFinal !== null);
+    const hasUnsavedAnswers = !done && (answerResults.length > savedCountRef.current || pendingFinal !== null);
     if (!nextOpen && hasUnsavedAnswers) {
       setExitConfirmOpen(true);
       return;
