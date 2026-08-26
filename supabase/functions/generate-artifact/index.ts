@@ -10,6 +10,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { assessSourceSufficiency } from "../_shared/grounding-quality.ts";
+import { isTeachableAnswer, isTeachableConceptName } from "../_shared/teachable-content.ts";
+import { conceptCanonicalKey } from "../_shared/concept-identity.ts";
 import {
   MNEMONIC_TECHNIQUE_CATALOG,
   buildDeterministicFlashcards,
