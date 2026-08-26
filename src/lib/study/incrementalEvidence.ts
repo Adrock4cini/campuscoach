@@ -56,10 +56,12 @@ export function pendingEvidenceSegment<T extends EvidenceResult>(
   const remaining = results.slice(start);
   const pending = options.final ? remaining : settledPrefix(remaining, results, start);
   if (!pending.length) return null;
+  const firstAttempts = pending.filter((entry) => !entry.recovery).length;
   return {
     results: pending,
     correct: pending.filter((entry) => entry.correct && !entry.recovery).length,
-    total: pending.length,
+    // Recovery passes teach; they never add to the graded item count.
+    total: Math.max(1, firstAttempts),
   };
 }
 
