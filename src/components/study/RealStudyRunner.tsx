@@ -255,7 +255,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSubmitting(true);
     setSaveError(null);
     const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    const segment = pendingEvidenceSegment(results, savedCountRef.current);
+    const segment = pendingEvidenceSegment(results, savedCountRef.current, { final: true });
     try {
       const { data, error } = await supabase.functions.invoke("record-study-result", {
         body: {

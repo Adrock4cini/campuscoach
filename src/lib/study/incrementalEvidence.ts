@@ -23,15 +23,38 @@ export interface EvidenceSegment<T extends EvidenceResult = EvidenceResult> {
 }
 
 /**
+ * A first-attempt miss is not settled until its recovery pass has been
+ * answered — flushing it early would write a miss and then a separate
+ * "correct" for the same concept, which is exactly how retries inflate
+ * mastery. Mid-session flushes therefore stop at the first unsettled miss.
+ */
+function settledPrefix<T extends EvidenceResult>(pending: T[], all: T[], start: number): T[] {
+  const out: T[] = [];
+  for (const [offset, entry] of pending.entries()) {
+    const settled = entry.recovery
+      || entry.correct
+      || all.slice(start + offset + 1).some(
+        (later) => later.recovery && later.conceptId === entry.conceptId,
+      );
+    if (!settled) break;
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
  * The slice of results that has not been persisted yet. Returns null when
- * there is nothing new to save.
+ * there is nothing new to save. Pass `final` when the session is closing so
+ * every remaining answer is included.
  */
 export function pendingEvidenceSegment<T extends EvidenceResult>(
   results: T[],
   savedCount: number,
+  options: { final?: boolean } = {},
 ): EvidenceSegment<T> | null {
   const start = Math.max(0, Math.min(savedCount, results.length));
-  const pending = results.slice(start);
+  const remaining = results.slice(start);
+  const pending = options.final ? remaining : settledPrefix(remaining, results, start);
   if (!pending.length) return null;
   return {
     results: pending,
