@@ -231,11 +231,12 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByRole("button", { name: /Scan Assignment/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Scan Notes or Book/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Scan Syllabus/i })).toBeEnabled();
-    expect(screen.getByRole("list", { name: "Coming next" })).toBeInTheDocument();
-    expect(screen.getByText("Record Lecture")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Record Lecture/i })).not.toBeInTheDocument();
+    // Locked roadmap doors are no longer advertised in the primary sheet.
+    expect(screen.queryByRole("list", { name: "Coming next" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Record Lecture")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ask Campus Brain/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Scan Board/i })).not.toBeInTheDocument();
-    expect(screen.getByText("Not tappable yet")).toBeInTheDocument();
+    expect(screen.queryByText("Not tappable yet")).not.toBeInTheDocument();
   });
 
   it("requires a photo and only shows assignment and exam targets from the chosen class", () => {

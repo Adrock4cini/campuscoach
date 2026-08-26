@@ -42,6 +42,24 @@ const METADATA_LINE = new RegExp(
   "i",
 );
 
+/**
+ * Logistics often carries a trailing clause ("Test Friday — covers fractions,
+ * decimals, and percentages."). The leading clause still decides what the line
+ * is, so it is judged on its own.
+ */
+function leadingClause(text: string): string {
+  return text.split(/\s*[\u2014\u2013:;,-]\s+|\s*[\u2014\u2013]\s*/)[0]?.trim() ?? text;
+}
+
+/** True when the line is a schedule/admin note, including trailing detail. */
+export function isLogisticsHeadline(rawText: string): boolean {
+  const text = (rawText ?? "").trim();
+  if (!text) return false;
+  if (isLogisticsLine(text)) return true;
+  const lead = leadingClause(text);
+  return lead !== text && lead.length > 0 && isLogisticsLine(lead);
+}
+
 /** True when the line describes the student's confusion rather than content. */
 export function isStudentConfusionLine(rawText: string): boolean {
   const text = (rawText ?? "").trim();
@@ -63,7 +81,7 @@ export function isCaptureMetadataLine(rawText: string): boolean {
 export function isTeachableAnswer(rawText: string | null | undefined): boolean {
   const text = (rawText ?? "").trim();
   if (!text) return false;
-  if (isLogisticsLine(text)) return false;
+  if (isLogisticsHeadline(text)) return false;
   if (isStudentConfusionLine(text)) return false;
   if (isCaptureMetadataLine(text)) return false;
   return !isNonExplanatoryFragment(text);
@@ -76,5 +94,5 @@ export function isTeachableAnswer(rawText: string | null | undefined): boolean {
 export function isTeachableConceptName(rawText: string | null | undefined): boolean {
   const text = (rawText ?? "").trim();
   if (!text) return false;
-  return !isLogisticsLine(text) && !isStudentConfusionLine(text) && !isCaptureMetadataLine(text);
+  return !isLogisticsHeadline(text) && !isStudentConfusionLine(text) && !isCaptureMetadataLine(text);
 }
