@@ -97,6 +97,33 @@ export interface MnemonicTechniquePreferences {
 }
 
 /**
+ * Collapses near-synonym concepts ("Percentage to Decimal Conversion" vs
+ * "Converting a percentage to a decimal") before any study set is built, so
+ * matching never asks a student to choose between two names for one idea.
+ * Deterministic — no extra AI call.
+ */
+export function dedupeStudyConcepts<T extends DeterministicMatchingConcept>(concepts: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const concept of concepts) {
+    const key = conceptCanonicalKey(concept.name, concept.definition ?? null);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(concept);
+  }
+  return out;
+}
+
+/**
+ * Source evidence is not automatically teaching content. A concept anchored on
+ * logistics ("Test Friday"), the student's own confusion, or capture metadata
+ * is dropped before it can become a graded answer.
+ */
+function teachableConcepts<T extends DeterministicMatchingConcept>(concepts: T[]): T[] {
+  return dedupeStudyConcepts(concepts.filter((concept) => isTeachableConceptName(concept.name)));
+}
+
+/**
  * Builds answer-bearing cards without asking a model to author academic facts.
  * The back is either the exact captured equation/excerpt or durable concept
  * text; the model remains reserved for a memory aid around that fixed target.
@@ -109,13 +136,17 @@ export function buildDeterministicFlashcards(
   const cards: Array<Record<string, unknown>> = [];
   const seenPrompts = new Set<string>();
   const boundedLimit = Math.max(0, Math.min(8, Math.trunc(limit)));
-  for (const concept of concepts) {
+  for (const concept of teachableConcepts(concepts)) {
     if (cards.length >= boundedLimit) break;
     const source = sourceExcerptByConcept.get(concept.id)?.trim();
     const exact = source ? extractExactThinSource(source, Boolean(concept.professor_emphasis)) : null;
+    // A real, checkable problem in the source beats a generic recall cue.
+    const problem = !exact && source ? extractSolvableProblem(source) : null;
     const front = exact?.question
+      ?? problem?.question
       ?? boundGroundedText(`Explain ${concept.name} in your own words.`, 240);
     const back = exact?.answer
+      ?? (problem ? boundGroundedText(`${problem.answer} — ${problem.rationale}`, 800) : null)
       ?? boundGroundedText(
         source
           || concept.definition?.trim()
@@ -124,9 +155,11 @@ export function buildDeterministicFlashcards(
         800,
       );
     const promptKey = duplicateKey(front);
-    // A heading, running head, or "© Publisher 159" page fragment is not an
-    // answer. Skipping it keeps the set honest instead of teaching furniture.
-    if (!back || isNonExplanatoryFragment(back) || seenPrompts.has(promptKey)) continue;
+    // A heading, running head, "© Publisher 159" page fragment, schedule line,
+    // or the student's own misconception is not an answer. Skipping keeps the
+    // set honest instead of teaching furniture.
+    const teachable = Boolean(exact || problem) || isTeachableAnswer(back);
+    if (!back || !teachable || seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
     cards.push({
       front,
@@ -151,7 +184,7 @@ export function buildDeterministicMultipleChoice(
 ) {
   const questions: Array<Record<string, unknown>> = [];
   const seenPrompts = new Set<string>();
-  const exactTargets = concepts.map((concept) => ({
+  const exactTargets = teachableConcepts(concepts).map((concept) => ({
     concept,
     target: boundGroundedText(
       sourceExcerptByConcept.get(concept.id)?.trim()
@@ -160,7 +193,7 @@ export function buildDeterministicMultipleChoice(
         || "",
       220,
     ),
-  })).filter((entry) => entry.target && !isNonExplanatoryFragment(entry.target));
+  })).filter((entry) => entry.target && isTeachableAnswer(entry.target));
   const safeDecoys = [
     "Not stated in the provided class material",
     "There is not enough information in the source",
@@ -173,9 +206,16 @@ export function buildDeterministicMultipleChoice(
     const { concept, target } = entry;
     const source = sourceExcerptByConcept.get(concept.id)?.trim();
     const exact = source ? buildExactThinMultipleChoice(source) : null;
-    if (exact) {
+    // Prefer the actual problem the student captured over a "which statement
+    // matches …" recognition question.
+    const problem = !exact && source ? buildSolvableProblemChoices(source) : null;
+    const direct = exact ?? problem;
+    if (direct) {
+      const directKey = duplicateKey(direct.prompt);
+      if (seenPrompts.has(directKey)) continue;
+      seenPrompts.add(directKey);
       questions.push({
-        ...exact,
+        ...direct,
         conceptId: concept.id,
         conceptName: concept.name,
         sourceExcerpt: source,
@@ -193,6 +233,7 @@ export function buildDeterministicMultipleChoice(
     const distractors = [...exactTargets.map((candidate) => candidate.target), ...safeDecoys]
       .filter((candidate, candidateIndex, all) => (
         duplicateKey(candidate) !== duplicateKey(target)
+        && isTeachableAnswer(candidate)
         && all.findIndex((value) => duplicateKey(value) === duplicateKey(candidate)) === candidateIndex
       ))
       .slice(0, 3);
@@ -228,7 +269,7 @@ export function buildDeterministicMatchingPairs(
   const seenRight = new Set<string>();
   const boundedLimit = Math.max(0, Math.min(6, Math.trunc(limit)));
 
-  for (const concept of concepts) {
+  for (const concept of teachableConcepts(concepts)) {
     if (pairs.length >= boundedLimit) break;
     const left = boundGroundedText(concept.name, 160);
     const leftKey = duplicateKey(left);
@@ -243,7 +284,7 @@ export function buildDeterministicMatchingPairs(
       .find((candidate) => {
         const key = duplicateKey(candidate);
         const vague = /^(?:please\s+)?(?:review|study|learn|remember|help|explain)\b/i.test(candidate);
-        return !vague && !isNonExplanatoryFragment(candidate) && key !== leftKey && !seenRight.has(key);
+        return !vague && isTeachableAnswer(candidate) && key !== leftKey && !seenRight.has(key);
       });
     if (!right) continue;
     seenLeft.add(leftKey);
@@ -258,6 +299,7 @@ export function buildDeterministicMatchingPairs(
   }
   return { pairs, handledConceptIds };
 }
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
