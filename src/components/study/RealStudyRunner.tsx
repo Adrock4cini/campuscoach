@@ -38,6 +38,7 @@ import {
   readStudyRunnerState,
   writeStudyRunnerState,
 } from "@/lib/study/studyRunnerState";
+import { leaveSessionCopy, pendingEvidenceSegment } from "@/lib/study/incrementalEvidence";
 
 interface Props {
   open: boolean;
@@ -94,7 +95,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [pendingFinal, setPendingFinal] = useState<PendingFinalResult | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const attemptIdRef = useRef(createStudyAttemptId());
+  const savedCountRef = useRef(0);
+  const flushingRef = useRef(false);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
   const completionRef = useRef<HTMLDivElement>(null);
@@ -127,6 +131,9 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setExitConfirmOpen(false);
     setSubmitting(false);
     setStartedAt(Date.now());
+    setSavedCount(0);
+    savedCountRef.current = 0;
+    flushingRef.current = false;
     attemptIdRef.current = createStudyAttemptId();
   }, [open, artifact.id, items.length]);
 
@@ -317,6 +324,9 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setSaveError(null);
     setExitConfirmOpen(false);
     setSubmitting(false);
+    setSavedCount(0);
+    savedCountRef.current = 0;
+    flushingRef.current = false;
     attemptIdRef.current = createStudyAttemptId();
   };
 
@@ -632,7 +642,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">Leave study session?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your answers have not been saved. Keep studying to protect your progress.
+              {leaveSessionCopy(savedCount)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
