@@ -230,10 +230,12 @@ export function buildDeterministicMultipleChoice(
     const promptKey = duplicateKey(prompt);
     if (seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
+    const safeDecoyKeys = new Set(safeDecoys.map((decoy) => duplicateKey(decoy)));
     const distractors = [...exactTargets.map((candidate) => candidate.target), ...safeDecoys]
       .filter((candidate, candidateIndex, all) => (
         duplicateKey(candidate) !== duplicateKey(target)
-        && isTeachableAnswer(candidate)
+        // Fixed meta-decoys are authored here, never raw source fragments.
+        && (safeDecoyKeys.has(duplicateKey(candidate)) || isTeachableAnswer(candidate))
         && all.findIndex((value) => duplicateKey(value) === duplicateKey(candidate)) === candidateIndex
       ))
       .slice(0, 3);
