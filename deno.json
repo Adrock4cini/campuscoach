@@ -6,7 +6,7 @@
   },
   "tasks": {
     "check:edge-functions": "deno check --lock=deno.lock --frozen supabase/functions/*/index.ts",
-    "test:edge-shared": "deno test --lock=deno.lock --frozen supabase/functions/_shared/canvas-calendar.test.ts",
+    "test:edge-shared": "deno test --allow-env=CANVAS_APP_URL --lock=deno.lock --frozen supabase/functions/_shared/canvas-calendar.test.ts supabase/functions/_shared/canvas-server.test.ts",
     "verify:edge": "deno task test:edge-shared && deno task check:edge-functions"
   }
 }

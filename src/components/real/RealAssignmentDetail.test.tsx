@@ -102,7 +102,9 @@ describe("RealAssignmentDetail", () => {
   it("starts a new exact assignment capture when no saved help exists", async () => {
     renderDetail();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Get help with this" }));
+    expect(await screen.findByText(/guided walkthroughs currently cover one percent-of or percent-discount problem/i))
+      .toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Capture one problem" }));
 
     expect(mocks.openCapture).toHaveBeenCalledWith("scan-assignment", {
       classId: "bio",
@@ -114,7 +116,7 @@ describe("RealAssignmentDetail", () => {
     mocks.getLatestCaptureForAssignment.mockResolvedValue(assignmentCapture("ready"));
     renderDetail();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Continue help" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open percent walkthrough" }));
 
     const location = screen.getByTestId("location").textContent ?? "";
     const [pathname, query = ""] = location.split("?");
@@ -135,11 +137,11 @@ describe("RealAssignmentDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("Campus Companion is still reading this assignment.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Get help with this" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Capture one problem" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry processing" }));
 
     await waitFor(() => expect(mocks.retryCaptureProcessing).toHaveBeenCalledWith("capture-1"));
-    expect(await screen.findByRole("button", { name: "Continue help" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open percent walkthrough" })).toBeInTheDocument();
   });
 
   it("requires the photographed problem to be reviewed before continuing", async () => {
@@ -158,7 +160,25 @@ describe("RealAssignmentDetail", () => {
     expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
     );
-    expect(screen.queryByRole("button", { name: "Continue help" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open percent walkthrough" })).not.toBeInTheDocument();
+  });
+
+  it("does not open Tutor for a legacy confirmed row outside the supported percent scope", async () => {
+    mocks.getLatestCaptureForAssignment.mockResolvedValue(assignmentCapture("ready", {
+      practiceSource: {
+        status: "confirmed",
+        text: "Explain how photosynthesis moves energy through a plant.",
+        version: 2,
+        hash: "a".repeat(64),
+        confirmedAt: "2026-01-02T00:00:01Z",
+      },
+    }));
+    renderDetail();
+
+    expect(await screen.findByText("Check the problem")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open percent walkthrough" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm for walkthrough" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Study saved concepts instead" })).toBeInTheDocument();
   });
 
   it("offers both retry and a fresh capture when reading failed", async () => {
@@ -182,7 +202,7 @@ describe("RealAssignmentDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("This saved help session doesn’t match this assignment’s class.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Continue help" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open percent walkthrough" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Capture again" })).toBeInTheDocument();
   });
 
@@ -198,7 +218,7 @@ describe("RealAssignmentDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("Couldn’t load this assignment")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Get help with this" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Capture one problem" })).not.toBeInTheDocument();
   });
 
   it("says plainly when the assignment was deleted elsewhere", async () => {

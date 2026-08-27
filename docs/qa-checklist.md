@@ -7,8 +7,8 @@ passes. This beta is for invited students age 13 and older only.
 ## Release identity and account controls
 
 - [ ] `VITE_PUBLIC_SIGNUPS_ENABLED` is absent or `false` in the release build.
-- [ ] `VITE_CANVAS_CONNECT_ENABLED=false` for the family beta unless every
-      institution and server prerequisite in `docs/canvas-connect.md` passed.
+- [ ] `VITE_CANVAS_CONNECT_ENABLED=false` exactly; Canvas and all Canvas Edge
+      Functions are outside this invite-only launch inventory.
 - [ ] The release bundle uses the production Supabase project ID; setting the
       frontend signup flag to `true` still does not open production registration.
 - [ ] New-user creation is disabled in Supabase Auth; a direct unauthenticated
@@ -18,7 +18,9 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] Invitation/confirmation/reset email delivery is verified through the
       configured production SMTP sender.
 - [ ] `VITE_PUBLIC_SUPPORT_EMAIL` is a monitored address shown on Privacy.
-- [ ] The retired `seed-beta-user` Edge Function returns HTTP 410 (or is absent).
+- [ ] The post-deploy canary receives HTTP 404 for `seed-beta-user`,
+      `canvas-connect`, `canvas-oauth-callback`, `canvas-sync`, and
+      `canvas-calendar-sync`; none of those five functions is deployed.
 - [ ] One invited email/password account can sign in; an uninvited address cannot
       create an account.
 
@@ -38,6 +40,12 @@ passes. This beta is for invited students age 13 and older only.
       INSERT/UPDATE and direct `capture-sources`/`syllabus-sources` Storage
       INSERT fail. With the receipt, valid owned writes succeed; DELETE and service-role processing/
       account-erasure paths still work.
+- [ ] Direct browser INSERT into `study_strategy_outcomes`, `topic_signals`,
+      `exam_debriefs`, and `campus_brain_signals`, plus authenticated UPDATE of
+      `topic_signals`, `exam_debriefs`, and `campus_brain_signals`, requires the
+      current receipt and an open study-write gate. Accepted owner writes retain
+      their existing bounds after resume; owner DELETE and service-role result
+      projection/account erasure still work.
 - [ ] Password sign-in, forgot password, reset link, and sign-out all work.
 - [ ] After onboarding, reload, browser restart, explicit sign-out, and subsequent
       password sign-in all return the same account without rerunning setup.
@@ -129,7 +137,7 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] Updated Edge Functions compile and are deployed before their calling UI.
 - [ ] `npm run validate:release-env` passes with the exact HTTPS origin, backend
       project, publishable/anon key, commit SHA, monitored support address,
-      signups disabled, Canvas Connect explicitly reviewed, and passkeys either
+      signups disabled, Canvas Connect disabled, and passkeys either
       disabled or correctly bound.
 - [ ] The final canary process validates both distinct protected account
       addresses/passwords without exposing them to checkout, install, audit,
@@ -142,8 +150,8 @@ passes. This beta is for invited students age 13 and older only.
       'none'`), one-year HSTS with `includeSubDomains`, strict Referrer-Policy,
       Permissions-Policy disabling camera/microphone/geolocation, and `nosniff`.
 - [ ] Same-origin `release-manifest.json` exactly matches the deployed SHA,
-      production Supabase project ID, disabled signup flag, reviewed passkey
-      and Canvas Connect states, and public support address; the page loads no
+      production Supabase project ID, disabled signup and Canvas Connect flags,
+      reviewed passkey state, and public support address; the page loads no
       cross-origin scripts.
 - [ ] A sanitized browser crash test reaches the production operator alert;
       neither the event nor Edge 5xx logs contain student content or identifiers.
@@ -158,12 +166,14 @@ passes. This beta is for invited students age 13 and older only.
       authenticated browser INSERT/UPDATE on captures, materials, and processed
       content plus INSERT into both source buckets. Service-role recovery and
       DELETE/account erasure remained available. The rollout remained paused
-      through verification of `20260827132000` and resumed exactly once before
-      the public canary. The recorded host maintenance rule was removed only
-      while invites remained closed.
+      through verification of `20260827132000` and the
+      `20260827133000` browser learning-evidence guard, then resumed exactly
+      once before the public canary. The recorded host maintenance rule was
+      removed only while invites remained closed.
 - [ ] The deployed Edge inventory contains exactly the ten reviewed revisions,
       including both cleanup workers and the private `mcp` HTTP 410 tombstone;
-      no historical MCP demo/tool response remains.
+      no historical MCP demo/tool response remains, and the five forbidden
+      function probes above all return HTTP 404.
 - [ ] Syllabus migrations, private bucket policies, cleanup function, and one
       active hourly cleanup job are present; a production no-op cleanup returns
       HTTP 200 with zero claims when the bucket is empty.

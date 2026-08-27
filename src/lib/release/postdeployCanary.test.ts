@@ -1,7 +1,11 @@
+import { existsSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   CanaryFailure,
+  FORBIDDEN_EDGE_FUNCTIONS,
   readCanaryConfiguration,
+  REVIEWED_EDGE_FUNCTIONS,
   runPostdeployCanary,
 } from "../../../scripts/postdeploy-canary.mjs";
 
@@ -123,6 +127,9 @@ function successfulFetch() {
         ownerId: ACCEPTED_ID,
       });
     }
+    if (FORBIDDEN_EDGE_FUNCTIONS.some((name) => url.endsWith(`/functions/v1/${name}`))) {
+      return new Response(null, { status: 404 });
+    }
     if (url.endsWith("/functions/v1/report-client-error")) {
       return Response.json({ accepted: true, requestId }, {
         status: 202,
@@ -162,6 +169,39 @@ function successfulFetch() {
 }
 
 describe("post-deploy release canary", () => {
+  it("keeps every Edge source in the exact reviewed or forbidden launch inventory", () => {
+    expect(REVIEWED_EDGE_FUNCTIONS).toEqual([
+      "confirm-assignment-practice-source",
+      "extract-concepts",
+      "generate-artifact",
+      "parse-syllabus",
+      "process-capture-images",
+      "record-study-result",
+      "cleanup-abandoned-captures",
+      "cleanup-abandoned-syllabi",
+      "mcp",
+      "report-client-error",
+    ]);
+    expect(FORBIDDEN_EDGE_FUNCTIONS).toEqual([
+      "seed-beta-user",
+      "canvas-connect",
+      "canvas-oauth-callback",
+      "canvas-sync",
+      "canvas-calendar-sync",
+    ]);
+
+    const functionsDirectory = resolve(process.cwd(), "supabase/functions");
+    const sourceInventory = readdirSync(functionsDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => existsSync(join(functionsDirectory, name, "index.ts")))
+      .sort();
+    expect(sourceInventory).toEqual([
+      ...REVIEWED_EDGE_FUNCTIONS,
+      ...FORBIDDEN_EDGE_FUNCTIONS,
+    ].sort());
+  });
+
   it("requires credentials and exact release identity without exposing their values", () => {
     expect(() => readCanaryConfiguration(environment({ CANARY_PASSWORD: undefined })))
       .toThrow("CANARY_PASSWORD is required");
@@ -177,8 +217,10 @@ describe("post-deploy release canary", () => {
       .toThrow("VITE_SUPABASE_PROJECT_ID must match VITE_SUPABASE_URL");
     expect(() => readCanaryConfiguration(environment({ RELEASE_PRODUCTION_ORIGIN: "https://app.campuscompanion.com:8443" })))
       .toThrow("RELEASE_PRODUCTION_ORIGIN must be an HTTPS origin");
-    expect(() => readCanaryConfiguration(environment({ VITE_CANVAS_CONNECT_ENABLED: "TRUE" })))
-      .toThrow("VITE_CANVAS_CONNECT_ENABLED must be true or false");
+    for (const value of [undefined, "", "true", "TRUE", "0", " false "]) {
+      expect(() => readCanaryConfiguration(environment({ VITE_CANVAS_CONNECT_ENABLED: value })))
+        .toThrow("VITE_CANVAS_CONNECT_ENABLED must be false for this release");
+    }
   });
 
   it("requires separate accepted and unaccepted canary identities", async () => {
@@ -199,6 +241,7 @@ describe("post-deploy release canary", () => {
         "canary-agreement",
         "canary-unaccepted-auth",
         "canary-unaccepted-agreement",
+        "edge-function-inventory",
         "edge-agreement-contracts",
         "edge-validation-contracts",
         "cleanup-worker-denials",
@@ -209,9 +252,23 @@ describe("post-deploy release canary", () => {
     const functionCalls = fetchImpl.mock.calls
       .map(([input]) => String(input))
       .filter((url) => url.includes("/functions/v1/"));
-    expect(functionCalls).toHaveLength(16);
+    expect(functionCalls).toHaveLength(21);
+    expect(new Set(functionCalls.map((url) => url.split("/functions/v1/")[1]))).toEqual(
+      new Set([...REVIEWED_EDGE_FUNCTIONS, ...FORBIDDEN_EDGE_FUNCTIONS]),
+    );
     expect(functionCalls).toContain(`${SUPABASE}/functions/v1/cleanup-abandoned-captures`);
     expect(functionCalls).toContain(`${SUPABASE}/functions/v1/cleanup-abandoned-syllabi`);
+
+    for (const name of FORBIDDEN_EDGE_FUNCTIONS) {
+      const calls = fetchImpl.mock.calls.filter(([input]) => (
+        String(input) === `${SUPABASE}/functions/v1/${name}`
+      ));
+      expect(calls).toHaveLength(1);
+      const init = calls[0]?.[1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect(init.body).toBe("{}");
+      expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${ACCEPTED_TOKEN}`);
+    }
 
     for (const name of ["cleanup-abandoned-captures", "cleanup-abandoned-syllabi"]) {
       const call = fetchImpl.mock.calls.find(([input]) => (
@@ -403,6 +460,26 @@ describe("post-deploy release canary", () => {
       check: "function-cleanup-abandoned-syllabi",
     });
   });
+
+  it.each(FORBIDDEN_EDGE_FUNCTIONS)(
+    "fails if forbidden Edge Function %s is still deployed",
+    async (name) => {
+      const fetchImpl = successfulFetch();
+      const baseFetch = successfulFetch();
+      fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input).endsWith(`/functions/v1/${name}`)) {
+          return new Response(null, { status: 410 });
+        }
+        return baseFetch(input, init);
+      });
+
+      await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+        name: "CanaryFailure",
+        check: `function-${name}-absence`,
+        message: `function-${name}-absence: returned HTTP 410; expected 404`,
+      });
+    },
+  );
 
   it("fails when the password token cannot be verified as a live user session", async () => {
     const fetchImpl = successfulFetch();

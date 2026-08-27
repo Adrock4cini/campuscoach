@@ -4,13 +4,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   MAX_ASSIGNMENT_PRACTICE_SOURCE_CHARS,
-  isConfirmedAssignmentPracticeSource,
   type AssignmentPracticeSource,
 } from "@/lib/assignments/assignmentPracticeSource";
 import {
   AssignmentPracticeSourceConfirmationError,
   confirmAssignmentPracticeSource,
 } from "@/lib/supabase/assignmentPracticeSource";
+import {
+  isAssignmentTutorTextSupported,
+  isConfirmedAssignmentTutorPracticeSource,
+} from "@/lib/assignments/assignmentTutorSupport";
 
 interface Props {
   captureId: string;
@@ -31,16 +34,18 @@ export function AssignmentProblemReview({
   onFallback,
   className,
 }: Props) {
-  const confirmed = isConfirmedAssignmentPracticeSource(source);
-  const [editing, setEditing] = useState(!confirmed);
+  const confirmedTutorSupported = isConfirmedAssignmentTutorPracticeSource(source);
+  const [editing, setEditing] = useState(!confirmedTutorSupported);
   const [text, setText] = useState(source.text ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unsupported, setUnsupported] = useState(false);
+  const tutorSupported = isAssignmentTutorTextSupported(text);
+  const showConceptFallback = Boolean(onFallback && (!tutorSupported || unsupported));
 
   useEffect(() => {
     setText(source.text ?? "");
-    setEditing(!isConfirmedAssignmentPracticeSource(source));
+    setEditing(!isConfirmedAssignmentTutorPracticeSource(source));
     setError(null);
     setUnsupported(false);
   }, [source]);
@@ -92,15 +97,15 @@ export function AssignmentProblemReview({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id={`assignment-problem-review-${captureId}`} className="text-sm font-semibold text-foreground">
-            {confirmed && !editing ? "Problem confirmed" : "Check the problem"}
+            {confirmedTutorSupported && !editing ? "Percent problem confirmed" : "Check the problem"}
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {confirmed && !editing
-              ? "The tutor will use exactly this problem."
-              : "Check every number and symbol. Campus Companion can misread photos, and the tutor will use exactly what you confirm."}
+            {confirmedTutorSupported && !editing
+              ? "Your guided walkthrough will use exactly this problem."
+              : "Early Access walkthroughs support one percent-of or percent-discount problem. Check every number and symbol before confirming."}
           </p>
         </div>
-        {confirmed && !editing && (
+        {confirmedTutorSupported && !editing && (
           <CheckCircle2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-success" />
         )}
       </div>
@@ -118,7 +123,11 @@ export function AssignmentProblemReview({
               maxLength={MAX_ASSIGNMENT_PRACTICE_SOURCE_CHARS}
               rows={3}
               disabled={saving}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => {
+                setText(event.target.value);
+                setError(null);
+                setUnsupported(false);
+              }}
               className="w-full resize-y rounded-xl border border-border/60 bg-background/70 px-3 py-2.5 text-base text-foreground shadow-sm sm:text-sm"
               placeholder="Type the complete problem exactly as it appears"
             />
@@ -127,27 +136,22 @@ export function AssignmentProblemReview({
             </p>
           </div>
           {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-          {unsupported && onFallback && (
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 w-full rounded-xl"
-              onClick={onFallback}
-            >
-              Study this class instead
-            </Button>
+          {!tutorSupported && text.trim() && !error && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              This capture is still saved. You can edit it to one supported percent problem or study its saved class concepts instead.
+            </p>
           )}
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               className="min-h-11 flex-1 rounded-xl"
-              disabled={saving || !text.trim()}
+              disabled={saving || !tutorSupported}
               onClick={() => { void save(); }}
             >
               {saving && <Loader2 aria-hidden className="mr-2 h-4 w-4 animate-spin" />}
-              {saving ? "Confirming…" : "Confirm problem"}
+              {saving ? "Confirming…" : "Confirm for walkthrough"}
             </Button>
-            {confirmed && (
+            {confirmedTutorSupported && (
               <Button
                 type="button"
                 variant="ghost"
@@ -164,6 +168,16 @@ export function AssignmentProblemReview({
               </Button>
             )}
           </div>
+          {showConceptFallback && (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 w-full rounded-xl"
+              onClick={onFallback}
+            >
+              Study saved concepts instead
+            </Button>
+          )}
         </>
       ) : (
         <div className="space-y-2">

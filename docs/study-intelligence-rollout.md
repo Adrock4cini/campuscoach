@@ -124,13 +124,28 @@ Storage boundary described in `docs/capture-storage.md`:
    per-capture/orphan/owner quotas, removes browser object UPDATE and committed
    DELETE, retires direct SQL Storage deletion, and installs fenced cleanup
    claims.
-3. Deploy the exact reviewed `process-capture-images` and internal
+3. Apply
+   `20260827133000_browser_learning_evidence_write_guard.sql` as a separate
+   transaction. It composes the durable current-agreement receipt and
+   lock-coordinated pause with authenticated INSERT into
+   `study_strategy_outcomes`, `topic_signals`, `exam_debriefs`, and
+   `campus_brain_signals`, plus authenticated UPDATE of `topic_signals`,
+   `exam_debriefs`, and `campus_brain_signals`. Existing owner/write-shape and
+   DELETE policies and service-role result projection remain unchanged.
+4. Deploy the exact reviewed `process-capture-images` and internal
    `cleanup-abandoned-captures` revisions. Verify the image worker hashes every
    downloaded source before paid AI and that browser roles cannot read claims or
    execute cleanup RPCs.
-4. Run exact-retry, changed-retry, owner isolation, quota, byte/hash mismatch,
+5. Run exact-retry, changed-retry, owner isolation, quota, byte/hash mismatch,
    and cleanup/late-commit race checks before resuming writes. Schedule the
    24-hour cleanup only after a secret-bound production no-op and alert check.
+   While still paused, prove both accepted and unaccepted browser accounts are
+   denied the four guarded signal/evidence INSERTs and authenticated UPDATE of
+   `topic_signals`, `exam_debriefs`, and `campus_brain_signals`; inspect the
+   installed restrictive policies to confirm both independent predicates are
+   present. Owner DELETE must remain available. After final resume, prove the
+   current-agreement predicate independently by denying the unaccepted account
+   while valid accepted owner writes retain their existing bounds.
 
 The release canary calls the internal route without its scheduler secret and
 expects private HTTP 401. It proves deployment and browser denial only; it must
@@ -161,7 +176,9 @@ host-specific header file; the post-deploy canary checks the actual origin.
 ### Final resume and public canary
 
 1. While writes remain paused, confirm
-   `20260827132000_capture_storage_integrity.sql` is applied and finish its
+   `20260827132000_capture_storage_integrity.sql` and
+   `20260827133000_browser_learning_evidence_write_guard.sql` are applied and
+   finish their
    owner/cross-owner, exact-retry,
    cleanup-race, function-inventory, response-contract, alert-delivery, and
    exact-UI checks. Confirm both cleanup schedules are installed but bounded.
@@ -174,7 +191,11 @@ host-specific header file; the post-deploy canary checks the actual origin.
 
 3. Run one accepted owner write journey and repeat the unaccepted account's
    direct INSERT/UPDATE and source-upload denials now that the maintenance gate
-   is open; this proves the current-agreement policies independently. Then
+   is open; this proves the current-agreement policies independently. Include
+   all four guarded signal/evidence INSERTs and authenticated UPDATE of
+   `topic_signals`, `exam_debriefs`, and `campus_brain_signals`; the accepted
+   owner must retain valid bounded writes and DELETE while the unaccepted
+   account is denied from INSERT/UPDATE. Then
    remove the host maintenance
    access control while invites remain closed. The control must be a recorded,
    reversible provider rule tested before the rollout; the GitHub canary does
@@ -200,6 +221,12 @@ There is no earlier resume point in this handoff.
 - Without a current receipt, authenticated direct INSERT/UPDATE to captures,
   materials, and processed content plus INSERT to both source buckets is denied.
   Accepted owner checks and service-role recovery remain available.
+- Direct authenticated INSERT into `study_strategy_outcomes`, `topic_signals`,
+  `exam_debriefs`, and `campus_brain_signals`, plus authenticated UPDATE of
+  `topic_signals`, `exam_debriefs`, and `campus_brain_signals`, is denied for
+  both accounts while paused. With the pause open, the current-agreement policy
+  still denies the unaccepted account; owner DELETE and service-role result
+  projection/account erasure remain available.
 - User A cannot load or mutate User B's concepts, artifacts, mastery, feedback,
   captures, source objects, or classes.
 
@@ -238,7 +265,8 @@ There is no earlier resume point in this handoff.
   through its bundled curated aliases.
 - The protected dual-account canary passes: six exact unaccepted HTTP 403
   denials, six accepted zero-AI HTTP 400 validations, both worker denials, MCP
-  HTTP 410, safe error intake, and unique echoed request IDs.
+  HTTP 410, safe error intake, unique echoed request IDs, and exact HTTP 404
+  absence for `seed-beta-user` plus all four Canvas functions.
 
 ## Verification commands
 
@@ -259,7 +287,8 @@ validate:release-env` and `npm run canary:release` through the protected
    nonsecret release manifest, both verified canary Auth
    sessions, the unaccepted account's exact agreement denial on all six guarded
    functions, the accepted account's invalid-body responses, the MCP HTTP 410
-   tombstone, both worker denials, and accepted error-report
+   tombstone, both worker denials, exact HTTP 404 absence for the retired
+   provisioning route and four disabled Canvas routes, and accepted error-report
 ingestion without writing student data or spending AI. It does not replace the
 manual migration inventory, two-user RLS checks, exact Edge revision audit,
 successful staging journeys, or operator confirmation that the alert arrived.

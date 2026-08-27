@@ -7,6 +7,8 @@ describe("invite-only indexing boundary", () => {
     const robots = readFileSync("public/robots.txt", "utf8");
 
     expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive" />');
+    expect(html).not.toContain("campuscoach.lovable.app");
+    expect(html).not.toContain("id-preview-");
     expect(robots).toMatch(/User-agent:\s*\*\s+Disallow:\s*\//);
     expect(robots).not.toContain("Allow: /");
   });

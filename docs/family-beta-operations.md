@@ -87,10 +87,15 @@ cannot be proven by the repository or a successful frontend build.
    capture/material/processed-content writes plus both private Storage buckets;
    `20260827126750_capture_request_idempotency.sql` follows before the later
    `20260827127500` mirror retirement. Remain paused through the documented
-   `20260827132000` capture Storage handoff and its verification, then resume
-   exactly once afterward.
+   `20260827132000` capture Storage handoff, apply
+   `20260827133000_browser_learning_evidence_write_guard.sql`, and verify its
+   four browser signal/evidence INSERT guards plus authenticated UPDATE guards
+   for `topic_signals`, `exam_debriefs`, and `campus_brain_signals`; owner DELETE
+   remains available before resuming exactly once afterward.
    The ten revisions include both cleanup workers and the `mcp` HTTP 410
-   tombstone; leaving the old MCP handler deployed is a release blocker.
+   tombstone; leaving the old MCP handler deployed is a release blocker. Do not
+   deploy `seed-beta-user` or any of the four Canvas functions for this release;
+   the canary requires HTTP 404 from all five historical routes.
    During the compatibility stage, restrict the host to reviewed operators and
    the two canary accounts; do not expose the partially handed-off client to
    students.
@@ -101,7 +106,8 @@ cannot be proven by the repository or a successful frontend build.
    and SHA, reject cross-origin scripts, verify direct SPA deep-link fallback,
    authenticate and verify both live canary sessions, prove the unaccepted
    agreement-denial contract, exercise every guarded function's accepted zero-AI validation
-   response, require a request ID on every Edge response, and submit the safe
+   response, require HTTP 404 from `seed-beta-user` and all four Canvas routes,
+   require a request ID on every reviewed Edge response, and submit the safe
    error-report event. This does not
    prove migrations, RLS isolation, exact Edge revisions, successful write paths,
    or alert delivery.

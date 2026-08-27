@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CURRENT_ARTIFACT_PROMPT_VERSION, type LearningArtifact } from "@/lib/learningArtifacts/types";
 import { useLearningArtifact } from "@/lib/learningArtifacts/useLearningArtifact";
-import {
-  assignmentPracticeSourceFromUnknown,
-  isConfirmedAssignmentPracticeSource,
-} from "@/lib/assignments/assignmentPracticeSource";
+import { assignmentPracticeSourceFromUnknown } from "@/lib/assignments/assignmentPracticeSource";
+import { isConfirmedAssignmentTutorPracticeSource } from "@/lib/assignments/assignmentTutorSupport";
 import {
   getCaptureById,
   retryCaptureProcessing,
@@ -120,7 +118,7 @@ export function AssignmentTutorSet({ classId, assignmentId, captureId, onFallbac
   }
 
   const practiceSource = assignmentPracticeSourceFromUnknown(capture.practiceSource, capture.kind);
-  if (!isConfirmedAssignmentPracticeSource(practiceSource)) {
+  if (!isConfirmedAssignmentTutorPracticeSource(practiceSource)) {
     return (
       <Card className="rounded-[28px] border-primary/25 bg-card/75 shadow-card">
         <CardContent className="space-y-4 p-5">

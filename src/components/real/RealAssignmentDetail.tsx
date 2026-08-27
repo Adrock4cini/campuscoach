@@ -26,10 +26,8 @@ import {
   type PersistedCapture,
 } from "@/lib/supabase/capturePersistence";
 import { AssignmentProblemReview } from "@/components/assignments/AssignmentProblemReview";
-import {
-  assignmentPracticeSourceFromUnknown,
-  isConfirmedAssignmentPracticeSource,
-} from "@/lib/assignments/assignmentPracticeSource";
+import { assignmentPracticeSourceFromUnknown } from "@/lib/assignments/assignmentPracticeSource";
+import { isConfirmedAssignmentTutorPracticeSource } from "@/lib/assignments/assignmentTutorSupport";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -151,7 +149,7 @@ export function RealAssignmentDetail() {
     assignmentCapture?.practiceSource,
     assignmentCapture?.kind ?? "scan-assignment",
   );
-  const practiceSourceConfirmed = isConfirmedAssignmentPracticeSource(practiceSource);
+  const practiceSourceConfirmed = isConfirmedAssignmentTutorPracticeSource(practiceSource);
 
   const continueAssignmentHelp = () => {
     if (!assignmentCapture || !assignment.client_class_id || !captureMatchesAssignment) return;
@@ -201,6 +199,11 @@ export function RealAssignmentDetail() {
             <p className="text-sm text-foreground/90 whitespace-pre-wrap">{assignment.notes}</p>
           )}
 
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Early Access guided walkthroughs currently cover one percent-of or percent-discount
+            problem. Other assignment photos still save concepts for class study.
+          </p>
+
           <div className="flex flex-wrap items-center gap-2">
             <Select value={assignment.status} onValueChange={(v: AssignmentStatus) => void setStatus(v)}>
               <SelectTrigger className="h-11 w-[150px] text-sm"><SelectValue /></SelectTrigger>
@@ -212,12 +215,12 @@ export function RealAssignmentDetail() {
             </Select>
             {!assignmentCapture && (
               <Button className="min-h-11" onClick={openAssignmentCapture}>
-                <HelpCircle className="h-4 w-4 mr-1.5" /> Get help with this
+                <HelpCircle className="h-4 w-4 mr-1.5" /> Capture one problem
               </Button>
             )}
             {captureStatus === "ready" && practiceSourceConfirmed && (
               <Button className="min-h-11" onClick={continueAssignmentHelp}>
-                <HelpCircle className="h-4 w-4 mr-1.5" /> Continue help
+                <HelpCircle className="h-4 w-4 mr-1.5" /> Open percent walkthrough
               </Button>
             )}
             {captureStatus === "ready" && assignmentCapture && assignment.client_class_id && (

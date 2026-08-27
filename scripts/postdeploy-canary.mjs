@@ -19,6 +19,19 @@ const INTERNAL_DENIAL_FUNCTIONS = [
   "cleanup-abandoned-captures",
   "cleanup-abandoned-syllabi",
 ];
+export const REVIEWED_EDGE_FUNCTIONS = Object.freeze([
+  ...INVALID_BODY_FUNCTIONS,
+  ...INTERNAL_DENIAL_FUNCTIONS,
+  "mcp",
+  "report-client-error",
+]);
+export const FORBIDDEN_EDGE_FUNCTIONS = Object.freeze([
+  "seed-beta-user",
+  "canvas-connect",
+  "canvas-oauth-callback",
+  "canvas-sync",
+  "canvas-calendar-sync",
+]);
 const SPA_DEEP_LINK_PATH = "/dashboard";
 const RELEASE_MANIFEST_PATH = "/release-manifest.json";
 const CURRENT_FAMILY_BETA_AGREEMENT_VERSION = "2026-08-17";
@@ -100,9 +113,9 @@ export function readCanaryConfiguration(environment) {
   if (passkeys !== "true" && passkeys !== "false") {
     throw new CanaryFailure("configuration", "VITE_PASSKEYS_ENABLED must be true or false");
   }
-  const canvasConnect = required(environment, "VITE_CANVAS_CONNECT_ENABLED");
-  if (canvasConnect !== "true" && canvasConnect !== "false") {
-    throw new CanaryFailure("configuration", "VITE_CANVAS_CONNECT_ENABLED must be true or false");
+  const canvasConnect = environment.VITE_CANVAS_CONNECT_ENABLED;
+  if (canvasConnect !== "false") {
+    throw new CanaryFailure("configuration", "VITE_CANVAS_CONNECT_ENABLED must be false for this release");
   }
   const origin = httpsOrigin(
     required(environment, "RELEASE_PRODUCTION_ORIGIN"),
@@ -126,7 +139,7 @@ export function readCanaryConfiguration(environment) {
     supabaseProjectId,
     publicSupportEmail: required(environment, "VITE_PUBLIC_SUPPORT_EMAIL"),
     publicSignupsEnabled: false,
-    canvasConnectEnabled: canvasConnect === "true",
+    canvasConnectEnabled: false,
     passkeysEnabled: passkeys === "true",
     email,
     password: required(environment, "CANARY_PASSWORD"),
@@ -501,6 +514,30 @@ async function requireAgreementDenial(response, name) {
   }
 }
 
+async function requireFunctionAbsent(config, fetchImpl, accessToken, name) {
+  const response = await fetchWithTimeout(
+    fetchImpl,
+    `${config.supabaseUrl}/functions/v1/${name}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+      body: "{}",
+      redirect: "error",
+    },
+  );
+  if (response.status !== 404) {
+    throw new CanaryFailure(
+      `function-${name}-absence`,
+      `returned HTTP ${response.status}; expected 404`,
+    );
+  }
+}
+
 async function checkBackend(config, fetchImpl) {
   const seenRequestIds = new Set();
   const auth = await authenticateCanary(
@@ -520,6 +557,10 @@ async function checkBackend(config, fetchImpl) {
     throw new CanaryFailure("canary-unaccepted-auth", "resolved to the accepted canary account");
   }
   await checkUnacceptedCanaryAgreement(config, fetchImpl, unacceptedAuth);
+
+  for (const name of FORBIDDEN_EDGE_FUNCTIONS) {
+    await requireFunctionAbsent(config, fetchImpl, auth.accessToken, name);
+  }
 
   for (const name of INVALID_BODY_FUNCTIONS) {
     const response = await invokeFunction(
@@ -568,6 +609,7 @@ export async function runPostdeployCanary(environment, fetchImpl = fetch) {
       "canary-agreement",
       "canary-unaccepted-auth",
       "canary-unaccepted-agreement",
+      "edge-function-inventory",
       "edge-agreement-contracts",
       "edge-validation-contracts",
       "cleanup-worker-denials",

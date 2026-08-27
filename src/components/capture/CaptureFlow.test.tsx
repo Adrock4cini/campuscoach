@@ -767,7 +767,7 @@ describe("CaptureFlow class boundaries", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
     expect(await screen.findByText("Saved to Science", {}, { timeout: 3000 })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Understand this problem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start percent walkthrough" }));
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(screen.getByTestId("location")).toHaveTextContent(
@@ -1081,7 +1081,7 @@ describe("CaptureFlow class memory and next action", () => {
     expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
     );
-    expect(screen.queryByRole("button", { name: "Understand this problem" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start percent walkthrough" })).not.toBeInTheDocument();
   });
 });
 

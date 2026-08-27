@@ -83,7 +83,7 @@ const MENU: {
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
   { kind: "scan-textbook",  icon: BookOpen,      hint: "Textbook scanning is coming soon" },
-  { kind: "scan-assignment", icon: ClipboardList, hint: "Turn homework into study material", requiresImages: true, availableForRealUsers: true },
+  { kind: "scan-assignment", icon: ClipboardList, hint: "Save concepts; guided help for percent problems", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
   { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
@@ -857,11 +857,11 @@ export function CaptureFlow({
                     <div className="space-y-3">
                       <div className="rounded-2xl border border-dashed border-primary/35 bg-primary/5 p-3">
                         <p className="text-sm font-medium text-foreground">
-                          {meta.kind === "scan-assignment" ? "Photograph the one problem you want help with" : "Photograph notes or book pages"}
+                          {meta.kind === "scan-assignment" ? "Photograph one problem" : "Photograph notes or book pages"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {meta.kind === "scan-assignment"
-                            ? "Get close enough to read every number and symbol. Campus Brain keeps the original private."
+                            ? "Guided walkthroughs currently cover one percent-of or percent-discount problem. Other photos still save concepts for class study. Get close enough to read every number and symbol."
                             : "Add up to 4 pages to this one capture — one class and date covers all of them. Campus Brain keeps the originals private."}
 
                         </p>
@@ -1397,8 +1397,7 @@ export function CaptureDoneSummary({
         <div className="space-y-2 pt-1">
           {result.kind === "scan-assignment" && (
             <p className="text-xs text-muted-foreground">
-              Campus Coach turns this problem into practice on the concepts behind it — it
-              won’t just hand over the answer.
+              Start with a hint, then work a different example and a similar percent problem.
             </p>
           )}
           <button
@@ -1406,7 +1405,7 @@ export function CaptureDoneSummary({
             className="btn-glow inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-medium"
           >
             <Sparkles className="h-4 w-4" />
-            {result.kind === "scan-assignment" ? "Understand this problem" : "Practice this now"}
+            {result.kind === "scan-assignment" ? "Start percent walkthrough" : "Practice this now"}
           </button>
           <div className="flex gap-2">
             <button

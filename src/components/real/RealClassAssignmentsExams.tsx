@@ -102,7 +102,7 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                           className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline"
                         >
                           <HelpCircle className="h-3.5 w-3.5" />
-                          Get help with this
+                          Capture a problem
                         </button>
                       </div>
                     )}

@@ -3,6 +3,7 @@ import {
   assignmentPracticeSourceFromUnknown,
   isConfirmedAssignmentPracticeSource,
 } from "./assignmentPracticeSource";
+import { isConfirmedAssignmentTutorPracticeSource } from "./assignmentTutorSupport";
 
 describe("assignment practice source contract", () => {
   it("fails a legacy assignment capture closed to review", () => {
@@ -30,5 +31,22 @@ describe("assignment practice source contract", () => {
 
     expect(source.status).toBe("needs_review");
     expect(isConfirmedAssignmentPracticeSource(source)).toBe(false);
+  });
+
+  it("requires confirmed assignment text to remain inside deterministic Tutor scope", () => {
+    const source = {
+      status: "confirmed" as const,
+      text: "Explain how photosynthesis moves energy through a plant.",
+      version: 2,
+      hash: "a".repeat(64),
+      confirmedAt: "2026-08-27T12:00:00.000Z",
+    };
+
+    expect(isConfirmedAssignmentPracticeSource(source)).toBe(true);
+    expect(isConfirmedAssignmentTutorPracticeSource(source)).toBe(false);
+    expect(isConfirmedAssignmentTutorPracticeSource({
+      ...source,
+      text: "What is 14% of 50?",
+    })).toBe(true);
   });
 });

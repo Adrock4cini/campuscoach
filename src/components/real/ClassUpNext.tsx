@@ -114,8 +114,8 @@ export function ClassUpNext({ classId, className }: Props) {
                   </div>
                   <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextAssignment.due_date))}</Badge>
                 </div>
-                {/* Act first, manage status later: open the assignment or get
-                    help without any status ceremony. */}
+                {/* Act first, manage status later: open the assignment or
+                    capture one problem without any status ceremony. */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0 pl-6">
                   <Link
                     to={`/assignments/${encodeURIComponent(nextAssignment.id)}`}
@@ -128,7 +128,7 @@ export function ClassUpNext({ classId, className }: Props) {
                     onClick={() => openCapture("scan-assignment", { classId, assignmentId: nextAssignment.id })}
                     className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline"
                   >
-                    Get help
+                    Capture problem
                   </button>
                 </div>
               </div>

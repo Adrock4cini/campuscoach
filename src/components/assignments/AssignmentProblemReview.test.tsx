@@ -61,7 +61,7 @@ describe("AssignmentProblemReview", () => {
 
     const editor = screen.getByRole("textbox", { name: "Problem Campus Companion read" });
     fireEvent.change(editor, { target: { value: "What is 19% of 50?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm problem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm for walkthrough" }));
 
     await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
       "confirm-assignment-practice-source",
@@ -86,10 +86,10 @@ describe("AssignmentProblemReview", () => {
     const onConfirmed = renderReview();
 
     const editor = screen.getByRole("textbox", { name: "Problem Campus Companion read" });
-    fireEvent.change(editor, { target: { value: "Find 14% of 50, then add 5." } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm problem" }));
+    fireEvent.change(editor, { target: { value: "Find 19% of 50?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm for walkthrough" }));
 
-    expect(editor).toHaveValue("Find 14% of 50, then add 5.");
+    expect(editor).toHaveValue("Find 19% of 50?");
     expect(screen.getByRole("button", { name: "Confirming…" })).toBeDisabled();
     resolveConfirmation(confirmationResponse());
     await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith(confirmed));
@@ -98,7 +98,7 @@ describe("AssignmentProblemReview", () => {
   it("shows confirmed text read-only until the student explicitly edits it", () => {
     renderReview(confirmed);
 
-    expect(screen.getByText("Problem confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Percent problem confirmed")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Problem Campus Companion read" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit problem" }));
     expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
@@ -119,10 +119,45 @@ describe("AssignmentProblemReview", () => {
     });
     renderReview(needsReview, vi.fn(), onFallback);
 
-    fireEvent.click(screen.getByRole("button", { name: "Confirm problem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm for walkthrough" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/supports one percent problem/i);
-    fireEvent.click(screen.getByRole("button", { name: /study this class instead/i }));
+    fireEvent.click(screen.getByRole("button", { name: /study saved concepts instead/i }));
     expect(onFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes a clearly unsupported problem to saved concepts without making a 422 request", () => {
+    const onFallback = vi.fn();
+    renderReview({
+      ...needsReview,
+      text: "Explain how photosynthesis moves energy through a plant.",
+    }, vi.fn(), onFallback);
+
+    expect(screen.getByText(/walkthroughs support one percent-of or percent-discount problem/i))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm for walkthrough" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Study saved concepts instead" }));
+
+    expect(onFallback).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+  it("reopens a legacy confirmed row when its text is outside Tutor scope", () => {
+    const onFallback = vi.fn();
+    renderReview({
+      ...confirmed,
+      text: "Explain how photosynthesis moves energy through a plant.",
+    }, vi.fn(), onFallback);
+
+    expect(screen.getByText("Check the problem")).toBeInTheDocument();
+    expect(screen.queryByText("Percent problem confirmed")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+      "Explain how photosynthesis moves energy through a plant.",
+    );
+    expect(screen.getByRole("button", { name: "Confirm for walkthrough" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Study saved concepts instead" }));
+
+    expect(onFallback).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

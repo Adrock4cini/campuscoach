@@ -16,16 +16,21 @@ afterEach(() => {
 });
 
 describe("family beta self-serve signup gate", () => {
-  it("opens account creation on the family beta staging backend", async () => {
-    const mod = await load({ projectId: REF });
+  it("opens account creation only with an explicit true flag on the family beta backend", async () => {
+    const mod = await load({ projectId: REF, flag: "true" });
     expect(mod.isFamilyBetaStaging()).toBe(true);
     expect(mod.publicSignupsEnabled()).toBe(true);
   });
 
-  it("lets operators close staging without making the flag a production unlock", async () => {
+  it("fails closed when the staging signup flag is missing or false", async () => {
+    const stagingMissing = await load({ projectId: REF });
+    expect(stagingMissing.publicSignupsEnabled()).toBe(false);
+
     const stagingClosed = await load({ projectId: REF, flag: "false" });
     expect(stagingClosed.publicSignupsEnabled()).toBe(false);
+  });
 
+  it("does not let the staging flag unlock another backend", async () => {
     const closed = await load({ projectId: "norsaaoyppctrvxxgjtg", flag: "false" });
     expect(closed.isFamilyBetaStaging()).toBe(false);
     expect(closed.publicSignupsEnabled()).toBe(false);

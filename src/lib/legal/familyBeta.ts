@@ -10,8 +10,9 @@ export function publicSupportEmail() {
 
 /**
  * The private family-beta staging backend. Self-serve account creation is
- * unlocked only when the bundle is pointed at this exact project. The optional
- * flag is an emergency staging kill switch; it must never open another backend.
+ * unlocked only when the bundle is pointed at this exact project and the flag
+ * is explicitly true. Missing or malformed configuration must fail closed; the
+ * flag must never open another backend.
  * Production account creation remains an Auth-admin invitation operation even
  * if a release environment accidentally sets the public-signups flag.
  */
@@ -26,7 +27,7 @@ export function isFamilyBetaStaging() {
 }
 
 export function publicSignupsEnabled() {
-  return isFamilyBetaStaging() && import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED !== "false";
+  return isFamilyBetaStaging() && import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED === "true";
 }
 
 export function rememberPendingFamilyBetaAgreement() {

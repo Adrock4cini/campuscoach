@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   retryCaptureConcepts: vi.fn(),
   navigate: vi.fn(),
   invite: vi.fn(() => null),
+  aggregateStrip: vi.fn(),
+  topicScoresBrowserRead: vi.fn(),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -40,7 +42,11 @@ vi.mock("./StudyFromCaptureDrawer", () => ({
 }));
 
 vi.mock("@/components/intelligence/ClassBrainAggregateStrip", () => ({
-  ClassBrainAggregateStrip: () => null,
+  ClassBrainAggregateStrip: (props: { classId: string }) => {
+    mocks.aggregateStrip(props);
+    mocks.topicScoresBrowserRead("topic_scores", props.classId);
+    return null;
+  },
 }));
 
 vi.mock("@/components/invite/InviteClassmatesButton", () => ({
@@ -91,6 +97,17 @@ describe("Class Memory data boundaries", () => {
     mocks.retryCaptureConcepts.mockReset().mockResolvedValue(undefined);
     mocks.navigate.mockReset();
     mocks.invite.mockClear();
+    mocks.aggregateStrip.mockClear();
+    mocks.topicScoresBrowserRead.mockClear();
+  });
+
+  it("does not mount the topic-scores aggregate reader in real Class Memory", async () => {
+    render(<ClassMemory classId="math" className="Math" />);
+
+    await expandHistory();
+    expect(await screen.findByText("Quadratic Formula")).toBeInTheDocument();
+    expect(mocks.aggregateStrip).not.toHaveBeenCalled();
+    expect(mocks.topicScoresBrowserRead).not.toHaveBeenCalled();
   });
 
   it("never mixes browser-local demo captures into a signed-in student's memory", async () => {
@@ -124,6 +141,8 @@ describe("Class Memory data boundaries", () => {
     expect(await screen.findByText("Atomic Composition")).toBeInTheDocument();
     expect(mocks.getCapturesForClass).not.toHaveBeenCalled();
     expect(mocks.invite).not.toHaveBeenCalled();
+    expect(mocks.aggregateStrip).toHaveBeenCalledWith(expect.objectContaining({ classId: "math" }));
+    expect(mocks.topicScoresBrowserRead).toHaveBeenCalledWith("topic_scores", "math");
   });
 
   it("does not expose a class invite until a real join route exists", async () => {

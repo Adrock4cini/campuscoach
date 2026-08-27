@@ -29,9 +29,11 @@ It is not an anonymous demo or a public/self-serve launch.
 - Public signup is disabled in the release build and must also be disabled in
   hosted Auth configuration.
 - A durable current-version family-beta agreement receipt is required at the
-  table, Storage, and guarded Edge write boundaries.
+  table, Storage, guarded Edge, and direct browser learning-evidence write
+  boundaries.
 - The coordinated study-write pause denies authenticated browser writes during
-  the migration and function handoff while preserving reviewed service-role
+  the migration and function handoff, including direct signal/evidence inserts
+  and Campus Brain upsert updates, while preserving reviewed service-role
   recovery and account-erasure paths.
 
 The old `auth.uid() IS NULL` prototype path is retired. Do not restore it for a
@@ -73,6 +75,19 @@ Raw topic signals and exam debriefs are private owner records. At family-beta
 launch, `topic_scores` is backend-only: `anon` and `authenticated` receive no
 table privileges. The disabled Class Intelligence route must not be enabled by
 granting a raw aggregate table to the browser.
+
+Direct authenticated inserts into `study_strategy_outcomes`, `topic_signals`,
+`exam_debriefs`, and `campus_brain_signals` require both the current durable
+agreement and an open study-write gate. Authenticated UPDATE of `topic_signals`,
+`exam_debriefs`, and `campus_brain_signals` has the same restrictive checks.
+Existing owner policies and bounded feedback constraints remain the permissive
+write-shape boundary; owner DELETE and service-role result projection,
+recovery, and account erasure stay available.
+
+`study_memory_feedback` is intentionally outside this direct-table policy set:
+browser table privileges are revoked and the bounded owner check lives in its
+authenticated feedback RPC. `topic_scores` is also excluded because it is
+service-role-only at launch, not a browser write boundary.
 
 Any later cross-student insight requires a separate privacy review and a
 thresholded server-owned RPC or view that cannot expose a user ID, raw text,

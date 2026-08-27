@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 const FAMILY_BETA_STAGING_PROJECT_REF = "dfpgnmldxphkfmobjbvr";
+const PRODUCTION_SUPABASE_PROJECT_REF = "norsaaoyppctrvxxgjtg";
 const SUPABASE_HOST_PATTERN = /^([a-z0-9-]+)\.supabase\.co$/u;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
@@ -183,6 +184,17 @@ export function validateReleaseEnvironment(environment) {
         "The family-beta staging Supabase project cannot be used for a production release.",
       ),
     );
+  } else if (
+    (projectId && projectId !== PRODUCTION_SUPABASE_PROJECT_REF)
+    || (urlProjectRef && urlProjectRef !== PRODUCTION_SUPABASE_PROJECT_REF)
+  ) {
+    issues.push(
+      issue(
+        "unexpected_production_project",
+        "VITE_SUPABASE_PROJECT_ID",
+        "The production release must use the exact reviewed production Supabase project.",
+      ),
+    );
   }
 
   const supportEmail = normalizedString(environment, "VITE_PUBLIC_SUPPORT_EMAIL", issues);
@@ -209,12 +221,12 @@ export function validateReleaseEnvironment(environment) {
   }
 
   const canvasConnectEnabled = environment.VITE_CANVAS_CONNECT_ENABLED;
-  if (canvasConnectEnabled !== "false" && canvasConnectEnabled !== "true") {
+  if (canvasConnectEnabled !== "false") {
     issues.push(
       issue(
-        "explicit_canvas_connect_state_required",
+        "canvas_connect_must_be_disabled",
         "VITE_CANVAS_CONNECT_ENABLED",
-        "VITE_CANVAS_CONNECT_ENABLED must be explicitly set to false or true.",
+        "VITE_CANVAS_CONNECT_ENABLED must be explicitly set to false for this release.",
       ),
     );
   }

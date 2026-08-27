@@ -55,14 +55,20 @@ secret, or service key in logs, chat, tickets, or CI output.
    stop. Do not apply the migration until the sources are remediated.
 4. Apply `20260827132000_capture_storage_integrity.sql` as its own transaction.
    Verify browser roles cannot execute cleanup RPCs or read the claim ledger.
-5. Deploy the exact reviewed `process-capture-images` and
+5. Apply
+   `20260827133000_browser_learning_evidence_write_guard.sql` as its own
+   transaction. Verify its restrictive policies cover authenticated INSERT on
+   all four direct browser signal/evidence tables and authenticated UPDATE on
+   `topic_signals`, `exam_debriefs`, and `campus_brain_signals`; verify owner
+   DELETE remains available and keep the single existing pause active.
+6. Deploy the exact reviewed `process-capture-images` and
    `cleanup-abandoned-captures` functions. The worker accepts only `{}` and has
    no runtime test cutoff capable of making fresh uploads eligible.
-6. Run owner, cross-owner, changed-retry, quota, hash-mismatch, cleanup-race, and
+7. Run owner, cross-owner, changed-retry, quota, hash-mismatch, cleanup-race, and
    browser-denial checks. Keep writes paused for the launch API handoff.
-7. Schedule the authenticated cleanup only after a production no-op invocation
+8. Schedule the authenticated cleanup only after a production no-op invocation
    and alert-delivery check succeed.
-8. Return to **Final resume and public canary** in
+9. Return to **Final resume and public canary** in
    `docs/study-intelligence-rollout.md`. Do not resume from this sub-runbook:
    that authoritative step resumes exactly once only after this migration and
    every verification above succeeds. The canary expects HTTP 401 without the

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -84,6 +84,9 @@ describe("private learning-signal launch boundary", () => {
     expect(mcpTombstone).not.toContain("@lovable.dev/mcp-js");
     expect(mcpTombstone).not.toContain("list_classes");
     expect(viteConfig).not.toContain("mcpPlugin");
+    expect(
+      existsSync(resolve(process.cwd(), ".lovable/mcp/manifest.json")),
+    ).toBe(false);
   });
 
   it("lands after the pause boundary and before stable course-map seeding", () => {

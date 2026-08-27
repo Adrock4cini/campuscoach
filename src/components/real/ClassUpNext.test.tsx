@@ -121,13 +121,13 @@ describe("ClassUpNext three-signal test card", () => {
     expect(screen.getByRole("link", { name: /keep practicing/i })).toBeInTheDocument();
   });
 
-  it("exposes Start and Get help on the next assignment without status ceremony", () => {
+  it("exposes Start and Capture problem on the next assignment without status ceremony", () => {
     mocks.assignments = [assignment];
     renderUpNext();
 
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", "/assignments/a1");
-    const help = screen.getByRole("button", { name: /get help/i });
-    help.click();
+    const capture = screen.getByRole("button", { name: /capture problem/i });
+    capture.click();
     expect(mocks.openCapture).toHaveBeenCalledWith("scan-assignment", { classId: "c1", assignmentId: "a1" });
   });
 

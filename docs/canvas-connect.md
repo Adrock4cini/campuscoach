@@ -16,9 +16,11 @@ also read completion state and richer coursework details.
 
 Create a Canvas Developer Key for each supported institution.
 
-For Utah State University, register this exact redirect URI:
+For Utah State University, replace `<SUPABASE_PROJECT_REF>` with the verified
+project ref for the environment being configured, then register this exact
+redirect URI:
 
-`https://norsaaoyppctrvxxgjtg.supabase.co/functions/v1/canvas-oauth-callback`
+`https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/canvas-oauth-callback`
 
 Enable only these API scopes:
 
@@ -38,7 +40,7 @@ CANVAS_INSTITUTION_NAME=Utah State University
 CANVAS_CLIENT_ID=<developer-key-id>
 CANVAS_CLIENT_SECRET=<developer-key-secret>
 CANVAS_TOKEN_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
-CANVAS_APP_URL=https://campuscoach.lovable.app
+CANVAS_APP_URL=https://<CANONICAL_APP_HOST>
 ```
 
 Generate the encryption key outside source control:
@@ -67,8 +69,8 @@ array in `CANVAS_OAUTH_CLIENTS`.
    it through the fallback, and verify the same class/deadline boundaries.
 
 Do not publish the Connect button for an institution until its Developer Key,
-redirect URI, scopes, and secrets are confirmed. Canvas is fail-closed in the
-browser: keep `VITE_CANVAS_CONNECT_ENABLED=false` while any prerequisite is
-unverified. Set it to exactly `true` only in the reviewed build after completing
-this runbook; the release validator and public release manifest then attest the
-exact deployed state.
+redirect URI, scopes, and secrets are confirmed. Canvas is outside the current
+invite-only launch inventory, so `VITE_CANVAS_CONNECT_ENABLED` must remain
+exactly `false` even if this runbook passes. Enabling it in a future release
+requires a separately reviewed Edge inventory and an intentional update to the
+release validator, canary, and public release manifest expectation.

@@ -17,7 +17,22 @@ export function canvasCallbackUrl(): string {
 }
 
 export function canvasAppUrl(): string {
-  return Deno.env.get("CANVAS_APP_URL") || "https://campuscoach.lovable.app";
+  const configured = Deno.env.get("CANVAS_APP_URL")?.trim();
+  if (!configured) throw new Error("CANVAS_APP_URL is not configured");
+
+  const url = new URL(configured);
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error("CANVAS_APP_URL must be an HTTPS origin");
+  }
+  return url.origin;
 }
 
 export function getCanvasOAuthClient(
@@ -27,8 +42,9 @@ export function getCanvasOAuthClient(
   const configured = Deno.env.get("CANVAS_OAUTH_CLIENTS");
   if (configured) {
     const clients = JSON.parse(configured) as Array<Partial<CanvasOAuthClient>>;
-    const match = clients.find((item) =>
-      item.baseUrl && normalizeCanvasBaseUrl(item.baseUrl) === baseUrl
+    const match = clients.find(
+      (item) =>
+        item.baseUrl && normalizeCanvasBaseUrl(item.baseUrl) === baseUrl,
     );
     if (match?.clientId && match.clientSecret) {
       return {
@@ -44,13 +60,16 @@ export function getCanvasOAuthClient(
   const clientId = Deno.env.get("CANVAS_CLIENT_ID");
   const clientSecret = Deno.env.get("CANVAS_CLIENT_SECRET");
   if (
-    !fallbackUrl || !clientId || !clientSecret ||
+    !fallbackUrl ||
+    !clientId ||
+    !clientSecret ||
     normalizeCanvasBaseUrl(fallbackUrl) !== baseUrl
-  ) return null;
+  )
+    return null;
   return {
     baseUrl,
-    institution: Deno.env.get("CANVAS_INSTITUTION_NAME") ||
-      new URL(baseUrl).hostname,
+    institution:
+      Deno.env.get("CANVAS_INSTITUTION_NAME") || new URL(baseUrl).hostname,
     clientId,
     clientSecret,
   };
@@ -58,10 +77,10 @@ export function getCanvasOAuthClient(
 
 export function randomUrlSafe(bytes = 32): string {
   const values = crypto.getRandomValues(new Uint8Array(bytes));
-  return toBase64(values).replace(/\+/g, "-").replace(/\//g, "_").replace(
-    /=+$/,
-    "",
-  );
+  return toBase64(values)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 export async function sha256(value: string): Promise<string> {
@@ -113,10 +132,7 @@ async function encryptionKey() {
     asArrayBuffer(bytes),
     "AES-GCM",
     false,
-    [
-      "encrypt",
-      "decrypt",
-    ],
+    ["encrypt", "decrypt"],
   );
 }
 

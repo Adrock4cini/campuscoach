@@ -1,157 +1,64 @@
+# Campus Companion — Early Access launch boundary
 
-# Campus Companion — Intelligence Pipeline
+This is the current build context for Lovable. It replaces the historical
+prototype plan; do not infer missing work from older chat history or demo code.
 
-Goal: every capture, session, assignment, and exam permanently improves per-student memory + recommendations. Nothing is lost on logout.
+## Product promise
 
-Legend for **Status**: 🟢 Real (Supabase-backed, survives logout) · 🟡 Mock (local/simulated) · 🔴 Missing.
+Campus Companion turns a student's real class material into grounded practice,
+teaches through the student's error, checks independent transfer, and remembers
+the resulting evidence for later review.
 
----
+The launch cohort is an invite-only, 13+ Family Beta. Public signup remains
+closed. Canvas remains disabled unless its dedicated rollout runbook is fully
+completed.
 
-## Stage 1 — Account + Class Setup
+## What is real in the launch candidate
 
-| Field | Value |
-|---|---|
-| INPUT | Signup form; class rows (name, code, professor, schedule) |
-| OUTPUT | `auth.users` row, `profiles` row, `classes` rows scoped to `auth.uid()` |
-| Tables | `auth.users`, `profiles`, `classes` |
-| Functions | `owns_row()`; RLS on `classes` |
-| Hooks | `useAuth`, `useMyClasses` |
-| Components | `Signup`, `Onboarding`, `MyClasses` |
-| Edge fns | — |
-| AI prompt | — |
-| Failure cases | duplicate class code; unauthenticated insert |
-| **Status** | 🟢 Real |
+- Real accounts, classes, assignments, exams, captures, and persisted study data
+- Grounded image capture with storage integrity and idempotent recovery
+- Teaching Router v1 and deterministic percent/problem recognition
+- Assignment Tutor: hint, walk-through, student attempt, transfer, saved evidence
+- ACCT 2010 stable learning map with section/professor scope overlays
+- Durable Family Beta agreement receipts and fail-closed write boundaries
+- Private learning signals, paid-AI quotas, maintenance pause, and release canaries
+- MCP demo tools retired; the deployed MCP route is a private 410 tombstone
 
----
+## Non-negotiable boundaries
 
-## Stage 2 — Syllabus Upload → Structured Classes/Exams/Assignments
+- Never mix demo data into a signed-in student's experience.
+- Never treat Auth metadata as an agreement receipt.
+- Never bypass the study-write pause, owner RLS, storage ownership, or source
+  confirmation gates.
+- Never expose raw private learning signals or browser-read `topic_scores`.
+- Never enable Canvas, public signup, passkeys, or production writes by default.
+- Never ingest or reproduce Phillips, Connect, EXAMIND, OpenStax, Canvas, or
+  instructor test-bank prose. Use original teaching copy and student-owned input.
+- Never deploy or migrate against a Supabase project ref that has not been
+  explicitly verified for the current environment.
 
-| Field | Value |
-|---|---|
-| INPUT | PDF/image via `SyllabusImport` |
-| OUTPUT | Parsed JSON: classes, examDates, assignments |
-| Tables | Should insert into `classes`, `exams`, `assignments` |
-| Edge fns | `parse-syllabus` (Gemini 2.5 flash, JSON mode) |
-| Hooks | `parseSyllabus.ts` |
-| Failure cases | non-PDF/image mime; hallucinated dates; user not authed |
-| **Status** | 🟡 Parser is 🟢 real; **persistence of parsed exams/assignments back to Supabase is 🔴 missing** — output currently only hydrates local onboarding store |
+## Current release sequence
 
----
+1. Keep the GitHub launch candidate green: lint, typecheck, unit tests, Edge
+   verification, production build, and desktop/Android/iPhone journeys.
+2. Sync the exact candidate into a private, unpublished, isolated staging app.
+3. Bind staging only to its dedicated Supabase project and reconcile the full
+   migration history before applying any forward migration.
+4. Hold the study-write pause while deploying guarded Edge functions and running
+   Auth, RLS, Storage, agreement, quota, privacy, and rollback canaries.
+5. Resume staging once, run the complete capture -> confirm -> Tutor -> transfer
+   -> mastery -> reload journey, and verify persistence across devices.
+6. Run the unchanged learning benchmark only after the staged deployment is
+   confirmed: 14% of 50, hypo vs. hyper, Maryland -> Annapolis, and persistence.
+7. Prepare a reviewed production handoff. Do not mutate production early.
 
-## Stage 3 — Capture (lecture / board / textbook / file / note / hint / ask)
+## Launch stop conditions
 
-| Field | Value |
-|---|---|
-| INPUT | audio blob, image, file, or text + `{classId, topic}` |
-| OUTPUT | `captures` row + `processed_content` (concepts, summary) + optional `materials` row |
-| Tables | `captures`, `materials`, `processed_content` |
-| Functions | `commitCapture()` in `src/lib/capture/processor.ts` |
-| Hooks | `CaptureContext`, `useCapture` |
-| Components | `CaptureButton`, `CaptureFlow`, `ClassMemory` |
-| Edge fns | 🔴 none — no STT, no OCR, no LLM concept extraction |
-| AI prompt | 🔴 missing — needs "Extract key concepts, definitions, examples, professor-emphasis flags" prompt |
-| Failure cases | file too large; STT/OCR failure; class not owned by user |
-| **Status** | 🟡 Row persistence 🟢; **concept extraction is simulated** (`simulateConcepts`, `simulateSummary`); no upload to storage; flashcard/quiz counts are fake |
+Stop and report instead of improvising if the project ref is ambiguous, the
+migration ledger is incomplete, unexpected user/data rows exist, an agreement or
+pause check fails open, a private table is browser-readable, required security
+headers are missing, a device journey fails, or the release manifest does not
+match the deployed SHA and environment.
 
----
-
-## Stage 4 — Concept Store / Class Memory
-
-| Field | Value |
-|---|---|
-| INPUT | extracted concepts from Stage 3 |
-| OUTPUT | topic rows keyed by `(class_id, topic_key)` with embeddings for retrieval |
-| Tables | `topic_signals` (🟢 exists), `topic_scores` (🟢 exists, recomputed by `recompute_topic_scores`), **🔴 no `concepts` table with embeddings**, **🔴 no per-user concept mastery table** |
-| Functions | `contributeStudySignal()`, `recompute_topic_scores()` |
-| Hooks | `useClassIntelligence` |
-| Edge fns | 🔴 no embedding writer |
-| AI prompt | 🔴 embedding call missing |
-| **Status** | 🟡 Aggregate signals are 🟢 real; **per-student concept memory with embeddings for RAG is 🔴 missing** |
-
----
-
-## Stage 5 — Readiness / Momentum / Exam Prediction
-
-| Field | Value |
-|---|---|
-| INPUT | study_sessions, captures, topic_scores, exam dates |
-| OUTPUT | readiness % per class, momentum trend, per-exam predicted score |
-| Tables | `readiness_scores` (🟢 exists but not written), `study_sessions` (🟢), `exams` (🟢) |
-| Functions | `readinessEngine.ts`, `learningEngine.ts`, `todayPlanEngine.ts` |
-| Hooks | `useLearningState` |
-| **Status** | 🟡 Engines run **entirely off `@/data/demo`** classes for signed-in users too (see `todayPlanEngine`, `learningEngine`). They do not read `assignments`, `exams`, `captures`, or `topic_scores` from Supabase. **`readiness_scores` is never populated.** |
-
----
-
-## Stage 6 — Study Artifact Generation (flashcards / quiz / study guide)
-
-| Field | Value |
-|---|---|
-| INPUT | capture concepts + class topic scores |
-| OUTPUT | `flashcards`, `quizzes` rows |
-| Tables | `flashcards` (🟢 schema), `quizzes` (🟢 schema) |
-| Edge fns | 🔴 no `generate-flashcards`, no `generate-quiz`, no `generate-study-guide` |
-| AI prompt | 🔴 missing |
-| **Status** | 🔴 Missing — `flashcardCount: 6` in `processor.ts` is a literal constant. |
-
----
-
-## Stage 7 — Study Session → Results → Readiness Update
-
-| Field | Value |
-|---|---|
-| INPUT | user answers per card/question |
-| OUTPUT | `study_sessions` row, per-topic accuracy update in `topic_signals`, readiness delta |
-| Tables | `study_sessions`, `topic_signals`, `readiness_scores` |
-| Hooks | `useStudySession` |
-| **Status** | 🟡 `useStudySession` runs locally on demo data. `study_sessions` insert exists in `readinessEngine.ts` but is not wired to real sessions. **No writeback to `topic_signals` with accuracy from real sessions.** |
-
----
-
-## Stage 8 — Dashboard Recommendations (feedback loop)
-
-| Field | Value |
-|---|---|
-| INPUT | topic_scores + readiness + upcoming exams/assignments |
-| OUTPUT | Today's Plan, ClassCards, BrainOneLiner |
-| Components | `TodaysPlan`, `RealTodaysPlan`, `DoThisNowHero` |
-| **Status** | 🟡 `RealTodaysPlan` reads real assignments/exams (🟢). `TodaysPlan` + engine layer still on demo. Recommendations do not change based on real study performance. |
-
----
-
-## Stage 9 — Persistence Across Logout
-
-| **Status** | 🟡 `captures`, `classes`, `assignments`, `exams`, `topic_signals` survive. **Concepts, per-user mastery, real study results, readiness — do not (never written or written from demo).** |
-
----
-
-## Missing pieces, ranked by impact
-
-1. **🔴 Real AI concept extraction from captures** (`extract-concepts` edge fn + prompt + write to `processed_content` + new `concepts` table with pgvector embeddings). Without this, nothing downstream is real.
-2. **🔴 Per-user concept mastery table** (`user_concept_mastery`: user_id, class_id, concept_id, strength 0–1, last_seen, next_review). This is the memory system.
-3. **🔴 Real readiness writer** — replace demo reads in `readinessEngine`/`learningEngine` with Supabase queries over `assignments`, `exams`, `study_sessions`, `user_concept_mastery`; upsert `readiness_scores`.
-4. **🔴 `generate-flashcards` + `generate-quiz` edge fns** driven by top-weakness concepts, persisting to `flashcards` / `quizzes`.
-5. **🔴 Real StudySession wiring** — `useStudySession` reads generated flashcards/quizzes, writes `study_sessions` row + per-concept accuracy back into `user_concept_mastery` and `topic_signals`.
-6. **🔴 Syllabus → exams/assignments persistence** — after `parse-syllabus`, insert rows for the authed user.
-7. **🔴 Storage uploads for audio/image** + STT (`transcribe` edge fn using Gemini audio) / OCR (Gemini vision) feeding Stage 3's raw_text.
-8. **🔴 Real Today's Plan / Dashboard** — swap `TodaysPlan` to consume real engine output; hide legacy demo variant for signed-in users.
-9. **🟡 → 🟢 Momentum + exam prediction** derived from `user_concept_mastery` history (cheap once #2 exists).
-10. **Nice-to-have:** RAG "Ask Campus Brain" using concept embeddings.
-
----
-
-## Proposed build order (each shippable in isolation)
-
-- **Sprint A — Memory foundation:** migration for `concepts` (vector 1536) + `user_concept_mastery`; edge fn `extract-concepts` (Gemini 2.5 flash JSON) + embeddings via `openai/text-embedding-3-small`; wire `commitCapture` to call it and persist. Replaces `simulateConcepts`.
-- **Sprint B — Study artifacts:** `generate-flashcards`, `generate-quiz` edge fns; persist to existing tables; StudyLab reads real rows.
-- **Sprint C — Feedback loop:** `useStudySession` writes results → `user_concept_mastery` deltas → recompute readiness → `readiness_scores` upsert.
-- **Sprint D — Dashboard truth:** real `TodaysPlanEngine` reading Supabase; retire demo path for authed users.
-- **Sprint E — Ingest polish:** storage upload + STT/OCR edge fns; syllabus persistence.
-
----
-
-## Confirm before I build
-
-1. OK to add two new tables: `concepts` (with `vector(1536)` + pgvector) and `user_concept_mastery`?
-2. OK to use `google/gemini-2.5-flash` for extraction + `openai/text-embedding-3-small` for embeddings via Lovable AI Gateway (no user keys needed)?
-3. Start with **Sprint A** this turn, then continue sequentially — or a different order?
+The dashboard is not awaiting another redesign. Engineering focus is the
+grounded teaching loop, durable evidence, secure staging, and repeatable release.

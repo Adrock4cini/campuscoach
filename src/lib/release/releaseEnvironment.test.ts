@@ -9,6 +9,7 @@ import {
 
 const PRODUCTION_REF = "norsaaoyppctrvxxgjtg";
 const STAGING_REF = "dfpgnmldxphkfmobjbvr";
+const FRESH_STAGING_REF = "lzwaiobgrhwmywugsgjo";
 
 function validEnvironment(overrides: Record<string, string | undefined> = {}) {
   return {
@@ -96,6 +97,22 @@ describe("production release environment validation", () => {
     );
   });
 
+  it("rejects every project other than the exact reviewed production backend", () => {
+    expect(
+      issueCodes(validEnvironment({
+        VITE_SUPABASE_URL: `https://${FRESH_STAGING_REF}.supabase.co`,
+        VITE_SUPABASE_PROJECT_ID: FRESH_STAGING_REF,
+      })),
+    ).toContain("unexpected_production_project");
+
+    expect(
+      issueCodes(validEnvironment({
+        VITE_SUPABASE_URL: "https://someotherproject.supabase.co",
+        VITE_SUPABASE_PROJECT_ID: "someotherproject",
+      })),
+    ).toContain("unexpected_production_project");
+  });
+
   it.each([undefined, "", "help@example.com", "not-an-email"])(
     "requires a real monitored public support email",
     (value) => {
@@ -115,20 +132,14 @@ describe("production release environment validation", () => {
     },
   );
 
-  it.each([undefined, "", "TRUE", "0", "enabled"])(
-    "requires an explicit, exact Canvas Connect release state",
+  it.each([undefined, "", "true", "TRUE", "0", "enabled", " false "])(
+    "requires Canvas Connect to remain exactly disabled for this release",
     (value) => {
       expect(issueCodes(validEnvironment({ VITE_CANVAS_CONNECT_ENABLED: value }))).toContain(
-        "explicit_canvas_connect_state_required",
+        "canvas_connect_must_be_disabled",
       );
     },
   );
-
-  it("allows the reviewed Canvas Connect build state to be enabled explicitly", () => {
-    expect(validateReleaseEnvironment(validEnvironment({
-      VITE_CANVAS_CONNECT_ENABLED: "true",
-    }))).toEqual({ ok: true, issues: [] });
-  });
 
   it("keeps passkeys release-safe by requiring an explicit state", () => {
     expect(issueCodes(validEnvironment({ VITE_PASSKEYS_ENABLED: undefined }))).toContain(

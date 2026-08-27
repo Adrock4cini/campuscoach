@@ -443,7 +443,12 @@ export function ClassMemory({ classId, className }: Props) {
             )}
             {showHistory && (
             <>
-            <ClassBrainAggregateStrip key={scopeKey} classId={classId} />
+            {/* The launch privacy migration makes topic_scores service-role
+                only. Keep this fixture-backed tour affordance in demo mode
+                until a reviewed authenticated backend aggregate route exists. */}
+            {mode === "demo" && (
+              <ClassBrainAggregateStrip key={scopeKey} classId={classId} />
+            )}
 
             <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
               {focusTopics.length > 0 && (
