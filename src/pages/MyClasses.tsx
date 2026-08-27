@@ -7,16 +7,17 @@ import { getDaysUntil, getReadinessColor } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText, Pencil } from "lucide-react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
+import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
 
 export default function MyClasses() {
   const { classes, isReal, loading, error, reload } = useMyClasses();
   const { user, isDemoMode } = useAuth();
   const realMode = !!user && !isDemoMode;
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const choosingSyllabusClass = searchParams.get("intent") === "syllabus";
+  const canvasConnectEnabled = isCanvasConnectEnabled();
 
   if (realMode && !loading && error) {
     return (
@@ -45,9 +46,13 @@ export default function MyClasses() {
               </p>
             </div>
             <div className="flex flex-col justify-center gap-2 pt-2 sm:flex-row">
-              <Button onClick={() => navigate("/integrations/canvas")}>
-                <Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas
-              </Button>
+              {canvasConnectEnabled && (
+                <Button asChild>
+                  <Link to="/integrations/canvas">
+                    <Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas
+                  </Link>
+                </Button>
+              )}
               <Button variant="outline" asChild>
                 <Link to="/classes/new">Add manually</Link>
               </Button>
@@ -216,9 +221,11 @@ export default function MyClasses() {
       <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" asChild>
         <Link to="/classes/new"><Plus className="h-4 w-4" /> Add class</Link>
       </Button>
-      {isReal && (
-        <Button variant="ghost" className="h-12 w-full rounded-2xl" onClick={() => navigate("/integrations/canvas")}>
-          <Link2 className="mr-2 h-4 w-4" /> Connect Canvas
+      {isReal && canvasConnectEnabled && (
+        <Button variant="ghost" className="h-12 w-full rounded-2xl" asChild>
+          <Link to="/integrations/canvas">
+            <Link2 className="mr-2 h-4 w-4" /> Connect Canvas
+          </Link>
         </Button>
       )}
     </div>

@@ -208,6 +208,17 @@ export function validateReleaseEnvironment(environment) {
     );
   }
 
+  const canvasConnectEnabled = environment.VITE_CANVAS_CONNECT_ENABLED;
+  if (canvasConnectEnabled !== "false" && canvasConnectEnabled !== "true") {
+    issues.push(
+      issue(
+        "explicit_canvas_connect_state_required",
+        "VITE_CANVAS_CONNECT_ENABLED",
+        "VITE_CANVAS_CONNECT_ENABLED must be explicitly set to false or true.",
+      ),
+    );
+  }
+
   const passkeysEnabled = environment.VITE_PASSKEYS_ENABLED;
   if (passkeysEnabled !== "false" && passkeysEnabled !== "true") {
     issues.push(

@@ -27,6 +27,7 @@ function environment(overrides: Record<string, string | undefined> = {}) {
     VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test-key",
     VITE_PUBLIC_SUPPORT_EMAIL: "support@campuscompanion.app",
     VITE_PUBLIC_SIGNUPS_ENABLED: "false",
+    VITE_CANVAS_CONNECT_ENABLED: "false",
     VITE_PASSKEYS_ENABLED: "false",
     VITE_RELEASE_SHA: RELEASE,
     CANARY_EMAIL: ACCEPTED_EMAIL,
@@ -84,6 +85,7 @@ function successfulFetch() {
         releaseSha: RELEASE,
         supabaseProjectId: "norsaaoyppctrvxxgjtg",
         publicSignupsEnabled: false,
+        canvasConnectEnabled: false,
         passkeysEnabled: false,
         publicSupportEmail: "support@campuscompanion.app",
       });
@@ -175,6 +177,8 @@ describe("post-deploy release canary", () => {
       .toThrow("VITE_SUPABASE_PROJECT_ID must match VITE_SUPABASE_URL");
     expect(() => readCanaryConfiguration(environment({ RELEASE_PRODUCTION_ORIGIN: "https://app.campuscompanion.com:8443" })))
       .toThrow("RELEASE_PRODUCTION_ORIGIN must be an HTTPS origin");
+    expect(() => readCanaryConfiguration(environment({ VITE_CANVAS_CONNECT_ENABLED: "TRUE" })))
+      .toThrow("VITE_CANVAS_CONNECT_ENABLED must be true or false");
   });
 
   it("requires separate accepted and unaccepted canary identities", async () => {

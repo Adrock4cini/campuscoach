@@ -7,6 +7,7 @@ export interface DeployedReleaseManifest {
   releaseSha: string;
   supabaseProjectId: string;
   publicSignupsEnabled: boolean;
+  canvasConnectEnabled: boolean;
   passkeysEnabled: boolean;
   publicSupportEmail: string;
 }
@@ -19,6 +20,7 @@ export function buildReleaseManifest(
     releaseSha: environment.VITE_RELEASE_SHA?.trim().toLowerCase() ?? "",
     supabaseProjectId: environment.VITE_SUPABASE_PROJECT_ID?.trim() ?? "",
     publicSignupsEnabled: environment.VITE_PUBLIC_SIGNUPS_ENABLED === "true",
+    canvasConnectEnabled: environment.VITE_CANVAS_CONNECT_ENABLED === "true",
     passkeysEnabled: environment.VITE_PASSKEYS_ENABLED === "true",
     publicSupportEmail: environment.VITE_PUBLIC_SUPPORT_EMAIL?.trim() ?? "",
   };

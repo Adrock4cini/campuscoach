@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CanvasAutoSync } from "./CanvasAutoSync";
 import { getCanvasStatus, syncCanvas, syncCanvasCalendar } from "@/lib/canvas/integration";
 
+const canvasFeature = vi.hoisted(() => ({ enabled: true }));
+
 vi.mock("react-router-dom", () => ({ useLocation: () => ({ pathname: "/today" }) }));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ mode: "real", user: { id: "student-1" } }),
@@ -13,9 +15,25 @@ vi.mock("@/lib/canvas/integration", () => ({
   syncCanvas: vi.fn(),
   syncCanvasCalendar: vi.fn(),
 }));
+vi.mock("@/lib/canvas/feature", () => ({
+  isCanvasConnectEnabled: () => canvasFeature.enabled,
+}));
 
 describe("CanvasAutoSync", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    canvasFeature.enabled = true;
+  });
+
+  it("does not inspect or sync Canvas when the launch flag is off", async () => {
+    canvasFeature.enabled = false;
+    render(<CanvasAutoSync />);
+
+    await Promise.resolve();
+    expect(getCanvasStatus).not.toHaveBeenCalled();
+    expect(syncCanvas).not.toHaveBeenCalled();
+    expect(syncCanvasCalendar).not.toHaveBeenCalled();
+  });
   it("quietly syncs a stale connected account", async () => {
     vi.mocked(getCanvasStatus).mockResolvedValue({
       connected: true,

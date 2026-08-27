@@ -26,6 +26,7 @@ describe("account-only route boundary", () => {
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/signup");
     expect(screen.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.queryByText(/connect Canvas/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: "Sign in" }));
     expect(screen.getByTestId("location")).toHaveTextContent(

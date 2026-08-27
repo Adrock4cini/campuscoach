@@ -100,6 +100,10 @@ export function readCanaryConfiguration(environment) {
   if (passkeys !== "true" && passkeys !== "false") {
     throw new CanaryFailure("configuration", "VITE_PASSKEYS_ENABLED must be true or false");
   }
+  const canvasConnect = required(environment, "VITE_CANVAS_CONNECT_ENABLED");
+  if (canvasConnect !== "true" && canvasConnect !== "false") {
+    throw new CanaryFailure("configuration", "VITE_CANVAS_CONNECT_ENABLED must be true or false");
+  }
   const origin = httpsOrigin(
     required(environment, "RELEASE_PRODUCTION_ORIGIN"),
     "RELEASE_PRODUCTION_ORIGIN",
@@ -122,6 +126,7 @@ export function readCanaryConfiguration(environment) {
     supabaseProjectId,
     publicSupportEmail: required(environment, "VITE_PUBLIC_SUPPORT_EMAIL"),
     publicSignupsEnabled: false,
+    canvasConnectEnabled: canvasConnect === "true",
     passkeysEnabled: passkeys === "true",
     email,
     password: required(environment, "CANARY_PASSWORD"),
@@ -294,6 +299,7 @@ async function checkReleaseManifest(config, fetchImpl) {
     throw new CanaryFailure("release-manifest", "returned invalid JSON");
   }
   const expectedKeys = [
+    "canvasConnectEnabled",
     "passkeysEnabled",
     "publicSignupsEnabled",
     "publicSupportEmail",
@@ -310,6 +316,7 @@ async function checkReleaseManifest(config, fetchImpl) {
     || manifest?.releaseSha !== config.release
     || manifest?.supabaseProjectId !== config.supabaseProjectId
     || manifest?.publicSignupsEnabled !== config.publicSignupsEnabled
+    || manifest?.canvasConnectEnabled !== config.canvasConnectEnabled
     || manifest?.passkeysEnabled !== config.passkeysEnabled
     || manifest?.publicSupportEmail !== config.publicSupportEmail
   ) {

@@ -57,6 +57,7 @@ jobs:
       VITE_SUPABASE_PROJECT_ID: dfpgnmldxphkfmobjbvr
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci-placeholder
       VITE_PUBLIC_SIGNUPS_ENABLED: "false"
+      VITE_CANVAS_CONNECT_ENABLED: "false"
       VITE_PASSKEYS_ENABLED: "false"
       VITE_RELEASE_SHA: ${{ github.sha }}
 

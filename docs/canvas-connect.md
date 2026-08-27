@@ -67,4 +67,8 @@ array in `CANVAS_OAUTH_CLIENTS`.
    it through the fallback, and verify the same class/deadline boundaries.
 
 Do not publish the Connect button for an institution until its Developer Key,
-redirect URI, scopes, and secrets are confirmed.
+redirect URI, scopes, and secrets are confirmed. Canvas is fail-closed in the
+browser: keep `VITE_CANVAS_CONNECT_ENABLED=false` while any prerequisite is
+unverified. Set it to exactly `true` only in the reviewed build after completing
+this runbook; the release validator and public release manifest then attest the
+exact deployed state.

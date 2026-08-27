@@ -24,6 +24,9 @@ jobs:
       VITE_SUPABASE_PROJECT_ID: ${{ vars.PRODUCTION_SUPABASE_PROJECT_ID }}
       VITE_PUBLIC_SUPPORT_EMAIL: ${{ vars.PUBLIC_SUPPORT_EMAIL }}
       VITE_PUBLIC_SIGNUPS_ENABLED: "false"
+      # Family beta default. Enabling Canvas requires a reviewed workflow change
+      # after every institution/server prerequisite in docs/canvas-connect.md passes.
+      VITE_CANVAS_CONNECT_ENABLED: "false"
       VITE_PASSKEYS_ENABLED: "false"
 
     steps:

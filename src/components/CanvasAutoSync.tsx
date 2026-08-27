@@ -7,6 +7,7 @@ import {
   syncCanvas,
   syncCanvasCalendar,
 } from "@/lib/canvas/integration";
+import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
 
 const AUTO_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -14,9 +15,10 @@ export function CanvasAutoSync() {
   const { mode, user } = useAuth();
   const location = useLocation();
   const isCanvasPage = location.pathname === "/integrations/canvas";
+  const canvasConnectEnabled = isCanvasConnectEnabled();
 
   useEffect(() => {
-    if (mode !== "real" || !user?.id || isCanvasPage) return;
+    if (!canvasConnectEnabled || mode !== "real" || !user?.id || isCanvasPage) return;
     let cancelled = false;
     void (async () => {
       const status = await getCanvasStatus();
@@ -35,6 +37,6 @@ export function CanvasAutoSync() {
     return () => {
       cancelled = true;
     };
-  }, [isCanvasPage, mode, user?.id]);
+  }, [canvasConnectEnabled, isCanvasPage, mode, user?.id]);
   return null;
 }

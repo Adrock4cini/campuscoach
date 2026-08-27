@@ -8,6 +8,7 @@ const environment = {
   VITE_RELEASE_SHA: "abcdef1234567890abcdef1234567890abcdef12",
   VITE_SUPABASE_PROJECT_ID: "norsaaoyppctrvxxgjtg",
   VITE_PUBLIC_SIGNUPS_ENABLED: "false",
+  VITE_CANVAS_CONNECT_ENABLED: "false",
   VITE_PASSKEYS_ENABLED: "false",
   VITE_PUBLIC_SUPPORT_EMAIL: "support@campuscompanion.app",
 };
@@ -26,5 +27,6 @@ describe("built release manifest verification", () => {
       VITE_RELEASE_SHA: "abcdef1",
     })).toBe(false);
     expect(verifyBuiltReleaseManifest({ ...manifest, publicSignupsEnabled: true }, environment)).toBe(false);
+    expect(verifyBuiltReleaseManifest({ ...manifest, canvasConnectEnabled: true }, environment)).toBe(false);
   });
 });

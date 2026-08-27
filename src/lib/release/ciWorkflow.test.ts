@@ -33,6 +33,7 @@ describe("required CI workflow", () => {
     expect(workflow).toContain("deno task verify:edge");
     expect(workflow).toContain("npm run audit:prod");
     expect(workflow).toContain("npm run audit:tooling");
+    expect(workflow).toContain('VITE_CANVAS_CONNECT_ENABLED: "false"');
   });
 
   it("pins the same Node and npm runtime in source and CI", () => {

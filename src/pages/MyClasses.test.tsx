@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   error: "Couldn’t load your classes. Your saved classes were not deleted." as string | null,
   reload: vi.fn(),
 }));
+const canvasFeature = vi.hoisted(() => ({ enabled: false }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "student-1" }, isDemoMode: false }),
@@ -23,11 +24,16 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({
   }),
 }));
 
+vi.mock("@/lib/canvas/feature", () => ({
+  isCanvasConnectEnabled: () => canvasFeature.enabled,
+}));
+
 describe("My Classes data trust", () => {
   beforeEach(() => {
     mocks.classes = [];
     mocks.error = "Couldn’t load your classes. Your saved classes were not deleted.";
     mocks.reload.mockReset();
+    canvasFeature.enabled = false;
   });
 
   it("shows a recoverable load error instead of an empty-semester setup", () => {
@@ -51,8 +57,24 @@ describe("My Classes data trust", () => {
     );
 
     expect(screen.getByRole("link", { name: "Add manually" })).toHaveAttribute("href", "/classes/new");
+    expect(screen.queryByRole("link", { name: "Connect Canvas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /add manually/i })).not.toHaveAttribute("href", "/onboarding");
     expect(screen.getByRole("heading", { name: "Set up your term" })).toBeInTheDocument();
+  });
+
+  it("offers Canvas setup only in an explicitly enabled build", () => {
+    mocks.error = null;
+    canvasFeature.enabled = true;
+    render(
+      <MemoryRouter>
+        <MyClasses />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Connect Canvas" })).toHaveAttribute(
+      "href",
+      "/integrations/canvas",
+    );
   });
 
   it("hides unknown class metadata instead of presenting placeholders", () => {

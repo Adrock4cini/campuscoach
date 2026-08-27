@@ -1,139 +1,129 @@
-# Campus Coach — RLS & Privacy Plan
+# Campus Coach — RLS and privacy boundaries
 
-Campus Coach stores sensitive student data: raw notes, lecture recordings,
-textbook scans, study history, class activity, and personal readiness. This
-document is the source of truth for what is private, what is shareable as
-aggregate community intelligence, and what must ship before public beta.
+Campus Coach stores sensitive student data: raw notes, recordings, scans,
+assignment text, study attempts, and readiness signals. This document is a
+classification overview, not a deployment runbook.
 
----
+The authoritative launch procedures are:
 
-## 1. Data classification
+- `docs/family-beta-operations.md` for Auth, agreement, hosting, canaries, and
+  family-beta operations.
+- `docs/study-intelligence-rollout.md` for migration order, the coordinated
+  study-write pause, executable RLS checks, Edge deployment, and rollback.
+- `docs/capture-storage.md` and `docs/syllabus-cleanup.md` for private source
+  objects and bounded cleanup.
 
-### 🔒 Private — owner only, never exposed to other students
-These tables hold raw, personally identifying, or reconstructable student work.
-Access is strictly `auth.uid() = user_id`.
-
-| Table                | Why private                                                  |
-| -------------------- | ------------------------------------------------------------ |
-| `profiles`           | Name, school, personal settings                              |
-| `classes`            | The student's personal schedule                              |
-| `enrollments`        | Which classes a student is in                                |
-| `captures`           | Raw recordings, scans, notes, professor hints                |
-| `materials`          | Uploaded files, textbook pages, board photos                 |
-| `processed_content`  | AI summaries derived from the student's raw captures         |
-| `flashcards`         | Personal study artifacts derived from captures               |
-| `quizzes`            | Personal quiz results, answers, mistakes                     |
-| `study_sessions`     | Personal study history, timing, quality                      |
-| `readiness_scores`   | Personal readiness / momentum time series                    |
-
-**Rule:** never expose these to another user, ever — not even anonymized.
-Aggregate insights must be derived from the *signals* tables below, not from
-these raw tables.
-
-### 📊 Aggregate — anonymous community intelligence
-These tables intentionally power "students with the same professor are
-struggling with X" style insights. Rows always carry a `user_id` for audit and
-owner-side edits, but **only aggregate views are exposed to other students**.
-
-| Table                  | Aggregate use                                          |
-| ---------------------- | ------------------------------------------------------ |
-| `campus_brain_signals` | Signal stream feeding the intelligence engine          |
-| `topic_signals`        | Per-topic study effort, confidence, miss-rate          |
-| `exam_debriefs`        | Post-exam recall of topics that appeared               |
-| `topic_scores`         | **Materialized aggregate only** — no user_id, safe read |
-
-Raw rows in `campus_brain_signals`, `topic_signals`, and `exam_debriefs` are
-readable only by the owner. Other students see aggregates through:
-
-- `public.topic_scores` (already user-free)
-- `public.campus_brain_aggregate` view (no user_id, no raw payload)
-
-### 🌐 Shared reference — safe for everyone
-| Table              | Notes                                                    |
-| ------------------ | -------------------------------------------------------- |
-| `schools`          | Directory data                                           |
-| `courses`          | Course catalog                                           |
-| `course_instances` | Per-term offerings + professor name                      |
-
-These are read-only for `anon`/`authenticated` and writable only through
-admin/service paths (today: permissive INSERT for MVP seeding, tightened
-before beta).
+If this overview conflicts with a reviewed migration or those runbooks, stop
+the rollout and reconcile the conflict before deploying.
 
 ---
 
-## 2. Helper columns
+## 1. Launch mode
 
-All private/aggregate rows now carry:
+The current release target is an invite-only, authenticated, 13+ family beta.
+It is not an anonymous demo or a public/self-serve launch.
 
-- `user_id uuid` — owner
-- `visibility text` — `private` | `aggregate` | `shared`
-- `anonymized boolean` — whether the row is safe to expose in aggregate views
-- `source_user_id uuid` (aggregate tables only) — kept private, never selected
-  by aggregate views; enables owner edits and abuse audits.
+- `public.owns_row(user_id)` requires a non-null authenticated subject equal to
+  the row owner.
+- The browser fails closed when Supabase configuration is absent or invalid.
+- Public signup is disabled in the release build and must also be disabled in
+  hosted Auth configuration.
+- A durable current-version family-beta agreement receipt is required at the
+  table, Storage, and guarded Edge write boundaries.
+- The coordinated study-write pause denies authenticated browser writes during
+  the migration and function handoff while preserving reviewed service-role
+  recovery and account-erasure paths.
 
-`visibility` defaults to `private` everywhere except signal tables, where the
-owner can opt a row into `aggregate` (default true for the signal tables since
-they exist precisely for community intelligence).
-
----
-
-## 3. Policy modes
-
-### Demo mode (today)
-Auth is not yet required by the app. RLS policies allow access when either:
-
-- `auth.uid() = user_id` (real user), **or**
-- `auth.uid() IS NULL` (anonymous prototype traffic)
-
-This is expressed by `public.owns_row(user_id)`. The demo keeps working; the
-moment a real session exists, the anonymous branch stops matching that user's
-rows and ownership is enforced.
-
-### Production mode (before public beta)
-Flip demo mode off by dropping the `auth.uid() IS NULL` branch from
-`public.owns_row`. No other policy changes are required — every private table
-already routes through the helper.
-
-Additional beta hardening required:
-
-1. Require authenticated sign-in in the app (no anonymous writes).
-2. Remove permissive INSERT policies on `schools`, `courses`,
-   `course_instances` — restrict to service role / admin.
-3. Add `authenticated`-only GRANTs (drop `anon` where present) once the app
-   fully requires sign-in.
-4. Add rate limiting on `captures` / `campus_brain_signals` inserts.
-5. Move raw recordings and scans into Storage buckets with owner-only policies
-   (currently URLs live in `materials.storage_path`).
-6. Add a nightly job that verifies no aggregate view leaks `user_id`,
-   `raw_text`, or `payload`.
+The old `auth.uid() IS NULL` prototype path is retired. Do not restore it for a
+preview, test fixture, or launch workaround.
 
 ---
 
-## 4. What must never be exposed
+## 2. Private student data
 
-- Raw audio / video / OCR text from `captures` or `materials`
-- Contents of `processed_content` for another user
-- Any row in `flashcards`, `quizzes`, `study_sessions`, `readiness_scores`
-  belonging to another user
-- `campus_brain_signals.payload` or `.user_id` in any public view
-- `topic_signals.user_id`, `.notes`, or freeform text in any public view
-- `exam_debriefs.user_id` or freeform reflection text
+Raw, identifying, reconstructable, or performance data is owner-only. Another
+student must never receive it, including through an aggregate payload.
 
-Aggregate views must select only counts, averages, probabilities, and topic
-names. Any new aggregate view must go through code review with this doc open.
+| Data | Examples |
+| --- | --- |
+| Identity and schedule | `profiles`, `classes`, `enrollments`, assignments, exams |
+| Raw learning input | `captures`, `materials`, `processed_content`, class syllabi |
+| Study output and history | flashcards, quizzes, `learning_artifacts`, sessions, attempts |
+| Mastery and readiness | concept mastery, readiness scores, strategy outcomes |
+| Raw learning signals | `campus_brain_signals`, `topic_signals`, `exam_debriefs` |
+| Private integrations | Canvas connections, OAuth state, imported calendar data |
+
+Owner policies are necessary but not sufficient. Launch verification also
+checks table grants, foreign-key ownership boundaries, immutable provenance,
+private/no-store Edge responses, request correlation, and two-user isolation.
+
+### Raw source objects
+
+`capture-sources` and `syllabus-sources` are private Storage buckets. Browser
+uploads are constrained by current agreement, maintenance state, owner/path,
+type, size, and quota policies. Capture sources use immutable
+`owner/capture/sha256.ext` paths and must match the committed material row.
+Browser mutation cannot bypass the fenced service cleanup paths.
 
 ---
 
-## 5. Current status
+## 3. Learning signals and aggregates
 
-| Area                                 | Status                     |
-| ------------------------------------ | -------------------------- |
-| Private-owned RLS (owner-only)       | ✅ enforced via `owns_row`  |
-| Demo compatibility                   | ✅ `auth.uid() IS NULL` allowed |
-| Aggregate views (no PII)             | ✅ `topic_scores`, `campus_brain_aggregate` |
-| Anonymous writes on reference tables | ⚠️ MVP-only, tighten before beta |
-| Storage buckets for raw media        | ⏳ not yet created          |
-| Authenticated sign-in required       | ⏳ not yet enforced         |
+Raw topic signals and exam debriefs are private owner records. At family-beta
+launch, `topic_scores` is backend-only: `anon` and `authenticated` receive no
+table privileges. The disabled Class Intelligence route must not be enabled by
+granting a raw aggregate table to the browser.
 
-When all ⏳/⚠️ items are resolved and `owns_row` is switched to strict mode,
-Campus Coach is ready for public beta from a data-privacy standpoint.
+Any later cross-student insight requires a separate privacy review and a
+thresholded server-owned RPC or view that cannot expose a user ID, raw text,
+notes, payload, small cohort, or reconstructable source. That is post-launch
+scope.
+
+---
+
+## 4. Stable and shared course data
+
+Stable course-map truth is service-owned and protected from professor overlays
+and ordinary student writes. USU and professor/section data may filter scope;
+it cannot overwrite stable accounting relationships.
+
+The legacy catalog tables `schools`, `courses`, and `course_instances` remain
+readable reference data. Historical migrations still permit authenticated
+catalog insertion for the invite-only prototype path. The family-beta client
+must not treat those rows as authoritative course intelligence. Remove that
+legacy insertion path or replace it with a reviewed service/admin workflow
+before any public/self-serve release.
+
+---
+
+## 5. What must never be exposed
+
+- Raw audio, image bytes, OCR text, transcripts, or assignment text belonging
+  to another student.
+- Another student's processed content, artifacts, answers, mistakes, mastery,
+  readiness, strategy evidence, or Canvas credentials.
+- Raw signal payloads, free-form reflections, user IDs, or source identifiers
+  in a community result.
+- Service-role keys, provider keys, cleanup secrets, OAuth client secrets, or
+  agreement audit internals in any browser bundle or response.
+- A professor overlay presented as stable truth, or an unconfirmed OCR result
+  used as assignment practice/mastery evidence.
+
+---
+
+## 6. Current release status
+
+| Boundary | Source status | Launch evidence still required |
+| --- | --- | --- |
+| Strict owner RLS | Implemented | Accepted User A, unaccepted User B, anonymous, and service-role staging checks |
+| Agreement and maintenance gates | Implemented | Apply in documented order and prove denial/resume behavior |
+| Capture and syllabus Storage | Implemented | Legacy provenance/byte preflight, two-user bucket tests, cleanup races |
+| Private learning signals | Implemented | Executable grants/RLS test; keep cross-student route disabled |
+| Stable course map | Implemented | Confirm professor overlays cannot alter stable rows |
+| Auth and signup | Fail-closed in source | Hosted redirects, signup/provider settings, SMTP, and invite rehearsal |
+| Edge privacy | Implemented | Deploy and drain the exact reviewed revisions; verify live private responses |
+| Public host | Not source-controlled | Canonical origin, CSP, HSTS, Permissions-Policy, SPA fallback, manifest |
+
+Passing source tests does not satisfy these hosted gates. Keep the launch PR
+draft and student writes paused until the staging runbook reaches its single
+documented resume point.

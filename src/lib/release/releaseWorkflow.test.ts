@@ -10,6 +10,7 @@ describe("production release-readiness workflow", () => {
     expect(workflow).toContain("cancel-in-progress: false");
     expect(workflow).not.toMatch(/^\s*push:/m);
     expect(workflow).toContain("RELEASE_PRODUCTION_ORIGIN: ${{ vars.PRODUCTION_ORIGIN }}");
+    expect(workflow).toContain('VITE_CANVAS_CONNECT_ENABLED: "false"');
     expect(workflow).not.toContain("inputs.release_origin");
   });
 

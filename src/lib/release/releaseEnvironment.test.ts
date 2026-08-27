@@ -17,6 +17,7 @@ function validEnvironment(overrides: Record<string, string | undefined> = {}) {
     VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test-key",
     VITE_PUBLIC_SUPPORT_EMAIL: "support@campuscompanion.app",
     VITE_PUBLIC_SIGNUPS_ENABLED: "false",
+    VITE_CANVAS_CONNECT_ENABLED: "false",
     VITE_PASSKEYS_ENABLED: "false",
     VITE_RELEASE_SHA: "abcdef1234567890abcdef1234567890abcdef12",
     RELEASE_PRODUCTION_ORIGIN: "https://app.campuscompanion.com",
@@ -113,6 +114,21 @@ describe("production release environment validation", () => {
       );
     },
   );
+
+  it.each([undefined, "", "TRUE", "0", "enabled"])(
+    "requires an explicit, exact Canvas Connect release state",
+    (value) => {
+      expect(issueCodes(validEnvironment({ VITE_CANVAS_CONNECT_ENABLED: value }))).toContain(
+        "explicit_canvas_connect_state_required",
+      );
+    },
+  );
+
+  it("allows the reviewed Canvas Connect build state to be enabled explicitly", () => {
+    expect(validateReleaseEnvironment(validEnvironment({
+      VITE_CANVAS_CONNECT_ENABLED: "true",
+    }))).toEqual({ ok: true, issues: [] });
+  });
 
   it("keeps passkeys release-safe by requiring an explicit state", () => {
     expect(issueCodes(validEnvironment({ VITE_PASSKEYS_ENABLED: undefined }))).toContain(

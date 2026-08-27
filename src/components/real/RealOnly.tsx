@@ -4,6 +4,7 @@ import { LockKeyhole } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
 
 /**
  * Keeps account-backed setup screens out of sample mode without turning a
@@ -13,6 +14,9 @@ export function RealOnly({ children }: { children: ReactNode }) {
   const { mode } = useAuth();
   const location = useLocation();
   const next = `${location.pathname}${location.search}`;
+  const accountFeatureCopy = isCanvasConnectEnabled()
+    ? "The demo stays device-only. Sign in or create an account to save classes, connect Canvas, or import a syllabus."
+    : "The demo stays device-only. Sign in or create an account to save classes or import a syllabus.";
 
   if (mode === "real") return <>{children}</>;
 
@@ -36,7 +40,7 @@ export function RealOnly({ children }: { children: ReactNode }) {
               Sign in to use this account feature
             </h1>
             <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
-              The demo stays device-only. Sign in or create an account to save classes, connect Canvas, or import a syllabus.
+              {accountFeatureCopy}
             </p>
           </div>
           <div className="flex flex-col justify-center gap-2 sm:flex-row">

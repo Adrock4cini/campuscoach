@@ -39,6 +39,7 @@ import NotFound from "./pages/NotFound";
 import { RealComingSoon } from "@/components/real/RealComingSoon";
 import { RealOnly } from "@/components/real/RealOnly";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
+import { CanvasConnectGate } from "@/components/CanvasConnectGate";
 import ClassEditorPage from "./pages/ClassEditorPage";
 import { getOnboardingRedirect, getSetupGate } from "@/lib/auth/protectedRoute";
 import { setupErrorCopy } from "@/lib/auth/setupStatus";
@@ -208,7 +209,7 @@ function ProtectedContentRoutes() {
         <Route path="/classes/:classId/syllabus" element={<Protected><RealOnly><ClassSyllabusPage /></RealOnly></Protected>} />
         <Route path="/classes/:classId" element={<Protected><ClassDetail /></Protected>} />
         <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-        <Route path="/integrations/canvas" element={<Protected><RealOnly><CanvasConnectionPage /></RealOnly></Protected>} />
+        <Route path="/integrations/canvas" element={<Protected><CanvasConnectGate><RealOnly><CanvasConnectionPage /></RealOnly></CanvasConnectGate></Protected>} />
         <Route path="/study-lab" element={<Protected><StudyLab /></Protected>} />
         <Route path="/study-lab/session" element={<Protected><StudySession /></Protected>} />
         <Route path="/focus-sprint" element={<Protected><DemoOnly title="Focus Sprint — coming soon" description="Timed focus sprints tied to your real classes are on the way."><FocusSprint /></DemoOnly></Protected>} />

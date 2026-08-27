@@ -11,6 +11,7 @@ const sidebar = vi.hoisted(() => ({
   isMobile: false,
   setOpenMobile: vi.fn(),
 }));
+const canvasFeature = vi.hoisted(() => ({ enabled: false }));
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
@@ -30,6 +31,10 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({
   useMyClasses: () => ({
     classes: [{ id: "math-1", name: "College Algebra", color: "bg-cyan-500" }],
   }),
+}));
+
+vi.mock("@/lib/canvas/feature", () => ({
+  isCanvasConnectEnabled: () => canvasFeature.enabled,
 }));
 
 vi.mock("@/components/NavLink", () => ({
@@ -64,6 +69,7 @@ describe("signed-in product navigation", () => {
     router.search = "";
     sidebar.isMobile = false;
     sidebar.setOpenMobile.mockReset();
+    canvasFeature.enabled = false;
   });
 
   it("keeps working destinations visible and hides unfinished product promises", () => {
@@ -78,16 +84,23 @@ describe("signed-in product navigation", () => {
     expect(screen.queryByRole("link", { name: /Exam Debrief/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Progress/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Settings/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
-      "href",
-      "/integrations/canvas",
-    );
+    expect(screen.queryByRole("link", { name: "Canvas" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "College Algebra" })).toHaveAttribute(
       "href",
       "/classes/math-1",
     );
     expect(screen.queryByRole("button", { name: /faster sign-in/i })).not.toBeInTheDocument();
   }, 10_000);
+
+  it("shows Canvas only in an explicitly enabled build", () => {
+    canvasFeature.enabled = true;
+    render(<AppSidebar />);
+
+    expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
+      "href",
+      "/integrations/canvas",
+    );
+  });
 
   it("provides a 44px mobile close control and closes after navigation", () => {
     sidebar.isMobile = true;

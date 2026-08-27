@@ -7,6 +7,8 @@ passes. This beta is for invited students age 13 and older only.
 ## Release identity and account controls
 
 - [ ] `VITE_PUBLIC_SIGNUPS_ENABLED` is absent or `false` in the release build.
+- [ ] `VITE_CANVAS_CONNECT_ENABLED=false` for the family beta unless every
+      institution and server prerequisite in `docs/canvas-connect.md` passed.
 - [ ] The release bundle uses the production Supabase project ID; setting the
       frontend signup flag to `true` still does not open production registration.
 - [ ] New-user creation is disabled in Supabase Auth; a direct unauthenticated
@@ -127,7 +129,8 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] Updated Edge Functions compile and are deployed before their calling UI.
 - [ ] `npm run validate:release-env` passes with the exact HTTPS origin, backend
       project, publishable/anon key, commit SHA, monitored support address,
-      signups disabled, and passkeys either disabled or correctly bound.
+      signups disabled, Canvas Connect explicitly reviewed, and passkeys either
+      disabled or correctly bound.
 - [ ] The final canary process validates both distinct protected account
       addresses/passwords without exposing them to checkout, install, audit,
       Edge verification, validation, or build steps.
@@ -140,7 +143,8 @@ passes. This beta is for invited students age 13 and older only.
       Permissions-Policy disabling camera/microphone/geolocation, and `nosniff`.
 - [ ] Same-origin `release-manifest.json` exactly matches the deployed SHA,
       production Supabase project ID, disabled signup flag, reviewed passkey
-      state, and public support address; the page loads no cross-origin scripts.
+      and Canvas Connect states, and public support address; the page loads no
+      cross-origin scripts.
 - [ ] A sanitized browser crash test reaches the production operator alert;
       neither the event nor Edge 5xx logs contain student content or identifiers.
 - [ ] The protected **Production release readiness** workflow passes against the

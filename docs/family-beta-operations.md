@@ -97,8 +97,8 @@ cannot be proven by the repository or a successful frontend build.
 7. Run the protected **Production release readiness** workflow against the exact
    HTTPS origin. It must validate configuration, find the exact release SHA in
    the deployed bundle, verify the same-origin nonsecret `release-manifest.json`
-   matches the expected project ID, signup/passkey flags, support address, and
-   SHA, reject cross-origin scripts, verify direct SPA deep-link fallback,
+   matches the expected project ID, signup/passkey/Canvas flags, support address,
+   and SHA, reject cross-origin scripts, verify direct SPA deep-link fallback,
    authenticate and verify both live canary sessions, prove the unaccepted
    agreement-denial contract, exercise every guarded function's accepted zero-AI validation
    response, require a request ID on every Edge response, and submit the safe

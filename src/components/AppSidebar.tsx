@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { classes as demoClasses } from "@/data/demo";
+import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
 
 interface SidebarItemDefinition {
   title: string;
@@ -122,7 +123,9 @@ function buildGroups(
     {
       label: "Account",
       items: [
-        { title: "Canvas", url: "/integrations/canvas", icon: Link2 },
+        ...(isCanvasConnectEnabled()
+          ? [{ title: "Canvas", url: "/integrations/canvas", icon: Link2 }]
+          : []),
         { title: "Settings", url: "/settings", icon: Settings },
         { title: "Profile", url: "/settings", icon: User },
       ],

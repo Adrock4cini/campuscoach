@@ -56,4 +56,14 @@ describe("concept route preview safety", () => {
       expect(routeSource, `${path} must remain wrapped by RealOnly`).toContain("<RealOnly>");
     }
   });
+
+  it("keeps the Canvas route behind the fail-closed public feature gate", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+    const start = source.indexOf('<Route path="/integrations/canvas"');
+    const nextRoute = source.indexOf("<Route path=", start + 1);
+    const routeSource = source.slice(start, nextRoute);
+
+    expect(routeSource).toContain("<CanvasConnectGate>");
+    expect(routeSource).toContain("<RealOnly>");
+  });
 });

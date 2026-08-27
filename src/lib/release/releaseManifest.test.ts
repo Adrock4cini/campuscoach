@@ -7,6 +7,7 @@ describe("deployed release manifest", () => {
       VITE_RELEASE_SHA: "ABCDEF1234567890ABCDEF1234567890ABCDEF12",
       VITE_SUPABASE_PROJECT_ID: "norsaaoyppctrvxxgjtg",
       VITE_PUBLIC_SIGNUPS_ENABLED: "false",
+      VITE_CANVAS_CONNECT_ENABLED: "false",
       VITE_PASSKEYS_ENABLED: "true",
       VITE_PUBLIC_SUPPORT_EMAIL: "support@campuscompanion.app",
       CANARY_PASSWORD: "must-not-appear",
@@ -18,6 +19,7 @@ describe("deployed release manifest", () => {
       releaseSha: "abcdef1234567890abcdef1234567890abcdef12",
       supabaseProjectId: "norsaaoyppctrvxxgjtg",
       publicSignupsEnabled: false,
+      canvasConnectEnabled: false,
       passkeysEnabled: true,
       publicSupportEmail: "support@campuscompanion.app",
     });
