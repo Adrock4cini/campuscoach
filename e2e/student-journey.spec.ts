@@ -31,7 +31,7 @@ test("a student can enter the demo, open capture, and reach Study Lab", async ({
   await page.getByRole("button", { name: "Quick Capture" })
     .or(page.getByRole("button", { name: "Capture", exact: true }))
     .click();
-  await expect(page.getByRole("heading", { name: "What are you capturing?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What do you want to add?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Quick Note Save a typed note" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
