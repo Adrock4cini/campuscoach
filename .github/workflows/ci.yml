@@ -17,10 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Syntactically valid, non-routable browser config for demo-only CI.
-      # The anonymous-demo firewall asserts that no request reaches it.
-      VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
-      VITE_SUPABASE_PROJECT_ID: ci-placeholder
+      # The login demo is intentionally available only on the staging project
+      # identity. This is a fake key: the anonymous-demo firewall asserts that
+      # no REST, Functions, Storage, or Realtime request reaches that project.
+      VITE_SUPABASE_URL: https://dfpgnmldxphkfmobjbvr.supabase.co
+      VITE_SUPABASE_PROJECT_ID: dfpgnmldxphkfmobjbvr
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci-placeholder
       VITE_PUBLIC_SIGNUPS_ENABLED: "false"
       VITE_PASSKEYS_ENABLED: "false"

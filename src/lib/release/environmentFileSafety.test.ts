@@ -16,6 +16,7 @@ describe("environment file safety", () => {
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     expect(example).toContain("sb_publishable_replace-with-project-key");
     expect(ci).toContain("sb_publishable_ci-placeholder");
+    expect(ci.match(/dfpgnmldxphkfmobjbvr/g)).toHaveLength(2);
     expect(`${example}\n${ci}`).not.toContain("sb_secret_");
     expect(ci).not.toContain("norsaaoyppctrvxxgjtg");
   });
