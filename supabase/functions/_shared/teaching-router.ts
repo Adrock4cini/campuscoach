@@ -34,6 +34,8 @@ const EQUATION_PROBLEM = /(?:\bsolve\b[^\n]{0,80}\bfor\s+[a-z]\b|\b[a-z]\s*=|\d\
 const PROCEDURE_SIGNAL = /\b(calculate|compute|solve|convert|determine|find|journalize|post|balance|derive|show your work|steps?)\b/i;
 const COMPARE_SIGNAL = /(?:\b(compare|contrast|difference|differentiate|distinguish|versus|mix(?:ed)? up|confus(?:e|ed|ing)|which one)\b|\bvs\.?\b|\bget(?:ting)?\b[^.\n]{0,40}\bbackwards\b)/i;
 const SEQUENCE_SIGNAL = /\b(first|second|third|next|then|finally|in order|sequence|stages?|steps? in order)\b/i;
+const ORDER_MARKER = /\b(first|second|third|next|then|finally)\b/gi;
+const STRONG_SEQUENCE_SIGNAL = /\b(in order|sequence|stages?|steps? in order)\b/i;
 const LIST_SIGNAL = /(?:\b(list|name|identify)\b[^.\n]{0,40}\b(?:three|four|five|six|seven|eight|3|4|5|6|7|8)\b|(?:[,;][^,;\n]+){2,})/i;
 const DEFINITION_SIGNAL = /\b(means?|defined as|refers? to|is the|term|vocabulary|definition)\b/i;
 const ROOT_FRIENDLY = /\b(hypo|hyper|endo|exo|intra|inter|pre|post|anti|pro|sub|super|micro|macro|bio|geo|photo|therm|cardio|neuro)\b/i;
@@ -43,9 +45,25 @@ function combined(input: TeachingRouteInput): string {
     .filter((v): v is string => typeof v === "string" && Boolean(v.trim())).join(" \n ");
 }
 
+function hasExplicitSequence(text: string): boolean {
+  const orderMarkers = text.match(ORDER_MARKER) ?? [];
+  return orderMarkers.length >= 2 || STRONG_SEQUENCE_SIGNAL.test(text);
+}
+
+function sequenceRoute(): TeachingRoute {
+  return {
+    kind: "sequence-events", moves: ["student-attempt", "chunking", "story-chain", "timeline", "retrieval-question", "spacing"],
+    confusable: false, familiarBridgeEligible: false, reason: "Ordered material: preserve order before retrieval.",
+  };
+}
+
 export function classifyLearningProblem(input: TeachingRouteInput): TeachingRoute {
   const text = combined(input);
   const confusable = COMPARE_SIGNAL.test(`${input.studentConfusion ?? ""} ${text}`);
+  // Explicitly ordered material can also contain procedural verbs (journalize,
+  // post, balance, etc.). Preserve the sequence when multiple order cues make
+  // ordering the actual learning target instead of treating it as one problem.
+  if (hasExplicitSequence(text)) return sequenceRoute();
   if (PERCENT_PROBLEM.test(text) || EQUATION_PROBLEM.test(text) || PROCEDURE_SIGNAL.test(text)) return {
     kind: "solve-problems", moves: ["student-attempt", "hint", "worked-example", "faded-example", "similar-problem"],
     confusable, familiarBridgeEligible: false,
@@ -56,10 +74,7 @@ export function classifyLearningProblem(input: TeachingRouteInput): TeachingRout
     confusable: true, familiarBridgeEligible: true,
     reason: "Neighbouring ideas are confused: contrast and a lure-resistant choice test come first.",
   };
-  if (SEQUENCE_SIGNAL.test(text)) return {
-    kind: "sequence-events", moves: ["student-attempt", "chunking", "story-chain", "timeline", "retrieval-question", "spacing"],
-    confusable: false, familiarBridgeEligible: false, reason: "Ordered material: preserve order before retrieval.",
-  };
+  if (SEQUENCE_SIGNAL.test(text)) return sequenceRoute();
   if (LIST_SIGNAL.test(text)) return {
     kind: "memorize-list", moves: ["student-attempt", "chunking", "acronym", "story-chain", "retrieval-question", "spacing"],
     confusable: false, familiarBridgeEligible: false, reason: "Multi-item list: reduce memory load before retrieval.",
