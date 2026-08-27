@@ -32,7 +32,7 @@ export interface TeachingRoute {
 const PERCENT_PROBLEM = /(?:\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\$?\d+(?:\.\d+)?|\$\s*\d+(?:\.\d+)?[^.\n]{0,60}?\d+(?:\.\d+)?\s*(?:%|percent)\s*off)/i;
 const EQUATION_PROBLEM = /(?:\bsolve\b[^\n]{0,80}\bfor\s+[a-z]\b|\b[a-z]\s*=|\d\s*[+\-*/×÷]\s*\d|=\s*\?)/i;
 const PROCEDURE_SIGNAL = /\b(calculate|compute|solve|convert|determine|find|journalize|post|balance|derive|show your work|steps?)\b/i;
-const COMPARE_SIGNAL = /\b(compare|contrast|difference|differentiate|distinguish|versus|\bvs\.?\b|mix(?:ed)? up|confus(?:e|ed|ing)|get(?:ting)? .* backwards|which one)\b/i;
+const COMPARE_SIGNAL = /(?:\b(compare|contrast|difference|differentiate|distinguish|versus|mix(?:ed)? up|confus(?:e|ed|ing)|which one)\b|\bvs\.?\b|\bget(?:ting)?\b[^.\n]{0,40}\bbackwards\b)/i;
 const SEQUENCE_SIGNAL = /\b(first|second|third|next|then|finally|in order|sequence|stages?|steps? in order)\b/i;
 const LIST_SIGNAL = /(?:\b(list|name|identify)\b[^.\n]{0,40}\b(?:three|four|five|six|seven|eight|3|4|5|6|7|8)\b|(?:[,;][^,;\n]+){2,})/i;
 const DEFINITION_SIGNAL = /\b(means?|defined as|refers? to|is the|term|vocabulary|definition)\b/i;
