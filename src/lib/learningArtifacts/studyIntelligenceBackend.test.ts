@@ -37,16 +37,38 @@ describe("capture -> concept -> study selection seam", () => {
     expect(extractor).toContain('processing_status: "failed"');
   });
 
-  it("lets the artifact generator select exactly those capture concepts", () => {
-    expect(generator).toContain('conceptQuery = conceptQuery.eq("capture_id", body.captureId)');
+  it("extracts supported assignment math deterministically before any model call", () => {
+    expect(extractor).toContain('extractAssignmentTutorSource(rawText');
+    expect(extractor).toContain("const deterministicSource = exactThinSource ?? assignmentProblemSource");
+    expect(extractor.indexOf("extractAssignmentTutorSource(rawText"))
+      .toBeLessThan(extractor.indexOf('fetch("https://ai.gateway.lovable.dev/v1/chat/completions"'));
+    expect(extractor).toContain("if (texts.length && !deterministicSource)");
+    expect(extractor).toContain('"deterministic-assignment-problem-v1"');
+  });
+
+  it("selects an explicit capture through occurrence evidence, not only the concept's first source", () => {
+    expect(generator).toContain('.from("concept_capture_evidence")');
+    expect(generator).toContain('.eq("capture_id", body.captureId)');
+    expect(generator).toContain("conceptQuery = conceptQuery.in(\"id\", evidenceConceptIds)");
+    expect(generator).toContain("body.captureId ? { ...concept, capture_id: body.captureId } : concept");
+    expect(generator).not.toContain('conceptQuery = conceptQuery.eq("capture_id", body.captureId)');
     expect(generator).toContain('conceptQuery = conceptQuery.eq("client_class_id", resolvedClientClassId)');
     expect(generator).toContain("enforceClassBoundary(");
+  });
+
+  it("never revives a retired OCR-derived concept as manual study material", () => {
+    const conceptQueryStart = generator.indexOf('let conceptQuery = supabase\n    .from("concepts")');
+    const conceptQueryEnd = generator.indexOf("const { data: concepts", conceptQueryStart);
+    const conceptQuery = generator.slice(conceptQueryStart, conceptQueryEnd);
+    expect(conceptQuery).toContain('.eq("user_id", userId)');
+    expect(conceptQuery).toContain('.is("retired_at", null)');
   });
 });
 
 describe("Study Intelligence edge-function contract", () => {
-  it("ships the v9 matching and mnemonic generators", () => {
-    expect(generator).toContain('const PROMPT_VERSION = "v9-study-intelligence"');
+  it("ships the current matching and mnemonic generators", () => {
+    expect(generator).toContain('from "../_shared/artifact-version.ts"');
+    expect(generator).toContain("const PROMPT_VERSION = CURRENT_ARTIFACT_PROMPT_VERSION");
     expect(generator).toContain("matching: {");
     expect(generator).toContain("mnemonic: {");
     expect(generator).toContain("buildDeterministicMatchingPairs");
@@ -95,7 +117,7 @@ describe("Study Intelligence edge-function contract", () => {
   });
 
   it("bounds source excerpts and only personalizes after real feedback", () => {
-    expect(generator).toContain("buildGroundedExcerptMap(concepts, sourceByCapture)");
+    expect(generator).toContain("buildCapturePolicyGroundedExcerptMap(concepts, captureSources, {");
     expect(generator).toContain("if (concept.capture_id && !exactCaptureEvidence) return false");
     expect(generator).toContain("const adminClient = createClient(supabaseUrl, serviceRoleKey");
     expect(generator).toContain("const { data, error } = await adminClient");
@@ -103,6 +125,23 @@ describe("Study Intelligence edge-function contract", () => {
     expect(generator).toContain('.eq("user_id", userId)');
     expect(generator).toContain("mnemonicPreferences.hasFeedback");
     expect(generator).toContain("personalizedFromFeedback: true");
+  });
+
+  it("treats manual definitions as grounded and sends confusion only as routing evidence", () => {
+    expect(generator).toContain("Boolean(concept.definition?.trim())");
+    expect(generator).toContain("Boolean(concept.examples?.some((example) => example.trim()))");
+    expect(generator).toContain("studentConfusion: body.studentConfusion");
+    expect(artifactHook).toContain("studentConfusion: opts?.studentConfusion ?? null");
+  });
+
+  it("keeps a plain deterministic percent problem through both grounding gates", () => {
+    expect(generator).toContain("assessSourceSufficiency(evidence).sufficient");
+    expect(generator).toContain('body.kind === "practice"');
+    expect(generator).toContain("requireCompletePracticeSource");
+    expect(generator).toContain("confirmedAssignmentBoundary");
+    expect(generator).toContain("selectCaptureGroundingSource(capture)");
+    expect(generator).toContain("isTeachableAnswer(evidence)");
+    expect(generator).toContain("buildAssignmentTutorPractice({");
   });
 
   it("derives a coarse, non-childish audience level from the authenticated profile", () => {
@@ -113,5 +152,24 @@ describe("Study Intelligence edge-function contract", () => {
     expect(generator).toContain('data?.learner_type === "college"');
     expect(generator).toContain("Audience level from the authenticated profile");
     expect(generator).toContain("never make the tone childish");
+  });
+
+  it("reads the actual course code from class metadata, never from section", () => {
+    expect(generator).toContain('.select("id, client_class_id, name, term, section, professor, meta, source")');
+    expect(generator).toContain("typeof metaRecord.code === \"string\"");
+    expect(generator).toContain("typeof canvasMeta.courseCode === \"string\"");
+    expect(generator).not.toContain("classCode: classIdentity?.section");
+  });
+
+  it("activates original ACCT 2010 foundations through a service-only boundary", () => {
+    expect(generator).toContain('from "../_shared/acct-2010-runtime.ts"');
+    expect(generator).toContain("shouldActivateAcct2010Map({");
+    expect(generator).toContain('"ensure_acct_2010_map_concepts"');
+    expect(generator).toContain("p_user_id: userId");
+    expect(generator).toContain("p_class_id: classIdentity.id");
+    expect(generator).toContain("serializeAcct2010ConceptSeeds(acct2010Runtime.conceptSeeds)");
+    expect(generator).toContain("canonicalizeAcct2010Concepts(concepts, acct2010Runtime)");
+    expect(generator).toContain('conceptQuery.or("source_kind.is.null,source_kind.neq.course-map-stable")');
+    expect(generator).toContain("generatedCourseMap ? { courseMap: generatedCourseMap }");
   });
 });

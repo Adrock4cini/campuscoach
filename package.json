@@ -10,6 +10,8 @@
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "preview": "vite preview",
+    "canary:release": "node scripts/postdeploy-canary.mjs",
+    "validate:release-env": "node scripts/validate-release-env.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

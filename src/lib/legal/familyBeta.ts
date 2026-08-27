@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { projectRefFromSupabaseUrl } from "@/integrations/supabase/browserConfig";
 
 export const FAMILY_BETA_AGREEMENT_VERSION = "2026-08-17";
 export const PENDING_OAUTH_AGREEMENT_KEY = "cc_family_beta_oauth_agreement";
@@ -18,17 +19,23 @@ export function publicSupportEmail() {
 
 /**
  * The private family-beta staging backend. Self-serve account creation is
- * unlocked only when the bundle is pointed at this exact project, so the
- * production deployment can never be opened by this code path.
+ * unlocked only when the bundle is pointed at this exact project. The optional
+ * flag is an emergency staging kill switch; it must never open another backend.
+ * Production account creation remains an Auth-admin invitation operation even
+ * if a release environment accidentally sets the public-signups flag.
  */
 export const FAMILY_BETA_STAGING_PROJECT_REF = "dfpgnmldxphkfmobjbvr";
 
 export function isFamilyBetaStaging() {
-  return import.meta.env.VITE_SUPABASE_PROJECT_ID === FAMILY_BETA_STAGING_PROJECT_REF;
+  return (
+    projectRefFromSupabaseUrl(import.meta.env.VITE_SUPABASE_URL ?? "")
+      === FAMILY_BETA_STAGING_PROJECT_REF
+    && import.meta.env.VITE_SUPABASE_PROJECT_ID === FAMILY_BETA_STAGING_PROJECT_REF
+  );
 }
 
 export function publicSignupsEnabled() {
-  return import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED === "true" || isFamilyBetaStaging();
+  return isFamilyBetaStaging() && import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED !== "false";
 }
 
 export function rememberPendingOAuthAgreement() {

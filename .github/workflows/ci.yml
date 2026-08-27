@@ -16,6 +16,15 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Syntactically valid, non-routable browser config for demo-only CI.
+      # The anonymous-demo firewall asserts that no request reaches it.
+      VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+      VITE_SUPABASE_PROJECT_ID: ci-placeholder
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci-placeholder
+      VITE_PUBLIC_SIGNUPS_ENABLED: "false"
+      VITE_PASSKEYS_ENABLED: "false"
+      VITE_RELEASE_SHA: ${{ github.sha }}
 
     steps:
       - name: Check out repository
@@ -47,3 +56,12 @@ jobs:
 
       - name: Desktop, Android, and iPhone journey smoke tests
         run: npm run e2e
+
+      - name: Upload failed journey evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7

@@ -4,6 +4,7 @@ import { isTeachableAnswer, isTeachableConceptName } from "./teachable-content.t
 import { buildSolvableProblemChoices, extractSolvableProblem } from "./problem-source.ts";
 import { conceptCanonicalKey } from "./concept-identity.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
+import { buildAssignmentTutorPractice } from "./assignment-tutor.ts";
 import {
   NO_USEFUL_MNEMONIC_ERROR,
   selectBestMnemonicCandidate,
@@ -16,6 +17,7 @@ export type GeneratedArtifactKind =
   | "flashcards"
   | "multiple_choice"
   | "matching"
+  | "practice"
   | "mnemonic";
 
 /**
@@ -330,9 +332,13 @@ function duplicateKey(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+function promptKey(value: string) {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
 function validateRoot(
   raw: unknown,
-  rootKey: "cards" | "questions" | "pairs" | "items",
+  rootKey: "cards" | "questions" | "pairs" | "problems" | "items",
   expectedCount: number,
 ) {
   if (!Number.isInteger(expectedCount) || expectedCount < 1 || expectedCount > 8) {
@@ -614,6 +620,181 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
   return { ok: true, payload: { items } };
 }
 
+interface ValidatedGradedProblem {
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  rationale: string;
+}
+
+function validateGradedProblem(
+  raw: unknown,
+  field: "original" | "transfer",
+): { ok: true; value: ValidatedGradedProblem } | { ok: false; error: string } {
+  if (!isRecord(raw) || !hasOnlyKeys(raw, [
+    "prompt", "choices", "answerIndex", "rationale",
+  ])) {
+    return { ok: false, error: `${field} problem has unsupported fields` };
+  }
+  const prompt = cleanString(raw.prompt, `${field} prompt`, 3, 500);
+  if ("error" in prompt) return { ok: false, error: prompt.error };
+  if (!Array.isArray(raw.choices) || raw.choices.length !== 4) {
+    return { ok: false, error: `${field} choices must contain exactly four answers` };
+  }
+  const choices: string[] = [];
+  const seenChoices = new Set<string>();
+  for (const rawChoice of raw.choices) {
+    const choice = cleanString(rawChoice, `${field} choice`, 1, 240);
+    if ("error" in choice) return { ok: false, error: choice.error };
+    if (containsSourceFurniture(choice.value)) {
+      return { ok: false, error: `${field} choices must not contain page numbers or copyright text` };
+    }
+    const key = duplicateKey(choice.value);
+    if (seenChoices.has(key)) {
+      return { ok: false, error: `${field} choices must be unique` };
+    }
+    seenChoices.add(key);
+    choices.push(choice.value);
+  }
+  if (!Number.isInteger(raw.answerIndex) || Number(raw.answerIndex) < 0 || Number(raw.answerIndex) > 3) {
+    return { ok: false, error: `${field} answerIndex must be a whole number from 0-3` };
+  }
+  const rationale = cleanString(raw.rationale, `${field} rationale`, 1, 500);
+  if ("error" in rationale) return { ok: false, error: rationale.error };
+  return {
+    ok: true,
+    value: {
+      prompt: prompt.value,
+      choices,
+      answerIndex: Number(raw.answerIndex),
+      rationale: rationale.value,
+    },
+  };
+}
+
+function hintContainsAnswer(hint: string, answer: string) {
+  const answerKey = promptKey(answer);
+  if (!answerKey) return false;
+  const numericAnswer = Number(answer.replace(/,/g, "").replace(/^\$/, "").trim());
+  if (Number.isFinite(numericAnswer)) {
+    const hintNumbers = hint.match(/\d+(?:\.\d+)?/g) ?? [];
+    if (hintNumbers.some((value) => Number(value) === numericAnswer)) return true;
+  }
+  const hintKey = ` ${promptKey(hint)} `;
+  // Numeric answers (including currency) are meaningful even when they are a
+  // single character. Very short alphabetic choices such as "A" are not safe
+  // substring checks because they occur in ordinary hint prose.
+  const checkable = /\d/u.test(answerKey) || answerKey.length >= 3;
+  return checkable && hintKey.includes(` ${answerKey} `);
+}
+
+function validatePractice(raw: unknown, options: ArtifactValidationOptions): ArtifactValidationResult {
+  if (options.expectedCount !== 1) {
+    return { ok: false, error: "practice must contain exactly one problem" };
+  }
+  const root = validateRoot(raw, "problems", 1);
+  if ("error" in root) return { ok: false, error: root.error };
+  const rawProblem = root.items[0];
+  if (!isRecord(rawProblem) || !hasOnlyKeys(rawProblem, [
+    "id", "conceptId", "conceptName", "sourceExcerpt", "routeKind",
+    "original", "hint", "walkthrough", "transfer",
+  ])) {
+    return { ok: false, error: "practice problem has unsupported fields" };
+  }
+
+  const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
+  const linked = conceptForItem(rawProblem, conceptById, new Set<string>());
+  if ("error" in linked) return { ok: false, error: linked.error };
+  const canonicalId = `practice-${linked.concept.id}`;
+  if (rawProblem.id !== canonicalId) {
+    return { ok: false, error: "practice problem id does not match its concept" };
+  }
+  if (rawProblem.routeKind !== "solve-problems") {
+    return { ok: false, error: "practice routeKind must be solve-problems" };
+  }
+  if (rawProblem.sourceExcerpt === undefined || !options.sourceExcerptByConcept) {
+    return { ok: false, error: "practice requires the exact server-selected sourceExcerpt" };
+  }
+  const excerpt = canonicalExcerpt(rawProblem, linked.concept.id, options.sourceExcerptByConcept);
+  if ("error" in excerpt) return { ok: false, error: excerpt.error };
+  if (!excerpt.value) {
+    return { ok: false, error: "practice requires the exact server-selected sourceExcerpt" };
+  }
+
+  const original = validateGradedProblem(rawProblem.original, "original");
+  if ("error" in original) return { ok: false, error: original.error };
+  const transfer = validateGradedProblem(rawProblem.transfer, "transfer");
+  if ("error" in transfer) return { ok: false, error: transfer.error };
+  const hint = cleanString(rawProblem.hint, "hint", 3, 500);
+  if ("error" in hint) return { ok: false, error: hint.error };
+  const originalAnswer = original.value.choices[original.value.answerIndex];
+  if (hintContainsAnswer(hint.value, originalAnswer)) {
+    return { ok: false, error: "hint must not reveal the original answer" };
+  }
+
+  if (!isRecord(rawProblem.walkthrough) || !hasOnlyKeys(rawProblem.walkthrough, [
+    "prompt", "steps", "answer",
+  ])) {
+    return { ok: false, error: "walkthrough has unsupported fields" };
+  }
+  const walkthroughPrompt = cleanString(rawProblem.walkthrough.prompt, "walkthrough prompt", 3, 500);
+  if ("error" in walkthroughPrompt) return { ok: false, error: walkthroughPrompt.error };
+  if (
+    !Array.isArray(rawProblem.walkthrough.steps)
+    || rawProblem.walkthrough.steps.length < 1
+    || rawProblem.walkthrough.steps.length > 8
+  ) {
+    return { ok: false, error: "walkthrough steps must contain 1-8 steps" };
+  }
+  const steps: string[] = [];
+  for (const rawStep of rawProblem.walkthrough.steps) {
+    const step = cleanString(rawStep, "walkthrough step", 1, 500);
+    if ("error" in step) return { ok: false, error: step.error };
+    steps.push(step.value);
+  }
+  const walkthroughAnswer = cleanString(rawProblem.walkthrough.answer, "walkthrough answer", 1, 240);
+  if ("error" in walkthroughAnswer) return { ok: false, error: walkthroughAnswer.error };
+
+  const promptKeys = [
+    promptKey(original.value.prompt),
+    promptKey(walkthroughPrompt.value),
+    promptKey(transfer.value.prompt),
+  ];
+  if (new Set(promptKeys).size !== promptKeys.length) {
+    return { ok: false, error: "original, walkthrough, and transfer prompts must be different" };
+  }
+  const sanitizedProblem = {
+    id: canonicalId,
+    conceptId: linked.concept.id,
+    conceptName: linked.concept.name,
+    sourceExcerpt: excerpt.value,
+    routeKind: "solve-problems" as const,
+    original: original.value,
+    hint: hint.value,
+    walkthrough: {
+      prompt: walkthroughPrompt.value,
+      steps,
+      answer: walkthroughAnswer.value,
+    },
+    transfer: transfer.value,
+  };
+  // One decimal-safe implementation owns the arithmetic, wording, changed
+  // values, and answer placement. Rebuilding from the exact source avoids a
+  // second Number-based solver disagreeing on half-cents or long decimals,
+  // and makes forged service payloads fail closed.
+  const canonical = buildAssignmentTutorPractice({
+    conceptId: linked.concept.id,
+    conceptName: linked.concept.name,
+    sourceExcerpt: excerpt.value,
+  });
+  if (!canonical.supported
+    || JSON.stringify(sanitizedProblem) !== JSON.stringify(canonical.problem)) {
+    return { ok: false, error: "practice problem does not match the deterministic source" };
+  }
+
+  return { ok: true, payload: { problems: [canonical.problem] } };
+}
+
 
 export function validateArtifactPayload(
   kind: GeneratedArtifactKind,
@@ -623,6 +804,7 @@ export function validateArtifactPayload(
   if (kind === "flashcards") return validateFlashcards(raw, options);
   if (kind === "multiple_choice") return validateMultipleChoice(raw, options);
   if (kind === "matching") return validateMatching(raw, options);
+  if (kind === "practice") return validatePractice(raw, options);
   return validateMnemonic(raw, options);
 }
 

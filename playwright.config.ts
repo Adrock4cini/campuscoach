@@ -27,7 +27,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1 --port 4173",
+    // Exercise the same optimized bundle we publish. A dev-server-only smoke
+    // test can miss production chunking, environment, and service-worker bugs.
+    command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173/login",
     // Browser journeys intentionally exercise the anonymous demo. Keep this
     // test-only override here so staging/production retain the fail-closed
@@ -36,7 +38,7 @@ export default defineConfig({
       ...process.env,
       VITE_PUBLIC_SIGNUPS_ENABLED: "true",
     },
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

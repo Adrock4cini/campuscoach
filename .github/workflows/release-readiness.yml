@@ -1,0 +1,55 @@
+name: Production release readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_origin:
+        description: Exact published HTTPS origin to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release-readiness
+  cancel-in-progress: false
+
+jobs:
+  verify-deployed-release:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_PRODUCTION_ORIGIN: ${{ inputs.release_origin }}
+      VITE_RELEASE_SHA: ${{ github.sha }}
+      VITE_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SUPABASE_PROJECT_ID: ${{ vars.PRODUCTION_SUPABASE_PROJECT_ID }}
+      VITE_PUBLIC_SUPPORT_EMAIL: ${{ vars.PUBLIC_SUPPORT_EMAIL }}
+      VITE_PUBLIC_SIGNUPS_ENABLED: "false"
+      VITE_PASSKEYS_ENABLED: "false"
+      CANARY_EMAIL: ${{ secrets.PRODUCTION_CANARY_EMAIL }}
+      CANARY_PASSWORD: ${{ secrets.PRODUCTION_CANARY_PASSWORD }}
+
+    steps:
+      - name: Check out exact release commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate production configuration
+        run: npm run validate:release-env
+
+      - name: Build exact release bundle
+        run: npm run build
+
+      - name: Verify published origin and backend canary
+        run: npm run canary:release

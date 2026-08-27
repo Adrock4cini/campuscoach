@@ -71,7 +71,8 @@ export async function loadMastery(ctx: CoachFunctionContext): Promise<LoadedMast
     .select(
       "concept_id, strength, streak, attempts, last_seen_at, next_review_at, concepts!inner(name, client_class_id, professor_emphasis)",
     )
-    .eq("user_id", ctx.userId);
+    .eq("user_id", ctx.userId)
+    .is("concepts.retired_at", null);
   if (error) throw new Error(`mastery: ${error.message}`);
   return ((data ?? []) as unknown[]).map((r) => {
     const row = r as {

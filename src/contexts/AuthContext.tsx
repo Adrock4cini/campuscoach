@@ -35,6 +35,8 @@ import {
 
 
 const DEMO_KEY = "cc_demo_mode_v1";
+export const SESSION_RECOVERY_RECHECK_MS = 1500;
+export const SESSION_RECOVERY_NULL_LIMIT = 2;
 
 type Profile = {
   display_name: string | null;
@@ -166,11 +168,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     let authRevision = 0;
+    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let consecutiveOnlineNullReads = 0;
     setSupabaseNetworkMode("loading");
 
-    const applySession = (nextSession: Session | null, event: string) => {
+    function cancelRecoveryCheck() {
+      if (recoveryTimer) clearTimeout(recoveryTimer);
+      recoveryTimer = null;
+    }
+
+    function settleSignedOut() {
+      cancelRecoveryCheck();
+      consecutiveOnlineNullReads = 0;
+      forgetSignedIn();
+      activeUserIdRef.current = null;
+      profileRequestVersion.current += 1;
+      setRecovering(false);
+      setSupabaseNetworkMode("demo");
+      setSession(null);
+      setAuthUserId(null);
+      setSetupStatus("checking");
+      setSetupError(null);
+      setProfile(null);
+    }
+
+    function scheduleRecoveryCheck() {
+      if (
+        !active
+        || recoveryTimer
+        || (typeof navigator !== "undefined" && navigator.onLine === false)
+      ) return;
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = null;
+        void supabase.auth.getSession()
+          .then(({ data, error }) => {
+            if (!active) return;
+            if (error) {
+              // Network/auth-service errors remain ambiguous. Retry without
+              // counting them as evidence that the refresh token is gone.
+              scheduleRecoveryCheck();
+              return;
+            }
+            if (data.session) {
+              consecutiveOnlineNullReads = 0;
+              applySession(data.session, "recovery-check");
+              return;
+            }
+            consecutiveOnlineNullReads += 1;
+            if (consecutiveOnlineNullReads >= SESSION_RECOVERY_NULL_LIMIT) {
+              // Repeated successful online reads with no session are
+              // authoritative. Clear a stale remembered marker instead of
+              // trapping this device on Reconnecting forever.
+              settleSignedOut();
+              return;
+            }
+            scheduleRecoveryCheck();
+          })
+          .catch(() => {
+            if (active) scheduleRecoveryCheck();
+          });
+      }, SESSION_RECOVERY_RECHECK_MS);
+    }
+
+    function applySession(nextSession: Session | null, event: string) {
       if (!active) return;
       if (nextSession?.user) {
+        cancelRecoveryCheck();
+        consecutiveOnlineNullReads = 0;
         const sameUser = activeUserIdRef.current === nextSession.user.id;
         activeUserIdRef.current = nextSession.user.id;
         rememberSignedIn(nextSession.user.id);
@@ -208,20 +272,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRecovering(true);
         // Keep the last known session object in place: React Query and page
         // state stay mounted while Supabase retries its refresh.
+        scheduleRecoveryCheck();
         return;
       }
 
-      forgetSignedIn();
-      activeUserIdRef.current = null;
-      profileRequestVersion.current += 1;
-      setRecovering(false);
-      setSupabaseNetworkMode("demo");
-      setSession(null);
-      setAuthUserId(null);
-      setSetupStatus("checking");
-      setSetupError(null);
-      setProfile(null);
-    };
+      settleSignedOut();
+    }
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
@@ -264,7 +320,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .getSession()
         .then(({ data, error }) => {
           if (!active || error) return;
-          if (data.session) applySession(data.session, "resume");
+          applySession(data.session, "resume");
         })
         .catch(() => {
           /* Offline resume: stay put. */
@@ -283,6 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      cancelRecoveryCheck();
       setSupabaseNetworkMode("loading");
       sub.subscription.unsubscribe();
       if (typeof window !== "undefined") {

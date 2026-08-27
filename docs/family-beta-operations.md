@@ -8,7 +8,9 @@ chat, tickets, or browser code.
 
 1. Confirm the student is at least 13 and has an approved family-beta invitation.
 2. Confirm public new-user creation is disabled in Supabase Auth and the frontend
-   signup flag is false.
+   signup flag is absent or false. The web client also refuses to open signup on
+   any backend except the dedicated family-beta staging project, but that UI gate
+   is not a substitute for the server-side Auth setting.
 3. In Supabase Auth Admin, create or invite exactly the approved email address.
    Do not use the retired `seed-beta-user` function and do not alter an existing
    account's password to reuse it.
@@ -17,6 +19,70 @@ chat, tickets, or browser code.
 5. Send login instructions through the family's established private channel.
 6. Verify the student accepts the agreement, chooses their learner type, and sees
    only their own newly created classes.
+
+## Auth preflight for the release domain
+
+Complete this before sending an invitation. These are hosted Auth settings and
+cannot be proven by the repository or a successful frontend build.
+
+1. Set the Supabase **Site URL** to the exact published HTTPS origin. Add that
+   origin and its `/reset-password` destination to the Auth redirect allowlist.
+   Remove temporary preview origins before inviting real students.
+2. Keep email/password sign-in enabled. Keep public email signup disabled. Keep
+   account-creating Google OAuth disabled for this invite-only release.
+3. Choose one supported invitation path and test its email end to end:
+   - **Invite user:** the Auth invite link returns to the published origin and
+     establishes a session. Before the student signs out, have them set a
+     password through the tested reset-password flow so they can return; or
+   - **Create user:** the operator creates the approved address and privately
+     delivers its temporary password through the family's established channel.
+4. Configure a real SMTP sender and confirm invitation, confirmation, and password
+   reset messages arrive outside spam. Do not rely on a development mail sink.
+5. Configure a monitored `VITE_PUBLIC_SUPPORT_EMAIL` in the release build.
+
+## Production release preflight
+
+1. Protect a GitHub `production` environment and configure these names without
+   printing their values: `PRODUCTION_SUPABASE_URL`,
+   `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`, `PRODUCTION_SUPABASE_PROJECT_ID`,
+   `PUBLIC_SUPPORT_EMAIL`, `PRODUCTION_CANARY_EMAIL`, and
+   `PRODUCTION_CANARY_PASSWORD`.
+2. Give the dedicated canary account no student coursework. Verify it can sign
+   in but cannot access another account's rows.
+3. Configure a provider-side AI hard spend cap and an operator alert. Confirm
+   the database hourly/daily quota migration is present.
+4. Configure the published host with enforced CSP (`frame-ancestors 'none'` and
+   `object-src 'none'`), HSTS, Referrer-Policy, Permissions-Policy, and
+   `X-Content-Type-Options: nosniff`.
+5. Configure an Edge log drain/alert for sanitized 5xx records and the
+   `[client-error]` marker. Never alert on or retain request bodies, OCR text,
+   prompts, email addresses, auth tokens, or provider response bodies.
+6. Deploy the reviewed migrations and seven Edge Functions in the order defined
+   by `docs/study-intelligence-rollout.md`, then publish that exact commit.
+7. Run the protected **Production release readiness** workflow against the exact
+   HTTPS origin. It must validate configuration, find the exact release SHA in
+   the deployed bundle, authenticate the canary account, prove every function's
+   zero-AI validation path, and emit the safe alert test event.
+8. Confirm the test event reached the operator. A green workflow without a
+   delivered alert does not satisfy the monitoring gate.
+
+## One-account acceptance journey
+
+Run this with a fresh invited address that has no profile or classes:
+
+1. Open the invite/confirmation link on the release domain, or sign in with the
+   operator-provided temporary credentials.
+2. Confirm the 13+ agreement blocks the app until it is saved.
+3. Complete **You → School → Term → Classes → Schedule** and reach the real
+   dashboard. Verify the profile has a non-null `onboarded_at` value.
+4. Reload on the dashboard, close and reopen the browser, and confirm the same
+   signed-in account and classes return without rerunning onboarding.
+5. Sign out, sign back in with email/password, and confirm the same dashboard
+   returns. Then request one password-reset email and verify its link opens the
+   release `/reset-password` page.
+6. In a private/incognito window, confirm `/signup` shows the invitation gate,
+   Google account creation is absent, and a direct unauthenticated Auth signup is
+   rejected by Supabase.
 
 ## Delete one student's account
 
@@ -70,6 +136,10 @@ and escalate for a corrected cleanup pass.
 - Public signup and account-creating Google OAuth are unavailable.
 - A monitored support/privacy email is configured.
 - RLS is tested with User A, User B, and an anonymous client after migrations.
+- Raw topic signals and exam debriefs are owner-only, and `topic_scores` is
+  service-role-only until a thresholded privacy-reviewed API replaces it.
+- Public host headers, the global AI spend cap, production alerts, and the
+  post-deploy canary are verified against the exact release commit.
 - Under-13 accounts are not invited until a separate verified parental-consent
   and child-privacy program exists.
 
@@ -87,3 +157,8 @@ active classes before the client began requiring `profiles.onboarded_at`. After
 that migration, class count alone must never be used as proof that a new setup
 finished. The capture migration must be present before the retry-safe client is
 invited so one dropped mobile response converges on the same durable rows.
+
+The later Assignment Tutor/course-map/privacy migrations are intentionally
+staged around a short study-write pause. Do not append them to this older list
+or apply all pending `20260827` files unattended; use
+`docs/study-intelligence-rollout.md` as the authoritative order.

@@ -7,8 +7,14 @@ passes. This beta is for invited students age 13 and older only.
 ## Release identity and account controls
 
 - [ ] `VITE_PUBLIC_SIGNUPS_ENABLED` is absent or `false` in the release build.
+- [ ] The release bundle uses the production Supabase project ID; setting the
+      frontend signup flag to `true` still does not open production registration.
 - [ ] New-user creation is disabled in Supabase Auth; a direct unauthenticated
       signup and a new Google identity are rejected server-side.
+- [ ] Supabase Auth Site URL and allowed redirects use the exact published HTTPS
+      origin, including the password-reset destination; preview URLs are removed.
+- [ ] Invitation/confirmation/reset email delivery is verified through the
+      configured production SMTP sender.
 - [ ] `VITE_PUBLIC_SUPPORT_EMAIL` is a monitored address shown on Privacy.
 - [ ] The retired `seed-beta-user` Edge Function returns HTTP 410 (or is absent).
 - [ ] One invited email/password account can sign in; an uninvited address cannot
@@ -19,6 +25,8 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] A new invited account must accept the current 13+ family-beta agreement.
 - [ ] Declining/signing out leaves no accepted agreement metadata.
 - [ ] Password sign-in, forgot password, reset link, and sign-out all work.
+- [ ] After onboarding, reload, browser restart, explicit sign-out, and subsequent
+      password sign-in all return the same account without rerunning setup.
 - [ ] Protected deep links send an unfinished account to onboarding and return a
       completed account to its intended path and query string.
 
@@ -70,6 +78,14 @@ passes. This beta is for invited students age 13 and older only.
       student's material; a completed session persists after reload.
 - [ ] Assignment and test create, complete, edit, and delete-confirmation flows
       work with 44 px mobile targets.
+- [ ] A photographed assignment requires a title, preserves its draft on a
+      failed upload, shows the confirmed source review, and reaches **Hint →
+      worked example → You try → changed transfer problem → saved weakness**.
+- [ ] The transfer answer, not seeing the worked answer, is the only Tutor event
+      that can increase mastery; a miss returns in later review.
+- [ ] Literal ACCT 2010 activation creates exactly 15 original stable course-map
+      concepts, no mastery rows, no publisher prose, and no store/professor
+      metadata in a generated artifact.
 
 ## Privacy and isolation
 
@@ -88,15 +104,34 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] The capture-attempt idempotency migration is applied before this client;
       repeating one retained capture attempt produces one assignment, capture,
       set of pages, and capture signal.
+- [ ] Anonymous clients cannot read `topic_signals`, `exam_debriefs`, or
+      `topic_scores`; User A and User B can read/mutate only their own raw rows;
+      browser clients cannot read cross-student topic scores.
 
 ## Technical release gates
 
 - [ ] Lint, typecheck, full unit tests, production build, and desktop/Android/
       iPhone Playwright projects pass on the exact commit.
 - [ ] Updated Edge Functions compile and are deployed before their calling UI.
+- [ ] `npm run validate:release-env` passes with the exact HTTPS origin, backend
+      project, publishable/anon key, commit SHA, monitored support address,
+      signups disabled, and passkeys either disabled or correctly bound.
+- [ ] Paid AI extraction, syllabus, and image paths have both hourly and daily
+      fail-closed quotas, plus a tested provider-side hard spend cap/alert.
+- [ ] Every changed student-data function returns private `no-store`, `nosniff`
+      JSON with a request ID and exposes no provider/DB/source details on 5xx.
+- [ ] The published host enforces CSP (`frame-ancestors 'none'`, `object-src
+      'none'`), HSTS, Referrer-Policy, Permissions-Policy, and `nosniff`.
+- [ ] A sanitized browser crash test reaches the production operator alert;
+      neither the event nor Edge 5xx logs contain student content or identifiers.
+- [ ] The protected **Production release readiness** workflow passes against the
+      exact deployed commit and dedicated empty canary account.
 - [ ] Syllabus migrations, private bucket policies, cleanup function, and one
       active hourly cleanup job are present; a production no-op cleanup returns
       HTTP 200 with zero claims when the bucket is empty.
 - [ ] No unexpected 4xx/5xx responses, uncaught application errors, horizontal
       overflow, or secret/service-role values appear in browser logs.
 - [ ] Rollback commit/deployment is identified before publishing.
+- [ ] After deployment, the unchanged four-case learning benchmark (14% of 50,
+      hypo/hyper, Maryland → Annapolis, leave-and-return persistence) is rerun
+      without moving its scoring criteria.

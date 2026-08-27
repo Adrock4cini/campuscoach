@@ -8,6 +8,7 @@ export type StudySelectionSignal =
   | "low_mastery"
   | "unseen"
   | "teacher_emphasis"
+  | "course_foundation"
   | "recent";
 
 export interface StudySelectionConcept {
@@ -17,6 +18,10 @@ export interface StudySelectionConcept {
   examples?: string[] | null;
   professor_emphasis?: boolean | null;
   capture_id?: string | null;
+  source_kind?: string | null;
+  /** Curated request-local aliases for a bundled stable course-map node. */
+  topic_aliases?: string[] | null;
+  curriculum_order?: number | null;
   created_at: string;
 }
 
@@ -108,11 +113,13 @@ function expandTopic(topic: string) {
 }
 
 function conceptSearchText(concept: StudySelectionConcept) {
-  const normalized = normalizeStudyText([
-    concept.name,
-    concept.definition,
-    ...(concept.examples ?? []),
-  ].filter(Boolean).join(" "));
+  // Broad stable definitions are teaching copy, not an exam-scope oracle.
+  // Course foundations match only their curated title/aliases; captured and
+  // manually authored concepts retain their ordinary definition/example match.
+  const searchableParts = concept.source_kind === "course-map-stable"
+    ? [concept.name, ...(concept.topic_aliases ?? [])]
+    : [concept.name, concept.definition, ...(concept.examples ?? [])];
+  const normalized = normalizeStudyText(searchableParts.filter(Boolean).join(" "));
   const inferred: string[] = [];
   if (/\d\s*\+\s*\d/.test(normalized)) inferred.push(...TOPIC_ALIASES.addition);
   if (/\d\s*-\s*\d/.test(normalized)) inferred.push(...TOPIC_ALIASES.subtraction);
@@ -180,9 +187,13 @@ export function rankStudyConcepts<T extends StudySelectionConcept>(
     const explicitExamLink = Boolean(
       concept.capture_id && explicitExamCaptureIds.has(concept.capture_id),
     );
+    const courseFoundation = concept.source_kind === "course-map-stable";
     const searchText = conceptSearchText(concept);
     const examTopic = context.scopeType === "exam" && topicTerms.some((topic) => searchText.includes(topic));
-    const examWindow = context.scopeType === "exam" && isInExamWindow(
+    // Course Map rows are created when the student first opens the map, not
+    // when a professor taught that unit. Their insert timestamp can never be
+    // treated as evidence that the unit belongs to this exam window.
+    const examWindow = !courseFoundation && context.scopeType === "exam" && isInExamWindow(
       concept.created_at,
       context.examDate,
       context.previousExamDate,
@@ -193,6 +204,9 @@ export function rankStudyConcepts<T extends StudySelectionConcept>(
     // window. Class/recent scopes already arrive inside their owner boundary.
     if (explicitConceptIds.size && !explicitlySelected) return [];
     if (!explicitConceptIds.size && context.explicitCaptureId && !explicitCapture) return [];
+    // Prebuilt course foundations are intentional class/exam material, not
+    // something the student "just captured". Never let them flood Recent.
+    if (!explicitlySelected && context.scopeType === "recent" && courseFoundation) return [];
     if (
       !explicitConceptIds.size
       && !context.explicitCaptureId
@@ -236,7 +250,16 @@ export function rankStudyConcepts<T extends StudySelectionConcept>(
       "Teacher or instructor emphasized it",
       concept.professor_emphasis ? 20 : 0,
     );
-    const recency = recentWeight(concept.created_at, now);
+    if (courseFoundation) {
+      // Provenance stays visible in the snapshot, but activation alone is not
+      // evidence that a foundation deserves priority over student material.
+      evidence.push({
+        signal: "course_foundation",
+        label: "Original Campus Companion course foundation",
+        weight: 0,
+      });
+    }
+    const recency = courseFoundation ? 0 : recentWeight(concept.created_at, now);
     addEvidence(evidence, "recent", "Recently captured", recency);
 
     return [{
@@ -256,6 +279,15 @@ export function rankStudyConcepts<T extends StudySelectionConcept>(
   return scored
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
+      const leftFoundation = left.concept.source_kind === "course-map-stable";
+      const rightFoundation = right.concept.source_kind === "course-map-stable";
+      if (leftFoundation !== rightFoundation) return leftFoundation ? 1 : -1;
+      const leftOrder = left.concept.curriculum_order;
+      const rightOrder = right.concept.curriculum_order;
+      if (typeof leftOrder === "number" && typeof rightOrder === "number"
+          && leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
       const rightCreated = asTimestamp(right.concept.created_at) ?? 0;
       const leftCreated = asTimestamp(left.concept.created_at) ?? 0;
       if (rightCreated !== leftCreated) return rightCreated - leftCreated;

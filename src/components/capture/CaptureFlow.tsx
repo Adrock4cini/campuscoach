@@ -42,12 +42,18 @@ import {
   clearCaptureDraft,
   readCaptureDraft,
   writeCaptureDraft,
+  type CaptureDraftOwner,
 } from "@/lib/capture/captureDraft";
 import {
   captureContextLabel,
   inferCaptureClass,
   type CaptureClassInference,
 } from "@/lib/capture/captureContextInference";
+import { AssignmentProblemReview } from "@/components/assignments/AssignmentProblemReview";
+import {
+  assignmentPracticeSourceFromUnknown,
+  isConfirmedAssignmentPracticeSource,
+} from "@/lib/assignments/assignmentPracticeSource";
 
 
 
@@ -119,6 +125,11 @@ export function CaptureFlow({
     reload: reloadClasses,
   } = useMyClasses();
   const realMode = !!user && !isDemoMode;
+  const captureDraftOwner = useMemo<CaptureDraftOwner>(() => (
+    isDemoMode
+      ? { mode: "demo" }
+      : { mode: "real", userId: user?.id ?? null }
+  ), [isDemoMode, user?.id]);
   const classes = realMode ? myClasses : demoClasses;
   const attemptIdRef = useRef<string | null>(null);
   if (!attemptIdRef.current) attemptIdRef.current = createCaptureAttemptId();
@@ -232,11 +243,22 @@ export function CaptureFlow({
     // A draft interrupted by app switching, a phone call, or an iOS tab reload
     // comes back exactly as it was. Photos are in-memory files and cannot be
     // restored, so the flow simply re-asks for them.
-    const draft = readCaptureDraft({ allowedClassIds: classes.map((item) => item.id) });
+    const draft = readCaptureDraft({
+      owner: captureDraftOwner,
+      allowedClassIds: classes.map((item) => item.id),
+    });
     const draftMeta = draft ? MENU.find((item) => item.kind === draft.kind) : null;
+    const exactEntryScope = Boolean(
+      draft
+      && (!initialClassId || draft.classId === initialClassId)
+      && (!initialAssignmentId || draft.assignmentId === initialAssignmentId)
+      && (!initialExamId || draft.examId === initialExamId)
+      && (!initialTopic || draft.topic === initialTopic),
+    );
     const restorable = Boolean(
       draft && draftMeta && (!realMode || draftMeta.availableForRealUsers)
-      && (!canOpenInitial || draft!.kind === initialKind),
+      && (!canOpenInitial || draft!.kind === initialKind)
+      && exactEntryScope,
     );
 
     setStage(canOpenInitial || restorable ? "context" : "menu");
@@ -250,19 +272,32 @@ export function CaptureFlow({
     setDetailsOpen(false);
     setClassChangedManually(false);
 
+    const restoredClassId = restorable
+      ? (inference?.source === "entry" && defaultClassId
+        ? defaultClassId
+        : draft!.classId || defaultClassId)
+      : defaultClassId;
+    // A retained assignment/test belongs to the retained class. If the student
+    // deliberately opened capture from a different class, do not leak the old
+    const canRestoreDraftTargets = Boolean(
+      restorable && draft!.classId && draft!.classId === restoredClassId,
+    );
+
     setCtx(restorable
       ? {
         // An explicit entry class (opened from a class page or a class action)
         // always wins over a retained draft from a previous class, so Quick
         // Capture from BIOL can never preselect last session's class.
-        classId: inference?.source === "entry" && defaultClassId
-          ? defaultClassId
-          : draft!.classId || defaultClassId,
+        classId: restoredClassId,
         date: draft!.date || todayDateKey(),
         topic: draft!.topic,
         text: draft!.text,
-        assignmentId: initialAssignmentId,
-        examId: initialExamId,
+        assignmentId: initialAssignmentId
+          ?? (canRestoreDraftTargets ? draft!.assignmentId : undefined),
+        assignmentTitle: canRestoreDraftTargets ? draft!.assignmentTitle : undefined,
+        assignmentDueDate: canRestoreDraftTargets ? draft!.assignmentDueDate : undefined,
+        examId: initialExamId
+          ?? (canRestoreDraftTargets ? draft!.examId : undefined),
       }
 
       : {
@@ -286,9 +321,11 @@ export function CaptureFlow({
     detected?.currentTopic,
     user?.id,
     classes,
+    initialClassId,
     initialAssignmentId,
     initialExamId,
     initialTopic,
+    captureDraftOwner,
   ]);
 
 
@@ -301,15 +338,37 @@ export function CaptureFlow({
 
   useEffect(() => {
     if (!open || !kind || stage !== "context") return;
+    const activeOwnerId = realMode ? user?.id ?? null : null;
+    if (draftOwnerIdRef.current !== activeOwnerId) return;
     writeCaptureDraft({
       kind,
       classId: ctx.classId,
       date: ctx.date,
       topic: ctx.topic ?? "",
       text: ctx.text ?? "",
+      assignmentId: ctx.assignmentId,
+      assignmentTitle: ctx.assignmentTitle,
+      assignmentDueDate: ctx.assignmentDueDate,
+      examId: ctx.examId,
       hadPhotos: images.length > 0,
-    });
-  }, [open, kind, stage, ctx.classId, ctx.date, ctx.topic, ctx.text, images.length]);
+    }, { owner: captureDraftOwner });
+  }, [
+    open,
+    kind,
+    stage,
+    ctx.classId,
+    ctx.date,
+    ctx.topic,
+    ctx.text,
+    ctx.assignmentId,
+    ctx.assignmentTitle,
+    ctx.assignmentDueDate,
+    ctx.examId,
+    images.length,
+    captureDraftOwner,
+    realMode,
+    user?.id,
+  ]);
 
   // Fill (never overwrite) the class once it becomes known — from the default
   // for this entry point, or from the student's last capture so the habit of
@@ -447,8 +506,7 @@ export function CaptureFlow({
     classes.some((classInfo) => classInfo.id === ctx.classId) &&
     !!ctx.date &&
     (!meta?.requiresText || notePreflight.usable) &&
-    // Assignment name and due date are read from the photo and reviewed later,
-    // so nothing has to be typed before the picture is taken.
+    (kind !== "scan-assignment" || !!ctx.assignmentId || !!ctx.assignmentTitle?.trim()) &&
     (!meta?.requiresImages || (
       imageValidation.ok &&
       !assignmentsLoading &&
@@ -707,7 +765,7 @@ export function CaptureFlow({
                         <>
                           {meta.kind === "scan-assignment" && (
                             <>
-                              <Field label="Assignment (optional)">
+                              <Field label="Assignment">
                                 <select
                                   aria-label="Assignment"
                                   value={ctx.assignmentId ?? ""}
@@ -728,15 +786,16 @@ export function CaptureFlow({
                               </Field>
                               {!ctx.assignmentId && (
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                  <Field label="Assignment name (optional)">
+                                  <Field label="Assignment name (required)">
                                     <input
                                       aria-label="Assignment name"
                                       value={ctx.assignmentTitle ?? ""}
+                                      maxLength={300}
                                       onChange={(event) => setCtx((current) => ({
                                         ...current,
                                         assignmentTitle: event.target.value,
                                       }))}
-                                      placeholder="Read from your photo"
+                                      placeholder="e.g., Chapter 4 homework"
                                       className="h-11 w-full rounded-xl border border-border/50 bg-background/40 px-3 text-base text-foreground placeholder:text-muted-foreground/60 sm:text-sm"
                                     />
                                   </Field>
@@ -798,11 +857,12 @@ export function CaptureFlow({
                     <div className="space-y-3">
                       <div className="rounded-2xl border border-dashed border-primary/35 bg-primary/5 p-3">
                         <p className="text-sm font-medium text-foreground">
-                          {meta.kind === "scan-assignment" ? "Photograph every problem page" : "Photograph notes or book pages"}
+                          {meta.kind === "scan-assignment" ? "Photograph the one problem you want help with" : "Photograph notes or book pages"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Add up to 4 pages to this one capture — one class and date covers all of them.
-                          Campus Brain keeps the originals private.
+                          {meta.kind === "scan-assignment"
+                            ? "Get close enough to read every number and symbol. Campus Brain keeps the original private."
+                            : "Add up to 4 pages to this one capture — one class and date covers all of them. Campus Brain keeps the originals private."}
 
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -933,6 +993,19 @@ export function CaptureFlow({
                     </div>
                   )}
 
+                  {kind === "scan-assignment"
+                    && !ctx.assignmentId
+                    && !ctx.assignmentTitle?.trim()
+                    && !detailsOpen && (
+                      <button
+                        type="button"
+                        onClick={() => setDetailsOpen(true)}
+                        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-warning/35 bg-warning/5 px-3 text-sm font-medium text-foreground hover:border-primary/40"
+                      >
+                        Choose an assignment or add its name
+                      </button>
+                    )}
+
                   <button
                     onClick={startProcessing}
                     disabled={!canContinue}
@@ -976,34 +1049,52 @@ export function CaptureFlow({
                     realMode && result.processingStatus === "failed" && result.captureId
                       ? async () => {
                           const captureId = result.captureId!;
-                          const { retryCaptureConcepts, retryCaptureImages } = await import(
+                          const {
+                            retryCaptureConceptsWithResult,
+                            retryCaptureImagesWithResult,
+                          } = await import(
                             "@/lib/supabase/capturePersistence"
                           );
-                          if (result.materialIds?.length) {
-                            await retryCaptureImages(captureId, result.materialIds);
-                          } else {
-                            await retryCaptureConcepts({
+                          const processing = result.materialIds?.length
+                            ? await retryCaptureImagesWithResult(captureId, result.materialIds)
+                            : await retryCaptureConceptsWithResult({
                               id: captureId,
                               kind: result.kind,
                               clientClassId: result.context.classId,
                               topic: result.context.topic ?? null,
                               rawText: result.context.text ?? null,
                             });
-                          }
-                          setResult({ ...result, processingStatus: "processing", processingMessage: undefined });
+                          setResult((current) => current ? {
+                            ...current,
+                            processingStatus: processing.processingStatus,
+                            processingMessage: undefined,
+                            ...(processing.practiceSource
+                              ? { practiceSource: processing.practiceSource }
+                              : {}),
+                          } : current);
                         }
                       : undefined
                   }
                   onPractice={
                     realMode &&
                     (result.processingStatus ?? "ready") === "ready" &&
-                    result.context.classId
+                    result.context.classId &&
+                    result.captureId &&
+                    (result.kind !== "scan-assignment" || result.context.assignmentId)
                       ? () => {
                           requestClose();
-                          navigate(
-                            `/study-lab?classId=${encodeURIComponent(result.context.classId)}` +
-                              `&captureId=${encodeURIComponent(result.id)}&format=flashcards`,
-                          );
+                          const params = new URLSearchParams({
+                            classId: result.context.classId,
+                            captureId: result.captureId!,
+                          });
+                          if (result.kind === "scan-assignment") {
+                            params.set("assignmentId", result.context.assignmentId!);
+                            params.set("format", "practice");
+                            params.set("intent", "assignment-help");
+                          } else {
+                            params.set("format", "flashcards");
+                          }
+                          navigate(`/study-lab?${params.toString()}`);
                         }
                       : undefined
                   }
@@ -1183,8 +1274,26 @@ export function CaptureDoneSummary({
   const cls = { name: className || "your class" };
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [practiceSource, setPracticeSource] = useState(() => (
+    assignmentPracticeSourceFromUnknown(result.practiceSource, result.kind)
+  ));
+  useEffect(() => {
+    setPracticeSource(assignmentPracticeSourceFromUnknown(result.practiceSource, result.kind));
+  }, [result.id, result.kind, result.practiceSource]);
   const processingFailed = result.processingStatus === "failed";
   const stillProcessing = !sample && result.processingStatus === "processing";
+  const assignmentReadyForReview = Boolean(
+    !sample
+    && result.kind === "scan-assignment"
+    && result.processingStatus === "ready"
+    && result.captureId
+    && result.context.assignmentId
+    && result.context.classId,
+  );
+  const canPractice = Boolean(
+    onPractice
+    && (result.kind !== "scan-assignment" || isConfirmedAssignmentPracticeSource(practiceSource)),
+  );
   return (
     <div className="space-y-4">
       <div className={`rounded-2xl border p-4 flex items-start gap-3 ${
@@ -1273,7 +1382,18 @@ export function CaptureDoneSummary({
         </div>
       )}
 
-      {onPractice ? (
+      {assignmentReadyForReview && (
+        <AssignmentProblemReview
+          captureId={result.captureId!}
+          assignmentId={result.context.assignmentId!}
+          classId={result.context.classId}
+          source={practiceSource}
+          onFallback={onOpenClass}
+          onConfirmed={setPracticeSource}
+        />
+      )}
+
+      {canPractice ? (
         <div className="space-y-2 pt-1">
           {result.kind === "scan-assignment" && (
             <p className="text-xs text-muted-foreground">

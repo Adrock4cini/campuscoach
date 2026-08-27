@@ -8,6 +8,7 @@ import { StudyMode } from "@/data/questions";
 import { useStudyFormatRecommendation } from "@/lib/intelligence";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealStudySet } from "@/components/study/RealStudySet";
+import { AssignmentTutorSet } from "@/components/study/AssignmentTutorSet";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
   buildCoachStudyScope,
@@ -45,6 +46,8 @@ export default function StudyLab() {
 
   const preselectedClass = searchParams.get("classId");
   const requestedCaptureId = searchParams.get("captureId") || undefined;
+  const requestedAssignmentId = searchParams.get("assignmentId") || undefined;
+  const requestedIntent = searchParams.get("intent");
   const requestedExamId = searchParams.get("examId") || undefined;
   const requestedFormatParam = searchParams.get("format");
   const requestedFormat = requestedFormatParam === "multiple_choice"
@@ -82,6 +85,13 @@ export default function StudyLab() {
   const activeCaptureId = effectiveClass === preselectedClass
     ? requestedCaptureId
     : undefined;
+  const assignmentHelp = Boolean(
+    requestedIntent === "assignment-help"
+    && requestedFormatParam === "practice"
+    && activeCaptureId
+    && requestedAssignmentId
+    && effectiveClass === preselectedClass,
+  );
   // Study-format recommendation comes from the Intelligence Engine,
   // which also picks the topic to attack based on peer signal.
   const recommendation = useStudyFormatRecommendation(effectiveClass);
@@ -101,7 +111,7 @@ export default function StudyLab() {
           <Sparkles className="h-3 w-3" /> Study Lab
         </div>
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground tracking-tight">
-          What do you want to study?
+          {assignmentHelp ? "Let’s work through this assignment" : "What do you want to study?"}
         </h1>
       </div>
 
@@ -144,17 +154,28 @@ export default function StudyLab() {
         </Card>
       )}
       {isRealUser && !classesError && effectiveClass && (
-        <RealStudySet
-          className={availableClasses.find((c) => c.id === effectiveClass)?.name}
-          classTopic={availableClasses.find((c) => c.id === effectiveClass)?.currentTopic}
-          classId={effectiveClass}
-          initialCaptureId={activeCaptureId}
-          initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
-          initialKind={requestedFormat ?? rememberedState?.kind ?? "flashcards"}
-          initialConceptIds={coachConceptIds}
-          initialStudyScope={coachStudyScope ?? undefined}
-          autoStart={Boolean(coachStudyScope || activeCaptureId)}
-        />
+        assignmentHelp && activeCaptureId && requestedAssignmentId ? (
+          <AssignmentTutorSet
+            classId={effectiveClass}
+            captureId={activeCaptureId}
+            assignmentId={requestedAssignmentId}
+            onFallback={() => navigate(
+              `/study-lab?classId=${encodeURIComponent(effectiveClass)}`,
+            )}
+          />
+        ) : (
+          <RealStudySet
+            className={availableClasses.find((c) => c.id === effectiveClass)?.name}
+            classTopic={availableClasses.find((c) => c.id === effectiveClass)?.currentTopic}
+            classId={effectiveClass}
+            initialCaptureId={activeCaptureId}
+            initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
+            initialKind={requestedFormat ?? rememberedState?.kind ?? "flashcards"}
+            initialConceptIds={coachConceptIds}
+            initialStudyScope={coachStudyScope ?? undefined}
+            autoStart={Boolean(coachStudyScope || activeCaptureId)}
+          />
+        )
       )}
 
 

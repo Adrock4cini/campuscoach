@@ -153,4 +153,90 @@ describe("useLearningArtifact class boundary", () => {
     expect(result.current.generating).toBe(false);
     expect(result.current.error).toBe("offline");
   });
+
+  it("keeps assignment and routing evidence inside the exact generation scope", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("practice", {
+        classId: "math",
+        assignmentId: "11111111-1111-4111-8111-111111111111",
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: null, error: null });
+    });
+    mocks.invoke.mockResolvedValueOnce({ data: { artifact: null }, error: null });
+
+    await act(async () => {
+      await result.current.generate({ studentConfusion: "I keep reversing the operation." });
+    });
+
+    expect(mocks.invoke).toHaveBeenCalledWith("generate-artifact", expect.objectContaining({
+      body: expect.objectContaining({
+        kind: "practice",
+        classId: "math",
+        assignmentId: "11111111-1111-4111-8111-111111111111",
+        studentConfusion: "I keep reversing the operation.",
+      }),
+    }));
+    expect(result.current.artifact).toBeNull();
+    expect(result.current.generating).toBe(false);
+    expect(result.current.error).toMatch(/could not be confirmed/i);
+  });
+
+  it("does not resume a practice artifact recorded for another assignment", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("practice", {
+        classId: "math",
+        captureId: "capture-1",
+        assignmentId: "11111111-1111-4111-8111-111111111111",
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({
+        data: {
+          id: "wrong-assignment-practice",
+          study_scope_snapshot: { assignmentId: "22222222-2222-4222-8222-222222222222" },
+        },
+        error: null,
+      });
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.artifact).toBeNull();
+  });
+
+  it("rejects a generated practice artifact outside the assignment scope", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("practice", {
+        classId: "math",
+        assignmentId: "11111111-1111-4111-8111-111111111111",
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: null, error: null });
+    });
+    mocks.invoke.mockResolvedValueOnce({
+      data: {
+        artifact: {
+          id: "wrong-assignment-practice",
+          kind: "practice",
+          payload: { problems: [] },
+          study_scope_snapshot: { assignmentId: "22222222-2222-4222-8222-222222222222" },
+        },
+      },
+      error: null,
+    });
+
+    let generated: unknown;
+    await act(async () => {
+      generated = await result.current.generate();
+    });
+
+    expect(generated).toBeNull();
+    expect(result.current.artifact).toBeNull();
+    expect(result.current.error).toMatch(/did not match this assignment/i);
+  });
 });

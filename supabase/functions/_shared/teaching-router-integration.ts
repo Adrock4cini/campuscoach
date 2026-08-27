@@ -42,7 +42,10 @@ export function decideArtifactTeachingRoute(input: {
   const route = classifyLearningProblem({
     conceptName: concept?.name ?? input.topic ?? null,
     definition,
-    sourceExcerpt: [sourceExcerpt, examples, input.topic].filter(Boolean).join(" \n ") || null,
+    // Topic is a user-facing label and may contain logistics ("Test Friday")
+    // or a broad action ("solve these"). It may name an otherwise empty
+    // concept, but it must not contaminate classification of grounded source.
+    sourceExcerpt: [sourceExcerpt, examples].filter(Boolean).join(" \n ") || null,
     studentConfusion: input.studentConfusion ?? null,
   });
 

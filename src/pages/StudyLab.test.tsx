@@ -34,6 +34,25 @@ vi.mock("@/components/study/RealStudySet", () => ({
   ),
 }));
 
+vi.mock("@/components/study/AssignmentTutorSet", () => ({
+  AssignmentTutorSet: ({
+    classId,
+    captureId,
+    assignmentId,
+    onFallback,
+  }: {
+    classId: string;
+    captureId: string;
+    assignmentId: string;
+    onFallback: () => void;
+  }) => (
+    <div>
+      <p data-testid="assignment-tutor-set">{classId}:{captureId}:{assignmentId}</p>
+      <button onClick={onFallback}>Use regular study</button>
+    </div>
+  ),
+}));
+
 function RouteHarness() {
   const navigate = useNavigate();
   return (
@@ -81,5 +100,35 @@ describe("Study Lab class handoff", () => {
     expect(screen.getByTestId("real-study-set")).toHaveTextContent("math:math-note");
     fireEvent.click(screen.getByRole("button", { name: /open science capture/i }));
     expect(screen.getByTestId("real-study-set")).toHaveTextContent("science:science-note");
+  });
+
+  it("opens the assignment tutor only for the complete assignment-help intent", () => {
+    render(
+      <MemoryRouter initialEntries={[
+        "/study-lab?classId=math&captureId=capture-1&assignmentId=assignment-1&format=practice&intent=assignment-help",
+      ]}>
+        <RouteHarness />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: /work through this assignment/i })).toBeInTheDocument();
+    expect(screen.getByTestId("assignment-tutor-set")).toHaveTextContent(
+      "math:capture-1:assignment-1",
+    );
+    expect(screen.queryByTestId("real-study-set")).not.toBeInTheDocument();
+  });
+
+  it("drops assignment-help scope when the student changes class", () => {
+    render(
+      <MemoryRouter initialEntries={[
+        "/study-lab?classId=math&captureId=capture-1&assignmentId=assignment-1&format=practice&intent=assignment-help",
+      ]}>
+        <RouteHarness />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Science" }));
+    expect(screen.queryByTestId("assignment-tutor-set")).not.toBeInTheDocument();
+    expect(screen.getByTestId("real-study-set")).toHaveTextContent("science:none");
   });
 });

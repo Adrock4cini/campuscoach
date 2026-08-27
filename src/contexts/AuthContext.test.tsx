@@ -51,7 +51,12 @@ vi.mock("@/lib/demo/supabaseNetworkPolicy", () => ({
 }));
 
 import { KNOWN_SESSION_KEY } from "@/lib/auth/sessionResilience";
-import { AuthProvider, useAuth } from "./AuthContext";
+import { FAMILY_BETA_AGREEMENT_VERSION } from "@/lib/legal/familyBeta";
+import {
+  AuthProvider,
+  SESSION_RECOVERY_RECHECK_MS,
+  useAuth,
+} from "./AuthContext";
 
 function sessionFor(userId: string): Session {
   return {
@@ -91,6 +96,17 @@ function AuthOnboardingSnapshot() {
 function AuthRecoverySnapshot() {
   const { recovering, mode } = useAuth();
   return <output aria-label="Recovery state">{recovering ? "recovering" : mode}</output>;
+}
+
+function AuthAgreementSnapshot() {
+  const { user } = useAuth();
+  return (
+    <output aria-label="Agreement status">
+      {user?.user_metadata?.family_beta_agreement_version === FAMILY_BETA_AGREEMENT_VERSION
+        ? "accepted"
+        : "missing"}
+    </output>
+  );
 }
 
 function AuthSignOutSnapshot() {
@@ -274,6 +290,31 @@ describe("AuthProvider session restoration", () => {
     expect(screen.getByText("signed-out")).toBeInTheDocument();
   });
 
+  it("applies a same-account agreement metadata update without losing the session", async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: sessionFor("student-1") },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthAgreementSnapshot />
+      </AuthProvider>,
+    );
+    expect(await screen.findByRole("status", { name: "Agreement status" })).toHaveTextContent("missing");
+
+    const updated = sessionFor("student-1");
+    updated.user.user_metadata = {
+      family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION,
+    };
+    await act(async () => {
+      mocks.authCallback?.("USER_UPDATED", updated);
+    });
+
+    expect(screen.getByRole("status", { name: "Agreement status" })).toHaveTextContent("accepted");
+    expect(mocks.profileMaybeSingle).toHaveBeenCalledTimes(1);
+  });
+
   it("recovers from a session-read exception instead of loading forever", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mocks.getSession.mockRejectedValue(new Error("storage unavailable"));
@@ -326,6 +367,31 @@ describe("AuthProvider session restoration", () => {
     // Never falls back to sample data while a real account is being restored.
     expect(screen.getByRole("status", { name: "Recovery state" })).not.toHaveTextContent("demo");
     warn.mockRestore();
+  });
+
+  it("clears a stale remembered marker after repeated authoritative online null sessions", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(KNOWN_SESSION_KEY, "1");
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    render(
+      <AuthProvider>
+        <AuthRecoverySnapshot />
+      </AuthProvider>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("status", { name: "Recovery state" })).toHaveTextContent("recovering");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SESSION_RECOVERY_RECHECK_MS * 2 + 1);
+    });
+
+    expect(screen.getByRole("status", { name: "Recovery state" })).toHaveTextContent("demo");
+    expect(localStorage.getItem(KNOWN_SESSION_KEY)).toBeNull();
+    vi.useRealTimers();
   });
 
   it("keeps the remembered account through an offline session loss and clears it on explicit sign out", async () => {

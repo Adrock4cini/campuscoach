@@ -1,4 +1,5 @@
 import { extractExactThinSource } from "./thin-source.ts";
+import { extractAssignmentTutorSource } from "./assignment-tutor.ts";
 
 export interface SourceSufficiency {
   sufficient: boolean;
@@ -96,8 +97,9 @@ export function containsSourceFurniture(rawText: string): boolean {
 export function isNonExplanatoryFragment(rawText: string): boolean {
   const original = rawText.trim();
   if (!original) return true;
-  // Equations and other exact thin sources are legitimate answers.
-  if (extractExactThinSource(original)) return false;
+  // Equations and complete deterministic numeric problems are legitimate
+  // teaching content even when they are only a few tokens long.
+  if (extractExactThinSource(original) || extractAssignmentTutorSource(original)) return false;
   // Schedule lines ("Test is Friday") are planning info, never an answer.
   if (isLogisticsLine(original)) return true;
 
@@ -134,7 +136,12 @@ export function isNonExplanatoryFragment(rawText: string): boolean {
 export function assessSourceSufficiency(rawText: string): SourceSufficiency {
   const source = rawText.trim();
   if (!source) return { sufficient: false, reason: "empty" };
-  if (extractExactThinSource(source)) return { sufficient: true };
+  // A complete numeric problem is useful source evidence even when it is only
+  // a few tokens long (for example, "14% of 50"). Treating that as a heading
+  // would strand assignment help before its deterministic solver can run.
+  if (extractExactThinSource(source) || extractAssignmentTutorSource(source)) {
+    return { sufficient: true };
+  }
   if (VAGUE_SOURCE.test(source)) return { sufficient: false, reason: "vague" };
 
   const meaningful = stripSourceFurniture(source)
@@ -148,4 +155,3 @@ export function assessSourceSufficiency(rawText: string): SourceSufficiency {
   if (isNonExplanatoryFragment(source)) return { sufficient: false, reason: "heading_only" };
   return { sufficient: true };
 }
-

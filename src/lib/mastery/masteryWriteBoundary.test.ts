@@ -19,7 +19,7 @@ function masteryClients(source: string): string[] {
 
 function conceptInsertClient(source: string): string | undefined {
   return source.match(
-    /await\s+([A-Za-z][A-Za-z0-9]*)\s*\n\s*\.from\("concepts"\)\s*\n\s*\.insert\(/,
+    /await\s+([A-Za-z][A-Za-z0-9]*)\s*\n\s*\.from\("concepts"\)\s*\n\s*\.(?:insert|upsert)\(/,
   )?.[1];
 }
 
@@ -36,8 +36,6 @@ describe("server-only mastery write boundary", () => {
     expect(masteryClients(extractConcepts)).toEqual([
       "adminClient",
       "adminClient",
-      "adminClient",
-      // Reinforcement upsert for concepts that already existed (dedupe path).
       "adminClient",
     ]);
 

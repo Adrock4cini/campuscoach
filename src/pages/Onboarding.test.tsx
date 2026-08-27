@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   saveOnboarding: vi.fn(),
   cacheOnboardingDraft: vi.fn(),
   refreshOnboarded: vi.fn(),
+  lastRoute: null as string | null,
   profile: {
     display_name: "Alex",
     term: "Fall 2026",
@@ -34,11 +35,16 @@ vi.mock("@/lib/onboarding/store", () => ({
   saveOnboarding: mocks.saveOnboarding,
 }));
 
+vi.mock("@/lib/app/routeMemory", () => ({
+  readLastRoute: () => mocks.lastRoute,
+}));
+
 describe("returning student syllabus import", () => {
   beforeEach(() => {
     mocks.saveOnboarding.mockReset().mockResolvedValue(undefined);
     mocks.cacheOnboardingDraft.mockReset();
     mocks.refreshOnboarded.mockReset().mockResolvedValue(undefined);
+    mocks.lastRoute = null;
     mocks.profile = {
       display_name: "Alex",
       term: "Fall 2026",
@@ -133,5 +139,34 @@ describe("onboarding class schedule boundaries", () => {
       expect.objectContaining({ name: "Jordan" }),
       "user-1",
     ));
+  });
+
+  it("returns a first-time student to the protected deep link after setup", async () => {
+    mocks.profile = {
+      display_name: "Alex",
+      term: "Fall 2026",
+      work_schedule: "",
+      learner_type: "college",
+      schools: { name: "State University" },
+    };
+    mocks.lastRoute = "/classes/biology";
+    render(
+      <MemoryRouter initialEntries={["/onboarding"]}>
+        <Routes>
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/classes/biology" element={<p>Requested Biology class</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText("Class name, e.g. Biology II"), {
+      target: { value: "Biology" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finish" }));
+
+    expect(await screen.findByText("Requested Biology class")).toBeInTheDocument();
+    expect(mocks.saveOnboarding).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshOnboarded).toHaveBeenCalledTimes(1);
   });
 });

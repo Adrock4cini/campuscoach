@@ -45,7 +45,8 @@ export function useCoachRecommendations() {
       const { data, error } = await supabase
         .from("user_concept_mastery")
         .select("concept_id, strength, next_review_at, attempts, concepts!inner(client_class_id)")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .is("concepts.retired_at", null);
       if (request !== masteryRequestVersion.current) return;
       if (error) throw error;
       const rows: CoachInputMastery[] = (data ?? []).map((r: unknown) => {

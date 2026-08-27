@@ -440,6 +440,8 @@ export interface StrategyObservations {
 export interface StrategySelectionContext {
   subjectProfileId?: SubjectProfileId | null;
   taskKind?: StudyTaskKind;
+  /** Soft content-based default from Teaching Router; never an explicit ask. */
+  routerPreferredStrategyId?: string;
   /** Student explicitly asked for a modality ("Visualize it"). */
   requestedModality?: StrategyModality;
   /** Student explicitly asked for one strategy id. */
@@ -505,6 +507,10 @@ export function selectStrategies(context: StrategySelectionContext): StrategyCho
     if (context.taskKind && strategy.taskKinds.includes(context.taskKind)) {
       score += 3;
       reasons.push(`fits the ${context.taskKind} task`);
+    }
+    if (context.routerPreferredStrategyId === strategy.id) {
+      score += 4;
+      reasons.push("fits this learning problem");
     }
     if (strategy.subjects.includes(profile.id)) {
       score += 2;

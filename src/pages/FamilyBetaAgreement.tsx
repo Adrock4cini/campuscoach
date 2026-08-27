@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner";
 
 export default function FamilyBetaAgreement() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, recovering, signOut } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
@@ -23,8 +23,10 @@ export default function FamilyBetaAgreement() {
     if (user && consumePendingOAuthAgreement()) setAgreed(true);
   }, [user]);
 
-  if (loading) return null;
-  if (!user) return <Navigate to="/signup" replace />;
+  if (loading || recovering) {
+    return <div role="status" className="py-20 text-center text-sm text-muted-foreground">Reconnecting to your account…</div>;
+  }
+  if (!user) return <Navigate to="/login" replace />;
   if (hasFamilyBetaAgreement(user)) return <Navigate to={next} replace />;
 
   const accept = async () => {

@@ -142,6 +142,26 @@ describe("strategy selection", () => {
     expect(afterReject.strategy.id).not.toBe(base.strategy.id);
   });
 
+  it("uses the Teaching Router as a soft default while explicit student choice wins", () => {
+    const routed = selectStrategy({
+      subjectProfileId: "general",
+      taskKind: "compare-ideas",
+      routerPreferredStrategyId: "compare-table",
+    });
+    expect(routed.strategy.id).toBe("compare-table");
+    expect(routed.reasons).toContain("fits this learning problem");
+    expect(routed.reasons.join(" ")).not.toContain("student rated");
+
+    const studentChoice = selectStrategy({
+      subjectProfileId: "general",
+      taskKind: "compare-ideas",
+      routerPreferredStrategyId: "compare-table",
+      requestedStrategyId: "multiple-choice",
+    });
+    expect(studentChoice.strategy.id).toBe("multiple-choice");
+    expect(studentChoice.reasons).toContain("student asked for this strategy");
+  });
+
   it("can restrict selection to zero-cost strategies", () => {
     const choices = selectStrategies({ subjectProfileId: "math", deterministicOnly: true });
     expect(choices.length).toBeGreaterThan(0);
@@ -185,10 +205,24 @@ describe("generator wiring", () => {
 
   it("selects a strategy deterministically before any model call", () => {
     expect(generator).toContain('from "../_shared/strategy-catalog.ts"');
-    expect(generator).toContain("const strategyChoice = selectStrategy({");
+    expect(generator).toContain('from "../_shared/teaching-router-integration.ts"');
+    expect(generator).toContain("const teachingDecision = decideArtifactTeachingRoute({");
+    expect(generator).toContain(": selectStrategy({");
+    expect(generator).toContain("routerPreferredStrategyId: teachingDecision.preferredStrategyId");
+    expect(generator).toContain("requestedStrategyId: body.strategyId ?? undefined");
     expect(generator).toContain("const verifiedShortcuts = detectVerifiedShortcuts(");
-    expect(generator.indexOf("const strategyChoice = selectStrategy({"))
+    expect(generator).not.toContain('body.kind === "matching"\n    ? "memorize-terms"');
+    expect(generator.indexOf("const teachingDecision = decideArtifactTeachingRoute({"))
+      .toBeLessThan(generator.indexOf("selectStrategy({"));
+    expect(generator.indexOf("selectStrategy({"))
       .toBeLessThan(generator.indexOf('fetch("https://ai.gateway.lovable.dev'));
+  });
+
+  it("keeps student error evidence out of generated answer content", () => {
+    expect(generator).toContain("studentConfusion: body.studentConfusion");
+    const promptStart = generator.indexOf("const conceptBlock = JSON.stringify({");
+    const promptEnd = generator.indexOf("const feedbackInstruction", promptStart);
+    expect(generator.slice(promptStart, promptEnd)).not.toContain("studentConfusion");
   });
 
   it("passes strategy guidance and verified shortcuts into the grounded prompt", () => {

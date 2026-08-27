@@ -75,7 +75,7 @@ export function extractSolvableProblem(rawText: string): SolvableProblem | null 
   if (off) {
     const price = Number(off[1]);
     const percent = Number(off[2]);
-    if (Number.isFinite(price) && Number.isFinite(percent) && percent < 100) {
+    if (Number.isFinite(price) && Number.isFinite(percent) && percent <= 100) {
       const discount = (price * percent) / 100;
       const sale = price - discount;
       const label = itemLabel(source);

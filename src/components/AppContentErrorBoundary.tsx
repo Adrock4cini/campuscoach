@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/observability/clientErrorReporter";
 
 interface Props {
   children: ReactNode;
@@ -17,13 +18,10 @@ export class AppContentErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[app-content] render failed", {
-      name: error.name,
-      message: error.message,
-      route: this.props.resetKey.split("?")[0],
-      componentStack: info.componentStack,
-    });
+  componentDidCatch(error: Error, _info: ErrorInfo) {
+    const route = this.props.resetKey.split("?")[0];
+    console.error("[app-content] render failed", { name: error.name, route });
+    reportClientError({ kind: "render", errorName: error.name, route });
   }
 
   componentDidUpdate(previous: Props) {

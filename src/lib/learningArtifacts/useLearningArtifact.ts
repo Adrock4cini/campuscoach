@@ -14,9 +14,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
 import { checkCaptureConceptReadiness } from "./captureReadiness";
 import { describeFunctionError } from "./functionError";
+import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
 
 export interface LearningArtifactScope {
   captureId?: string;
+  assignmentId?: string;
   conceptIds?: string[];
   classId?: string;
   topic?: string;
@@ -33,6 +35,32 @@ interface UseLearningArtifactState<K extends ArtifactKind> {
   scopeKey: string;
 }
 
+function belongsToAssignment(artifact: unknown, assignmentId?: string): boolean {
+  if (!artifact || typeof artifact !== "object" || Array.isArray(artifact)) return false;
+  if (!assignmentId) return true;
+  const snapshot = (artifact as { study_scope_snapshot?: unknown }).study_scope_snapshot;
+  return Boolean(
+    snapshot
+    && typeof snapshot === "object"
+    && !Array.isArray(snapshot)
+    && (snapshot as { assignmentId?: unknown }).assignmentId === assignmentId,
+  );
+}
+
+function isGeneratedArtifact<K extends ArtifactKind>(
+  artifact: unknown,
+  kind: K,
+): artifact is LearningArtifact<K> {
+  if (!artifact || typeof artifact !== "object" || Array.isArray(artifact)) return false;
+  const candidate = artifact as Record<string, unknown>;
+  return typeof candidate.id === "string"
+    && candidate.id.length > 0
+    && candidate.kind === kind
+    && Boolean(candidate.payload)
+    && typeof candidate.payload === "object"
+    && !Array.isArray(candidate.payload);
+}
+
 export function useLearningArtifact<K extends ArtifactKind>(
   kind: K,
   scope: LearningArtifactScope,
@@ -42,6 +70,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
     owner: `${mode}:${user?.id ?? "anonymous"}`,
     kind,
     captureId: scope.captureId ?? null,
+    assignmentId: scope.assignmentId ?? null,
     conceptIds: scope.conceptIds ?? null,
     classId: scope.classId ?? null,
     topic: scope.topic ?? null,
@@ -94,8 +123,11 @@ export function useLearningArtifact<K extends ArtifactKind>(
         setState({ artifact: null, loading: false, generating: false, error: error.message, captureProcessing: false, scopeKey });
         return;
       }
+      const loaded = (data as unknown as LearningArtifact<K> | null) ?? null;
       setState({
-        artifact: (data as unknown as LearningArtifact<K> | null) ?? null,
+        // A capture may have historical artifacts from another assignment.
+        // Practice must resume only the exact server-recorded assignment.
+        artifact: belongsToAssignment(loaded, scope.assignmentId) ? loaded : null,
         loading: false,
         generating: false,
         error: null,
@@ -128,6 +160,8 @@ export function useLearningArtifact<K extends ArtifactKind>(
       modality?: string;
       /** Technique families the student just rejected ("try another way"). */
       rejectFamilies?: string[];
+      /** Routing-only error evidence; never becomes generated answer content. */
+      studentConfusion?: string;
     }) => {
       const request = ++requestVersion.current;
       setState((s) => ({
@@ -157,16 +191,18 @@ export function useLearningArtifact<K extends ArtifactKind>(
             setState((s) => ({
               ...s,
               generating: false,
+              captureProcessing: true,
               error: "We couldn’t pull anything studyable out of this capture. Add a note or a clearer photo, then try again.",
             }));
             return null;
           }
         }
 
-        const { data, error } = await supabase.functions.invoke("generate-artifact", {
+        const { data, error } = await invokeEdgeFunction("generate-artifact", {
           body: {
             kind,
             captureId: scope.captureId,
+            assignmentId: scope.assignmentId,
             conceptIds: scope.conceptIds,
             classId: scope.classId,
             topic: scope.topic,
@@ -176,6 +212,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
             strategyId: opts?.strategyId ?? null,
             modality: opts?.modality ?? null,
             rejectFamilies: opts?.rejectFamilies ?? null,
+            studentConfusion: opts?.studentConfusion ?? null,
           },
         });
         if (request !== requestVersion.current) return null;
@@ -185,7 +222,26 @@ export function useLearningArtifact<K extends ArtifactKind>(
           setState((s) => ({ ...s, generating: false, error: message }));
           return null;
         }
-        const artifact = ((data as { artifact: unknown } | null)?.artifact ?? null) as LearningArtifact<K> | null;
+        const candidate = (data as { artifact?: unknown } | null)?.artifact;
+        if (!isGeneratedArtifact(candidate, kind)) {
+          setState((s) => ({
+            ...s,
+            artifact: null,
+            generating: false,
+            error: "The generated study set could not be confirmed. Please try again.",
+          }));
+          return null;
+        }
+        const artifact = candidate;
+        if (!belongsToAssignment(artifact, scope.assignmentId)) {
+          setState((s) => ({
+            ...s,
+            artifact: null,
+            generating: false,
+            error: "The generated tutor did not match this assignment. Please try again.",
+          }));
+          return null;
+        }
         setState({ artifact, loading: false, generating: false, error: null, captureProcessing: false, scopeKey });
         return artifact;
       } catch (error) {

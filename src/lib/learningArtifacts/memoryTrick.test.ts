@@ -4,6 +4,7 @@ import {
   parseMemoryTrickArtifact,
   type MemoryTrickBoundary,
 } from "./memoryTrick";
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "./types";
 
 const boundary: MemoryTrickBoundary = {
   conceptId: "concept-desert",
@@ -18,7 +19,7 @@ function artifact(overrides: Record<string, unknown> = {}) {
   return {
     id: "artifact-secret-id",
     kind: "mnemonic",
-    prompt_version: "v9-study-intelligence",
+    prompt_version: CURRENT_ARTIFACT_PROMPT_VERSION,
     stale: false,
     client_class_id: "english",
     study_scope_type: "exam",

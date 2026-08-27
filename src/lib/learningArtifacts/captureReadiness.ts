@@ -23,8 +23,8 @@ export async function checkCaptureConceptReadiness(
   try {
     const [conceptResult, captureResult] = await Promise.all([
       supabase
-        .from("concepts")
-        .select("id", { count: "exact", head: true })
+        .from("concept_capture_evidence")
+        .select("concept_id", { count: "exact", head: true })
         .eq("capture_id", captureId),
       supabase
         .from("captures")
@@ -36,24 +36,14 @@ export async function checkCaptureConceptReadiness(
     if (conceptResult.error || captureResult.error) return { state: "unknown" };
 
     const conceptCount = conceptResult.count ?? 0;
-    if (conceptCount > 0) {
-      const status = (captureResult.data as { processing_status?: string } | null)?.processing_status;
-      // Concepts are the durable source of truth. Repair a stale processing
-      // marker without invoking extraction or any paid AI again.
-      if (status === "queued" || status === "processing") {
-        const { error } = await supabase
-          .from("captures")
-          .update({ processing_status: "ready" })
-          .eq("id", captureId);
-        if (error) console.warn("[capture-readiness] status reconciliation failed", error);
-      }
-      return { state: "ready", conceptCount };
-    }
-
     const status = (captureResult.data as { processing_status?: string } | null)?.processing_status;
+    // Evidence is written before processed_content and the final capture
+    // completion CAS. Never let a browser readiness probe steal an active
+    // extraction claim by flipping the capture to ready.
+    if (status === "ready" && conceptCount > 0) return { state: "ready", conceptCount };
     // No visible capture row yet means the insert is still settling — that is
     // a race, not an empty capture.
-    if (!status || status === "processing") return { state: "processing" };
+    if (!status || status === "queued" || status === "processing") return { state: "processing" };
     return { state: "empty" };
   } catch {
     return { state: "unknown" };

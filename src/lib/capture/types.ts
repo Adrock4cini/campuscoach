@@ -69,4 +69,9 @@ export interface CaptureResult {
   captureId?: string;
   /** Uploaded page/material ids for this capture, used to retry image processing. */
   materialIds?: string[];
+  /**
+   * Exact assignment problem proposed by OCR and, when confirmed, approved by
+   * the student. Ordinary typed captures omit this and keep their old path.
+   */
+  practiceSource?: import("@/lib/assignments/assignmentPracticeSource").AssignmentPracticeSource;
 }

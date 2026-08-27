@@ -320,70 +320,18 @@ var list_upcoming_default = defineTool2({
   }
 });
 
-// src/lib/mcp/tools/get-class-intelligence.ts
-import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.0";
-import { z as z2 } from "npm:zod@^4.4.3";
-import { createClient } from "npm:@supabase/supabase-js@^2.104.0";
-var get_class_intelligence_default = defineTool3({
-  name: "get_class_intelligence",
-  title: "Get class intelligence",
-  description: "Return peer-aggregated 'high-yield' topics for a class: probability of appearing on the next exam, confidence band, and student engagement. Use `list_classes` to discover valid classId values.",
-  inputSchema: {
-    classId: z2.string().min(1).describe("Class id, e.g. 'psych101'."),
-    limit: z2.number().int().min(1).max(50).optional().describe("Max topics to return. Default 10.")
-  },
-  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
-  handler: async ({ classId, limit }) => {
-    const cls = classes.find((c) => c.id === classId);
-    if (!cls) {
-      return {
-        content: [{ type: "text", text: `Unknown classId: ${classId}` }],
-        isError: true
-      };
-    }
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      return {
-        content: [{ type: "text", text: "Backend is not configured." }],
-        isError: true
-      };
-    }
-    const supabase = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
-    const { data, error } = await supabase.from("topic_scores").select("topic_name,probability,confidence_band,student_count,miss_rate,star_count").eq("class_id", classId).order("probability", { ascending: false }).limit(limit ?? 10);
-    if (error) {
-      return { content: [{ type: "text", text: error.message }], isError: true };
-    }
-    const summary = {
-      class: { id: cls.id, name: cls.name, professor: cls.professor },
-      topics: data ?? []
-    };
-    return {
-      content: [
-        {
-          type: "text",
-          text: (data ?? []).length ? JSON.stringify(summary, null, 2) : `No peer intelligence available yet for ${cls.name}.`
-        }
-      ],
-      structuredContent: summary
-    };
-  }
-});
-
 // src/lib/mcp/index.ts
 var projectRef = "norsaaoyppctrvxxgjtg";
 var mcp_default = defineMcp({
   name: "campus-companion-mcp",
   title: "Campus Companion",
   version: "0.1.0",
-  instructions: "Tools for Campus Companion, an AI academic OS for college students (ADHD-friendly). Use `list_classes` to discover the student's current classes and readiness. Use `list_upcoming_deadlines` for assignments and exams coming due. Use `get_class_intelligence` for peer-aggregated high-yield topics on a specific class. All tools are read-only.",
+  instructions: "Tools for Campus Companion, an AI academic OS for college students (ADHD-friendly). Use `list_classes` to discover the student's current classes and readiness. Use `list_upcoming_deadlines` for assignments and exams coming due. All tools are read-only.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [list_classes_default, list_upcoming_default, get_class_intelligence_default]
+  tools: [list_classes_default, list_upcoming_default]
 });
 
 // lovable-mcp-supabase-entry.ts

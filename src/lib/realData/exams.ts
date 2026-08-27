@@ -79,7 +79,12 @@ export async function updateExam(id: string, patch: Partial<RealExam>): Promise<
 }
 
 export async function deleteExam(id: string): Promise<boolean> {
-  const { error } = await supabase.from("exams").delete().eq("id", id);
+  // Preserve linked capture provenance while removing the exam from active
+  // student views. Server-side account cleanup may still hard-delete it.
+  const { error } = await supabase
+    .from("exams")
+    .update({ source_archived_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) {
     console.warn("[exams:delete]", error);
     return false;

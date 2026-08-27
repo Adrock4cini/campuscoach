@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "@/lib/learningArtifacts/types";
 import { MemoryTrickPanel, type MemoryTrickPanelProps } from "./MemoryTrickPanel";
 
 const mocks = vi.hoisted(() => ({
@@ -38,7 +39,7 @@ function mnemonicArtifact(conceptId = "concept-homeostasis", classId = "english"
   return {
     id: `artifact-${conceptId}`,
     kind: "mnemonic",
-    prompt_version: "v9-study-intelligence",
+    prompt_version: CURRENT_ARTIFACT_PROMPT_VERSION,
     stale: false,
     client_class_id: classId,
     study_scope_type: "exam",

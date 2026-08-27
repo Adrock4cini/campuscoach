@@ -12,6 +12,12 @@ verify_jwt = true
 [functions.process-capture-images]
 verify_jwt = true
 
+[functions.confirm-assignment-practice-source]
+verify_jwt = true
+
+[functions.report-client-error]
+verify_jwt = true
+
 [functions.canvas-connect]
 verify_jwt = true
 

@@ -104,6 +104,110 @@ describe("study concept selection", () => {
     expect(ranked).toEqual([]);
   });
 
+  it("keeps prebuilt course foundations out of Recent and out of exam-window guessing", () => {
+    const foundation = concept("course-map", {
+      name: "Debit and credit",
+      definition: "Asset increases use debits; liability increases use credits.",
+      capture_id: null,
+      source_kind: "course-map-stable",
+      topic_aliases: ["debit", "credit", "account sides"],
+      curriculum_order: 4,
+      created_at: "2026-08-17T17:59:00.000Z",
+    });
+
+    expect(rankStudyConcepts([foundation], [], {
+      scopeType: "recent",
+      now: NOW,
+      limit: 8,
+    })).toEqual([]);
+    expect(rankStudyConcepts([foundation], [], {
+      scopeType: "exam",
+      now: NOW,
+      limit: 8,
+      topics: ["inventory"],
+      examDate: "2026-08-20",
+      previousExamDate: "2026-08-01",
+    })).toEqual([]);
+
+    const matched = rankStudyConcepts([foundation], [], {
+      scopeType: "exam",
+      now: NOW,
+      limit: 8,
+      topics: ["debit"],
+      examDate: "2026-08-20",
+      previousExamDate: "2026-08-01",
+    });
+    expect(matched).toHaveLength(1);
+    expect(matched[0].evidence.map((item) => item.signal)).toContain("course_foundation");
+    expect(matched[0].evidence.map((item) => item.signal)).not.toContain("exam_window");
+    expect(matched[0].evidence.map((item) => item.signal)).not.toContain("recent");
+  });
+
+  it("does not topic-match a stable foundation through its broad definition", () => {
+    const foundation = concept("unit-6", {
+      name: "Adjusting entries",
+      definition: "Accruals and deferrals change reported expenses and liabilities.",
+      capture_id: null,
+      source_kind: "course-map-stable",
+      topic_aliases: ["adjusting entries", "accruals", "deferrals"],
+      curriculum_order: 6,
+    });
+
+    expect(rankStudyConcepts([foundation], [], {
+      scopeType: "exam",
+      now: NOW,
+      limit: 8,
+      topics: ["liabilities"],
+      examDate: "2026-08-20",
+    })).toEqual([]);
+    expect(rankStudyConcepts([foundation], [], {
+      scopeType: "exam",
+      now: NOW,
+      limit: 8,
+      topics: ["adjusting entries"],
+      examDate: "2026-08-20",
+    })).toHaveLength(1);
+  });
+
+  it("uses curriculum order to make equally weak course foundations predictable", () => {
+    const ranked = rankStudyConcepts([
+      concept("unit-4", { source_kind: "course-map-stable", curriculum_order: 4, capture_id: null }),
+      concept("unit-1", { source_kind: "course-map-stable", curriculum_order: 1, capture_id: null }),
+      concept("unit-2", { source_kind: "course-map-stable", curriculum_order: 2, capture_id: null }),
+    ], [], { scopeType: "class", now: NOW, limit: 8 });
+
+    expect(ranked.map((item) => item.concept.id)).toEqual(["unit-1", "unit-2", "unit-4"]);
+  });
+
+  it("lets a student's captured concept win a tie with a course foundation", () => {
+    const ranked = rankStudyConcepts([
+      concept("foundation", {
+        name: "Adjusting entries",
+        capture_id: null,
+        source_kind: "course-map-stable",
+        topic_aliases: ["adjusting entries"],
+        curriculum_order: 6,
+        created_at: NOW,
+      }),
+      concept("capture", {
+        name: "Adjusting entries",
+        capture_id: "capture-student",
+        created_at: "2026-01-01T00:00:00.000Z",
+      }),
+    ], [], {
+      scopeType: "exam",
+      now: NOW,
+      limit: 8,
+      topics: ["adjusting entries"],
+    });
+
+    expect(ranked.map((item) => item.concept.id)).toEqual(["capture", "foundation"]);
+    expect(ranked[1].evidence).toContainEqual(expect.objectContaining({
+      signal: "course_foundation",
+      weight: 0,
+    }));
+  });
+
   it("uses a stable created-date then concept-id tie break", () => {
     const ranked = rankStudyConcepts(
       [concept("b"), concept("a"), concept("new", { created_at: "2026-08-02T18:00:00.000Z" })],

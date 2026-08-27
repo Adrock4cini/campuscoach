@@ -3,13 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 import { createSupabaseNetworkFetch } from '@/lib/demo/supabaseNetworkPolicy';
+import { validateBrowserSupabaseConfig } from './browserConfig';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const browserConfig = validateBrowserSupabaseConfig({
+  url: import.meta.env.VITE_SUPABASE_URL,
+  publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  projectId: import.meta.env.VITE_SUPABASE_PROJECT_ID,
+});
+const SUPABASE_URL = browserConfig.url;
+const SUPABASE_PUBLISHABLE_KEY = browserConfig.publishableKey;
 
 
 function isNewSupabaseApiKey(value: string): boolean {
-  return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
+  return value.startsWith('sb_publishable_');
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {

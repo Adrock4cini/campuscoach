@@ -39,12 +39,14 @@ export function useClassReadinessSignals(clientClassId: string, options: Options
           .from("concepts")
           .select("id", { count: "exact", head: true })
           .eq("user_id", userId)
-          .eq("client_class_id", clientClassId),
+          .eq("client_class_id", clientClassId)
+          .is("retired_at", null),
         supabase
           .from("user_concept_mastery")
           .select("strength, attempts, concepts!inner(client_class_id)")
           .eq("user_id", userId)
-          .eq("concepts.client_class_id", clientClassId),
+          .eq("concepts.client_class_id", clientClassId)
+          .is("concepts.retired_at", null),
         supabase
           .from("captures")
           .select("id", { count: "exact", head: true })

@@ -3,8 +3,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
 import * as captureProcessor from "@/lib/capture/processor";
+import * as capturePersistence from "@/lib/supabase/capturePersistence";
 import { readLastCaptureClassId, writeLastCaptureClassId } from "@/lib/capture/captureClassPreference";
-import { CAPTURE_DRAFT_KEY } from "@/lib/capture/captureDraft";
+import { writeCaptureDraft, type CaptureDraft } from "@/lib/capture/captureDraft";
 import { CaptureDoneSummary, CaptureFlow } from "./CaptureFlow";
 
 const mocks = vi.hoisted(() => ({
@@ -135,8 +136,15 @@ function LocationProbe() {
   return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
+function seedOwnedDraft(draft: CaptureDraft) {
+  writeCaptureDraft(draft, {
+    owner: { mode: "real", userId: "user-1" },
+  });
+}
+
 describe("CaptureFlow class boundaries", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     mocks.classes = [];
     mocks.loading = true;
     mocks.error = null;
@@ -152,15 +160,13 @@ describe("CaptureFlow class boundaries", () => {
     mocks.classes = [math, science];
     mocks.loading = false;
     writeLastCaptureClassId("math");
-    sessionStorage.setItem(
-      CAPTURE_DRAFT_KEY,
-      JSON.stringify({ kind: "quick-note", classId: "math", date: "2026-08-24", topic: "", text: "Cell walls" }),
-    );
+    seedOwnedDraft({ kind: "quick-note", classId: "math", date: "2026-08-24", topic: "", text: "Cell walls" });
 
     renderCapture("science");
 
     expect(screen.getByText(/Science/)).toBeTruthy();
     expect(screen.queryByText(/^Math$/)).toBeNull();
+    expect(screen.getByPlaceholderText("Type here…")).toHaveValue("");
   });
 
   it("labels a device-only demo capture without implying an account update", () => {
@@ -274,6 +280,105 @@ describe("CaptureFlow class boundaries", () => {
       },
     });
     expect(screen.getByRole("button", { name: "Save assignment" })).toBeEnabled();
+  });
+
+  it("restores assignment and exam links with the capture draft after a reload", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    seedOwnedDraft({
+        kind: "scan-assignment",
+        classId: "science",
+        date: "2026-08-24",
+        topic: "Cells",
+        text: "",
+        assignmentId: "assignment-science",
+        examId: "exam-science",
+        hadPhotos: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    openDetails();
+    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue(
+      "assignment-science",
+    );
+    expect(screen.getByRole("combobox", { name: "Preparing for" })).toHaveValue(
+      "exam-science",
+    );
+    expect(screen.getByText(/Photos can't be saved by the phone/i)).toBeInTheDocument();
+  });
+
+  it("drops restored assignment and exam links when capture opens from another class", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    seedOwnedDraft({
+        kind: "scan-assignment",
+        classId: "math",
+        date: "2026-08-24",
+        topic: "Equations",
+        text: "",
+        assignmentId: "assignment-math",
+        examId: "exam-math",
+        hadPhotos: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    openDetails();
+    expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("science");
+    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Preparing for" })).toHaveValue("");
+    expect(screen.getByLabelText("Topic / Chapter (optional)")).toHaveValue("");
+    expect(screen.queryByText(/Photos can't be saved by the phone/i)).not.toBeInTheDocument();
+  });
+
+  it("opens a different assignment in the same class without restoring the old draft content", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    seedOwnedDraft({
+      kind: "scan-assignment",
+      classId: "science",
+      date: "2026-08-24",
+      topic: "Old private worksheet",
+      text: "old assignment text",
+      assignmentId: "assignment-other",
+      hadPhotos: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          initialAssignmentId="assignment-science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    openDetails();
+    expect(screen.getByRole("combobox", { name: "Assignment" })).toHaveValue("assignment-science");
+    expect(screen.getByLabelText("Topic / Chapter (optional)")).toHaveValue("");
+    expect(screen.queryByText(/Photos can't be saved by the phone/i)).not.toBeInTheDocument();
   });
 
   it("keeps an in-flight private photo upload open across close gestures", () => {
@@ -616,6 +721,61 @@ describe("CaptureFlow class boundaries", () => {
     expect(retryOptions?.attachments).toHaveLength(1);
   });
 
+  it("hands a saved assignment to practice with its durable capture id and assignment context", async () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    const onClose = vi.fn();
+    vi.spyOn(captureProcessor, "commitCapture").mockResolvedValueOnce({
+      id: "local-attempt-id",
+      captureId: "durable-capture-row-id",
+      kind: "scan-assignment",
+      context: {
+        classId: "science",
+        date: "2026-08-17",
+        assignmentId: "assignment-science",
+      },
+      createdAt: "2026-08-17T12:00:00.000Z",
+      keyConcepts: ["Cell structure"],
+      summary: "Assignment saved",
+      flashcardCount: 0,
+      processingStatus: "ready",
+      practiceSource: {
+        status: "confirmed",
+        text: "What is 14% of 50?",
+        version: 2,
+        hash: "a".repeat(64),
+        confirmedAt: "2026-08-17T12:00:01.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          initialAssignmentId="assignment-science"
+          onClose={onClose}
+        />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Choose photos — assignment"), {
+      target: { files: [photo("homework.jpg")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
+    expect(await screen.findByText("Saved to Science", {}, { timeout: 3000 })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Understand this problem" }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/study-lab?classId=science&captureId=durable-capture-row-id&assignmentId=assignment-science&format=practice&intent=assignment-help",
+    );
+    expect(screen.getByTestId("location")).not.toHaveTextContent("local-attempt-id");
+  });
+
   it("preserves the class supplied by a class-scoped capture action", () => {
     mocks.classes = [math, science];
     mocks.loading = false;
@@ -757,7 +917,7 @@ describe("CaptureFlow class memory and next action", () => {
     expect(context.topic ?? "").toBe("");
   });
 
-  it("keeps one context for a multi-photo homework capture and never retypes the assignment", () => {
+  it("requires a real assignment target before saving a global homework capture", () => {
     render(
       <MemoryRouter>
         <CaptureFlow open initialKind="scan-assignment" initialClassId="science" onClose={vi.fn()} />
@@ -765,7 +925,8 @@ describe("CaptureFlow class memory and next action", () => {
     );
 
     expect(screen.getByTestId("capture-context-chip")).toHaveTextContent("Science · today");
-    // Assignment name and due date are read from the photo, not typed first.
+    // The photo worker does not create assignment logistics. The student must
+    // select an existing assignment or name a new one before the durable save.
     expect(screen.queryByLabelText("Assignment name")).not.toBeInTheDocument();
 
     const library = screen.getByLabelText(/^Choose photos/) as HTMLInputElement;
@@ -775,7 +936,68 @@ describe("CaptureFlow class memory and next action", () => {
     // One context covers every page — the form never reappears per photo.
     expect(screen.getAllByTestId("capture-context-chip")).toHaveLength(1);
     expect(screen.queryByTestId("capture-class-question")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save assignment/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose an assignment or add its name" }));
+    fireEvent.change(screen.getByLabelText("Assignment name"), {
+      target: { value: "Chapter 4 homework" },
+    });
     expect(screen.getByRole("button", { name: /save assignment/i })).toBeEnabled();
+  });
+
+  it("surfaces assignment review immediately when an in-place retry finishes", async () => {
+    vi.spyOn(captureProcessor, "commitCapture").mockResolvedValueOnce({
+      id: "local-attempt-id",
+      captureId: "durable-capture-row-id",
+      materialIds: ["material-1"],
+      kind: "scan-assignment",
+      context: {
+        classId: "science",
+        date: "2026-08-17",
+        assignmentId: "assignment-science",
+      },
+      createdAt: "2026-08-17T12:00:00.000Z",
+      keyConcepts: [],
+      summary: "Assignment saved",
+      flashcardCount: 0,
+      processingStatus: "failed",
+      processingMessage: "The photo is saved, but reading failed.",
+    });
+    const retry = vi.spyOn(capturePersistence, "retryCaptureImagesWithResult").mockResolvedValueOnce({
+      processingStatus: "ready",
+      practiceSource: {
+        status: "needs_review",
+        text: "What is 14% of 50?",
+        version: 1,
+        hash: null,
+        confirmedAt: null,
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <CaptureFlow
+          open
+          initialKind="scan-assignment"
+          initialClassId="science"
+          initialAssignmentId="assignment-science"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("Choose photos — assignment"), {
+      target: { files: [photo("homework.jpg")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
+
+    expect(await screen.findByRole("button", { name: "Retry processing" }, { timeout: 3000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry processing" }));
+
+    expect(await screen.findByText("Check the problem")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+      "What is 14% of 50?",
+    );
+    expect(retry).toHaveBeenCalledWith("durable-capture-row-id", ["material-1"]);
   });
 
   it("remembers a switched class only after the capture actually saves", async () => {
@@ -818,6 +1040,48 @@ describe("CaptureFlow class memory and next action", () => {
     fireEvent.click(screen.getByRole("button", { name: /practice this now/i }));
     expect(onPractice).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: /save for later/i })).toBeInTheDocument();
+  });
+
+  it("requires assignment OCR review before offering the tutor action", () => {
+    render(
+      <MemoryRouter>
+        <CaptureDoneSummary
+          sample={false}
+          result={{
+            id: "capture-1",
+            captureId: "capture-row-1",
+            kind: "scan-assignment",
+            context: {
+              classId: "science",
+              date: "2026-08-13",
+              assignmentId: "assignment-science",
+            },
+            createdAt: "2026-08-13T12:00:00.000Z",
+            keyConcepts: ["Percent of a number"],
+            summary: "Assignment saved",
+            flashcardCount: 0,
+            processingStatus: "ready",
+            practiceSource: {
+              status: "needs_review",
+              text: "What is 14% of 50?",
+              version: 1,
+              hash: null,
+              confirmedAt: null,
+            },
+          }}
+          className="Science"
+          onClose={vi.fn()}
+          onOpenClass={vi.fn()}
+          onPractice={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Check the problem")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+      "What is 14% of 50?",
+    );
+    expect(screen.queryByRole("button", { name: "Understand this problem" })).not.toBeInTheDocument();
   });
 });
 

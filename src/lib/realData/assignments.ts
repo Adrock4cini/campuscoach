@@ -106,7 +106,12 @@ export async function updateAssignment(id: string, patch: Partial<RealAssignment
 }
 
 export async function deleteAssignment(id: string): Promise<boolean> {
-  const { error } = await supabase.from("assignments").delete().eq("id", id);
+  // Student-facing deletion is archival. A hard delete would null the capture
+  // link and destroy the boundary needed to audit confirmed assignment help.
+  const { error } = await supabase
+    .from("assignments")
+    .update({ source_archived_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) {
     console.warn("[assignments:delete]", error);
     return false;

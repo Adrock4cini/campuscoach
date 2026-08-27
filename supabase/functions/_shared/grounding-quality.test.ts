@@ -14,6 +14,9 @@ describe("grounding source quality", () => {
 
   it.each([
     "2+2=4",
+    "14% of 50",
+    "What is 14% of 50?",
+    "$80 jacket 25% off",
     "Mitosis has four stages.",
     "Professor said mitosis will be on the test.",
   ])("accepts concrete academic evidence: %s", (source) => {
@@ -27,6 +30,14 @@ describe("OCR furniture and heading fragments", () => {
   it("rejects an OCR heading with publisher furniture as a usable fact", () => {
     expect(isNonExplanatoryFragment(heading)).toBe(true);
     expect(assessSourceSufficiency(heading).sufficient).toBe(false);
+  });
+
+  it.each([
+    "© Teacher example: 14% of 50",
+    "Page 159: 14% of 50",
+  ])("does not let a numeric substring turn source furniture into a fact: %s", (source) => {
+    expect(isNonExplanatoryFragment(source)).toBe(true);
+    expect(assessSourceSufficiency(source).sufficient).toBe(false);
   });
 
   it("flags publisher furniture even inside a short answer choice", () => {

@@ -73,7 +73,7 @@ describe("extract-concepts claim lifecycle", () => {
   it("repairs an already-extracted capture to ready without calling the AI again", () => {
     const reuseBlock = extractorSource.slice(
       extractorSource.indexOf("if (existingConcepts?.length)"),
-      extractorSource.indexOf("// Only one request may send this capture"),
+      extractorSource.indexOf("// Only one request may process and persist this capture"),
     );
     expect(reuseBlock).toMatch(/processing_status: "ready"/);
     expect(reuseBlock).toMatch(/concept_extraction_claim_id: null/);
@@ -114,12 +114,14 @@ describe("client capture recovery", () => {
     await expect(retryCaptureProcessing("capture-1")).resolves.toBe("processing");
   });
 
-  it("marks the capture failed when the extractor errors, so the state is terminal", async () => {
+  it("leaves terminal failure ownership to the server when the extractor errors", async () => {
     mocks.invoke.mockResolvedValue({ data: null, error: new Error("boom") });
     const { retryCaptureProcessing } = await import("@/lib/supabase/capturePersistence");
 
     await expect(retryCaptureProcessing("capture-1")).rejects.toThrow();
-    expect(mocks.updates.at(-1)).toEqual({ processing_status: "failed" });
+    // Browser capture UPDATE is intentionally revoked. The Edge worker owns
+    // the processing claim and is responsible for releasing it as failed.
+    expect(mocks.updates).toEqual([]);
   });
 
   it("retries an image capture through the OCR function instead of the extractor", async () => {

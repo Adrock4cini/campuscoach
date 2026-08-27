@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => ({
   updateUser: vi.fn(),
   signOut: vi.fn(),
   toastError: vi.fn(),
+  recovering: false,
   user: { id: "student", user_metadata: {} } as { id: string; user_metadata: Record<string, unknown> } | null,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: mocks.user, loading: false, signOut: mocks.signOut }),
+  useAuth: () => ({ user: mocks.user, loading: false, recovering: mocks.recovering, signOut: mocks.signOut }),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -26,6 +27,7 @@ describe("family beta agreement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    mocks.recovering = false;
     mocks.user = { id: "student", user_metadata: {} };
     mocks.updateUser.mockResolvedValue({ data: { user: mocks.user }, error: null });
     mocks.signOut.mockResolvedValue(undefined);
@@ -73,6 +75,15 @@ describe("family beta agreement", () => {
 
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Login")).toBeInTheDocument();
+  });
+
+  it("does not send a temporarily unreadable account to signup", () => {
+    mocks.user = null;
+    mocks.recovering = true;
+    renderAgreement();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Reconnecting to your account");
+    expect(screen.queryByText("Login")).not.toBeInTheDocument();
   });
 });
 

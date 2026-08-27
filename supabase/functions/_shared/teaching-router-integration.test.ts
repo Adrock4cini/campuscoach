@@ -37,4 +37,14 @@ describe("generate-artifact teaching route adapter", () => {
     expect(result.taskKind).toBe("memorize-terms");
     expect(result.preferredStrategyId).toBe("familiar-bridge");
   });
+
+  it("does not let a logistics-shaped topic label override grounded content", () => {
+    const result = decideArtifactTeachingRoute({
+      concepts: [{ id: "c1", name: "Maryland capital", examples: null }],
+      sourceExcerptByConcept: new Map([["c1", "Maryland — Annapolis"]]),
+      topic: "Test Friday — solve every review problem",
+    });
+    expect(result.route.kind).toBe("memorize-fact");
+    expect(result.taskKind).toBe("memorize-terms");
+  });
 });

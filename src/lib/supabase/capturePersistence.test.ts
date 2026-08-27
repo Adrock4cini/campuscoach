@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaptureResult } from "@/lib/capture/types";
 import {
   persistCaptureResult,
+  retryCaptureConcepts,
+  retryCaptureProcessing,
   selectTrustworthyProcessedContent,
 } from "./capturePersistence";
+import { EDGE_FUNCTION_TIMEOUT_MS } from "./invokeEdgeFunction";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -79,9 +82,29 @@ describe("real capture processing integrity", () => {
     }));
 
     mocks.from.mockImplementation((table: string) => {
+      if (table === "classes") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                is: () => ({
+                  maybeSingle: async () => ({ data: { id: "class-uuid-1" }, error: null }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "captures") {
         return {
-          upsert: mocks.captureInsert,
+          insert: mocks.captureInsert,
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: { id: "capture-1" }, error: null }),
+              }),
+            }),
+          }),
           update: (value: unknown) => ({
             eq: () => ({
               eq: async () => mocks.captureUpdate(value),
@@ -107,8 +130,10 @@ describe("real capture processing integrity", () => {
             eq: () => ({
               eq: () => ({
                 eq: () => ({
-                  is: () => ({
-                    maybeSingle: async () => ({ data: { id: "assignment-new" }, error: null }),
+                  eq: () => ({
+                    is: () => ({
+                      maybeSingle: async () => ({ data: { id: "assignment-new" }, error: null }),
+                    }),
                   }),
                 }),
               }),
@@ -126,7 +151,7 @@ describe("real capture processing integrity", () => {
     });
   });
 
-  it("marks the durable capture failed when the extractor returns an error", async () => {
+  it("reports failure locally while the server owns durable capture status", async () => {
     mocks.invoke.mockResolvedValue({
       data: null,
       error: new Error("Edge Function returned a non-2xx status code"),
@@ -137,12 +162,12 @@ describe("real capture processing integrity", () => {
 
     expect(mocks.captureInsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        class_id: "class-uuid-1",
         processing_status: "processing",
         captured_on: "2026-07-20",
       }),
-      { onConflict: "user_id,local_id" },
     );
-    expect(mocks.captureUpdate).toHaveBeenCalledWith({ processing_status: "failed" });
+    expect(mocks.captureUpdate).not.toHaveBeenCalled();
     expect(capture.processingStatus).toBe("failed");
     expect(capture.processingMessage).toMatch(/note is safe/i);
   });
@@ -180,6 +205,7 @@ describe("real capture processing integrity", () => {
     expect(mocks.createAssignment).toHaveBeenCalledWith("user-1", expect.objectContaining({
       title: "Chapter 4 flash cards",
       clientClassId: "math",
+      classUuid: "class-uuid-1",
     }));
     expect(mocks.captureDelete).toHaveBeenCalledWith("user_id", "user-1");
     expect(mocks.signalDelete).toHaveBeenCalledWith("source_id", "capture-1");
@@ -218,6 +244,41 @@ describe("real capture processing integrity", () => {
     expect(mocks.assignmentDeleteById).not.toHaveBeenCalled();
   });
 
+  it("returns the server review candidate for a typed assignment capture", async () => {
+    mocks.createAssignment.mockResolvedValue({ id: "assignment-new" });
+    mocks.invoke.mockResolvedValue({
+      data: {
+        ok: true,
+        concepts: [],
+        practiceSourceStatus: "needs_review",
+        practiceSourceText: "What is 14% of 50?",
+        practiceSourceVersion: 1,
+      },
+      error: null,
+    });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentTitle = "Percent practice";
+    capture.context.text = "What is 14% of 50?";
+
+    await expect(persistCaptureResult(capture, [], "user-1")).resolves.toBe("capture-1");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("extract-concepts", expect.objectContaining({
+      body: expect.objectContaining({
+        captureId: "capture-1",
+        kind: "scan-assignment",
+        rawText: "What is 14% of 50?",
+      }),
+      signal: expect.any(AbortSignal),
+      timeout: EDGE_FUNCTION_TIMEOUT_MS,
+    }));
+    expect(capture.practiceSource).toEqual(expect.objectContaining({
+      status: "needs_review",
+      text: "What is 14% of 50?",
+      version: 1,
+    }));
+  });
+
   it("reconciles a dropped capture response with the same assignment and local ids", async () => {
     mocks.createAssignment.mockResolvedValue({ id: "local-1" });
     mocks.captureInsert
@@ -228,7 +289,7 @@ describe("real capture processing integrity", () => {
       }))
       .mockImplementationOnce(() => ({
         select: () => ({
-          maybeSingle: async () => ({ data: { id: "capture-1" }, error: null }),
+          maybeSingle: async () => ({ data: null, error: { code: "23505", message: "duplicate" } }),
         }),
       }));
     const capture = result();
@@ -251,12 +312,10 @@ describe("real capture processing integrity", () => {
     expect(mocks.captureInsert).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ user_id: "user-1", local_id: "local-1" }),
-      { onConflict: "user_id,local_id" },
     );
     expect(mocks.captureInsert).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ user_id: "user-1", local_id: "local-1" }),
-      { onConflict: "user_id,local_id" },
     );
   });
 
@@ -274,7 +333,6 @@ describe("real capture processing integrity", () => {
 
     expect(mocks.captureInsert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: "user-1", local_id: "local-1" }),
-      { onConflict: "user_id,local_id" },
     );
     expect(mocks.signalInsert).not.toHaveBeenCalled();
     expect(mocks.invoke).not.toHaveBeenCalled();
@@ -295,5 +353,203 @@ describe("real capture processing integrity", () => {
         created_at: "2026-07-20T10:01:00.000Z",
       },
     ])?.summary).toBe("Grounded summary");
+  });
+
+  it("retries every assignment photo through image processing even when OCR text exists", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "captures") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: "capture-assignment",
+                    kind: "scan-assignment",
+                    raw_text: "What is 14% of 50?",
+                    client_class_id: "math",
+                    topic: "Percents",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+          update: (value: unknown) => ({
+            eq: () => ({
+              eq: async () => mocks.captureUpdate(value),
+            }),
+          }),
+        };
+      }
+      if (table === "materials") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                order: async () => ({
+                  data: [{ id: "material-1" }, { id: "material-2" }],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    mocks.invoke.mockResolvedValue({
+      data: {
+        ok: true,
+        practiceSourceStatus: "needs_review",
+        practiceSourceText: "What is 14% of 50?",
+        practiceSourceVersion: 2,
+      },
+      error: null,
+    });
+
+    await expect(retryCaptureProcessing("capture-assignment")).resolves.toBe("ready");
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
+      body: {
+        captureId: "capture-assignment",
+        materialIds: ["material-1", "material-2"],
+      },
+      signal: expect.any(AbortSignal),
+      timeout: EDGE_FUNCTION_TIMEOUT_MS,
+    }));
+    expect(mocks.invoke).not.toHaveBeenCalledWith("extract-concepts", expect.anything());
+  });
+
+  it("keeps non-assignment text retries on concept extraction", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== "captures") throw new Error(`Unexpected table: ${table}`);
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  id: "capture-note",
+                  kind: "quick-note",
+                  raw_text: "A debit increases Cash.",
+                  client_class_id: "accounting",
+                  topic: "Debits",
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        update: (value: unknown) => ({
+          eq: () => ({
+            eq: async () => mocks.captureUpdate(value),
+          }),
+        }),
+      };
+    });
+    mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+
+    await expect(retryCaptureProcessing("capture-note")).resolves.toBe("ready");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("extract-concepts", expect.objectContaining({
+      body: expect.objectContaining({
+        captureId: "capture-note",
+        kind: "quick-note",
+        rawText: "A debit increases Cash.",
+      }),
+    }));
+    expect(mocks.invoke).not.toHaveBeenCalledWith("process-capture-images", expect.anything());
+  });
+
+  it("routes typed assignments without images through the safe text review branch", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "captures") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: "capture-typed-assignment",
+                    kind: "scan-assignment",
+                    raw_text: "What is 14% of 50?",
+                    client_class_id: "math",
+                    topic: "Percents",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+          update: (value: unknown) => ({
+            eq: () => ({
+              eq: async () => mocks.captureUpdate(value),
+            }),
+          }),
+        };
+      }
+      if (table === "materials") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                order: async () => ({ data: [], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    mocks.invoke.mockResolvedValue({
+      data: {
+        ok: true,
+        concepts: [],
+        practiceSourceStatus: "needs_review",
+        practiceSourceText: "What is 14% of 50?",
+        practiceSourceVersion: 2,
+      },
+      error: null,
+    });
+
+    await expect(retryCaptureProcessing("capture-typed-assignment")).resolves.toBe("ready");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("extract-concepts", expect.objectContaining({
+      body: expect.objectContaining({
+        captureId: "capture-typed-assignment",
+        kind: "scan-assignment",
+        rawText: "What is 14% of 50?",
+      }),
+    }));
+    expect(mocks.invoke).not.toHaveBeenCalledWith("process-capture-images", expect.anything());
+  });
+
+  it("allows direct assignment text retries only through the server review endpoint", async () => {
+    mocks.invoke.mockResolvedValue({
+      data: {
+        ok: true,
+        concepts: [],
+        practiceSourceStatus: "needs_review",
+        practiceSourceText: "What is 14% of 50?",
+        practiceSourceVersion: 2,
+      },
+      error: null,
+    });
+
+    await expect(retryCaptureConcepts({
+      id: "capture-assignment",
+      kind: "scan-assignment",
+      clientClassId: "math",
+      rawText: "What is 14% of 50?",
+    })).resolves.toBe("ready");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("extract-concepts", expect.objectContaining({
+      body: expect.objectContaining({
+        captureId: "capture-assignment",
+        kind: "scan-assignment",
+      }),
+    }));
   });
 });

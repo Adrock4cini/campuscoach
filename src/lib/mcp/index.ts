@@ -1,12 +1,11 @@
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import listClasses from "./tools/list-classes";
 import listUpcoming from "./tools/list-upcoming";
-import getClassIntelligence from "./tools/get-class-intelligence";
 
 /**
  * Campus Companion MCP server.
  *
- * Exposes read-only academic context (classes, deadlines, peer intelligence)
+ * Exposes read-only academic context (classes and deadlines)
  * to any MCP-capable assistant so students can chat with their coursework
  * from ChatGPT / Claude / Cursor.
  *
@@ -25,12 +24,10 @@ export default defineMcp({
     "Tools for Campus Companion, an AI academic OS for college students (ADHD-friendly). " +
     "Use `list_classes` to discover the student's current classes and readiness. " +
     "Use `list_upcoming_deadlines` for assignments and exams coming due. " +
-    "Use `get_class_intelligence` for peer-aggregated high-yield topics on a specific class. " +
     "All tools are read-only.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [listClasses, listUpcoming, getClassIntelligence],
+  tools: [listClasses, listUpcoming],
 });
-

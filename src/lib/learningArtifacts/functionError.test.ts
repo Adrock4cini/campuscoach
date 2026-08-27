@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeFunctionError } from "./functionError";
+import { describeFunctionError, readFunctionErrorDetails } from "./functionError";
 
 describe("describeFunctionError", () => {
   it("reads the edge-function response body instead of showing non-2xx", async () => {
@@ -20,6 +20,23 @@ describe("describeFunctionError", () => {
 
     await expect(describeFunctionError({ context }))
       .resolves.toContain("existing study set is still safe");
+  });
+});
+
+describe("readFunctionErrorDetails", () => {
+  it("exposes machine-readable retry guidance without matching error prose", async () => {
+    const context = new Response(JSON.stringify({
+      error: "Build a fresh check.",
+      reason: "challenge_unavailable",
+      retryable: false,
+    }), { status: 409, headers: { "Content-Type": "application/json" } });
+
+    await expect(readFunctionErrorDetails({ message: "non-2xx", context })).resolves.toEqual({
+      message: "Build a fresh check.",
+      reason: "challenge_unavailable",
+      retryable: false,
+      status: 409,
+    });
   });
 });
 

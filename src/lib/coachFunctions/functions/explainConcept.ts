@@ -51,6 +51,7 @@ export const explainConcept: CoachFunctionDefinition<Input, ExplainConceptPayloa
       .select("id, name, definition, client_class_id, professor_emphasis")
       .eq("id", input.conceptId)
       .eq("user_id", ctx.userId)
+      .is("retired_at", null)
       .maybeSingle();
     if (cErr || !concept) {
       return {

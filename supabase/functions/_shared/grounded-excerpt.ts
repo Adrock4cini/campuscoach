@@ -1,3 +1,5 @@
+import { extractAssignmentTutorSource } from "./assignment-tutor.ts";
+
 export const MAX_GROUNDED_EXCERPT_CHARS = 360;
 
 export interface GroundedExcerptConcept {
@@ -6,6 +8,74 @@ export interface GroundedExcerptConcept {
   definition?: string | null;
   examples?: string[] | null;
   capture_id?: string | null;
+}
+
+export interface CaptureGroundingSource {
+  kind: string | null;
+  // Kept in the policy input so tests can prove that assignment OCR is never
+  // selected. The assignment branch below intentionally never reads it.
+  raw_text?: string | null;
+  practice_source_status?: string | null;
+  practice_source_text?: string | null;
+  practice_source_version?: number | null;
+  practice_source_hash?: string | null;
+  practice_concept_id?: string | null;
+}
+
+export interface CaptureGroundingSourceRow extends CaptureGroundingSource {
+  id: string;
+}
+
+export type CaptureGroundingDecision =
+  | { kind: "ordinary-capture" }
+  | { kind: "assignment-confirmation-required" }
+  | {
+      kind: "confirmed-assignment";
+      sourceText: string;
+      sourceVersion: number;
+      sourceHash: string;
+      practiceConceptId: string;
+    };
+
+/**
+ * Selects the only source that may ground a photographed assignment.
+ *
+ * `raw_text` is immutable OCR evidence, not student-confirmed academic text.
+ * Callers must fail closed for `assignment-confirmation-required`; they must
+ * never fall back to OCR merely because an artifact is not the Tutor kind.
+ */
+export function selectCaptureGroundingSource(
+  capture: CaptureGroundingSource,
+): CaptureGroundingDecision {
+  if (capture.kind !== "scan-assignment") return { kind: "ordinary-capture" };
+
+  const sourceText = capture.practice_source_text;
+  const sourceVersion = capture.practice_source_version;
+  const sourceHash = capture.practice_source_hash;
+  const practiceConceptId = capture.practice_concept_id;
+  if (
+    capture.practice_source_status !== "confirmed"
+    || typeof sourceText !== "string"
+    || !sourceText.length
+    || sourceText.length > MAX_GROUNDED_EXCERPT_CHARS
+    || sourceText !== sourceText.trim()
+    || !Number.isInteger(sourceVersion)
+    || (sourceVersion as number) < 1
+    || typeof sourceHash !== "string"
+    || !/^[0-9a-f]{64}$/.test(sourceHash)
+    || typeof practiceConceptId !== "string"
+    || !practiceConceptId
+  ) {
+    return { kind: "assignment-confirmation-required" };
+  }
+
+  return {
+    kind: "confirmed-assignment",
+    sourceText,
+    sourceVersion: sourceVersion as number,
+    sourceHash,
+    practiceConceptId,
+  };
 }
 
 const STOP_WORDS = new Set([
@@ -94,6 +164,22 @@ function symbolicFacts(concept: GroundedExcerptConcept) {
   );
 }
 
+function assignmentTutorProblemKey(value: string) {
+  const extracted = extractAssignmentTutorSource(value);
+  const concept = extracted?.concepts[0];
+  return concept ? comparisonKey(`${concept.name}|${concept.definition}`) : null;
+}
+
+function solvableProblemKeys(concept: GroundedExcerptConcept) {
+  const keys = new Set<string>();
+  for (const candidate of [concept.name, concept.definition, ...(concept.examples ?? [])]) {
+    if (!candidate) continue;
+    const key = assignmentTutorProblemKey(candidate);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
 function normalizedLexicalText(value: string) {
   return (value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(" ");
 }
@@ -108,9 +194,12 @@ function excerptRelevance(
   conceptName: string,
   terms: Set<string>,
   facts: Set<string>,
+  problems: Set<string>,
 ) {
   const compactChunk = chunk.replace(/[xX*]/g, "×").replace(/\//g, "÷").replace(/\s+/g, "");
   const symbolicMatch = [...facts].some((fact) => compactChunk.includes(fact));
+  const chunkProblemKey = assignmentTutorProblemKey(chunk);
+  const problemMatch = Boolean(chunkProblemKey && problems.has(chunkProblemKey));
   const words = new Set(chunk.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
   let termOverlap = 0;
   for (const term of terms) if (words.has(term)) termOverlap += 1;
@@ -119,8 +208,8 @@ function excerptRelevance(
     normalizedLexicalText(conceptName),
   );
   return {
-    relevant: symbolicMatch || conceptNameMatch || termOverlap >= 2,
-    score: symbolicMatch ? 100 : conceptNameMatch ? Math.max(50, termOverlap) : termOverlap,
+    relevant: symbolicMatch || problemMatch || conceptNameMatch || termOverlap >= 2,
+    score: symbolicMatch ? 100 : problemMatch ? 90 : conceptNameMatch ? Math.max(50, termOverlap) : termOverlap,
   };
 }
 
@@ -140,16 +229,20 @@ export function buildGroundedExcerptMap(
   const chunkLimit = Math.max(80, Math.min(220, boundedMax));
 
   for (const concept of concepts) {
+    // One concept may have several occurrence records. Keep the first
+    // grounded occurrence selected by the caller's deterministic ordering.
+    if (result.has(concept.id)) continue;
     if (!concept.capture_id) continue;
     const raw = rawSourceByCapture.get(concept.capture_id);
     if (!raw?.trim()) continue;
     const terms = meaningfulTerms(concept);
     const facts = symbolicFacts(concept);
+    const problems = solvableProblemKeys(concept);
     const ranked = sentenceChunks(raw, chunkLimit)
       .map((chunk, index) => ({
         chunk,
         index,
-        ...excerptRelevance(chunk, concept.name, terms, facts),
+        ...excerptRelevance(chunk, concept.name, terms, facts, problems),
       }))
       // A same-capture sentence is not automatically evidence for every
       // extracted concept. Accept an exact symbolic fact, the full normalized
@@ -174,6 +267,46 @@ export function buildGroundedExcerptMap(
     if (selected.length) result.set(concept.id, selected.join(" "));
   }
   return result;
+}
+
+/**
+ * Applies capture source policy before matching source excerpts to concepts.
+ * Mixed class/recent study deliberately excludes assignment photos entirely:
+ * their confirmed problem is Tutor-only, while their OCR is never gradeable.
+ * A concept shared with notes/material may still use that independent source.
+ */
+export function buildCapturePolicyGroundedExcerptMap(
+  concepts: GroundedExcerptConcept[],
+  captures: CaptureGroundingSourceRow[],
+  options: {
+    captureIdsByConcept?: ReadonlyMap<string, readonly string[]>;
+    maxChars?: number;
+  } = {},
+) {
+  const sourceByCapture = new Map<string, string>();
+
+  for (const capture of captures) {
+    if (capture.kind === "scan-assignment") continue;
+    const raw = capture.raw_text?.trim();
+    if (raw) sourceByCapture.set(capture.id, raw);
+  }
+
+  const sourceOccurrences = concepts.flatMap((concept) => {
+    const evidenceCaptureIds = options.captureIdsByConcept?.get(concept.id);
+    const captureIds = evidenceCaptureIds?.length
+      ? evidenceCaptureIds
+      : concept.capture_id
+        ? [concept.capture_id]
+        : [];
+    return captureIds
+      .filter((captureId) => sourceByCapture.has(captureId))
+      .map((captureId) => ({ ...concept, capture_id: captureId }));
+  });
+  return buildGroundedExcerptMap(
+    sourceOccurrences,
+    sourceByCapture,
+    options.maxChars ?? MAX_GROUNDED_EXCERPT_CHARS,
+  );
 }
 
 /** Returns an exact, bounded fact for a mnemonic to preserve verbatim. */

@@ -10,6 +10,10 @@
  * No table, hook, or component contract changes are required.
  */
 
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../../../supabase/functions/_shared/artifact-version";
+
+export { CURRENT_ARTIFACT_PROMPT_VERSION };
+
 export type ArtifactKind =
   | "flashcards"
   | "multiple_choice"
@@ -25,8 +29,6 @@ export type ArtifactKind =
 // Keep the client honest about which server generator produced a set. Older
 // artifacts can still exist in the disposable table after a deployment, but
 // students should refresh them before using them to update mastery.
-export const CURRENT_ARTIFACT_PROMPT_VERSION = "v9-study-intelligence";
-
 // Temporary compatibility alias for any older imports. New consumers should
 // use the artifact-wide constant because freshness applies to every study mode.
 export const CURRENT_FLASHCARD_PROMPT_VERSION = CURRENT_ARTIFACT_PROMPT_VERSION;
@@ -77,7 +79,33 @@ export interface MatchingPayload {
     sourceExcerpt?: string;
   }>;
 }
-export interface PracticePayload { problems: Array<{ prompt: string; hint: string; solution: string }> }
+export interface GradedTutorProblem {
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  rationale: string;
+}
+
+export interface PracticePayload {
+  problems: Array<{
+    id: string;
+    conceptId: string;
+    conceptName: string;
+    sourceExcerpt: string;
+    routeKind: "solve-problems";
+    original: GradedTutorProblem;
+    /** A next-step cue that never contains the original answer. */
+    hint: string;
+    /** A different analogous problem, fully worked. */
+    walkthrough: {
+      prompt: string;
+      steps: string[];
+      answer: string;
+    };
+    /** A changed-value problem; this independent attempt is mastery evidence. */
+    transfer: GradedTutorProblem;
+  }>;
+}
 export interface StudyGuidePayload { sections: Array<{ heading: string; body: string }> }
 export interface CheatSheetPayload { bullets: string[] }
 export interface Eli5Payload { text: string }

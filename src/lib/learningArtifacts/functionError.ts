@@ -6,7 +6,16 @@ interface FunctionInvokeError {
 interface ErrorBody {
   error?: string;
   details?: string;
+  reason?: string;
+  retryable?: boolean;
   status?: number;
+}
+
+export interface FunctionErrorDetails {
+  message: string;
+  reason: string | null;
+  retryable: boolean | null;
+  status: number | null;
 }
 
 const FRIENDLY_ERRORS: Record<string, string> = {
@@ -21,6 +30,40 @@ export interface DescribeFunctionErrorOptions {
    * means "this capture isn't ready yet", not "you have no notes".
    */
   scope?: "capture";
+}
+
+/**
+ * Reads the structured body attached to a Supabase FunctionsHttpError.
+ * Callers that own recovery behavior can distinguish an idempotent retry from
+ * a terminal conflict without matching student-facing prose.
+ */
+export async function readFunctionErrorDetails(error: unknown): Promise<FunctionErrorDetails> {
+  const candidate = error && typeof error === "object"
+    ? error as FunctionInvokeError & ErrorBody
+    : null;
+  const response = candidate?.context instanceof Response ? candidate.context : null;
+  let body: ErrorBody | null = null;
+
+  if (response) {
+    try {
+      body = await response.clone().json() as ErrorBody;
+    } catch {
+      body = null;
+    }
+  }
+
+  return {
+    message: body?.error?.trim()
+      || candidate?.message?.trim()
+      || "The request could not be completed.",
+    reason: typeof body?.reason === "string"
+      ? body.reason
+      : typeof candidate?.reason === "string" ? candidate.reason : null,
+    retryable: typeof body?.retryable === "boolean"
+      ? body.retryable
+      : typeof candidate?.retryable === "boolean" ? candidate.retryable : null,
+    status: response?.status ?? (typeof candidate?.status === "number" ? candidate.status : null),
+  };
 }
 
 /**

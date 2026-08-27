@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,11 @@ import {
 } from "@/lib/legal/familyBeta";
 
 export default function Signup() {
+  const { user, loading, recovering } = useAuth();
+  if (loading || recovering) {
+    return <div role="status" className="py-20 text-center text-sm text-muted-foreground">Reconnecting to your account…</div>;
+  }
+  if (user) return <Navigate to="/" replace />;
   return publicSignupsEnabled() ? <OpenBetaSignup /> : <ClosedBetaSignup />;
 }
 
@@ -69,7 +75,11 @@ function OpenBetaSignup() {
       if (result.error) {
         clearPendingOAuthAgreement();
         toast.error("Google sign-in failed", { description: String(result.error) });
+        return;
       }
+      // The OAuth bridge may either leave for the provider or establish the
+      // Supabase session in-place. Do not strand an in-place success here.
+      if (!result.redirected) nav("/", { replace: true });
     } catch {
       clearPendingOAuthAgreement();
       toast.error("Google sign-in failed", { description: "Check your connection and try again." });

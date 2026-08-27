@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => {
-      if (table === "concepts") {
+      if (table === "concept_capture_evidence") {
         const chain = {
           select: () => chain,
           eq: () => Promise.resolve({ count: state.conceptCount, error: state.conceptError }),
@@ -48,12 +48,12 @@ describe("checkCaptureConceptReadiness", () => {
       .resolves.toEqual({ state: "ready", conceptCount: 3 });
   });
 
-  it("repairs a stale processing marker when concepts already exist", async () => {
+  it("does not expose concepts until the server finishes the active capture claim", async () => {
     state.conceptCount = 2;
     state.captureStatus = "processing";
     await expect(checkCaptureConceptReadiness("capture-1"))
-      .resolves.toEqual({ state: "ready", conceptCount: 2 });
-    expect(state.updates).toEqual([{ processing_status: "ready" }]);
+      .resolves.toEqual({ state: "processing" });
+    expect(state.updates).toEqual([]);
   });
 
   it("reports processing while extraction is still running", async () => {

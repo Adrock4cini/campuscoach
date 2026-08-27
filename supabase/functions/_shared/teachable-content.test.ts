@@ -17,6 +17,7 @@ const LOGISTICS = "Test Friday — covers fractions, decimals, and percentages."
 const CONFUSION = "Student note: I never know whether to multiply or divide.";
 const METADATA = "P9 mobile note";
 const PERCENT_OF = "14% of 50 = ?";
+const PLAIN_PERCENT_OF = "14% of 50";
 const DISCOUNT = "$80 jacket 25% off";
 const REAL = "A percent is a ratio that compares a number to 100.";
 
@@ -32,6 +33,7 @@ describe("teachable-content gate", () => {
 
   it("keeps real class explanations teachable", () => {
     expect(isTeachableAnswer(REAL)).toBe(true);
+    expect(isTeachableAnswer(PLAIN_PERCENT_OF)).toBe(true);
     expect(isTeachableConceptName("Percent of a Number")).toBe(true);
     expect(isTeachableConceptName(CONFUSION)).toBe(false);
   });

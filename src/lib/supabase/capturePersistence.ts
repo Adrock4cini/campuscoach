@@ -29,6 +29,12 @@ import {
   validateCaptureImages,
 } from "@/lib/capture/imageCapture";
 import { todayDateKey } from "@/lib/calendar/dateKey";
+import {
+  assignmentPracticeSourceFromCaptureRow,
+  assignmentPracticeSourceFromUnknown,
+  type AssignmentPracticeSource,
+} from "@/lib/assignments/assignmentPracticeSource";
+import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
 
 const CAPTURE_SOURCE_BUCKET = "capture-sources";
 
@@ -40,6 +46,7 @@ export interface CapturePersistInput {
   localId: string;
   kind: CaptureKind;
   clientClassId: string;
+  classUuid: string;
   topic?: string;
   chapter?: string;
   capturedOn?: string;      // ISO date
@@ -65,6 +72,7 @@ export interface CampusBrainSignalInput {
 export interface PersistedCapture {
   id: string;
   kind: string;
+  assignmentId: string | null;
   clientClassId: string | null;
   topic: string | null;
   processingStatus: string;
@@ -74,6 +82,7 @@ export interface PersistedCapture {
   summary: string | null;
   keyConcepts: string[];
   rawText: string | null;
+  practiceSource?: AssignmentPracticeSource;
   materials: PersistedMaterial[];
 }
 
@@ -144,6 +153,25 @@ async function rollbackCreatedAssignment(
   }
 }
 
+async function resolveCaptureClass(
+  clientClassId: string,
+  userId: string,
+): Promise<string> {
+  assertActiveCaptureOwner(userId);
+  const { data, error } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("client_class_id", clientClassId)
+    .is("source_archived_at", null)
+    .maybeSingle();
+  assertActiveCaptureOwner(userId);
+  if (error || !data?.id) {
+    throw new Error("That class is no longer available.");
+  }
+  return data.id;
+}
+
 /* ------------------------------------------------------------------ */
 /* Writes                                                              */
 /* ------------------------------------------------------------------ */
@@ -160,25 +188,41 @@ export async function saveCapture(
 ): Promise<string | null> {
   try {
     assertActiveCaptureOwner(userId);
-    const { data, error } = await supabase
+    const captureValues = {
+      user_id: userId,
+      class_id: input.classUuid,
+      client_class_id: input.clientClassId,
+      kind: input.kind,
+      topic: input.topic ?? null,
+      chapter: input.chapter ?? null,
+      captured_on: input.capturedOn ?? todayDateKey(),
+      raw_text: input.rawText ?? null,
+      processing_status: input.processingStatus ?? "ready",
+      flashcards_ready: input.flashcardsReady ?? false,
+      local_id: input.localId,
+      meta: (input.meta ?? {}) as never,
+      assignment_id: input.assignmentId ?? null,
+      exam_id: input.examId ?? null,
+    };
+    let { data, error } = await supabase
       .from("captures")
-      .upsert({
-        user_id: userId,
-        client_class_id: input.clientClassId,
-        kind: input.kind,
-        topic: input.topic ?? null,
-        chapter: input.chapter ?? null,
-        captured_on: input.capturedOn ?? todayDateKey(),
-        raw_text: input.rawText ?? null,
-        processing_status: input.processingStatus ?? "ready",
-        flashcards_ready: input.flashcardsReady ?? false,
-        local_id: input.localId,
-        meta: (input.meta ?? {}) as never,
-        assignment_id: input.assignmentId ?? null,
-        exam_id: input.examId ?? null,
-      }, { onConflict: "user_id,local_id" })
+      .insert(captureValues)
       .select("id")
       .maybeSingle();
+
+    // A lost insert response can be retried without reopening protected source
+    // fields. Reuse the already-owned row instead of issuing an UPDATE-style
+    // upsert that could roll a server-processed capture backward.
+    if (error?.code === "23505") {
+      const recovered = await supabase
+        .from("captures")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("local_id", input.localId)
+        .maybeSingle();
+      data = recovered.data;
+      error = recovered.error;
+    }
 
     assertActiveCaptureOwner(userId);
     if (error || !data) {
@@ -265,6 +309,7 @@ export async function saveCampusBrainSignal(
 interface CaptureQueryRow {
   id: string;
   kind: string;
+  assignment_id: string | null;
   client_class_id: string | null;
   topic: string | null;
   processing_status: string;
@@ -272,6 +317,11 @@ interface CaptureQueryRow {
   created_at: string;
   captured_on: string;
   raw_text: string | null;
+  practice_source_status?: unknown;
+  practice_source_text?: unknown;
+  practice_source_version?: unknown;
+  practice_source_hash?: unknown;
+  practice_source_confirmed_at?: unknown;
   processed_content:
     | ProcessedContentRow
     | ProcessedContentRow[]
@@ -318,6 +368,7 @@ function rowToCapture(row: CaptureQueryRow): PersistedCapture {
   return {
     id: row.id,
     kind: row.kind,
+    assignmentId: row.assignment_id,
     clientClassId: row.client_class_id,
     topic: row.topic,
     processingStatus: row.processing_status,
@@ -327,6 +378,10 @@ function rowToCapture(row: CaptureQueryRow): PersistedCapture {
     summary: processed?.summary ?? null,
     keyConcepts,
     rawText: row.raw_text,
+    practiceSource: assignmentPracticeSourceFromCaptureRow(
+      row as unknown as Record<string, unknown>,
+      row.kind,
+    ),
     materials: (row.materials ?? [])
       .filter((material) => !!material.storage_path)
       .map((material) => ({
@@ -382,6 +437,44 @@ export async function getRecentCaptures(
   }
 }
 
+export async function getCaptureById(captureId: string): Promise<PersistedCapture | null> {
+  try {
+    const { data, error } = await supabase
+      .from("captures")
+      .select("*, processed_content(summary, key_concepts, model, created_at), materials(id, storage_path, mime_type, original_name, page_index)")
+      .eq("user_id", getAnonUserId())
+      .eq("id", captureId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? rowToCapture(data as CaptureQueryRow) : null;
+  } catch (err) {
+    warn("getCaptureById.catch", err);
+    throw err;
+  }
+}
+
+export async function getLatestCaptureForAssignment(
+  assignmentId: string,
+): Promise<PersistedCapture | null> {
+  try {
+    const { data, error } = await supabase
+      .from("captures")
+      .select("*, processed_content(summary, key_concepts, model, created_at), materials(id, storage_path, mime_type, original_name, page_index)")
+      .eq("user_id", getAnonUserId())
+      .eq("assignment_id", assignmentId)
+      .eq("kind", "scan-assignment")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? rowToCapture(data as CaptureQueryRow) : null;
+  } catch (err) {
+    warn("getLatestCaptureForAssignment.catch", err);
+    throw err;
+  }
+}
+
 /**
  * Convenience: given a completed local `CaptureResult`, mirror it to
  * Supabase. Called from `commitCapture`. A durable insert failure returns
@@ -405,6 +498,7 @@ export async function persistCaptureResult(
   // function confirms that durable concepts and mastery rows exist.
   const hasDerivedContent = result.keyConcepts.length > 0 || result.flashcardCount > 0;
   const needsExtraction = rawText.length > 0 && !hasDerivedContent && !hasImages;
+  const classUuid = await resolveCaptureClass(result.context.classId, userId);
   let assignmentId = result.context.assignmentId ?? null;
   let createdAssignmentId: string | null = null;
   if (result.kind === "scan-assignment" && !assignmentId) {
@@ -415,6 +509,7 @@ export async function persistCaptureResult(
       id: result.id,
       title,
       clientClassId: result.context.classId,
+      classUuid,
       dueDate: result.context.assignmentDueDate ?? null,
       notes: "Created from Assignment Capture",
     });
@@ -427,6 +522,7 @@ export async function persistCaptureResult(
   try {
     await assertCaptureTargets({
       clientClassId: result.context.classId,
+      classUuid,
       assignmentId,
       examId: result.context.examId ?? null,
     }, userId);
@@ -441,6 +537,7 @@ export async function persistCaptureResult(
     localId: result.id,
     kind: result.kind,
     clientClassId: result.context.classId,
+    classUuid,
     topic: result.context.topic,
     capturedOn: result.context.date,
     rawText: result.context.text,
@@ -503,9 +600,10 @@ export async function persistCaptureResult(
     }
 
     try {
-      const imageStatus = await invokeImageProcessing(captureId, materialIds, userId);
-      result.processingStatus = imageStatus;
-      if (imageStatus === "ready") {
+      const imageResult = await invokeImageProcessing(captureId, materialIds, userId);
+      result.processingStatus = imageResult.processingStatus;
+      result.practiceSource = imageResult.practiceSource;
+      if (imageResult.processingStatus === "ready") {
         dispatchConceptsExtracted(captureId);
       } else {
         result.processingMessage = "Campus Brain is already reading these pages.";
@@ -513,7 +611,6 @@ export async function persistCaptureResult(
     } catch (err) {
       if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.process-images", err);
-      await setCaptureProcessingStatus(captureId, "failed", userId);
       result.processingStatus = "failed";
       result.processingMessage = "Your photos are private and saved, but Campus Brain couldn't finish reading them.";
     }
@@ -521,15 +618,16 @@ export async function persistCaptureResult(
 
   if (needsExtraction) {
     try {
-      const extractionStatus = await invokeConceptExtraction({
+      const extraction = await invokeConceptExtraction({
         captureId,
         clientClassId: result.context.classId,
         topic: result.context.topic ?? null,
         kind: result.kind,
         rawText,
       }, userId);
-      result.processingStatus = extractionStatus;
-      if (extractionStatus === "ready") {
+      result.processingStatus = extraction.processingStatus;
+      if (extraction.practiceSource) result.practiceSource = extraction.practiceSource;
+      if (extraction.processingStatus === "ready") {
         dispatchConceptsExtracted(captureId);
       } else {
         result.processingMessage = "Campus Brain is already working on this note.";
@@ -537,7 +635,6 @@ export async function persistCaptureResult(
     } catch (err) {
       if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.extract", err);
-      await setCaptureProcessingStatus(captureId, "failed", userId);
       result.processingStatus = "failed";
       result.processingMessage = "Your note is safe, but Campus Brain couldn't finish processing it.";
     }
@@ -550,6 +647,7 @@ export async function persistCaptureResult(
 
 async function assertCaptureTargets(input: {
   clientClassId: string;
+  classUuid: string;
   assignmentId: string | null;
   examId: string | null;
 }, userId: string): Promise<void> {
@@ -561,6 +659,7 @@ async function assertCaptureTargets(input: {
       .eq("id", input.assignmentId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
+      .eq("class_id", input.classUuid)
       .is("source_archived_at", null)
       .maybeSingle();
     assertActiveCaptureOwner(userId);
@@ -574,6 +673,7 @@ async function assertCaptureTargets(input: {
       .eq("id", input.examId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
+      .eq("class_id", input.classUuid)
       .is("source_archived_at", null)
       .maybeSingle();
     assertActiveCaptureOwner(userId);
@@ -665,17 +765,34 @@ async function invokeImageProcessing(
   captureId: string,
   materialIds: string[],
   userId?: string,
-): Promise<"processing" | "ready"> {
+): Promise<{
+  processingStatus: "processing" | "ready";
+  practiceSource: AssignmentPracticeSource;
+}> {
   if (userId) assertActiveCaptureOwner(userId);
-  const { data, error } = await supabase.functions.invoke("process-capture-images", {
+  const { data, error } = await invokeEdgeFunction("process-capture-images", {
     body: { captureId, materialIds },
   });
   if (userId) assertActiveCaptureOwner(userId);
-  const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
+  const response = data as {
+    ok?: boolean;
+    processing?: boolean;
+    error?: string;
+    message?: string;
+    practiceSource?: unknown;
+  } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Image processing failed");
   }
-  return response.processing ? "processing" : "ready";
+  return {
+    processingStatus: response.processing ? "processing" : "ready",
+    // Older servers do not return the review fields. Assignment captures then
+    // fail closed to a blank review instead of exposing Tutor immediately.
+    practiceSource: assignmentPracticeSourceFromUnknown(
+      response.practiceSource ?? response,
+      "scan-assignment",
+    ),
+  };
 }
 
 export async function createCaptureSourceUrls(
@@ -703,9 +820,12 @@ interface ConceptExtractionInput {
 async function invokeConceptExtraction(
   input: ConceptExtractionInput,
   userId?: string,
-): Promise<"processing" | "ready"> {
+): Promise<{
+  processingStatus: "processing" | "ready";
+  practiceSource?: AssignmentPracticeSource;
+}> {
   if (userId) assertActiveCaptureOwner(userId);
-  const { data, error } = await supabase.functions.invoke("extract-concepts", {
+  const { data, error } = await invokeEdgeFunction("extract-concepts", {
     body: {
       captureId: input.captureId,
       clientClassId: input.clientClassId,
@@ -716,27 +836,27 @@ async function invokeConceptExtraction(
     },
   });
   if (userId) assertActiveCaptureOwner(userId);
-  const response = data as { ok?: boolean; processing?: boolean; error?: string; message?: string } | null;
+  const response = data as {
+    ok?: boolean;
+    processing?: boolean;
+    error?: string;
+    message?: string;
+    practiceSource?: unknown;
+  } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Concept extraction failed");
   }
-  return response.processing ? "processing" : "ready";
-}
-
-async function setCaptureProcessingStatus(
-  captureId: string,
-  status: "processing" | "ready" | "failed",
-  explicitUserId?: string,
-): Promise<void> {
-  if (explicitUserId) assertActiveCaptureOwner(explicitUserId);
-  const userId = explicitUserId ?? getAnonUserId();
-  const { error } = await supabase
-    .from("captures")
-    .update({ processing_status: status })
-    .eq("id", captureId)
-    .eq("user_id", userId);
-  if (explicitUserId) assertActiveCaptureOwner(explicitUserId);
-  if (error) warn("setCaptureProcessingStatus", error);
+  return {
+    processingStatus: response.processing ? "processing" : "ready",
+    ...(input.kind === "scan-assignment"
+      ? {
+          practiceSource: assignmentPracticeSourceFromUnknown(
+            response.practiceSource ?? response,
+            "scan-assignment",
+          ),
+        }
+      : {}),
+  };
 }
 
 function dispatchConceptsExtracted(captureId: string) {
@@ -755,45 +875,53 @@ export interface RetryCaptureInput {
   rawText?: string | null;
 }
 
+export interface CaptureProcessingResult {
+  processingStatus: "processing" | "ready";
+  practiceSource?: AssignmentPracticeSource;
+}
+
+export async function retryCaptureConceptsWithResult(
+  capture: RetryCaptureInput,
+): Promise<CaptureProcessingResult> {
+  const rawText = (capture.rawText ?? "").trim();
+  if (!rawText && capture.kind !== "scan-assignment") {
+    throw new Error("This capture has no source text to process.");
+  }
+  const userId = getAnonUserId();
+
+  const extraction = await invokeConceptExtraction({
+    captureId: capture.id,
+    clientClassId: capture.clientClassId,
+    topic: capture.topic,
+    kind: capture.kind,
+    rawText,
+  }, userId);
+  if (extraction.processingStatus === "ready") dispatchConceptsExtracted(capture.id);
+  return extraction;
+}
+
 export async function retryCaptureConcepts(
   capture: RetryCaptureInput,
 ): Promise<"processing" | "ready"> {
-  const rawText = (capture.rawText ?? "").trim();
-  if (!rawText) throw new Error("This capture has no source text to process.");
-  const userId = getAnonUserId();
+  return (await retryCaptureConceptsWithResult(capture)).processingStatus;
+}
 
-  await setCaptureProcessingStatus(capture.id, "processing", userId);
-  try {
-    const extractionStatus = await invokeConceptExtraction({
-      captureId: capture.id,
-      clientClassId: capture.clientClassId,
-      topic: capture.topic,
-      kind: capture.kind,
-      rawText,
-    }, userId);
-    if (extractionStatus === "ready") dispatchConceptsExtracted(capture.id);
-    return extractionStatus;
-  } catch (err) {
-    await setCaptureProcessingStatus(capture.id, "failed", userId);
-    throw err;
-  }
+export async function retryCaptureImagesWithResult(
+  captureId: string,
+  materialIds: string[],
+): Promise<CaptureProcessingResult> {
+  if (!materialIds.length) throw new Error("This capture has no saved images to process.");
+  const userId = getAnonUserId();
+  const result = await invokeImageProcessing(captureId, materialIds, userId);
+  if (result.processingStatus === "ready") dispatchConceptsExtracted(captureId);
+  return result;
 }
 
 export async function retryCaptureImages(
   captureId: string,
   materialIds: string[],
 ): Promise<"processing" | "ready"> {
-  if (!materialIds.length) throw new Error("This capture has no saved images to process.");
-  const userId = getAnonUserId();
-  await setCaptureProcessingStatus(captureId, "processing", userId);
-  try {
-    const status = await invokeImageProcessing(captureId, materialIds, userId);
-    if (status === "ready") dispatchConceptsExtracted(captureId);
-    return status;
-  } catch (err) {
-    await setCaptureProcessingStatus(captureId, "failed", userId);
-    throw err;
-  }
+  return (await retryCaptureImagesWithResult(captureId, materialIds)).processingStatus;
 }
 
 /**
@@ -815,7 +943,11 @@ export async function retryCaptureProcessing(
   if (error || !capture) throw new Error("We couldn't find this capture to retry.");
 
   const rawText = (capture.raw_text ?? "").trim();
-  if (rawText) {
+  // Assignment OCR is untrusted until the student confirms the exact problem.
+  // Image-backed assignments must return to the image worker even when OCR is
+  // already present. Typed assignments have no material rows and use the text
+  // endpoint's capture-only review-candidate branch below.
+  if (capture.kind !== "scan-assignment" && rawText) {
     return retryCaptureConcepts({
       id: capture.id,
       kind: capture.kind,
@@ -833,6 +965,14 @@ export async function retryCaptureProcessing(
     .order("page_index", { ascending: true });
   if (materialsError) throw new Error("We couldn't find this capture to retry.");
   const materialIds = (materials ?? []).map((material) => material.id as string);
+  if (capture.kind === "scan-assignment" && !materialIds.length && rawText) {
+    return retryCaptureConcepts({
+      id: capture.id,
+      kind: capture.kind,
+      clientClassId: capture.client_class_id ?? "",
+      topic: capture.topic,
+      rawText,
+    });
+  }
   return retryCaptureImages(captureId, materialIds);
 }
-

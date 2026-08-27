@@ -321,6 +321,12 @@ export type Database = {
           kind: string
           local_id: string | null
           meta: Json
+          practice_concept_id: string | null
+          practice_source_confirmed_at: string | null
+          practice_source_hash: string | null
+          practice_source_status: string
+          practice_source_text: string | null
+          practice_source_version: number
           processing_status: string
           raw_text: string | null
           topic: string | null
@@ -344,6 +350,12 @@ export type Database = {
           kind: string
           local_id?: string | null
           meta?: Json
+          practice_concept_id?: string | null
+          practice_source_confirmed_at?: string | null
+          practice_source_hash?: string | null
+          practice_source_status?: string
+          practice_source_text?: string | null
+          practice_source_version?: number
           processing_status?: string
           raw_text?: string | null
           topic?: string | null
@@ -367,6 +379,12 @@ export type Database = {
           kind?: string
           local_id?: string | null
           meta?: Json
+          practice_concept_id?: string | null
+          practice_source_confirmed_at?: string | null
+          practice_source_hash?: string | null
+          practice_source_status?: string
+          practice_source_text?: string | null
+          practice_source_version?: number
           processing_status?: string
           raw_text?: string | null
           topic?: string | null
@@ -394,6 +412,13 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_practice_concept_id_fkey"
+            columns: ["practice_concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
             referencedColumns: ["id"]
           },
         ]
@@ -624,6 +649,42 @@ export type Database = {
           },
         ]
       }
+      concept_capture_evidence: {
+        Row: {
+          capture_id: string
+          concept_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id: string
+          concept_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string
+          concept_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_capture_evidence_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_capture_evidence_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       concepts: {
         Row: {
           capture_id: string | null
@@ -634,9 +695,11 @@ export type Database = {
           embedding: string | null
           examples: string[]
           id: string
+          identity_key: string | null
           meta: Json
           name: string
           professor_emphasis: boolean
+          retired_at: string | null
           slug: string
           source_kind: string | null
           updated_at: string
@@ -651,9 +714,11 @@ export type Database = {
           embedding?: string | null
           examples?: string[]
           id?: string
+          identity_key?: string | null
           meta?: Json
           name: string
           professor_emphasis?: boolean
+          retired_at?: string | null
           slug: string
           source_kind?: string | null
           updated_at?: string
@@ -668,9 +733,11 @@ export type Database = {
           embedding?: string | null
           examples?: string[]
           id?: string
+          identity_key?: string | null
           meta?: Json
           name?: string
           professor_emphasis?: boolean
+          retired_at?: string | null
           slug?: string
           source_kind?: string | null
           updated_at?: string
@@ -1327,6 +1394,7 @@ export type Database = {
           id: string
           momentum: number | null
           readiness: number
+          source_attempt_id: string | null
           user_id: string
           visibility: string
         }
@@ -1339,6 +1407,7 @@ export type Database = {
           id?: string
           momentum?: number | null
           readiness: number
+          source_attempt_id?: string | null
           user_id: string
           visibility?: string
         }
@@ -1351,6 +1420,7 @@ export type Database = {
           id?: string
           momentum?: number | null
           readiness?: number
+          source_attempt_id?: string | null
           user_id?: string
           visibility?: string
         }
@@ -1644,6 +1714,7 @@ export type Database = {
         Row: {
           artifact_id: string | null
           class_id: string | null
+          client_attempt_id: string | null
           correct: number
           created_at: string
           format: string | null
@@ -1662,6 +1733,7 @@ export type Database = {
         Insert: {
           artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           correct: number
           created_at?: string
           format?: string | null
@@ -1680,6 +1752,7 @@ export type Database = {
         Update: {
           artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           correct?: number
           created_at?: string
           format?: string | null
