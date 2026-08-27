@@ -6,9 +6,26 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
+type AssignmentFixture = {
+  id: string;
+  title: string;
+  status: string;
+  due_date: string | null;
+  source: string;
+};
+
+type ExamFixture = {
+  id: string;
+  title: string;
+  exam_date: string | null;
+  topics: string[];
+  readiness: number;
+  source: string;
+};
+
 const mocks = vi.hoisted(() => ({
-  assignments: [] as any[],
-  exams: [] as any[],
+  assignments: [] as AssignmentFixture[],
+  exams: [] as ExamFixture[],
   signals: { conceptCount: 0, captureCount: 0, strengths: [] as number[], attempts: 0 },
   signalsLoading: false,
   openCapture: vi.fn(),
@@ -40,7 +57,7 @@ vi.mock("./AddExamDialog", () => ({ AddExamDialog: () => null }));
 
 import { ClassUpNext } from "./ClassUpNext";
 
-const exam = {
+const exam: ExamFixture = {
   id: "e1",
   title: "Unit 3 Test",
   exam_date: "2026-09-01",
@@ -48,7 +65,7 @@ const exam = {
   readiness: 0,
   source: "manual",
 };
-const assignment = {
+const assignment: AssignmentFixture = {
   id: "a1",
   title: "Chapter 4 review",
   status: "not_started",
