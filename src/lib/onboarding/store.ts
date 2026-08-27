@@ -175,7 +175,7 @@ export async function saveOnboarding(data: OnboardingData, explicitUserId?: stri
             } as never),
 
           },
-          { onConflict: rowId ? "id" : "client_class_id" }
+          { onConflict: "user_id,client_class_id" }
       )
       .select("id")
       .single();
