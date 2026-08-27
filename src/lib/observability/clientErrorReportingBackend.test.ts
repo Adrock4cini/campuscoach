@@ -14,6 +14,8 @@ describe("client error reporting backend boundary", () => {
   it("uses private non-cacheable JSON responses", () => {
     expect(source).toContain('"Cache-Control": "private, no-store"');
     expect(source).toContain('"X-Content-Type-Options": "nosniff"');
+    expect(source).toContain('"X-Request-ID": requestId');
+    expect(source).toContain('req.headers.get("X-Request-ID")');
   });
 
   it("logs only the approved operational fields", () => {

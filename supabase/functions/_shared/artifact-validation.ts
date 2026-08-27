@@ -340,51 +340,51 @@ function validateRoot(
   raw: unknown,
   rootKey: "cards" | "questions" | "pairs" | "problems" | "items",
   expectedCount: number,
-) {
+): { ok: true; items: unknown[] } | { ok: false; error: string } {
   if (!Number.isInteger(expectedCount) || expectedCount < 1 || expectedCount > 8) {
-    return { error: "expected count must be a whole number from 1-8" } as const;
+    return { ok: false, error: "expected count must be a whole number from 1-8" };
   }
   if (!isRecord(raw) || !hasOnlyKeys(raw, [rootKey])) {
-    return { error: `payload must contain only '${rootKey}'` } as const;
+    return { ok: false, error: `payload must contain only '${rootKey}'` };
   }
   const items = raw[rootKey];
   if (!Array.isArray(items) || items.length !== expectedCount) {
-    return { error: `${rootKey} must contain exactly ${expectedCount} items` } as const;
+    return { ok: false, error: `${rootKey} must contain exactly ${expectedCount} items` };
   }
-  return { items } as const;
+  return { ok: true, items };
 }
 
 function conceptForItem(
   item: Record<string, unknown>,
   conceptById: Map<string, ArtifactValidationConcept>,
   seenConcepts: Set<string>,
-) {
-  if (typeof item.conceptId !== "string") return { error: "conceptId is required" } as const;
+): { ok: true; concept: ArtifactValidationConcept } | { ok: false; error: string } {
+  if (typeof item.conceptId !== "string") return { ok: false, error: "conceptId is required" };
   const concept = conceptById.get(item.conceptId);
-  if (!concept) return { error: "conceptId is not in the selected study scope" } as const;
-  if (seenConcepts.has(concept.id)) return { error: "a concept cannot appear twice" } as const;
+  if (!concept) return { ok: false, error: "conceptId is not in the selected study scope" };
+  if (seenConcepts.has(concept.id)) return { ok: false, error: "a concept cannot appear twice" };
   if (typeof item.conceptName !== "string" || item.conceptName.trim() !== concept.name.trim()) {
-    return { error: "conceptName does not match conceptId" } as const;
+    return { ok: false, error: "conceptName does not match conceptId" };
   }
   seenConcepts.add(concept.id);
-  return { concept } as const;
+  return { ok: true, concept };
 }
 
 function canonicalExcerpt(
   item: Record<string, unknown>,
   conceptId: string,
   sourceExcerptByConcept?: Map<string, string>,
-) {
+): { ok: true; value: string | undefined } | { ok: false; error: string } {
   const expected = sourceExcerptByConcept?.get(conceptId);
   if (expected && expected.length > 360) {
-    return { error: "sourceExcerpt exceeds the grounded excerpt limit" } as const;
+    return { ok: false, error: "sourceExcerpt exceeds the grounded excerpt limit" };
   }
   if (item.sourceExcerpt !== undefined) {
     if (typeof item.sourceExcerpt !== "string" || !expected || item.sourceExcerpt.trim() !== expected.trim()) {
-      return { error: "sourceExcerpt must be the exact server-selected excerpt" } as const;
+      return { ok: false, error: "sourceExcerpt must be the exact server-selected excerpt" };
     }
   }
-  return expected ? { value: expected } as const : { value: undefined } as const;
+  return { ok: true, value: expected };
 }
 
 function withExcerpt<T extends Record<string, unknown>>(item: T, excerpt?: string) {
@@ -393,7 +393,7 @@ function withExcerpt<T extends Record<string, unknown>>(item: T, excerpt?: strin
 
 function validateFlashcards(raw: unknown, options: ArtifactValidationOptions): ArtifactValidationResult {
   const root = validateRoot(raw, "cards", options.expectedCount);
-  if ("error" in root) return { ok: false, error: root.error };
+  if (root.ok === false) return { ok: false, error: root.error };
   const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
   const seenConcepts = new Set<string>();
   const seenFronts = new Set<string>();
@@ -404,7 +404,7 @@ function validateFlashcards(raw: unknown, options: ArtifactValidationOptions): A
       "front", "back", "conceptId", "conceptName", "sourceExcerpt",
     ])) return { ok: false, error: "flashcard has unsupported fields" };
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
-    if ("error" in linked) return { ok: false, error: linked.error };
+    if (linked.ok === false) return { ok: false, error: linked.error };
     const front = cleanString(rawItem.front, "front", 3, 240);
     if ("error" in front) return { ok: false, error: front.error };
     const back = cleanString(rawItem.back, "back", 1, 800);
@@ -413,7 +413,7 @@ function validateFlashcards(raw: unknown, options: ArtifactValidationOptions): A
     if (seenFronts.has(frontKey)) return { ok: false, error: "flashcard prompts must be unique" };
     seenFronts.add(frontKey);
     const excerpt = canonicalExcerpt(rawItem, linked.concept.id, options.sourceExcerptByConcept);
-    if ("error" in excerpt) return { ok: false, error: excerpt.error };
+    if (excerpt.ok === false) return { ok: false, error: excerpt.error };
     cards.push(withExcerpt({
       front: front.value,
       back: back.value,
@@ -426,7 +426,7 @@ function validateFlashcards(raw: unknown, options: ArtifactValidationOptions): A
 
 function validateMultipleChoice(raw: unknown, options: ArtifactValidationOptions): ArtifactValidationResult {
   const root = validateRoot(raw, "questions", options.expectedCount);
-  if ("error" in root) return { ok: false, error: root.error };
+  if (root.ok === false) return { ok: false, error: root.error };
   const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
   const seenConcepts = new Set<string>();
   const seenPrompts = new Set<string>();
@@ -437,7 +437,7 @@ function validateMultipleChoice(raw: unknown, options: ArtifactValidationOptions
       "prompt", "choices", "answerIndex", "rationale", "conceptId", "conceptName", "sourceExcerpt",
     ])) return { ok: false, error: "multiple-choice question has unsupported fields" };
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
-    if ("error" in linked) return { ok: false, error: linked.error };
+    if (linked.ok === false) return { ok: false, error: linked.error };
     const prompt = cleanString(rawItem.prompt, "prompt", 3, 500);
     if ("error" in prompt) return { ok: false, error: prompt.error };
     const promptKey = duplicateKey(prompt.value);
@@ -465,7 +465,7 @@ function validateMultipleChoice(raw: unknown, options: ArtifactValidationOptions
     const rationale = cleanString(rawItem.rationale, "rationale", 1, 500);
     if ("error" in rationale) return { ok: false, error: rationale.error };
     const excerpt = canonicalExcerpt(rawItem, linked.concept.id, options.sourceExcerptByConcept);
-    if ("error" in excerpt) return { ok: false, error: excerpt.error };
+    if (excerpt.ok === false) return { ok: false, error: excerpt.error };
     questions.push(withExcerpt({
       prompt: prompt.value,
       choices,
@@ -484,7 +484,7 @@ function validateMatching(raw: unknown, options: ArtifactValidationOptions): Art
     return { ok: false, error: "matching needs 3-6 pairs" };
   }
   const root = validateRoot(raw, "pairs", options.expectedCount);
-  if ("error" in root) return { ok: false, error: root.error };
+  if (root.ok === false) return { ok: false, error: root.error };
   const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
   const seenConcepts = new Set<string>();
   const seenLeft = new Set<string>();
@@ -496,7 +496,7 @@ function validateMatching(raw: unknown, options: ArtifactValidationOptions): Art
       "id", "left", "right", "conceptId", "conceptName", "sourceExcerpt",
     ])) return { ok: false, error: "matching pair has unsupported fields" };
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
-    if ("error" in linked) return { ok: false, error: linked.error };
+    if (linked.ok === false) return { ok: false, error: linked.error };
     const canonicalId = `match-${linked.concept.id}`;
     if (rawItem.id !== undefined && rawItem.id !== canonicalId) {
       return { ok: false, error: "matching pair id does not match its concept" };
@@ -513,7 +513,7 @@ function validateMatching(raw: unknown, options: ArtifactValidationOptions): Art
     seenLeft.add(leftKey);
     seenRight.add(rightKey);
     const excerpt = canonicalExcerpt(rawItem, linked.concept.id, options.sourceExcerptByConcept);
-    if ("error" in excerpt) return { ok: false, error: excerpt.error };
+    if (excerpt.ok === false) return { ok: false, error: excerpt.error };
     pairs.push(withExcerpt({
       id: canonicalId,
       conceptId: linked.concept.id,
@@ -527,7 +527,7 @@ function validateMatching(raw: unknown, options: ArtifactValidationOptions): Art
 
 function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): ArtifactValidationResult {
   const root = validateRoot(raw, "items", options.expectedCount);
-  if ("error" in root) return { ok: false, error: root.error };
+  if (root.ok === false) return { ok: false, error: root.error };
   if (!options.exactTargetByConcept) return { ok: false, error: "mnemonic exact targets are required" };
   const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
   const seenConcepts = new Set<string>();
@@ -540,7 +540,7 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
       "sourceExcerpt", "alternates",
     ])) return { ok: false, error: "mnemonic has unsupported fields" };
     const linked = conceptForItem(rawItem, conceptById, seenConcepts);
-    if ("error" in linked) return { ok: false, error: linked.error };
+    if (linked.ok === false) return { ok: false, error: linked.error };
     const exactTarget = options.exactTargetByConcept.get(linked.concept.id);
     if (
       !exactTarget
@@ -566,7 +566,7 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
       ...(Array.isArray(rawItem.alternates) ? rawItem.alternates.slice(0, 3) : []),
     ];
     const excerpt = canonicalExcerpt(rawItem, linked.concept.id, options.sourceExcerptByConcept);
-    if ("error" in excerpt) return { ok: false, error: excerpt.error };
+    if (excerpt.ok === false) return { ok: false, error: excerpt.error };
     const sourceExcerpt = excerpt.value
       ?? options.sourceExcerptByConcept?.get(linked.concept.id)
       ?? null;
@@ -693,7 +693,7 @@ function validatePractice(raw: unknown, options: ArtifactValidationOptions): Art
     return { ok: false, error: "practice must contain exactly one problem" };
   }
   const root = validateRoot(raw, "problems", 1);
-  if ("error" in root) return { ok: false, error: root.error };
+  if (root.ok === false) return { ok: false, error: root.error };
   const rawProblem = root.items[0];
   if (!isRecord(rawProblem) || !hasOnlyKeys(rawProblem, [
     "id", "conceptId", "conceptName", "sourceExcerpt", "routeKind",
@@ -704,7 +704,7 @@ function validatePractice(raw: unknown, options: ArtifactValidationOptions): Art
 
   const conceptById = new Map(options.concepts.map((concept) => [concept.id, concept]));
   const linked = conceptForItem(rawProblem, conceptById, new Set<string>());
-  if ("error" in linked) return { ok: false, error: linked.error };
+  if (linked.ok === false) return { ok: false, error: linked.error };
   const canonicalId = `practice-${linked.concept.id}`;
   if (rawProblem.id !== canonicalId) {
     return { ok: false, error: "practice problem id does not match its concept" };
@@ -716,7 +716,7 @@ function validatePractice(raw: unknown, options: ArtifactValidationOptions): Art
     return { ok: false, error: "practice requires the exact server-selected sourceExcerpt" };
   }
   const excerpt = canonicalExcerpt(rawProblem, linked.concept.id, options.sourceExcerptByConcept);
-  if ("error" in excerpt) return { ok: false, error: excerpt.error };
+  if (excerpt.ok === false) return { ok: false, error: excerpt.error };
   if (!excerpt.value) {
     return { ok: false, error: "practice requires the exact server-selected sourceExcerpt" };
   }

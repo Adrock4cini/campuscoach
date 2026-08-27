@@ -11,6 +11,7 @@ import { EDGE_FUNCTION_TIMEOUT_MS } from "./invokeEdgeFunction";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   captureInsert: vi.fn(),
+  captureRecover: vi.fn(),
   captureUpdate: vi.fn(),
   captureDelete: vi.fn(),
   signalInsert: vi.fn(),
@@ -20,6 +21,13 @@ const mocks = vi.hoisted(() => ({
   createAssignment: vi.fn(),
   getSession: vi.fn(),
   invoke: vi.fn(),
+  storageFrom: vi.fn(),
+  upload: vi.fn(),
+  remove: vi.fn(),
+  materialInsert: vi.fn(),
+  materialRecover: vi.fn(),
+  materialDelete: vi.fn(),
+  lastCaptureValues: null as Record<string, unknown> | null,
   activeOwnerId: "user-1" as string | null,
 }));
 
@@ -28,6 +36,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: mocks.from,
     auth: { getSession: mocks.getSession },
     functions: { invoke: mocks.invoke },
+    storage: { from: mocks.storageFrom },
   },
 }));
 
@@ -40,6 +49,12 @@ vi.mock("@/hooks/useClassIntelligence", () => ({
 
 vi.mock("@/lib/realData/assignments", () => ({
   createAssignment: mocks.createAssignment,
+  createAssignmentAttempt: async (...args: unknown[]) => {
+    const value = await mocks.createAssignment(...args);
+    return value && typeof value === "object" && "assignment" in value
+      ? value
+      : { assignment: value ?? null, created: !!value, conflict: false };
+  },
 }));
 
 const result = (): CaptureResult => ({
@@ -57,10 +72,42 @@ const result = (): CaptureResult => ({
   flashcardCount: 0,
 });
 
+const PHOTO_OWNER_ID = "11111111-1111-4111-8111-111111111111";
+const PHOTO_CAPTURE_ID = "22222222-2222-4222-8222-222222222222";
+
+function usePhotoUuidIdentity() {
+  mocks.activeOwnerId = PHOTO_OWNER_ID;
+  mocks.getSession.mockResolvedValue({
+    data: { session: { access_token: "token", user: { id: PHOTO_OWNER_ID } } },
+    error: null,
+  });
+  mocks.captureInsert.mockImplementation(() => ({
+    select: () => ({
+      maybeSingle: async () => ({ data: { id: PHOTO_CAPTURE_ID }, error: null }),
+    }),
+  }));
+}
+
+function hashablePhoto(contents: string, name: string): File {
+  const bytes = new TextEncoder().encode(contents);
+  const file = new File([bytes], name, { type: "image/jpeg" });
+  Object.defineProperty(file, "arrayBuffer", {
+    value: async () => bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer,
+  });
+  return file;
+}
+
 describe("real capture processing integrity", () => {
   beforeEach(() => {
     mocks.from.mockReset();
     mocks.captureInsert.mockReset();
+    mocks.captureRecover.mockReset().mockImplementation(async () => ({
+      data: { id: "capture-1", meta: mocks.lastCaptureValues?.meta ?? {} },
+      error: null,
+    }));
     mocks.captureUpdate.mockReset().mockResolvedValue({ error: null });
     mocks.captureDelete.mockReset().mockResolvedValue({ error: null });
     mocks.signalInsert.mockReset().mockResolvedValue({ error: null });
@@ -74,6 +121,16 @@ describe("real capture processing integrity", () => {
       error: null,
     });
     mocks.invoke.mockReset();
+    mocks.upload.mockReset().mockResolvedValue({ error: new Error("offline") });
+    mocks.remove.mockReset().mockResolvedValue({ error: null });
+    mocks.storageFrom.mockReset().mockReturnValue({
+      upload: mocks.upload,
+      remove: mocks.remove,
+    });
+    mocks.materialInsert.mockReset();
+    mocks.materialRecover.mockReset().mockResolvedValue({ data: null, error: null });
+    mocks.materialDelete.mockReset().mockResolvedValue({ error: null });
+    mocks.lastCaptureValues = null;
 
     mocks.captureInsert.mockImplementation(() => ({
       select: () => ({
@@ -97,11 +154,14 @@ describe("real capture processing integrity", () => {
       }
       if (table === "captures") {
         return {
-          insert: mocks.captureInsert,
+          insert: (value: Record<string, unknown>) => {
+            mocks.lastCaptureValues = value;
+            return mocks.captureInsert(value);
+          },
           select: () => ({
             eq: () => ({
               eq: () => ({
-                maybeSingle: async () => ({ data: { id: "capture-1" }, error: null }),
+                maybeSingle: mocks.captureRecover,
               }),
             }),
           }),
@@ -144,6 +204,23 @@ describe("real capture processing integrity", () => {
               mocks.assignmentDeleteById(column, value);
               return { eq: mocks.assignmentDelete };
             },
+          }),
+        };
+      }
+      if (table === "materials") {
+        return {
+          insert: mocks.materialInsert,
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({ maybeSingle: mocks.materialRecover }),
+              }),
+            }),
+          }),
+          delete: () => ({
+            eq: () => ({
+              eq: () => ({ in: mocks.materialDelete }),
+            }),
           }),
         };
       }
@@ -193,25 +270,103 @@ describe("real capture processing integrity", () => {
     expect(mocks.captureUpdate).not.toHaveBeenCalledWith({ processing_status: "failed" });
   });
 
-  it("rolls back a just-created assignment when its photo upload cannot start", async () => {
+  it("keeps the durable assignment and capture retryable when photo upload cannot start", async () => {
+    usePhotoUuidIdentity();
     mocks.createAssignment.mockResolvedValue({ id: "assignment-new" });
     const capture = result();
     capture.kind = "scan-assignment";
     capture.context.assignmentTitle = "Chapter 4 flash cards";
-    const photo = new File(["page"], "flash-cards.jpg", { type: "image/jpeg" });
+    const photo = hashablePhoto("page", "flash-cards.jpg");
 
-    await expect(persistCaptureResult(capture, [photo], "user-1")).rejects.toThrow(/couldn't upload these photos/i);
+    await expect(persistCaptureResult(capture, [photo], PHOTO_OWNER_ID)).rejects.toThrow(/couldn't upload these photos/i);
 
-    expect(mocks.createAssignment).toHaveBeenCalledWith("user-1", expect.objectContaining({
+    expect(mocks.createAssignment).toHaveBeenCalledWith(PHOTO_OWNER_ID, expect.objectContaining({
       title: "Chapter 4 flash cards",
       clientClassId: "math",
       classUuid: "class-uuid-1",
     }));
-    expect(mocks.captureDelete).toHaveBeenCalledWith("user_id", "user-1");
-    expect(mocks.signalDelete).toHaveBeenCalledWith("source_id", "capture-1");
-    expect(mocks.assignmentDeleteById).toHaveBeenCalledWith("id", "assignment-new");
-    expect(mocks.assignmentDelete).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mocks.captureDelete).not.toHaveBeenCalled();
+    expect(mocks.signalDelete).not.toHaveBeenCalled();
+    expect(mocks.assignmentDeleteById).not.toHaveBeenCalled();
+    expect(mocks.assignmentDelete).not.toHaveBeenCalled();
+    expect(capture.captureId).toBe(PHOTO_CAPTURE_ID);
     expect(capture.context.assignmentId).toBeUndefined();
+  });
+
+  it("reconciles an exact immutable photo retry without overwriting the Storage object", async () => {
+    usePhotoUuidIdentity();
+    let attemptedMaterial: Record<string, unknown> | null = null;
+    mocks.upload.mockResolvedValue({
+      error: { statusCode: "409", message: "The resource already exists" },
+    });
+    mocks.materialInsert.mockImplementation((value: Record<string, unknown>) => {
+      attemptedMaterial = value;
+      return {
+        select: () => ({
+          maybeSingle: async () => ({ data: null, error: { code: "23505", message: "duplicate" } }),
+        }),
+      };
+    });
+    mocks.materialRecover.mockImplementation(async () => ({
+      data: { id: "material-1", ...attemptedMaterial },
+      error: null,
+    }));
+    mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    const capture = result();
+    capture.kind = "scan-material";
+    const photo = hashablePhoto("same page", "page.jpg");
+
+    await expect(persistCaptureResult(capture, [photo], PHOTO_OWNER_ID)).resolves.toBe(PHOTO_CAPTURE_ID);
+
+    expect(mocks.upload).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`^${PHOTO_OWNER_ID}/${PHOTO_CAPTURE_ID}/[0-9a-f]{64}\\.jpg$`)),
+      photo,
+      expect.objectContaining({ upsert: false }),
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
+      body: { captureId: PHOTO_CAPTURE_ID, materialIds: ["material-1"] },
+    }));
+    expect(mocks.captureDelete).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("rejects a changed page retry without deleting the first durable capture", async () => {
+    usePhotoUuidIdentity();
+    mocks.upload.mockResolvedValue({ error: null });
+    mocks.materialInsert.mockImplementation(() => ({
+      select: () => ({
+        maybeSingle: async () => ({ data: null, error: { code: "23505", message: "duplicate" } }),
+      }),
+    }));
+    mocks.materialRecover.mockResolvedValue({
+      data: {
+        id: "material-first",
+        capture_id: PHOTO_CAPTURE_ID,
+        user_id: PHOTO_OWNER_ID,
+        kind: "image",
+        storage_path: `${PHOTO_OWNER_ID}/${PHOTO_CAPTURE_ID}/${"a".repeat(64)}.jpg`,
+        mime_type: "image/jpeg",
+        size_bytes: 10,
+        content_hash: "a".repeat(64),
+        original_name: "first.jpg",
+        page_index: 0,
+        visibility: "private",
+        anonymized: false,
+      },
+      error: null,
+    });
+    const capture = result();
+    capture.kind = "scan-material";
+    const changedPhoto = hashablePhoto("changed page", "changed.jpg");
+
+    await expect(persistCaptureResult(capture, [changedPhoto], PHOTO_OWNER_ID))
+      .rejects.toThrow(/already saved with different photos/i);
+
+    expect(mocks.captureDelete).not.toHaveBeenCalled();
+    expect(mocks.signalDelete).not.toHaveBeenCalled();
+    expect(mocks.materialDelete).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 
   it("rolls back a just-created assignment when the capture row is not saved", async () => {
@@ -319,6 +474,30 @@ describe("real capture processing integrity", () => {
     );
   });
 
+  it("rejects a changed local-id retry before mutating the saved capture", async () => {
+    mocks.captureInsert.mockImplementationOnce(() => ({
+      select: () => ({
+        maybeSingle: async () => ({ data: null, error: { code: "23505", message: "duplicate" } }),
+      }),
+    }));
+    mocks.captureRecover.mockResolvedValueOnce({
+      data: {
+        id: "capture-existing",
+        meta: { captureRequestFingerprint: "f".repeat(64) },
+      },
+      error: null,
+    });
+    const capture = result();
+    capture.context.topic = "Changed topic";
+
+    await expect(persistCaptureResult(capture, [], "user-1"))
+      .rejects.toThrow(/retry no longer matches the saved capture/i);
+
+    expect(mocks.signalInsert).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.captureDelete).not.toHaveBeenCalled();
+  });
+
   it("fails closed before signals when the active account changes after capture persistence", async () => {
     mocks.captureInsert.mockImplementationOnce(() => ({
       select: () => ({
@@ -351,6 +530,23 @@ describe("real capture processing integrity", () => {
         key_concepts: ["Quadratic Formula"],
         model: "google/gemini-2.5-flash",
         created_at: "2026-07-20T10:01:00.000Z",
+      },
+    ])?.summary).toBe("Grounded summary");
+  });
+
+  it("treats fingerprinted mock-v1 rows as mock output", () => {
+    expect(selectTrustworthyProcessedContent([
+      {
+        summary: "Grounded summary",
+        key_concepts: ["Quadratic Formula"],
+        model: "google/gemini-2.5-flash:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        created_at: "2026-07-20T10:01:00.000Z",
+      },
+      {
+        summary: "Newer mock summary",
+        key_concepts: ["Core concepts"],
+        model: "mock-v1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        created_at: "2026-07-20T10:02:00.000Z",
       },
     ])?.summary).toBe("Grounded summary");
   });

@@ -31,6 +31,11 @@ export interface Acct2010CanonicalConceptFields {
   curriculum_order: number;
 }
 
+type Acct2010CanonicalizedConcept<T> = T & Partial<Pick<
+  Acct2010CanonicalConceptFields,
+  "topic_aliases" | "curriculum_order"
+>>;
+
 /** Course foundations are opt-in class/exam material, never Capture/Tutor input. */
 export function shouldActivateAcct2010Map(request: Acct2010GeneratorRequest): boolean {
   if (request.kind === "practice" || request.hasExplicitCapture) return false;
@@ -64,7 +69,7 @@ export function serializeAcct2010ConceptSeeds(seeds: readonly Acct2010ConceptSee
 export function canonicalizeAcct2010Concepts<T extends Acct2010PersistedConceptShape>(
   concepts: readonly T[],
   runtime: Acct2010RuntimeMap | null,
-): Array<T & Partial<Acct2010CanonicalConceptFields>> {
+): Array<Acct2010CanonicalizedConcept<T>> {
   const seedByIdentity = new Map(
     (runtime?.conceptSeeds ?? []).map((seed) => [seed.identityKey, seed]),
   );

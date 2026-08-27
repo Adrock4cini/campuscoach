@@ -8,10 +8,11 @@ const migration = readFileSync(resolve(
   "supabase/migrations",
   migrationName,
 ), "utf8");
-const mcpSource = readFileSync(resolve(
+const mcpTombstone = readFileSync(resolve(
   process.cwd(),
-  "src/lib/mcp/index.ts",
+  "supabase/functions/mcp/index.ts",
 ), "utf8");
+const viteConfig = readFileSync(resolve(process.cwd(), "vite.config.ts"), "utf8");
 
 function policyBlock(name: string, nextMarker: string): string {
   const start = migration.indexOf(`create policy ${name}`);
@@ -77,11 +78,12 @@ describe("private learning-signal launch boundary", () => {
     expect(migration).not.toContain("create policy topic_scores");
   });
 
-  it("unregisters the dormant class-intelligence MCP tool", () => {
-    expect(mcpSource).not.toContain("get-class-intelligence");
-    expect(mcpSource).not.toContain("getClassIntelligence");
-    expect(mcpSource).not.toContain("get_class_intelligence");
-    expect(mcpSource).toContain("tools: [listClasses, listUpcoming]");
+  it("retires the demo MCP endpoint instead of exposing static coursework", () => {
+    expect(mcpTombstone).toContain("endpoint_retired");
+    expect(mcpTombstone).toContain("410");
+    expect(mcpTombstone).not.toContain("@lovable.dev/mcp-js");
+    expect(mcpTombstone).not.toContain("list_classes");
+    expect(viteConfig).not.toContain("mcpPlugin");
   });
 
   it("lands after the pause boundary and before stable course-map seeding", () => {

@@ -13,7 +13,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  edge-functions:
+    name: Edge functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Activate and verify pinned npm
+        run: |
+          npm install --global npm@11.9.0
+          test "$(node --version)" = "v24.19.0"
+          test "$(npm --version)" = "11.9.0"
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.2.12
+
+      - name: Install locked npm dependencies for Deno manual mode
+        run: npm ci --ignore-scripts
+
+      - name: Verify frozen Edge dependency lock, shared tests, and functions
+        run: deno task verify:edge
+
   verify:
+    name: Frontend verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -29,16 +62,59 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
+
+      - name: Activate and verify pinned npm
+        run: |
+          npm install --global npm@11.9.0
+          test "$(node --version)" = "v24.19.0"
+          test "$(npm --version)" = "11.9.0"
+
+      - name: Verify npm is the sole package manager
+        run: test -f package-lock.json && test ! -e bun.lock && test ! -e bun.lockb
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit locked production dependencies
+        run: npm run audit:prod
+
+      - name: Audit build and test tooling
+        run: npm run audit:tooling
+
+      - name: Check base-to-head patch integrity
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          else
+            base_sha="$PUSH_BEFORE_SHA"
+            head_sha="$PUSH_HEAD_SHA"
+          fi
+
+          if printf '%s' "$base_sha" | grep -Eq '^0+$'; then
+            base_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          elif ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$base_sha"
+          fi
+
+          git cat-file -e "${head_sha}^{commit}"
+          git diff --check "$base_sha" "$head_sha"
 
       - name: Install Chromium and WebKit
         run: npx playwright install --with-deps chromium webkit
@@ -60,9 +136,25 @@ jobs:
 
       - name: Upload failed journey evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-failure-${{ github.run_id }}
           path: test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  required-ci:
+    name: Required CI
+    if: always()
+    needs: [edge-functions, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Require every launch gate
+        env:
+          EDGE_FUNCTIONS_RESULT: ${{ needs.edge-functions.result }}
+          FRONTEND_VERIFY_RESULT: ${{ needs.verify.result }}
+        run: |
+          test "$EDGE_FUNCTIONS_RESULT" = "success"
+          test "$FRONTEND_VERIFY_RESULT" = "success"

@@ -91,7 +91,7 @@ function legacyJwtRole(key) {
 }
 
 /**
- * Validate only public release configuration. The returned issues intentionally
+ * Validate public release configuration. The returned issues intentionally
  * contain variable names and fixed guidance, never environment values.
  *
  * @param {Record<string, string | undefined>} environment
@@ -133,12 +133,12 @@ export function validateReleaseEnvironment(environment) {
       ),
     );
   }
-  if (releaseSha && !/^[0-9a-f]{7,40}$/iu.test(releaseSha)) {
+  if (releaseSha && !/^[0-9a-f]{40}$/iu.test(releaseSha)) {
     issues.push(
       issue(
         "invalid_release_sha",
         "VITE_RELEASE_SHA",
-        "VITE_RELEASE_SHA must contain the exact git commit SHA being released.",
+        "VITE_RELEASE_SHA must contain the full 40-character git commit SHA being released.",
       ),
     );
   }

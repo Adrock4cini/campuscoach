@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import {
   buildAssignmentTutorPractice,
   extractAssignmentTutorSource,
@@ -9,6 +9,12 @@ import {
   checkStudyWritesPaused,
   STUDY_WRITES_PAUSED_RESPONSE,
 } from "../_shared/study-write-pause.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
 import {
   logPrivateFailure,
   privateJsonResponse,
@@ -55,6 +61,21 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const agreementGate = await checkCurrentFamilyBetaAgreement(userId, () =>
+    adminClient
+      .from("family_beta_agreement_acceptances")
+      .select("user_id, accepted_by, agreement_version, accepted_at")
+      .eq("user_id", userId)
+      .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+      .maybeSingle()
+  );
+  if (!agreementGate.allowed) {
+    if (agreementGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "agreement_check_unavailable", status: 503, requestId });
+      return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+    }
+    return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+  }
   const pauseGate = await checkStudyWritesPaused(
     () => adminClient.rpc("get_study_write_pause"),
   );

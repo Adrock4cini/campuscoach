@@ -1,0 +1,12 @@
+{
+  "nodeModulesDir": "manual",
+  "lock": {
+    "path": "./deno.lock",
+    "frozen": true
+  },
+  "tasks": {
+    "check:edge-functions": "deno check --lock=deno.lock --frozen supabase/functions/*/index.ts",
+    "test:edge-shared": "deno test --lock=deno.lock --frozen supabase/functions/_shared/canvas-calendar.test.ts",
+    "verify:edge": "deno task test:edge-shared && deno task check:edge-functions"
+  }
+}

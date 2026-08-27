@@ -7,8 +7,8 @@
 // Concepts are the permanent memory. Learning artifacts are disposable
 // views. We update the memory here, never the artifact.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../_shared/artifact-version.ts";
 import { studyAttemptDisposition } from "../_shared/retry-integrity.ts";
 import { buildAssignmentTutorPractice } from "../_shared/assignment-tutor.ts";
@@ -17,6 +17,12 @@ import {
   checkStudyWritesPaused,
   STUDY_WRITES_PAUSED_RESPONSE,
 } from "../_shared/study-write-pause.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
 import {
   logPrivateFailure,
   privateJsonResponse,
@@ -75,6 +81,37 @@ interface StudyResultAttemptRow {
   completed_at: string | null;
 }
 
+interface PracticeMasteryReservation {
+  applied: boolean;
+  previousStrength: number;
+}
+
+interface PracticeCaptureBoundaryRow {
+  id: string;
+  assignment_id: string | null;
+  class_id: string | null;
+  client_class_id: string | null;
+  kind: string;
+  processing_status: string;
+  concept_extraction_claim_id: string | null;
+  practice_source_status: string | null;
+  practice_source_text: string | null;
+  practice_source_version: number;
+  practice_source_hash: string | null;
+  practice_concept_id: string | null;
+}
+
+interface PracticeAssignmentBoundaryRow {
+  id: string;
+  class_id: string | null;
+  client_class_id: string | null;
+}
+
+interface PracticeChallengeOwnerRow {
+  result_status: string;
+  lease_started_at: string;
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPORTED_KINDS = new Set(["flashcards", "multiple_choice", "matching", "practice"]);
 
@@ -112,6 +149,21 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const agreementGate = await checkCurrentFamilyBetaAgreement(userId, () =>
+    adminClient
+      .from("family_beta_agreement_acceptances")
+      .select("user_id, accepted_by, agreement_version, accepted_at")
+      .eq("user_id", userId)
+      .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+      .maybeSingle()
+  );
+  if (!agreementGate.allowed) {
+    if (agreementGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "agreement_check_unavailable", status: 503, requestId });
+      return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+    }
+    return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+  }
   const pauseGate = await checkStudyWritesPaused(
     () => adminClient.rpc("get_study_write_pause"),
   );
@@ -220,10 +272,8 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   let practiceClientRequestHash: string | null = null;
   if (artifact.kind === "practice") {
     if (!body.attemptId) return json({ error: "practice attemptId is required" }, 400);
-    if (!Number.isInteger(body.selectedIndex)
-        || (body.selectedIndex as number) < 0
-        || !Number.isInteger(body.firstSelectedIndex)
-        || (body.firstSelectedIndex as number) < 0
+    if (!isNonNegativeInteger(body.selectedIndex)
+        || !isNonNegativeInteger(body.firstSelectedIndex)
         || !isConfidenceLevel(body.confidence)
         || !isConfidenceLevel(body.firstConfidence)) {
       return json({ error: "practice response must include valid first and final selections with confidence" }, 400);
@@ -528,10 +578,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   }
 
   let attempt: StudyResultAttemptRow | null = null;
-  let practiceMasteryReservation: {
-    applied: boolean;
-    previousStrength: number;
-  } | null = null;
+  let practiceMasteryReservation: PracticeMasteryReservation | null = null;
   const reservePracticeMastery = () => adminClient.rpc(
     "reserve_practice_study_attempt",
     {
@@ -547,14 +594,6 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       p_duration_seconds: Math.trunc(body.durationSeconds),
     },
   );
-  const rememberPracticeMastery = (reservation: Record<string, unknown>) => {
-    practiceMasteryReservation = {
-      applied: reservation.masteryApplied === true,
-      previousStrength: typeof reservation.previousStrength === "number"
-        ? reservation.previousStrength
-        : 0,
-    };
-  };
   if (priorAttempt) {
     if (priorAttempt.artifact_id !== body.artifactId
         || priorAttempt.result_request_hash !== requestHash
@@ -632,7 +671,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       if (reservation.disposition !== "reserved") {
         return json({ error: "practice reservation was not confirmed", retryable: true }, 500);
       }
-      rememberPracticeMastery(reservation);
+      practiceMasteryReservation = parsePracticeMasteryReservation(reservation);
       attempt = {
         artifact_id: artifact.id,
         challenge_fingerprint: practiceChallengeFingerprint,
@@ -707,7 +746,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         && reservation.disposition !== "reserved") {
       return json({ error: "practice recovery was not confirmed", retryable: true }, 500);
     }
-    rememberPracticeMastery(reservation);
+    practiceMasteryReservation = parsePracticeMasteryReservation(reservation);
   }
   if (!attempt) return json({ error: "attempt reservation failed" }, 500);
 
@@ -1128,7 +1167,7 @@ function canonicalPracticeTransfer(artifact: Record<string, unknown>): {
 }
 
 async function verifyPracticeArtifactBoundary(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   artifact: Record<string, unknown>,
 ): Promise<true | Response> {
@@ -1147,16 +1186,17 @@ async function verifyPracticeArtifactBoundary(
     return practiceBoundaryConflict("practice assignment scope is invalid");
   }
 
-  const { data: capture, error: captureError } = await supabase
+  const { data: captureData, error: captureError } = await supabase
     .from("captures")
     .select("id, assignment_id, class_id, client_class_id, kind, processing_status, concept_extraction_claim_id, practice_source_status, practice_source_text, practice_source_version, practice_source_hash, practice_concept_id")
     .eq("user_id", userId)
     .eq("id", artifact.capture_id)
     .maybeSingle();
   if (captureError) return json({ error: "practice capture could not be verified" }, 500);
+  const capture = captureData as PracticeCaptureBoundaryRow | null;
   if (!capture) return practiceBoundaryConflict("practice capture is no longer available");
 
-  const { data: assignment, error: assignmentError } = await supabase
+  const { data: assignmentData, error: assignmentError } = await supabase
     .from("assignments")
     .select("id, class_id, client_class_id")
     .eq("user_id", userId)
@@ -1164,6 +1204,7 @@ async function verifyPracticeArtifactBoundary(
     .is("source_archived_at", null)
     .maybeSingle();
   if (assignmentError) return json({ error: "practice assignment could not be verified" }, 500);
+  const assignment = assignmentData as PracticeAssignmentBoundaryRow | null;
   if (!assignment) return practiceBoundaryConflict("practice assignment is no longer available");
 
   const payload = artifact.payload;
@@ -1220,7 +1261,7 @@ function practiceBoundaryConflict(error: string): Response {
 }
 
 async function practiceChallengeConflictResponse(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: SupabaseClient,
   userId: string,
   ownerAttemptId: string | null,
 ): Promise<Response> {
@@ -1246,13 +1287,14 @@ async function practiceChallengeConflictResponse(
       reason: "challenge_already_recorded",
     });
   }
-  const { data: owner, error } = await adminClient
+  const { data: ownerData, error } = await adminClient
     .from("study_result_attempts")
     .select("result_status, lease_started_at")
     .eq("user_id", userId)
     .eq("client_attempt_id", ownerAttemptId)
     .maybeSingle();
   if (error) return json({ error: "practice challenge could not be verified" }, 500);
+  const owner = ownerData as PracticeChallengeOwnerRow | null;
   if (owner?.result_status === "processing"
       && studyAttemptDisposition(owner.result_status, owner.lease_started_at) === "wait") {
     return json({
@@ -1308,6 +1350,21 @@ function parseVerifiedPracticeGradingSnapshot(
 
 function isConfidenceLevel(value: unknown): value is ConfidenceLevel {
   return value === "low" || value === "medium" || value === "high";
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function parsePracticeMasteryReservation(
+  reservation: Record<string, unknown>,
+): PracticeMasteryReservation {
+  return {
+    applied: reservation.masteryApplied === true,
+    previousStrength: typeof reservation.previousStrength === "number"
+      ? reservation.previousStrength
+      : 0,
+  };
 }
 
 async function studyResultRequestHash(

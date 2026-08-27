@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = "supabase/migrations/20260827122500_study_write_pause_control.sql";
 const migration = readFileSync(resolve(process.cwd(), migrationPath), "utf8");
+const maintenanceMigrationPath = "supabase/migrations/20260827125500_study_write_maintenance_guard.sql";
+const maintenanceMigration = readFileSync(
+  resolve(process.cwd(), maintenanceMigrationPath),
+  "utf8",
+).toLowerCase();
 const rollout = readFileSync(resolve(
   process.cwd(),
   "docs/study-intelligence-rollout.md",
@@ -13,6 +18,7 @@ const protectedFunctions = [
   "confirm-assignment-practice-source",
   "extract-concepts",
   "generate-artifact",
+  "parse-syllabus",
   "process-capture-images",
   "record-study-result",
 ].sort();
@@ -39,7 +45,26 @@ describe("repository-controlled study-write pause boundary", () => {
     expect(migration).toContain("where control.singleton\n  for share;");
   });
 
-  it("gates exactly the five study-write Edge Functions before parsing a body", () => {
+  it("extends the lock-coordinated pause to every direct browser raw-input boundary", () => {
+    expect(maintenanceMigration).toContain("create or replace function public.study_writes_are_available()");
+    expect(maintenanceMigration).toContain("from private.study_write_runtime_control control");
+    expect(maintenanceMigration).toContain("for share");
+    expect(maintenanceMigration).toContain("return not coalesce(v_paused, true)");
+
+    for (const table of ["captures", "materials", "processed_content"]) {
+      expect(maintenanceMigration).toContain(`on public.${table} as restrictive for insert to authenticated`);
+      expect(maintenanceMigration).toContain(`on public.${table} as restrictive for update to authenticated`);
+    }
+    for (const bucket of ["capture", "syllabus"]) {
+      expect(maintenanceMigration).toContain(`${bucket}_sources_study_writes_available_insert`);
+      expect(maintenanceMigration).toContain(`bucket_id <> '${bucket}-sources'`);
+    }
+
+    expect(maintenanceMigration).toContain("to authenticated, service_role");
+    expect(maintenanceMigration).not.toMatch(/for delete to authenticated/iu);
+  });
+
+  it("gates exactly the six study, capture, and syllabus Edge Functions before parsing a body", () => {
     const gatedFunctions = readdirSync(functionRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name !== "_shared")
       .filter((entry) => {
@@ -78,6 +103,10 @@ describe("repository-controlled study-write pause boundary", () => {
     expect(migrations.indexOf("20260827122500_study_write_pause_control.sql"))
       .toBeLessThan(migrations.indexOf("20260827125000_assignment_review_artifact_guard.sql"));
     expect(migrations.indexOf("20260827125000_assignment_review_artifact_guard.sql"))
+      .toBeLessThan(migrations.indexOf("20260827125500_study_write_maintenance_guard.sql"));
+    expect(migrations.indexOf("20260827125500_study_write_maintenance_guard.sql"))
+      .toBeLessThan(migrations.indexOf("20260827126000_family_beta_agreement_acceptance.sql"));
+    expect(migrations.indexOf("20260827126000_family_beta_agreement_acceptance.sql"))
       .toBeLessThan(migrations.indexOf("20260827127500_retire_concept_evidence_mirror.sql"));
   });
 
@@ -85,7 +114,7 @@ describe("repository-controlled study-write pause boundary", () => {
     const normalizedRollout = rollout.replace(/\s+/g, " ");
     const pause = normalizedRollout.indexOf("set_study_writes_paused(true");
     const drain = normalizedRollout.indexOf(
-      "Wait until every invocation from the prior release has drained",
+      "wait for every invocation of the previous revisions to drain",
       pause,
     );
     const mirror = normalizedRollout.indexOf(

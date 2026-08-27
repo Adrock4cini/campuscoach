@@ -1,6 +1,11 @@
 // Internal, scheduled cleanup for abandoned class-syllabus uploads.
 // Storage objects are removed only through the Storage API.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.1";
+import {
+  logPrivateFailure,
+  privateJsonResponse,
+  withPrivateJsonErrors,
+} from "../_shared/private-json-response.ts";
 
 const BUCKET = "syllabus-sources";
 const BATCH_LIMIT = 50;
@@ -11,7 +16,10 @@ const PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 let invocationDigestCache: { digest: string; expiresAt: number } | null = null;
 
-Deno.serve(async (req) => {
+Deno.serve((req) => withPrivateJsonErrors(req, {}, async (requestId) => {
+  const json = (body: unknown, status = 200) => (
+    privateJsonResponse(body, status, {}, { requestId })
+  );
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
@@ -22,8 +30,8 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const secretKey = getAdminSecretKey();
   if (!supabaseUrl || !secretKey) {
-    console.error("[cleanup-abandoned-syllabi] Supabase environment is incomplete");
-    return json({ error: "Service unavailable" }, 503);
+    logPrivateFailure({ errorClass: "cleanup_environment_missing", status: 503, requestId });
+    return json(undefined, 503);
   }
 
   const suppliedInvokeSecret = req.headers.get("x-cleanup-secret") ?? "";
@@ -32,10 +40,7 @@ Deno.serve(async (req) => {
     return json({ error: "Forbidden" }, 403);
   }
 
-  const admin = createClient(supabaseUrl, secretKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { fetch: fetchWithTimeout },
-  });
+  const admin = createAdminClient(supabaseUrl, secretKey);
 
   let expectedDigest: string;
   try {
@@ -43,8 +48,8 @@ Deno.serve(async (req) => {
   } catch {
     // A missing/invalid digest or unavailable auth RPC must never fall through
     // to the cleanup claim path.
-    console.error("[cleanup-abandoned-syllabi] invocation digest is unavailable");
-    return json({ error: "Service unavailable" }, 503);
+    logPrivateFailure({ errorClass: "cleanup_digest_unavailable", status: 503, requestId });
+    return json(undefined, 503);
   }
   const suppliedDigest = await sha256Hex(suppliedInvokeSecret);
   if (!constantTimeEqualHex(suppliedDigest, expectedDigest)) {
@@ -82,16 +87,16 @@ Deno.serve(async (req) => {
     { p_claim_token: claimToken, p_limit: BATCH_LIMIT, p_before: testBefore },
   );
   if (claimError) {
-    console.error(`[cleanup-abandoned-syllabi] claim failed: ${claimError.message}`);
-    return json({ error: "Cleanup claim failed" }, 503);
+    logPrivateFailure({ errorClass: "syllabus_cleanup_claim_failed", status: 503, requestId });
+    return json(undefined, 503);
   }
 
   let claimedPaths: string[];
   try {
     claimedPaths = cleanupPaths(claimedRows);
-  } catch (error) {
-    console.error("[cleanup-abandoned-syllabi] claim returned an invalid path set", error);
-    return json({ error: "Cleanup claim failed closed" }, 503);
+  } catch {
+    logPrivateFailure({ errorClass: "syllabus_cleanup_claim_invalid", status: 503, requestId });
+    return json(undefined, 503);
   }
   if (claimedPaths.length === 0) {
     return json({ ok: true, claimed: 0, deleted: 0 });
@@ -104,16 +109,16 @@ Deno.serve(async (req) => {
     { p_claim_token: claimToken, p_storage_paths: claimedPaths },
   );
   if (confirmError) {
-    console.error(`[cleanup-abandoned-syllabi] confirmation failed: ${confirmError.message}`);
-    return json({ error: "Cleanup confirmation failed" }, 503);
+    logPrivateFailure({ errorClass: "syllabus_cleanup_confirm_failed", status: 503, requestId });
+    return json(undefined, 503);
   }
 
   let confirmedPaths: string[];
   try {
     confirmedPaths = cleanupPaths(confirmedRows);
-  } catch (error) {
-    console.error("[cleanup-abandoned-syllabi] confirmation returned an invalid path set", error);
-    return json({ error: "Cleanup confirmation failed closed" }, 503);
+  } catch {
+    logPrivateFailure({ errorClass: "syllabus_cleanup_confirm_invalid", status: 503, requestId });
+    return json(undefined, 503);
   }
   if (confirmedPaths.length === 0) {
     return json({ ok: true, claimed: claimedPaths.length, deleted: 0 });
@@ -123,8 +128,8 @@ Deno.serve(async (req) => {
   if (removeError) {
     // Keep the fenced claims. A later scheduled run reclaims them only after a
     // lease longer than the platform's maximum Edge worker lifetime.
-    console.error(`[cleanup-abandoned-syllabi] Storage API removal failed: ${removeError.message}`);
-    return json({ error: "Storage cleanup failed; the batch will retry" }, 503);
+    logPrivateFailure({ errorClass: "syllabus_storage_cleanup_failed", status: 503, requestId });
+    return json(undefined, 503);
   }
 
   const { data: released, error: releaseError } = await admin.rpc(
@@ -134,18 +139,22 @@ Deno.serve(async (req) => {
   if (releaseError) {
     // The files are already gone. Leaving the claims is safe: the next run will
     // observe no object, release them after expiry, and never SQL-delete Storage.
-    console.error(`[cleanup-abandoned-syllabi] claim release failed: ${releaseError.message}`);
-    return json({ error: "Storage cleanup completed but claim release will retry" }, 503);
+    logPrivateFailure({ errorClass: "syllabus_cleanup_release_failed", status: 503, requestId });
+    return json(undefined, 503);
   }
 
-  console.info(`[cleanup-abandoned-syllabi] removed ${confirmedPaths.length} abandoned source(s)`);
+  console.info(JSON.stringify({
+    event: "syllabus_source_cleanup_completed",
+    deleted: confirmedPaths.length,
+    requestId,
+  }));
   return json({
     ok: true,
     claimed: claimedPaths.length,
     deleted: confirmedPaths.length,
     released: typeof released === "number" ? released : confirmedPaths.length,
   });
-});
+}));
 
 function cleanupPaths(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > BATCH_LIMIT) {
@@ -178,7 +187,16 @@ function getAdminSecretKey(): string {
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 }
 
-async function getInvocationDigest(admin: ReturnType<typeof createClient>): Promise<string> {
+function createAdminClient(supabaseUrl: string, secretKey: string) {
+  return createClient(supabaseUrl, secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { fetch: fetchWithTimeout },
+  });
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function getInvocationDigest(admin: AdminClient): Promise<string> {
   const now = Date.now();
   if (invocationDigestCache && invocationDigestCache.expiresAt > now) {
     return invocationDigestCache.digest;
@@ -211,14 +229,4 @@ function constantTimeEqualHex(actual: string, expected: string): boolean {
 
 function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
   return fetch(input, { ...init, signal: AbortSignal.timeout(DOWNSTREAM_TIMEOUT_MS) });
-}
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store",
-    },
-  });
 }

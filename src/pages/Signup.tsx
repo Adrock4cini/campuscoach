@@ -9,12 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  clearPendingOAuthAgreement,
-  familyBetaMetadata,
+  clearPendingFamilyBetaAgreement,
   isFamilyBetaStaging,
   publicSignupsEnabled,
   publicSupportEmail,
-  rememberPendingOAuthAgreement,
+  rememberPendingFamilyBetaAgreement,
 } from "@/lib/legal/familyBeta";
 
 export default function Signup() {
@@ -27,6 +26,7 @@ export default function Signup() {
 }
 
 function OpenBetaSignup() {
+  const { acceptAgreement } = useAuth();
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,14 +46,27 @@ function OpenBetaSignup() {
         password,
         options: {
           emailRedirectTo: window.location.origin,
-          data: familyBetaMetadata(),
         },
       });
       if (error) return toast.error("Couldn't create account", { description: error.message });
       if (data.session) {
-        // Auto-confirm is on for beta — go straight to onboarding.
+        // Auto-confirm is on for staging. Store the acceptance through the
+        // authenticated service boundary before onboarding; Auth metadata is
+        // intentionally not used as a legal receipt.
+        try {
+          const saved = await acceptAgreement();
+          if (!saved) throw new Error("agreement acceptance unavailable");
+        } catch {
+          rememberPendingFamilyBetaAgreement();
+          toast.error("Account created — finish the safety check", {
+            description: "We couldn’t save the agreement yet. Check your connection and try again.",
+          });
+          nav("/family-beta-agreement", { replace: true });
+          return;
+        }
         nav("/onboarding", { replace: true });
       } else {
+        rememberPendingFamilyBetaAgreement();
         toast.success("Check your email", { description: "Click the confirmation link, then sign in." });
         nav("/login", { replace: true });
       }
@@ -67,13 +80,13 @@ function OpenBetaSignup() {
   async function onGoogle() {
     if (!agreed) return toast.error("Complete the family beta safety check first");
     setBusy(true);
-    rememberPendingOAuthAgreement();
+    rememberPendingFamilyBetaAgreement();
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
       if (result.error) {
-        clearPendingOAuthAgreement();
+        clearPendingFamilyBetaAgreement();
         toast.error("Google sign-in failed", { description: String(result.error) });
         return;
       }
@@ -81,7 +94,7 @@ function OpenBetaSignup() {
       // Supabase session in-place. Do not strand an in-place success here.
       if (!result.redirected) nav("/", { replace: true });
     } catch {
-      clearPendingOAuthAgreement();
+      clearPendingFamilyBetaAgreement();
       toast.error("Google sign-in failed", { description: "Check your connection and try again." });
     } finally {
       setBusy(false);

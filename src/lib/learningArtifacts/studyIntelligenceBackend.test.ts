@@ -104,7 +104,7 @@ describe("Study Intelligence edge-function contract", () => {
     expect(generator.slice(matchingStart, mnemonicStart)).toContain("buildDeterministicMatchingPairs");
     expect(generator.slice(matchingStart, mnemonicStart)).not.toContain("callGateway(");
     expect(generator.slice(mnemonicStart)).toContain("callGateway(");
-    expect(generator).toContain('const artifactWriter = createClient(supabaseUrl, serviceRoleKey');
+    expect(generator).toContain('const artifactWriter = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey');
     expect(generator).toContain('await artifactWriter.from("learning_artifacts")');
   });
 
@@ -119,7 +119,7 @@ describe("Study Intelligence edge-function contract", () => {
   it("bounds source excerpts and only personalizes after real feedback", () => {
     expect(generator).toContain("buildCapturePolicyGroundedExcerptMap(concepts, captureSources, {");
     expect(generator).toContain("if (concept.capture_id && !exactCaptureEvidence) return false");
-    expect(generator).toContain("const adminClient = createClient(supabaseUrl, serviceRoleKey");
+    expect(generator).toContain("const adminClient = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey");
     expect(generator).toContain("const { data, error } = await adminClient");
     expect(generator).toContain('.from("study_memory_feedback")');
     expect(generator).toContain('.eq("user_id", userId)');

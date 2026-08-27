@@ -1,22 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { FAMILY_BETA_AGREEMENT_VERSION } from "@/lib/legal/familyBeta";
 
 const mocks = vi.hoisted(() => ({
-  updateUser: vi.fn(),
+  acceptAgreement: vi.fn(),
+  refreshAgreement: vi.fn(),
   signOut: vi.fn(),
   toastError: vi.fn(),
   recovering: false,
+  agreementStatus: "required" as "checking" | "accepted" | "required" | "error",
   user: { id: "student", user_metadata: {} } as { id: string; user_metadata: Record<string, unknown> } | null,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: mocks.user, loading: false, recovering: mocks.recovering, signOut: mocks.signOut }),
-}));
-
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { auth: { updateUser: mocks.updateUser } },
+  useAuth: () => ({
+    user: mocks.user,
+    loading: false,
+    recovering: mocks.recovering,
+    agreementStatus: mocks.agreementStatus,
+    acceptAgreement: mocks.acceptAgreement,
+    refreshAgreement: mocks.refreshAgreement,
+    signOut: mocks.signOut,
+  }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
@@ -28,8 +33,10 @@ describe("family beta agreement", () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     mocks.recovering = false;
+    mocks.agreementStatus = "required";
     mocks.user = { id: "student", user_metadata: {} };
-    mocks.updateUser.mockResolvedValue({ data: { user: mocks.user }, error: null });
+    mocks.acceptAgreement.mockResolvedValue(true);
+    mocks.refreshAgreement.mockResolvedValue(false);
     mocks.signOut.mockResolvedValue(undefined);
   });
 
@@ -50,14 +57,12 @@ describe("family beta agreement", () => {
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Agree and continue" }));
 
-    await waitFor(() => expect(mocks.updateUser).toHaveBeenCalledWith({
-      data: { family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION },
-    }));
+    await waitFor(() => expect(mocks.acceptAgreement).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Start classes")).toBeInTheDocument();
   });
 
   it("recovers from a rejected agreement save", async () => {
-    mocks.updateUser.mockRejectedValueOnce(new Error("offline"));
+    mocks.acceptAgreement.mockResolvedValueOnce(false);
     renderAgreement();
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Agree and continue" }));
@@ -67,6 +72,21 @@ describe("family beta agreement", () => {
       "Couldn’t save your agreement",
       expect.objectContaining({ description: expect.stringMatching(/connection/i) }),
     );
+  });
+
+  it("retries a failed server receipt check without trusting Auth metadata", async () => {
+    mocks.agreementStatus = "error";
+    mocks.user = {
+      id: "student",
+      user_metadata: { family_beta_agreement_version: "2026-08-17" },
+    };
+    renderAgreement();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("couldn’t verify");
+    expect(screen.getByRole("button", { name: "Agree and continue" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry agreement check" }));
+
+    await waitFor(() => expect(mocks.refreshAgreement).toHaveBeenCalledTimes(1));
   });
 
   it("allows a signed-in person to leave without agreeing", async () => {

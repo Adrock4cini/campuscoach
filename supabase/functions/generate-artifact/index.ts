@@ -7,8 +7,9 @@
 // remain reserved until their payloads can receive the same grounding and
 // validation guarantees.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
+import type { Database, Json } from "../../../src/integrations/supabase/types.ts";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../_shared/artifact-version.ts";
 import { buildAssignmentTutorPractice } from "../_shared/assignment-tutor.ts";
 import {
@@ -60,6 +61,12 @@ import {
   checkStudyWritesPaused,
   STUDY_WRITES_PAUSED_RESPONSE,
 } from "../_shared/study-write-pause.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
 import {
   logPrivateFailure,
   privateJsonResponse,
@@ -172,6 +179,53 @@ interface LoadedSourceExcerpts {
 }
 
 type LearnerAudience = "middle school" | "high school" | "college" | "age-neutral";
+
+// The checked-in generated schema predates a small set of rollout RPCs used
+// only by Edge Functions. Keep that boundary explicit instead of erasing the
+// entire client schema with `any`.
+type EdgeDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Functions"> & {
+    Functions: Database["public"]["Functions"] & {
+      get_study_write_pause: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      ensure_acct_2010_map_concepts: {
+        Args: {
+          p_user_id: string;
+          p_class_id: string;
+          p_client_class_id: string;
+          p_seeds: Json;
+        };
+        Returns: Database["public"]["Tables"]["concepts"]["Row"][];
+      };
+      insert_confirmed_assignment_practice_artifact: {
+        Args: {
+          p_user_id: string;
+          p_capture_id: string;
+          p_source_version: number;
+          p_source_hash: string;
+          p_concept_id: string;
+          p_artifact: Json;
+        };
+        Returns: Json;
+      };
+      insert_confirmed_assignment_review_artifact: {
+        Args: {
+          p_user_id: string;
+          p_capture_id: string;
+          p_source_version: number;
+          p_source_hash: string;
+          p_concept_id: string;
+          p_artifact: Json;
+        };
+        Returns: Json;
+      };
+    };
+  };
+};
+
+type EdgeSupabaseClient = SupabaseClient<EdgeDatabase>;
 
 const MODEL = "google/gemini-2.5-flash";
 
@@ -303,7 +357,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return json({ error: "Study generation is temporarily unavailable" }, 503);
   }
-  const supabase = createClient(
+  const supabase = createClient<EdgeDatabase>(
     supabaseUrl,
     anonKey,
     { global: { headers: { Authorization: authHeader } } },
@@ -312,9 +366,24 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   const { data: claims, error: claimsErr } = await supabase.auth.getClaims(jwt);
   if (claimsErr || !claims?.claims?.sub) return json({ error: "Unauthorized" }, 401);
   const userId = claims.claims.sub as string;
-  const artifactWriter = createClient(supabaseUrl, serviceRoleKey, {
+  const artifactWriter = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const agreementGate = await checkCurrentFamilyBetaAgreement(userId, () =>
+    artifactWriter
+      .from("family_beta_agreement_acceptances")
+      .select("user_id, accepted_by, agreement_version, accepted_at")
+      .eq("user_id", userId)
+      .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+      .maybeSingle()
+  );
+  if (!agreementGate.allowed) {
+    if (agreementGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "agreement_check_unavailable", status: 503, requestId });
+      return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+    }
+    return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+  }
   const pauseGate = await checkStudyWritesPaused(
     () => artifactWriter.rpc("get_study_write_pause"),
   );
@@ -951,7 +1020,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   // 3. Persist the replacement before retiring the prior set. A failed
   // insert must never make the student's last working artifact disappear.
-  const insertRow = {
+  const insertRow: Database["public"]["Tables"]["learning_artifacts"]["Insert"] = {
     user_id: userId,
     // `class_id` is the database UUID. `client_class_id` is the stable key
     // used by the app (for example, "math"). Never put the latter in a UUID
@@ -1022,11 +1091,15 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
             },
           }
         : {}),
-    },
-    payload,
+    } as unknown as Json,
+    payload: payload as unknown as Json,
     model: modelUsed,
     prompt_version: PROMPT_VERSION,
   };
+  // PostgREST accepts the same JSON object shape for a jsonb RPC argument and
+  // for a table insert. The generated Insert interface intentionally has no
+  // string index signature, so narrow only this serialization boundary.
+  const insertArtifactJson = insertRow as unknown as Json;
   let inserted: Record<string, unknown> & { id: string; created_at: string };
   if (body.kind === "practice") {
     if (!assignmentPracticeBoundary) {
@@ -1043,7 +1116,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         p_source_version: assignmentPracticeBoundary.sourceVersion,
         p_source_hash: assignmentPracticeBoundary.sourceHash,
         p_concept_id: assignmentPracticeBoundary.practiceConceptId,
-        p_artifact: insertRow,
+        p_artifact: insertArtifactJson,
       },
     );
     if (rpcError) {
@@ -1082,7 +1155,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         p_source_version: boundary.sourceVersion,
         p_source_hash: boundary.sourceHash,
         p_concept_id: boundary.practiceConceptId,
-        p_artifact: insertRow,
+        p_artifact: insertArtifactJson,
       },
     );
     if (rpcError) {
@@ -1195,7 +1268,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 }));
 
 async function resolveStudyScope(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   body: Body,
 ): Promise<ResolvedStudyScope | Response> {
@@ -1257,7 +1330,7 @@ async function resolveStudyScope(
 }
 
 async function verifyAssignmentPracticeBoundary(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   body: Body,
 ): Promise<AssignmentPracticeBoundary | Response> {
@@ -1342,7 +1415,7 @@ async function verifyAssignmentPracticeBoundary(
 }
 
 async function verifyCaptureGroundingBoundary(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   captureId: string,
   artifactKind: ArtifactKind,
@@ -1390,7 +1463,7 @@ async function verifyCaptureGroundingBoundary(
 }
 
 async function assignmentReviewBoundaryIsCurrent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   boundary: AssignmentReviewBoundary,
 ) {
@@ -1413,7 +1486,7 @@ async function assignmentReviewBoundaryIsCurrent(
 }
 
 async function loadExplicitExamCaptureIds(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   examId: string,
   clientClassId?: string | null,
@@ -1430,7 +1503,7 @@ async function loadExplicitExamCaptureIds(
 }
 
 async function loadSourceExcerpts(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   concepts: ConceptRow[],
   options: {
@@ -1585,7 +1658,7 @@ async function loadSourceExcerpts(
 }
 
 async function enforceClassBoundary(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   concepts: ConceptRow[],
   userId: string,
   requestedClassId?: string,
@@ -1617,7 +1690,7 @@ async function enforceClassBoundary(
 }
 
 async function loadOwnerMastery(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   conceptIds: string[],
 ): Promise<StudySelectionMastery[] | Response> {
@@ -1644,7 +1717,7 @@ async function loadStrategyEvidence(
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return [];
   try {
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    const adminClient = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data, error } = await adminClient
@@ -1685,7 +1758,7 @@ async function loadMnemonicTechniquePreferences(
     // Direct authenticated table access is deliberately revoked. The Edge
     // function uses its internal service client and still scopes the query to
     // the verified JWT owner so technique feedback cannot cross accounts.
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    const adminClient = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data, error } = await adminClient
@@ -1704,7 +1777,7 @@ async function loadMnemonicTechniquePreferences(
 }
 
 async function loadClassIdentity(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
   clientClassId: string | null,
 ): Promise<OwnedClassIdentity | null> {
@@ -1748,7 +1821,7 @@ async function loadClassIdentity(
 }
 
 async function loadLearnerAudience(
-  supabase: ReturnType<typeof createClient>,
+  supabase: EdgeSupabaseClient,
   userId: string,
 ): Promise<LearnerAudience> {
   try {
@@ -1781,7 +1854,7 @@ async function consumeGenerationRequestQuota(userId: string): Promise<GatewayFai
   if (!supabaseUrl || !serviceRoleKey) {
     return { ok: false, status: 503, error: "Study generation is temporarily unavailable" };
   }
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const adminClient = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const limits = [
@@ -1811,7 +1884,7 @@ async function consumeArtifactQuota(userId: string): Promise<GatewayFailure | nu
   if (!supabaseUrl || !serviceRoleKey) {
     return { ok: false, status: 503, error: "Study generation is temporarily unavailable" };
   }
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const adminClient = createClient<EdgeDatabase>(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const limits = [

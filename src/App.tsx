@@ -40,7 +40,6 @@ import { RealComingSoon } from "@/components/real/RealComingSoon";
 import { RealOnly } from "@/components/real/RealOnly";
 import CanvasConnectionPage from "./pages/CanvasConnectionPage";
 import ClassEditorPage from "./pages/ClassEditorPage";
-import { hasFamilyBetaAgreement } from "@/lib/legal/familyBeta";
 import { getOnboardingRedirect, getSetupGate } from "@/lib/auth/protectedRoute";
 import { setupErrorCopy } from "@/lib/auth/setupStatus";
 import { AppContentErrorBoundary } from "@/components/AppContentErrorBoundary";
@@ -154,11 +153,14 @@ function SetupPanel({ gate }: { gate: "checking" | "error" }) {
 }
 
 function RootGate() {
-  const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
+  const { user, isDemoMode, loading, recovering, setupStatus, agreementStatus } = useAuth();
   if (loading) return <RouteLoading />;
   if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace />;
-  if (user && !hasFamilyBetaAgreement(user)) return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;
+  if (user && agreementStatus === "checking") return <RouteLoading />;
+  if (user && agreementStatus !== "accepted") {
+    return <Navigate to="/family-beta-agreement" replace state={{ next: "/" }} />;
+  }
   const gate = getSetupGate({ signedIn: Boolean(user), setupStatus });
   if (gate) return <SetupPanel gate={gate} />;
   if (user && setupStatus === "needs_onboarding") return <Navigate to="/onboarding" replace />;
@@ -167,13 +169,14 @@ function RootGate() {
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, isDemoMode, loading, recovering, setupStatus } = useAuth();
+  const { user, isDemoMode, loading, recovering, setupStatus, agreementStatus } = useAuth();
   const loc = useLocation();
   if (loading) return <RouteLoading />;
   // A transient session read failure must never look like a logout.
   if (!user && recovering) return <ReconnectingPanel />;
   if (!user && !isDemoMode) return <Navigate to="/login" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
-  if (user && !hasFamilyBetaAgreement(user)) {
+  if (user && agreementStatus === "checking") return <RouteLoading />;
+  if (user && agreementStatus !== "accepted") {
     return <Navigate to="/family-beta-agreement" replace state={{ next: `${loc.pathname}${loc.search}` }} />;
   }
   const gate = getSetupGate({ signedIn: Boolean(user), setupStatus });

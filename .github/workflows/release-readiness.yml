@@ -2,14 +2,10 @@ name: Production release readiness
 
 on:
   workflow_dispatch:
-    inputs:
-      release_origin:
-        description: Exact published HTTPS origin to verify
-        required: true
-        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: production-release-readiness
@@ -21,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      RELEASE_PRODUCTION_ORIGIN: ${{ inputs.release_origin }}
+      RELEASE_PRODUCTION_ORIGIN: ${{ vars.PRODUCTION_ORIGIN }}
       VITE_RELEASE_SHA: ${{ github.sha }}
       VITE_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}
@@ -29,21 +25,79 @@ jobs:
       VITE_PUBLIC_SUPPORT_EMAIL: ${{ vars.PUBLIC_SUPPORT_EMAIL }}
       VITE_PUBLIC_SIGNUPS_ENABLED: "false"
       VITE_PASSKEYS_ENABLED: "false"
-      CANARY_EMAIL: ${{ secrets.PRODUCTION_CANARY_EMAIL }}
-      CANARY_PASSWORD: ${{ secrets.PRODUCTION_CANARY_PASSWORD }}
 
     steps:
+      - name: Require the reviewed main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Require successful CI for the exact release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          required_ci_run="$(
+            gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+              -f head_sha="$GITHUB_SHA" \
+              -f branch="main" \
+              -f event="push" \
+              -f status="success" \
+              -f per_page="100" \
+              --jq '.workflow_runs | sort_by(.updated_at) | reverse | .[0] | [.id, .head_sha, .head_branch, .event, .conclusion] | @tsv'
+          )"
+          IFS=$'\t' read -r required_ci_run_id ci_head_sha ci_branch ci_event ci_conclusion <<< "$required_ci_run"
+          test -n "$required_ci_run_id"
+          test "$ci_head_sha" = "$GITHUB_SHA"
+          test "$ci_branch" = "main"
+          test "$ci_event" = "push"
+          test "$ci_conclusion" = "success"
+
+          required_ci_conclusion="$(
+            gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$GITHUB_REPOSITORY/actions/runs/$required_ci_run_id/jobs" \
+              -f filter="latest" \
+              -f per_page="100" \
+              --jq '[.jobs[] | select(.name == "Required CI")] | sort_by(.completed_at) | reverse | .[0].conclusion // ""'
+          )"
+          test "$required_ci_conclusion" = "success"
+
       - name: Check out exact release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
+
+      - name: Activate and verify pinned npm
+        run: |
+          npm install --global npm@11.9.0
+          test "$(node --version)" = "v24.19.0"
+          test "$(npm --version)" = "11.9.0"
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.2.12
+
+      - name: Verify npm is the sole package manager
+        run: test -f package-lock.json && test ! -e bun.lock && test ! -e bun.lockb
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Audit locked production dependencies
+        run: npm run audit:prod
+
+      - name: Audit build and test tooling
+        run: npm run audit:tooling
+
+      - name: Verify Edge source at the release commit
+        run: deno task verify:edge
 
       - name: Validate production configuration
         run: npm run validate:release-env
@@ -51,5 +105,13 @@ jobs:
       - name: Build exact release bundle
         run: npm run build
 
+      - name: Verify built public release manifest
+        run: node scripts/verify-built-release-manifest.mjs
+
       - name: Verify published origin and backend canary
-        run: npm run canary:release
+        env:
+          CANARY_EMAIL: ${{ secrets.PRODUCTION_CANARY_EMAIL }}
+          CANARY_PASSWORD: ${{ secrets.PRODUCTION_CANARY_PASSWORD }}
+          UNACCEPTED_CANARY_EMAIL: ${{ secrets.PRODUCTION_UNACCEPTED_CANARY_EMAIL }}
+          UNACCEPTED_CANARY_PASSWORD: ${{ secrets.PRODUCTION_UNACCEPTED_CANARY_PASSWORD }}
+        run: node scripts/postdeploy-canary.mjs

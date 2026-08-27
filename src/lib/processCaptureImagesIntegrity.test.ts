@@ -69,7 +69,7 @@ describe("photo capture worker integrity", () => {
   });
 
   it("preserves the concept, mastery, evidence, and processed-source pipeline for study material", () => {
-    expect(source).toContain('if (capture.kind === "scan-material") {');
+    expect(source).toContain('if (capture.kind !== "scan-material") return null;');
     expect(source).toContain('.from("concepts")\n      .upsert(conceptRows, {');
     expect(source).toContain('onConflict: "user_id,class_id,identity_key"');
     expect(source).toContain("ignoreDuplicates: true");

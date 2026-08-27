@@ -304,6 +304,36 @@ export type Database = {
         }
         Relationships: []
       }
+      capture_source_cleanup_claims: {
+        Row: {
+          attempts: number
+          claim_token: string
+          claimed_at: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token: string
+          claimed_at?: string
+          eligible_before: string
+          lease_expires_at: string
+          object_created_at: string
+          storage_path: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string
+          claimed_at?: string
+          eligible_before?: string
+          lease_expires_at?: string
+          object_created_at?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       captures: {
         Row: {
           anonymized: boolean
@@ -1021,6 +1051,27 @@ export type Database = {
           },
         ]
       }
+      family_beta_agreement_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_by: string
+          agreement_version: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_by: string
+          agreement_version: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_by?: string
+          agreement_version?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       flashcards: {
         Row: {
           anonymized: boolean
@@ -1260,11 +1311,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "processed_content_capture_id_fkey"
-            columns: ["capture_id"]
+            foreignKeyName: "processed_content_capture_owner_fkey"
+            columns: ["capture_id", "user_id"]
             isOneToOne: false
             referencedRelation: "captures"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "user_id"]
           },
         ]
       }
@@ -2044,6 +2095,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_family_beta_agreement: {
+        Args: { p_agreement_version: string }
+        Returns: Json
+      }
       apply_study_concept_result: {
         Args: {
           p_attempt_id: string
@@ -2067,9 +2122,23 @@ export type Database = {
         }
         Returns: Json
       }
+      can_delete_uncommitted_capture_source: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      can_upload_capture_source: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
       can_upload_uncommitted_syllabus_source: {
         Args: { p_path: string }
         Returns: boolean
+      }
+      claim_abandoned_capture_sources: {
+        Args: { p_before?: string; p_claim_token: string; p_limit?: number }
+        Returns: {
+          storage_path: string
+        }[]
       }
       claim_abandoned_syllabus_sources: {
         Args: { p_before?: string; p_claim_token: string; p_limit?: number }
@@ -2092,6 +2161,12 @@ export type Database = {
         }
         Returns: Json
       }
+      confirm_capture_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: {
+          storage_path: string
+        }[]
+      }
       confirm_syllabus_cleanup_claims: {
         Args: { p_claim_token: string; p_storage_paths: string[] }
         Returns: {
@@ -2107,7 +2182,9 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_capture_cleanup_invocation_digest: { Args: never; Returns: string }
       get_syllabus_cleanup_invocation_digest: { Args: never; Returns: string }
+      get_family_beta_agreement_status: { Args: never; Returns: Json }
       owns_active_syllabus_storage_path: {
         Args: { p_path: string }
         Returns: boolean
@@ -2128,6 +2205,10 @@ export type Database = {
         Returns: boolean
       }
       release_syllabus_cleanup_claims: {
+        Args: { p_claim_token: string; p_storage_paths: string[] }
+        Returns: number
+      }
+      release_capture_cleanup_claims: {
         Args: { p_claim_token: string; p_storage_paths: string[] }
         Returns: number
       }

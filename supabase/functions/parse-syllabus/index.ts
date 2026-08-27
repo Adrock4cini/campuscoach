@@ -1,6 +1,6 @@
 // Parse a syllabus (PDF or image) into structured class data using Lovable AI Gateway.
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import {
   executePaidAiRequest,
   type PaidAiExecutionResult,
@@ -11,6 +11,16 @@ import {
   privateResponseHeaders,
   withPrivateJsonErrors,
 } from "../_shared/private-json-response.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
+import {
+  checkStudyWritesPaused,
+  STUDY_WRITES_PAUSED_RESPONSE,
+} from "../_shared/study-write-pause.ts";
 
 interface Body {
   fileDataUrl: string; // data:<mime>;base64,<b64>
@@ -117,6 +127,39 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   const { data: authData, error: authError } = await authClient.auth.getUser();
   if (authError || !authData.user) {
     return json({ error: "Authentication required" }, 401);
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceRoleKey) {
+    logPrivateFailure({ errorClass: "service_environment_missing", status: 503, requestId });
+    return json({ error: "Service unavailable" }, 503);
+  }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const agreementGate = await checkCurrentFamilyBetaAgreement(authData.user.id, () =>
+    adminClient
+      .from("family_beta_agreement_acceptances")
+      .select("user_id, accepted_by, agreement_version, accepted_at")
+      .eq("user_id", authData.user.id)
+      .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+      .maybeSingle()
+  );
+  if (!agreementGate.allowed) {
+    if (agreementGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "agreement_check_unavailable", status: 503, requestId });
+      return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+    }
+    return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+  }
+  const pauseGate = await checkStudyWritesPaused(
+    () => adminClient.rpc("get_study_write_pause"),
+  );
+  if (pauseGate.blocked) {
+    if (pauseGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "pause_control_unavailable", status: 503, requestId });
+    }
+    return json(STUDY_WRITES_PAUSED_RESPONSE, 503);
   }
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
@@ -239,14 +282,6 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     return json({ error: "Unsupported file type. Use a PDF or supported image." }, 400);
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!serviceRoleKey) {
-    logPrivateFailure({ errorClass: "service_environment_missing", status: 503, requestId });
-    return json({ error: "Service unavailable" }, 503);
-  }
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
   const targetInstruction = targetClass
     ? ` The student is attaching this document to an existing class with this metadata: ${JSON.stringify({
         name: targetClass.name,

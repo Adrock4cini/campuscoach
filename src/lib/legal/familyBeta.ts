@@ -1,16 +1,7 @@
-import type { User } from "@supabase/supabase-js";
 import { projectRefFromSupabaseUrl } from "@/integrations/supabase/browserConfig";
 
 export const FAMILY_BETA_AGREEMENT_VERSION = "2026-08-17";
-export const PENDING_OAUTH_AGREEMENT_KEY = "cc_family_beta_oauth_agreement";
-
-export function hasFamilyBetaAgreement(user: User | null | undefined) {
-  return user?.user_metadata?.family_beta_agreement_version === FAMILY_BETA_AGREEMENT_VERSION;
-}
-
-export function familyBetaMetadata() {
-  return { family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION };
-}
+export const PENDING_FAMILY_BETA_AGREEMENT_KEY = "cc_family_beta_oauth_agreement";
 
 export function publicSupportEmail() {
   const value = import.meta.env.VITE_PUBLIC_SUPPORT_EMAIL?.trim();
@@ -38,21 +29,21 @@ export function publicSignupsEnabled() {
   return isFamilyBetaStaging() && import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED !== "false";
 }
 
-export function rememberPendingOAuthAgreement() {
+export function rememberPendingFamilyBetaAgreement() {
   if (typeof window !== "undefined") {
-    sessionStorage.setItem(PENDING_OAUTH_AGREEMENT_KEY, FAMILY_BETA_AGREEMENT_VERSION);
+    sessionStorage.setItem(PENDING_FAMILY_BETA_AGREEMENT_KEY, FAMILY_BETA_AGREEMENT_VERSION);
   }
 }
 
-export function clearPendingOAuthAgreement() {
+export function clearPendingFamilyBetaAgreement() {
   if (typeof window !== "undefined") {
-    sessionStorage.removeItem(PENDING_OAUTH_AGREEMENT_KEY);
+    sessionStorage.removeItem(PENDING_FAMILY_BETA_AGREEMENT_KEY);
   }
 }
 
-export function consumePendingOAuthAgreement() {
+export function consumePendingFamilyBetaAgreement() {
   if (typeof window === "undefined") return false;
-  const accepted = sessionStorage.getItem(PENDING_OAUTH_AGREEMENT_KEY) === FAMILY_BETA_AGREEMENT_VERSION;
-  sessionStorage.removeItem(PENDING_OAUTH_AGREEMENT_KEY);
+  const accepted = sessionStorage.getItem(PENDING_FAMILY_BETA_AGREEMENT_KEY) === FAMILY_BETA_AGREEMENT_VERSION;
+  sessionStorage.removeItem(PENDING_FAMILY_BETA_AGREEMENT_KEY);
   return accepted;
 }

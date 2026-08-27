@@ -33,7 +33,7 @@ describe("verified tricks library — integrity", () => {
   });
 
   it("is a pure lookup — no model call, no network, no storage", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch" as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     const match = selectVerifiedTrick({ problemText: "What is 14% of 50?" });
     expect(match?.trick.id).toBe("percent-swap");
     expect(fetchSpy).not.toHaveBeenCalled();

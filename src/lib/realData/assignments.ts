@@ -39,6 +39,12 @@ export interface NewAssignmentInput {
   notes?: string | null;
 }
 
+export interface CreateAssignmentAttempt {
+  assignment: RealAssignment | null;
+  created: boolean;
+  conflict: boolean;
+}
+
 export async function listAssignments(userId: string, clientClassId?: string): Promise<RealAssignment[]> {
   let q = supabase.from("assignments").select("*").eq("user_id", userId)
     .is("source_archived_at", null);
@@ -51,7 +57,10 @@ export async function listAssignments(userId: string, clientClassId?: string): P
   return (data ?? []) as RealAssignment[];
 }
 
-export async function createAssignment(userId: string, input: NewAssignmentInput): Promise<RealAssignment | null> {
+export async function createAssignmentAttempt(
+  userId: string,
+  input: NewAssignmentInput,
+): Promise<CreateAssignmentAttempt> {
   const payload = {
     ...(input.id ? { id: input.id } : {}),
     user_id: userId,
@@ -64,17 +73,51 @@ export async function createAssignment(userId: string, input: NewAssignmentInput
     status: input.status ?? "not_started",
     notes: input.notes ?? null,
   };
-  const query = input.id
-    ? supabase.from("assignments").upsert(payload, { onConflict: "id" })
-    : supabase.from("assignments").insert(payload);
-  const { data, error } = await query
+  const { data, error } = await supabase.from("assignments").insert(payload)
     .select("*")
     .maybeSingle();
+  if (!error && data) {
+    return { assignment: data as RealAssignment, created: true, conflict: false };
+  }
+
+  // A client-generated id makes a dropped successful response recoverable,
+  // but it must never become an UPDATE-style retry that rewrites a student's
+  // already-saved assignment.
+  if (input.id && error?.code === "23505") {
+    const recovered = await supabase
+      .from("assignments")
+      .select("*")
+      .eq("id", input.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const row = recovered.data as RealAssignment | null;
+    if (!recovered.error && row) {
+      const exact = row.client_class_id === payload.client_class_id
+        && row.class_id === payload.class_id
+        && row.title === payload.title
+        && row.due_date === payload.due_date
+        && row.estimated_minutes === payload.estimated_minutes
+        && row.priority === payload.priority
+        && row.status === payload.status
+        && row.notes === payload.notes
+        && (row.source ?? "manual") === "manual"
+        && row.source_archived_at == null;
+      return exact
+        ? { assignment: row, created: false, conflict: false }
+        : { assignment: null, created: false, conflict: true };
+    }
+  }
   if (error) {
     console.warn("[assignments:create]", error);
-    return null;
   }
-  return data as RealAssignment;
+  return { assignment: null, created: false, conflict: false };
+}
+
+export async function createAssignment(
+  userId: string,
+  input: NewAssignmentInput,
+): Promise<RealAssignment | null> {
+  return (await createAssignmentAttempt(userId, input)).assignment;
 }
 
 /** Single assignment for the real detail page. */

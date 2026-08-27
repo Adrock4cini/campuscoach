@@ -18,7 +18,7 @@ function validEnvironment(overrides: Record<string, string | undefined> = {}) {
     VITE_PUBLIC_SUPPORT_EMAIL: "support@campuscompanion.app",
     VITE_PUBLIC_SIGNUPS_ENABLED: "false",
     VITE_PASSKEYS_ENABLED: "false",
-    VITE_RELEASE_SHA: "abcdef1234567890",
+    VITE_RELEASE_SHA: "abcdef1234567890abcdef1234567890abcdef12",
     RELEASE_PRODUCTION_ORIGIN: "https://app.campuscompanion.com",
     ...overrides,
   };

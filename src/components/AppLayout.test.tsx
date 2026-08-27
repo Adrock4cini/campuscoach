@@ -6,6 +6,7 @@ import { AppLayout } from "./AppLayout";
 const auth = vi.hoisted(() => ({
   mode: "loading" as "loading" | "real" | "demo",
   user: null as { id: string } | null,
+  agreementStatus: "checking" as "checking" | "accepted" | "required" | "error",
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -42,6 +43,7 @@ describe("AppLayout auth boundary", () => {
   beforeEach(() => {
     auth.mode = "loading";
     auth.user = null;
+    auth.agreementStatus = "checking";
   });
 
   it("keeps all demo navigation and capture actions hidden while auth resolves", () => {
@@ -56,6 +58,7 @@ describe("AppLayout auth boundary", () => {
   it("keeps search reachable on phone widths", () => {
     auth.mode = "real";
     auth.user = { id: "child-a" };
+    auth.agreementStatus = "accepted";
     render(<AppLayout><div>Real route content</div></AppLayout>);
 
     const mobileSearch = screen.getByRole("button", { name: "Search" });
@@ -66,6 +69,7 @@ describe("AppLayout auth boundary", () => {
   it("unmounts owner-scoped drafts when the signed-in account changes", () => {
     auth.mode = "real";
     auth.user = { id: "child-a" };
+    auth.agreementStatus = "accepted";
     const { rerender } = render(<AppLayout><div>Real route content</div></AppLayout>);
     fireEvent.change(screen.getByRole("textbox", { name: "Capture draft" }), { target: { value: "Child A private note" } });
     expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("Child A private note");
@@ -79,6 +83,7 @@ describe("AppLayout auth boundary", () => {
   it("keeps owner-scoped drafts through a transient mode refresh", () => {
     auth.mode = "real";
     auth.user = { id: "child-a" };
+    auth.agreementStatus = "accepted";
     const { rerender } = render(<AppLayout><div>Real route content</div></AppLayout>);
     fireEvent.change(screen.getByRole("textbox", { name: "Capture draft" }), { target: { value: "Keep this note" } });
 
@@ -88,5 +93,18 @@ describe("AppLayout auth boundary", () => {
     rerender(<AppLayout><div>Real route content</div></AppLayout>);
 
     expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("Keep this note");
+  });
+
+  it("keeps the authenticated app shell unmounted until the service receipt is current", () => {
+    auth.mode = "real";
+    auth.user = { id: "child-a" };
+    auth.agreementStatus = "required";
+
+    render(<AppLayout><div>Agreement route gate</div></AppLayout>);
+
+    expect(screen.getByText("Agreement route gate")).toBeInTheDocument();
+    expect(screen.queryByText("Demo sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Capture" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Capture draft" })).not.toBeInTheDocument();
   });
 });

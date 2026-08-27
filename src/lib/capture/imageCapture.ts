@@ -79,9 +79,14 @@ export function buildCaptureStoragePath(
   file: File,
   contentHash: string,
 ): string {
-  const safeHash = contentHash.toLowerCase().replace(/[^a-f0-9]/g, "").slice(0, 64);
-  if (!safeHash) throw new Error("A valid image hash is required.");
-  return `${userId}/${captureId}/${safeHash}.${extensionFor(file)}`;
+  const canonicalUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  if (!canonicalUuid.test(userId) || !canonicalUuid.test(captureId)) {
+    throw new Error("A valid capture owner and capture ID are required.");
+  }
+  if (!/^[0-9a-f]{64}$/.test(contentHash)) {
+    throw new Error("A complete SHA-256 image hash is required.");
+  }
+  return `${userId}/${captureId}/${contentHash}.${extensionFor(file)}`;
 }
 
 export async function hashCaptureImage(file: File): Promise<string> {

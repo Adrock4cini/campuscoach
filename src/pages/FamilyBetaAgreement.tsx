@@ -3,16 +3,21 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import {
-  consumePendingOAuthAgreement,
-  familyBetaMetadata,
-  hasFamilyBetaAgreement,
+  consumePendingFamilyBetaAgreement,
 } from "@/lib/legal/familyBeta";
 import { toast } from "sonner";
 
 export default function FamilyBetaAgreement() {
-  const { user, loading, recovering, signOut } = useAuth();
+  const {
+    user,
+    loading,
+    recovering,
+    agreementStatus,
+    refreshAgreement,
+    acceptAgreement,
+    signOut,
+  } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
   const next = (loc.state as { next?: string } | null)?.next ?? "/";
@@ -20,21 +25,21 @@ export default function FamilyBetaAgreement() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user && consumePendingOAuthAgreement()) setAgreed(true);
+    if (user && consumePendingFamilyBetaAgreement()) setAgreed(true);
   }, [user]);
 
   if (loading || recovering) {
     return <div role="status" className="py-20 text-center text-sm text-muted-foreground">Reconnecting to your account…</div>;
   }
   if (!user) return <Navigate to="/login" replace />;
-  if (hasFamilyBetaAgreement(user)) return <Navigate to={next} replace />;
+  if (agreementStatus === "accepted") return <Navigate to={next} replace />;
 
   const accept = async () => {
     if (!agreed) return;
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ data: familyBetaMetadata() });
-      if (error) {
+      const confirmed = await acceptAgreement();
+      if (!confirmed) {
         toast.error("Couldn’t save your agreement", { description: "Check your connection and try again." });
         return;
       }
@@ -69,6 +74,20 @@ export default function FamilyBetaAgreement() {
               This family beta currently supports students age 13 and older. Please do not create or use an account for a child under 13.
             </p>
           </div>
+          {agreementStatus === "error" && (
+            <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm leading-relaxed text-muted-foreground">
+              We couldn’t verify this account’s agreement yet. Check your connection, then retry the check or agree again.
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 min-h-11 w-full"
+                disabled={busy}
+                onClick={() => { void refreshAgreement(); }}
+              >
+                Retry agreement check
+              </Button>
+            </div>
+          )}
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-border/70 p-3 text-sm leading-relaxed">
             <input
               type="checkbox"

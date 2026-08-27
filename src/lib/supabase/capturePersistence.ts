@@ -22,7 +22,7 @@ import {
   getAuthenticatedUserId,
 } from "@/hooks/useClassIntelligence";
 import type { CaptureKind, CaptureResult } from "@/lib/capture/types";
-import { createAssignment } from "@/lib/realData/assignments";
+import { createAssignmentAttempt } from "@/lib/realData/assignments";
 import {
   buildCaptureStoragePath,
   hashCaptureImage,
@@ -37,6 +37,46 @@ import {
 import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
 
 const CAPTURE_SOURCE_BUCKET = "capture-sources";
+
+class CaptureSourceRetryConflictError extends Error {
+  constructor() {
+    super("This capture was already saved with different photos. Open the saved capture or start a new one.");
+    this.name = "CaptureSourceRetryConflictError";
+  }
+}
+
+class CaptureRequestRetryConflictError extends Error {
+  constructor() {
+    super("This capture retry no longer matches the saved capture. Open the saved capture or start a new one.");
+    this.name = "CaptureRequestRetryConflictError";
+  }
+}
+
+function isExistingStorageObjectError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  const status = String(record.statusCode ?? record.status ?? "");
+  const message = String(record.message ?? record.error ?? "").toLowerCase();
+  return status === "409"
+    || message.includes("already exists")
+    || message.includes("duplicate");
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => (
+      `${JSON.stringify(key)}:${stableJson(record[key])}`
+    )).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /* ------------------------------------------------------------------ */
 /* Shapes                                                              */
@@ -188,7 +228,7 @@ export async function saveCapture(
 ): Promise<string | null> {
   try {
     assertActiveCaptureOwner(userId);
-    const captureValues = {
+    const requestIdentity = {
       user_id: userId,
       class_id: input.classUuid,
       client_class_id: input.clientClassId,
@@ -200,33 +240,57 @@ export async function saveCapture(
       processing_status: input.processingStatus ?? "ready",
       flashcards_ready: input.flashcardsReady ?? false,
       local_id: input.localId,
-      meta: (input.meta ?? {}) as never,
+      meta: input.meta ?? {},
       assignment_id: input.assignmentId ?? null,
       exam_id: input.examId ?? null,
     };
-    let { data, error } = await supabase
+    const requestFingerprint = await sha256Text(stableJson(requestIdentity));
+    const captureValues = {
+      ...requestIdentity,
+      meta: {
+        ...requestIdentity.meta,
+        captureRequestFingerprint: requestFingerprint,
+      } as never,
+    };
+    const inserted = await supabase
       .from("captures")
       .insert(captureValues)
       .select("id")
       .maybeSingle();
+    let captureId = inserted.data?.id ?? null;
+    let captureError = inserted.error;
 
     // A lost insert response can be retried without reopening protected source
     // fields. Reuse the already-owned row instead of issuing an UPDATE-style
     // upsert that could roll a server-processed capture backward.
-    if (error?.code === "23505") {
+    if (captureError?.code === "23505") {
       const recovered = await supabase
         .from("captures")
-        .select("id")
+        .select("id, meta")
         .eq("user_id", userId)
         .eq("local_id", input.localId)
         .maybeSingle();
-      data = recovered.data;
-      error = recovered.error;
+      if (recovered.error || !recovered.data) {
+        captureError = recovered.error ?? captureError;
+        captureId = null;
+      } else {
+        const recoveredMeta = recovered.data.meta;
+        const savedFingerprint = recoveredMeta
+          && typeof recoveredMeta === "object"
+          && !Array.isArray(recoveredMeta)
+          ? (recoveredMeta as Record<string, unknown>).captureRequestFingerprint
+          : null;
+        if (savedFingerprint !== requestFingerprint) {
+          throw new CaptureRequestRetryConflictError();
+        }
+        captureId = recovered.data.id;
+        captureError = null;
+      }
     }
 
     assertActiveCaptureOwner(userId);
-    if (error || !data) {
-      warn("saveCapture.insert", error);
+    if (captureError || !captureId) {
+      warn("saveCapture.insert", captureError);
       return null;
     }
 
@@ -234,13 +298,13 @@ export async function saveCapture(
     if (input.summary || (input.keyConcepts && input.keyConcepts.length)) {
       assertActiveCaptureOwner(userId);
       const { error: pcErr } = await supabase.from("processed_content").insert({
-        capture_id: data.id,
+        capture_id: captureId,
         user_id: userId,
         summary: input.summary ?? null,
         key_concepts: input.keyConcepts ?? [],
-        model: "mock-v1",
+        model: `mock-v1:${requestFingerprint}`,
       });
-      if (pcErr) warn("saveCapture.processed", pcErr);
+      if (pcErr && pcErr.code !== "23505") warn("saveCapture.processed", pcErr);
     }
 
     // Feed the Campus Brain signal log so the Student Model can
@@ -249,7 +313,7 @@ export async function saveCapture(
     await saveCampusBrainSignal({
       clientClassId: input.clientClassId,
       sourceType: `capture:${input.kind}`,
-      sourceId: data.id,
+      sourceId: captureId,
       topic: input.topic ?? null,
       weight: 1,
       payload: {
@@ -260,9 +324,9 @@ export async function saveCapture(
     }, userId);
     assertActiveCaptureOwner(userId);
 
-    return data.id;
+    return captureId;
   } catch (err) {
-    if (isOwnerMismatchError(err)) throw err;
+    if (isOwnerMismatchError(err) || err instanceof CaptureRequestRetryConflictError) throw err;
     warn("saveCapture.catch", err);
     return null;
   }
@@ -351,8 +415,8 @@ export function selectTrustworthyProcessedContent(
   if (!rows.length) return null;
 
   return [...rows].sort((a, b) => {
-    const aReal = a.model && a.model !== "mock-v1" ? 1 : 0;
-    const bReal = b.model && b.model !== "mock-v1" ? 1 : 0;
+    const aReal = a.model && !a.model.startsWith("mock-v1") ? 1 : 0;
+    const bReal = b.model && !b.model.startsWith("mock-v1") ? 1 : 0;
     if (aReal !== bReal) return bReal - aReal;
     return (b.created_at ?? "").localeCompare(a.created_at ?? "");
   })[0];
@@ -505,7 +569,7 @@ export async function persistCaptureResult(
     assertActiveCaptureOwner(userId);
     const title = result.context.assignmentTitle?.trim();
     if (!title) throw new Error("Add an assignment name before saving.");
-    const assignment = await createAssignment(userId, {
+    const assignmentAttempt = await createAssignmentAttempt(userId, {
       id: result.id,
       title,
       clientClassId: result.context.classId,
@@ -513,10 +577,14 @@ export async function persistCaptureResult(
       dueDate: result.context.assignmentDueDate ?? null,
       notes: "Created from Assignment Capture",
     });
+    if (assignmentAttempt.conflict) {
+      throw new Error("This assignment retry no longer matches the saved assignment. Open the saved assignment or start a new capture.");
+    }
+    const assignment = assignmentAttempt.assignment;
     if (!assignment) throw new Error("We couldn't create this assignment. Try again.");
     assertActiveCaptureOwner(userId);
     assignmentId = assignment.id;
-    createdAssignmentId = assignment.id;
+    if (assignmentAttempt.created) createdAssignmentId = assignment.id;
   }
 
   try {
@@ -533,26 +601,32 @@ export async function persistCaptureResult(
     throw error;
   }
 
-  const captureId = await saveCapture({
-    localId: result.id,
-    kind: result.kind,
-    clientClassId: result.context.classId,
-    classUuid,
-    topic: result.context.topic,
-    capturedOn: result.context.date,
-    rawText: result.context.text,
-    processingStatus: (needsExtraction || hasImages) ? "processing" : "ready",
-    flashcardsReady: result.flashcardCount > 0,
-    keyConcepts: hasDerivedContent ? result.keyConcepts : undefined,
-    summary: hasDerivedContent ? result.summary : undefined,
-    meta: {
-      flashcardCount: result.flashcardCount,
-      sourceImageCount: attachments.length,
-      assignmentTitle: result.context.assignmentTitle ?? null,
-    },
-    assignmentId,
-    examId: result.context.examId ?? null,
-  }, userId);
+  let captureId: string | null;
+  try {
+    captureId = await saveCapture({
+      localId: result.id,
+      kind: result.kind,
+      clientClassId: result.context.classId,
+      classUuid,
+      topic: result.context.topic,
+      capturedOn: result.context.date,
+      rawText: result.context.text,
+      processingStatus: (needsExtraction || hasImages) ? "processing" : "ready",
+      flashcardsReady: result.flashcardCount > 0,
+      keyConcepts: hasDerivedContent ? result.keyConcepts : undefined,
+      summary: hasDerivedContent ? result.summary : undefined,
+      meta: {
+        flashcardCount: result.flashcardCount,
+        sourceImageCount: attachments.length,
+        assignmentTitle: result.context.assignmentTitle ?? null,
+      },
+      assignmentId,
+      examId: result.context.examId ?? null,
+    }, userId);
+  } catch (error) {
+    if (createdAssignmentId) await rollbackCreatedAssignment(createdAssignmentId, userId);
+    throw error;
+  }
 
   if (!captureId) {
     if (createdAssignmentId) {
@@ -572,30 +646,15 @@ export async function persistCaptureResult(
       result.materialIds = materialIds;
     } catch (err) {
       if (isOwnerMismatchError(err)) throw err;
+      // A changed retry must never tear down the already-durable capture or its
+      // original immutable source. The student can open that capture or begin a
+      // new attempt with the changed pages.
+      if (err instanceof CaptureSourceRetryConflictError) throw err;
       warn("persistCaptureResult.upload", err);
-      try {
-        const { error } = await supabase
-          .from("captures")
-          .delete()
-          .eq("id", captureId)
-          .eq("user_id", userId);
-        if (error) warn("persistCaptureResult.cleanup-capture", error);
-      } catch (cleanupError) {
-        warn("persistCaptureResult.cleanup-capture.catch", cleanupError);
-      }
-      try {
-        const { error } = await supabase
-          .from("campus_brain_signals")
-          .delete()
-          .eq("user_id", userId)
-          .eq("source_id", captureId);
-        if (error) warn("persistCaptureResult.cleanup-signal", error);
-      } catch (cleanupError) {
-        warn("persistCaptureResult.cleanup-signal.catch", cleanupError);
-      }
-      if (createdAssignmentId) {
-        await rollbackCreatedAssignment(createdAssignmentId, userId);
-      }
+      // Never tear down a durable capture from the browser. A dropped response
+      // or concurrent exact retry may already have adopted its rows/objects.
+      // Partial sources remain retryable and bounded; the fenced orphan worker
+      // removes only bytes that never receive a material commit.
       throw new Error("We couldn't upload these photos. They are still on this screen—check your connection and try again.");
     }
 
@@ -688,74 +747,84 @@ async function uploadCaptureImages(
 ): Promise<string[]> {
   assertActiveCaptureOwner(userId);
   const materialIds: string[] = [];
-  const newlyUploadedPaths: string[] = [];
 
-  try {
-    for (let pageIndex = 0; pageIndex < files.length; pageIndex += 1) {
+  for (let pageIndex = 0; pageIndex < files.length; pageIndex += 1) {
       assertActiveCaptureOwner(userId);
       const file = files[pageIndex];
       const contentHash = await hashCaptureImage(file);
       assertActiveCaptureOwner(userId);
-      const { data: duplicate, error: duplicateError } = await supabase
+      // Every physical source stays under the capture that introduced it.
+      // Cross-capture hash reuse would make retention, per-capture quotas, and
+      // deletion provenance ambiguous, so deduplication is intentionally
+      // limited to this deterministic exact-retry path.
+      const storagePath = buildCaptureStoragePath(userId, captureId, file, contentHash);
+      const { error: uploadError } = await supabase.storage
+        .from(CAPTURE_SOURCE_BUCKET)
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          // Capture bytes are append-only. A lost successful response is
+          // recovered from the exact deterministic path; it is never
+          // repaired by overwriting the object.
+          upsert: false,
+        });
+      assertActiveCaptureOwner(userId);
+      if (uploadError && !isExistingStorageObjectError(uploadError)) throw uploadError;
+
+      const materialValues = {
+        capture_id: captureId,
+        user_id: userId,
+        kind: "image",
+        storage_path: storagePath,
+        mime_type: file.type.toLowerCase(),
+        size_bytes: file.size,
+        content_hash: contentHash,
+        original_name: file.name,
+        page_index: pageIndex,
+        visibility: "private",
+        anonymized: false,
+      };
+      let { data: material, error: materialError } = await supabase
         .from("materials")
-        .select("storage_path")
-        .eq("user_id", userId)
-        .eq("content_hash", contentHash)
-        .not("storage_path", "is", null)
-        .limit(1)
+        .insert(materialValues)
+        .select("id, capture_id, user_id, kind, storage_path, mime_type, size_bytes, content_hash, original_name, page_index, visibility, anonymized")
         .maybeSingle();
       assertActiveCaptureOwner(userId);
-      if (duplicateError) throw duplicateError;
 
-      const storagePath = duplicate?.storage_path
-        ?? buildCaptureStoragePath(userId, captureId, file, contentHash);
-      if (!duplicate?.storage_path) {
-        const { error: uploadError } = await supabase.storage
-          .from(CAPTURE_SOURCE_BUCKET)
-          .upload(storagePath, file, {
-            cacheControl: "3600",
-            contentType: file.type,
-            upsert: true,
-          });
-        assertActiveCaptureOwner(userId);
-        if (uploadError) throw uploadError;
-        newlyUploadedPaths.push(storagePath);
-      }
-
-      const { data: material, error: materialError } = await supabase
-        .from("materials")
-        .upsert({
-          capture_id: captureId,
-          user_id: userId,
-          kind: "image",
-          storage_path: storagePath,
-          mime_type: file.type,
-          size_bytes: file.size,
-          content_hash: contentHash,
-          original_name: file.name,
-          page_index: pageIndex,
-          visibility: "private",
-          anonymized: false,
-        }, { onConflict: "capture_id,page_index" })
-        .select("id")
-        .maybeSingle();
-      assertActiveCaptureOwner(userId);
       if (materialError || !material) {
+        // The insert response may be lost after commit. Reconcile only an
+        // exact row at this capture/page key; a different file is a changed
+        // request and must never update or delete the first source.
+        const recovered = await supabase
+          .from("materials")
+          .select("id, capture_id, user_id, kind, storage_path, mime_type, size_bytes, content_hash, original_name, page_index, visibility, anonymized")
+          .eq("user_id", userId)
+          .eq("capture_id", captureId)
+          .eq("page_index", pageIndex)
+          .maybeSingle();
+        assertActiveCaptureOwner(userId);
+        if (recovered.error) throw materialError ?? recovered.error;
+        material = recovered.data;
+        materialError = null;
+      }
+      if (!material) {
         throw materialError ?? new Error("Image link could not be saved.");
       }
+      const exactRetry = material.capture_id === materialValues.capture_id
+        && material.user_id === materialValues.user_id
+        && material.kind === materialValues.kind
+        && material.storage_path === materialValues.storage_path
+        && material.mime_type === materialValues.mime_type
+        && material.size_bytes === materialValues.size_bytes
+        && material.content_hash === materialValues.content_hash
+        && material.original_name === materialValues.original_name
+        && material.page_index === materialValues.page_index
+        && material.visibility === materialValues.visibility
+        && material.anonymized === materialValues.anonymized;
+      if (!exactRetry) {
+        throw new CaptureSourceRetryConflictError();
+      }
       materialIds.push(material.id);
-    }
-  } catch (error) {
-    if (isOwnerMismatchError(error)) throw error;
-    await supabase
-      .from("materials")
-      .delete()
-      .eq("capture_id", captureId)
-      .eq("user_id", userId);
-    if (newlyUploadedPaths.length) {
-      await supabase.storage.from(CAPTURE_SOURCE_BUCKET).remove(newlyUploadedPaths);
-    }
-    throw error;
   }
 
   return materialIds;
@@ -800,6 +869,9 @@ export async function createCaptureSourceUrls(
   expiresIn = 300,
 ): Promise<string[]> {
   if (!paths.length) return [];
+  if (!Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > 300) {
+    throw new Error("Private capture links may be created for at most five minutes.");
+  }
   const { data, error } = await supabase.storage
     .from(CAPTURE_SOURCE_BUCKET)
     .createSignedUrls(paths, expiresIn);

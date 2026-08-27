@@ -1,5 +1,8 @@
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import {
+  createClient,
+  type SupabaseClient,
+} from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import {
   type CanvasAssignment,
   type CanvasCourse,
@@ -13,6 +16,18 @@ import {
   encryptCanvasToken,
   getCanvasOAuthClient,
 } from "../_shared/canvas-server.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
+import {
+  logPrivateFailure,
+  privateJsonResponse,
+  privateResponseHeaders,
+  withPrivateJsonErrors,
+} from "../_shared/private-json-response.ts";
 
 type Action = "status" | "sync" | "disconnect";
 interface ConnectionRow {
@@ -36,123 +51,187 @@ class CanvasApiError extends Error {
   }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return json({ error: "Authentication required" }, 401);
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !anonKey || !serviceKey) {
-    return json({ error: "Canvas is unavailable." }, 503);
-  }
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data: authData } = await userClient.auth.getUser();
-  if (!authData.user) return json({ error: "Authentication required" }, 401);
-  const userId = authData.user.id;
-
-  let action: Action = "status";
-  try {
-    action = (await req.json()).action ?? "status";
-  } catch {
-    return json({ error: "Invalid request" }, 400);
-  }
-  if (!["status", "sync", "disconnect"].includes(action)) {
-    return json({ error: "Unsupported action" }, 400);
-  }
-
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data: connection, error } = await admin.from("canvas_connections")
-    .select("*").eq("user_id", userId).order("created_at", { ascending: false })
-    .limit(1).maybeSingle();
-  if (error) return json({ error: "Couldn’t read Canvas status." }, 500);
-  const row = connection as ConnectionRow | null;
-  if (action === "status") return json(publicStatus(row));
-  if (action === "disconnect") return disconnect(admin, row, userId);
-  if (!row) {
-    return json({
-      error: "Connect Canvas before syncing.",
-      code: "not_connected",
-    }, 409);
-  }
-
-  const previousSync = row.last_synced_at
-    ? Date.parse(row.last_synced_at)
-    : Number.NaN;
-  if (
-    (row.last_sync_status === "success" ||
-      row.last_sync_status === "partial") &&
-    Number.isFinite(previousSync) && Date.now() - previousSync < 2 * 60 * 1000
-  ) {
-    return json({
-      ok: true,
-      partial: row.last_sync_status === "partial",
-      lastSyncedAt: row.last_synced_at,
-      counts: row.sync_counts ?? {},
-      cached: true,
-    });
-  }
-  await admin.from("canvas_connections").update({
-    last_sync_status: "syncing",
-    last_sync_error: null,
-  }).eq("id", row.id);
-
-  try {
-    const accessToken = await currentAccessToken(admin, row);
-    const result = await importCanvas(admin, row, accessToken);
-    const syncedAt = new Date().toISOString();
-    await admin.from("canvas_connections").update({
-      status: "connected",
-      last_sync_status: result.partial ? "partial" : "success",
-      last_sync_error: result.partial
-        ? "Some Canvas coursework could not be refreshed."
-        : null,
-      last_synced_at: syncedAt,
-      sync_counts: result.counts,
-    }).eq("id", row.id);
-    return json({
-      ok: true,
-      partial: result.partial,
-      lastSyncedAt: syncedAt,
-      counts: result.counts,
-    });
-  } catch (caught) {
-    const needsReauth = caught instanceof NeedsReauthError ||
-      (caught instanceof CanvasApiError && caught.status === 401);
-    const message = needsReauth
-      ? "Canvas authorization expired. Reconnect Canvas."
-      : "Canvas could not be synced right now.";
-    console.error(
-      "[canvas-sync]",
-      caught instanceof Error ? caught.message : "unknown",
+Deno.serve((req) =>
+  withPrivateJsonErrors(req, corsHeaders, async (requestId) => {
+    const json = (body: unknown, status = 200) => (
+      privateJsonResponse(body, status, corsHeaders, { requestId })
     );
-    await admin.from("canvas_connections").update({
-      status: needsReauth ? "needs_reauth" : "error",
-      last_sync_status: "error",
-      last_sync_error: message,
+    if (req.method === "OPTIONS") {
+      return new Response("ok", {
+        headers: privateResponseHeaders(corsHeaders, requestId),
+      });
+    }
+    if (req.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405);
+    }
+    const authorization = req.headers.get("Authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return json({ error: "Authentication required" }, 401);
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceKey) {
+      logPrivateFailure({
+        errorClass: "canvas_environment_missing",
+        status: 503,
+        requestId,
+      });
+      return json({ error: "Canvas is unavailable." }, 503);
+    }
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: authData } = await userClient.auth.getUser();
+    if (!authData.user) return json({ error: "Authentication required" }, 401);
+    const userId = authData.user.id;
+
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const agreementGate = await checkCurrentFamilyBetaAgreement(
+      userId,
+      () =>
+        admin
+          .from("family_beta_agreement_acceptances")
+          .select("user_id, accepted_by, agreement_version, accepted_at")
+          .eq("user_id", userId)
+          .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+          .maybeSingle(),
+    );
+    if (!agreementGate.allowed) {
+      if (agreementGate.lookupFailed) {
+        logPrivateFailure({
+          errorClass: "agreement_check_unavailable",
+          status: 503,
+          requestId,
+        });
+        return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+      }
+      return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+    }
+
+    let action: Action;
+    try {
+      action = (await req.json()).action ?? "status";
+    } catch {
+      return json({ error: "Invalid request" }, 400);
+    }
+    if (!["status", "sync", "disconnect"].includes(action)) {
+      return json({ error: "Unsupported action" }, 400);
+    }
+    const { data: connection, error } = await admin.from("canvas_connections")
+      .select("*").eq("user_id", userId).order("created_at", {
+        ascending: false,
+      })
+      .limit(1).maybeSingle();
+    if (error) {
+      logPrivateFailure({
+        errorClass: "canvas_connection_lookup_failed",
+        status: 500,
+        requestId,
+      });
+      return json({ error: "Couldn’t read Canvas status." }, 500);
+    }
+    const row = connection as ConnectionRow | null;
+    if (action === "status") return json(publicStatus(row));
+    if (action === "disconnect") {
+      return disconnect(admin, row, userId, json, requestId);
+    }
+    if (!row) {
+      return json({
+        error: "Connect Canvas before syncing.",
+        code: "not_connected",
+      }, 409);
+    }
+
+    const previousSync = row.last_synced_at
+      ? Date.parse(row.last_synced_at)
+      : Number.NaN;
+    if (
+      (row.last_sync_status === "success" ||
+        row.last_sync_status === "partial") &&
+      Number.isFinite(previousSync) && Date.now() - previousSync < 2 * 60 * 1000
+    ) {
+      return json({
+        ok: true,
+        partial: row.last_sync_status === "partial",
+        lastSyncedAt: row.last_synced_at,
+        counts: row.sync_counts ?? {},
+        cached: true,
+      });
+    }
+    const syncing = await admin.from("canvas_connections").update({
+      last_sync_status: "syncing",
+      last_sync_error: null,
     }).eq("id", row.id);
-    return json({
-      error: message,
-      code: needsReauth ? "needs_reauth" : "sync_failed",
-    }, needsReauth ? 401 : 502);
-  }
-});
+    if (syncing.error) {
+      logPrivateFailure({
+        errorClass: "canvas_sync_state_write_failed",
+        status: 500,
+        requestId,
+      });
+      return json({ error: "Canvas could not be synced right now." }, 500);
+    }
+
+    try {
+      const accessToken = await currentAccessToken(admin, row);
+      const result = await importCanvas(admin, row, accessToken);
+      const syncedAt = new Date().toISOString();
+      const completed = await admin.from("canvas_connections").update({
+        status: "connected",
+        last_sync_status: result.partial ? "partial" : "success",
+        last_sync_error: result.partial
+          ? "Some Canvas coursework could not be refreshed."
+          : null,
+        last_synced_at: syncedAt,
+        sync_counts: result.counts,
+      }).eq("id", row.id);
+      if (completed.error) {
+        throw new Error("Canvas sync completion could not be saved");
+      }
+      return json({
+        ok: true,
+        partial: result.partial,
+        lastSyncedAt: syncedAt,
+        counts: result.counts,
+      });
+    } catch (caught) {
+      const needsReauth = caught instanceof NeedsReauthError ||
+        (caught instanceof CanvasApiError && caught.status === 401);
+      const message = needsReauth
+        ? "Canvas authorization expired. Reconnect Canvas."
+        : "Canvas could not be synced right now.";
+      if (!needsReauth) {
+        logPrivateFailure({
+          errorClass: "canvas_sync_failed",
+          status: 502,
+          requestId,
+        });
+      }
+      await admin.from("canvas_connections").update({
+        status: needsReauth ? "needs_reauth" : "error",
+        last_sync_status: "error",
+        last_sync_error: message,
+      }).eq("id", row.id);
+      return json({
+        error: message,
+        code: needsReauth ? "needs_reauth" : "sync_failed",
+      }, needsReauth ? 401 : 502);
+    }
+  })
+);
+
+type JsonResponder = (body: unknown, status?: number) => Response;
 
 async function disconnect(
   admin: SupabaseClient,
   row: ConnectionRow | null,
   userId: string,
+  json: JsonResponder,
+  requestId: string,
 ) {
   if (!row) return json({ ok: true, connected: false });
   try {
@@ -174,13 +253,24 @@ async function disconnect(
       .eq("user_id", userId).eq("source", "canvas").like("external_id", prefix),
   ]);
   if (results.some((item) => item.error)) {
+    logPrivateFailure({
+      errorClass: "canvas_coursework_archive_failed",
+      status: 500,
+      requestId,
+    });
     return json({ error: "Couldn’t safely archive Canvas coursework." }, 500);
   }
   const { error } = await admin.from("canvas_connections").delete()
     .eq("id", row.id).eq("user_id", userId);
-  return error
-    ? json({ error: "Couldn’t disconnect Canvas." }, 500)
-    : json({ ok: true, connected: false });
+  if (error) {
+    logPrivateFailure({
+      errorClass: "canvas_disconnect_failed",
+      status: 500,
+      requestId,
+    });
+    return json({ error: "Couldn’t disconnect Canvas." }, 500);
+  }
+  return json({ ok: true, connected: false });
 }
 
 function publicStatus(row: ConnectionRow | null) {
@@ -466,11 +556,4 @@ function canvasClassId(
   return `canvas-${userId.slice(0, 8)}-${host}-${
     String(courseId).replace(/[^a-z0-9_-]/gi, "")
   }`;
-}
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 }

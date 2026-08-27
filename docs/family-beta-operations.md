@@ -45,24 +45,66 @@ cannot be proven by the repository or a successful frontend build.
 1. Protect a GitHub `production` environment and configure these names without
    printing their values: `PRODUCTION_SUPABASE_URL`,
    `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`, `PRODUCTION_SUPABASE_PROJECT_ID`,
-   `PUBLIC_SUPPORT_EMAIL`, `PRODUCTION_CANARY_EMAIL`, and
-   `PRODUCTION_CANARY_PASSWORD`.
-2. Give the dedicated canary account no student coursework. Verify it can sign
-   in but cannot access another account's rows.
+   `PRODUCTION_ORIGIN`, `PUBLIC_SUPPORT_EMAIL`, `PRODUCTION_CANARY_EMAIL`, and
+   `PRODUCTION_CANARY_PASSWORD`, plus
+   `PRODUCTION_UNACCEPTED_CANARY_EMAIL` and
+   `PRODUCTION_UNACCEPTED_CANARY_PASSWORD`. Restrict that environment to the
+   protected `main` branch. The workflow also rejects every other ref, and
+   exposes the four account credentials only to its final canary process.
+   `PRODUCTION_ORIGIN` is the single canonical HTTPS release origin; the
+   workflow accepts no caller-supplied site URL.
+2. Give the dedicated canary account no student coursework. Sign in through the
+   reviewed web flow and accept the current agreement once. Verify the status
+   RPC returns that account's current version, acceptance timestamp, and owner
+   UUID; Auth metadata is not evidence. The canary cannot run zero-AI Edge
+   validation probes without this durable receipt because those routes return
+   HTTP 403 before body validation.
+   Create a second dedicated empty canary account and never accept the
+   agreement on it. Do not reuse an email or Auth UUID. The release canary must
+   verify that all six guarded functions return private HTTP 403 with
+   `reason: "family_beta_agreement_required"` for this account before it runs
+   the accepted account's zero-AI HTTP 400 probes.
 3. Configure a provider-side AI hard spend cap and an operator alert. Confirm
    the database hourly/daily quota migration is present.
 4. Configure the published host with enforced CSP (`frame-ancestors 'none'` and
-   `object-src 'none'`), HSTS, Referrer-Policy, Permissions-Policy, and
-   `X-Content-Type-Options: nosniff`.
+   `object-src 'none'`, with scripts restricted to exactly `'self'`), HSTS with
+   at least one year plus `includeSubDomains`,
+   Referrer-Policy set to `no-referrer`, `strict-origin`, or
+   `strict-origin-when-cross-origin`, Permissions-Policy disabling camera,
+   microphone, and geolocation, and `X-Content-Type-Options: nosniff`.
 5. Configure an Edge log drain/alert for sanitized 5xx records and the
    `[client-error]` marker. Never alert on or retain request bodies, OCR text,
    prompts, email addresses, auth tokens, or provider response bodies.
-6. Deploy the reviewed migrations and seven Edge Functions in the order defined
-   by `docs/study-intelligence-rollout.md`, then publish that exact commit.
+6. Deploy the reviewed migrations and ten Edge Function revisions in the order
+   defined by `docs/study-intelligence-rollout.md`, then publish that exact commit.
+   In particular, apply the additive maintenance guard
+   `20260827125500_study_write_maintenance_guard.sql`, enter maintenance and
+   pause once; deploy the six guarded
+   functions while the receipt table is absent so they fail closed; then drain
+   the replaced revisions. Apply `20260827126000_family_beta_agreement_acceptance.sql`
+   and `20260827126500_family_beta_raw_input_guard.sql` before publishing the
+   temporary agreement-compatible web stage. The raw-input guard covers direct
+   capture/material/processed-content writes plus both private Storage buckets;
+   `20260827126750_capture_request_idempotency.sql` follows before the later
+   `20260827127500` mirror retirement. Remain paused through the documented
+   `20260827132000` capture Storage handoff and its verification, then resume
+   exactly once afterward.
+   The ten revisions include both cleanup workers and the `mcp` HTTP 410
+   tombstone; leaving the old MCP handler deployed is a release blocker.
+   During the compatibility stage, restrict the host to reviewed operators and
+   the two canary accounts; do not expose the partially handed-off client to
+   students.
 7. Run the protected **Production release readiness** workflow against the exact
    HTTPS origin. It must validate configuration, find the exact release SHA in
-   the deployed bundle, authenticate the canary account, prove every function's
-   zero-AI validation path, and emit the safe alert test event.
+   the deployed bundle, verify the same-origin nonsecret `release-manifest.json`
+   matches the expected project ID, signup/passkey flags, support address, and
+   SHA, reject cross-origin scripts, verify direct SPA deep-link fallback,
+   authenticate and verify both live canary sessions, prove the unaccepted
+   agreement-denial contract, exercise every guarded function's accepted zero-AI validation
+   response, require a request ID on every Edge response, and submit the safe
+   error-report event. This does not
+   prove migrations, RLS isolation, exact Edge revisions, successful write paths,
+   or alert delivery.
 8. Confirm the test event reached the operator. A green workflow without a
    delivered alert does not satisfy the monitoring gate.
 
@@ -73,6 +115,9 @@ Run this with a fresh invited address that has no profile or classes:
 1. Open the invite/confirmation link on the release domain, or sign in with the
    operator-provided temporary credentials.
 2. Confirm the 13+ agreement blocks the app until it is saved.
+   Verify `get_family_beta_agreement_status()` reports `accepted: true`, version
+   `2026-08-17`, a non-null timestamp, and the signed-in owner's UUID. Mutating
+   Auth `user_metadata` must not change this result or unlock the app.
 3. Complete **You → School → Term → Classes → Schedule** and reach the real
    dashboard. Verify the profile has a non-null `onboarded_at` value.
 4. Reload on the dashboard, close and reopen the browser, and confirm the same
@@ -100,7 +145,8 @@ client-side SQL or a browser-callable service-role function.
 5. In one database transaction, delete all rows owned by the user, child-first.
    The required inventory includes syllabus requests/revisions; study-result
    ledger, mastery, concepts and learning artifacts; assignments and tests;
-   capture materials, processed content, flashcards, quizzes, study sessions,
+   family-beta agreement acceptances; capture materials, processed content,
+   flashcards, quizzes, study sessions,
    readiness and Campus Brain signals; captures; enrollments and classes; Canvas
    connections/tokens/sync state; topic signals and exam debriefs; rate-limit or
    OAuth state; and the profile. Use the live schema inventory below so a newly
@@ -133,6 +179,8 @@ and escalate for a corrected cleanup pass.
 ## Release configuration that must remain true
 
 - Invite-only and age 13+ copy is visible.
+- Agreement receipts are current-version, owner-bound, timestamped, append-only,
+  and removed only through the service account-erasure workflow.
 - Public signup and account-creating Google OAuth are unavailable.
 - A monitored support/privacy email is configured.
 - RLS is tested with User A, User B, and an anonymous client after migrations.

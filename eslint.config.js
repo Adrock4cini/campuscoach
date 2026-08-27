@@ -21,6 +21,15 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // ESLint 10 / react-hooks 7 add compiler-oriented rules that were not
+      // part of this repository's previous launch gate. Keep the established
+      // lint contract stable while those behavioral refactors are handled in
+      // focused changes with component tests.
+      "no-useless-assignment": "off",
+      "preserve-caught-error": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
     },
   },
 );

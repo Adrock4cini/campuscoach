@@ -23,7 +23,19 @@ passes. This beta is for invited students age 13 and older only.
 ## Agreement and authentication
 
 - [ ] A new invited account must accept the current 13+ family-beta agreement.
-- [ ] Declining/signing out leaves no accepted agreement metadata.
+- [ ] Declining/signing out leaves no durable agreement receipt. Acceptance
+      creates one owner-bound current-version row with a server timestamp.
+- [ ] Direct Auth `user_metadata` mutation cannot unlock the app or any guarded
+      capture, study, or syllabus Edge route; missing receipt returns HTTP 403.
+- [ ] The dedicated canary has a current durable receipt before its invalid-body
+      Edge probes, and the canary verifies that receipt before expecting HTTP 400.
+- [ ] A separate dedicated canary has no receipt; all six guarded functions
+      return private HTTP 403 with `reason: family_beta_agreement_required` for
+      it. The two accounts have different email addresses and Auth UUIDs.
+- [ ] Without a current receipt, direct browser capture/material/processed-content
+      INSERT/UPDATE and direct `capture-sources`/`syllabus-sources` Storage
+      INSERT fail. With the receipt, valid owned writes succeed; DELETE and service-role processing/
+      account-erasure paths still work.
 - [ ] Password sign-in, forgot password, reset link, and sign-out all work.
 - [ ] After onboarding, reload, browser restart, explicit sign-out, and subsequent
       password sign-in all return the same account without rerunning setup.
@@ -116,16 +128,38 @@ passes. This beta is for invited students age 13 and older only.
 - [ ] `npm run validate:release-env` passes with the exact HTTPS origin, backend
       project, publishable/anon key, commit SHA, monitored support address,
       signups disabled, and passkeys either disabled or correctly bound.
+- [ ] The final canary process validates both distinct protected account
+      addresses/passwords without exposing them to checkout, install, audit,
+      Edge verification, validation, or build steps.
 - [ ] Paid AI extraction, syllabus, and image paths have both hourly and daily
       fail-closed quotas, plus a tested provider-side hard spend cap/alert.
 - [ ] Every changed student-data function returns private `no-store`, `nosniff`
       JSON with a request ID and exposes no provider/DB/source details on 5xx.
 - [ ] The published host enforces CSP (`frame-ancestors 'none'`, `object-src
-      'none'`), HSTS, Referrer-Policy, Permissions-Policy, and `nosniff`.
+      'none'`), one-year HSTS with `includeSubDomains`, strict Referrer-Policy,
+      Permissions-Policy disabling camera/microphone/geolocation, and `nosniff`.
+- [ ] Same-origin `release-manifest.json` exactly matches the deployed SHA,
+      production Supabase project ID, disabled signup flag, reviewed passkey
+      state, and public support address; the page loads no cross-origin scripts.
 - [ ] A sanitized browser crash test reaches the production operator alert;
       neither the event nor Edge 5xx logs contain student content or identifiers.
 - [ ] The protected **Production release readiness** workflow passes against the
-      exact deployed commit and dedicated empty canary account.
+      exact deployed commit and both dedicated empty canary accounts.
+- [ ] The workflow uses the protected `PRODUCTION_ORIGIN` variable and exposes
+      no dispatch input that can substitute a different website.
+- [ ] The workflow ran from protected `main`; its four account credentials were
+      available only to the final direct Node canary step.
+- [ ] The rollout paused before the agreement/Edge handoff, drained the old
+      revisions, and the `20260827125500` restrictive maintenance guard denied
+      authenticated browser INSERT/UPDATE on captures, materials, and processed
+      content plus INSERT into both source buckets. Service-role recovery and
+      DELETE/account erasure remained available. The rollout remained paused
+      through verification of `20260827132000` and resumed exactly once before
+      the public canary. The recorded host maintenance rule was removed only
+      while invites remained closed.
+- [ ] The deployed Edge inventory contains exactly the ten reviewed revisions,
+      including both cleanup workers and the private `mcp` HTTP 410 tombstone;
+      no historical MCP demo/tool response remains.
 - [ ] Syllabus migrations, private bucket policies, cleanup function, and one
       active hourly cleanup job are present; a production no-op cleanup returns
       HTTP 200 with zero claims when the bucket is empty.

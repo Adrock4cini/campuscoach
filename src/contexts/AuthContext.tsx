@@ -32,6 +32,10 @@ import {
   type SetupErrorKind,
   type SetupStatus,
 } from "@/lib/auth/setupStatus";
+import {
+  acceptCurrentFamilyBetaAgreement,
+  getFamilyBetaAgreementStatus,
+} from "@/lib/legal/familyBetaAgreementService";
 
 
 const DEMO_KEY = "cc_demo_mode_v1";
@@ -55,6 +59,9 @@ type Profile = {
  *   - "loading": auth state still resolving — render neutral empty UI, never demo.
  */
 type DataMode = "real" | "demo" | "loading";
+export type FamilyBetaAgreementStatus = "checking" | "accepted" | "required" | "error";
+
+export const AGREEMENT_RESOLUTION_TIMEOUT_MS = 8_000;
 
 type AuthState = {
   session: Session | null;
@@ -66,12 +73,16 @@ type AuthState = {
   /** Terminal setup resolution: checking | onboarded | needs_onboarding | error. */
   setupStatus: SetupStatus;
   setupError: SetupErrorKind;
+  /** Server-backed current agreement receipt; Auth metadata is never trusted. */
+  agreementStatus: FamilyBetaAgreementStatus;
   isDemoMode: boolean;
   profile: Profile;
   mode: DataMode;
   enableDemoMode: () => void;
   signOut: () => Promise<void>;
   refreshOnboarded: () => Promise<void>;
+  refreshAgreement: () => Promise<boolean>;
+  acceptAgreement: () => Promise<boolean>;
 };
 
 
@@ -82,12 +93,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>("checking");
   const [setupError, setSetupError] = useState<SetupErrorKind>(null);
+  const [agreementStatus, setAgreementStatus] = useState<FamilyBetaAgreementStatus>("checking");
   const [profile, setProfile] = useState<Profile>(null);
   const activeUserIdRef = useRef<string | null>(null);
   const profileRequestVersion = useRef(0);
+  const agreementRequestVersion = useRef(0);
   const [isDemoMode, setDemo] = useState<boolean>(
     typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
   );
+
+  const loadAgreement = async (userId: string | undefined | null): Promise<boolean> => {
+    const request = ++agreementRequestVersion.current;
+    if (!userId) {
+      setAgreementStatus("checking");
+      return false;
+    }
+    setAgreementStatus("checking");
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("agreement status timed out")), AGREEMENT_RESOLUTION_TIMEOUT_MS);
+    });
+
+    try {
+      const receipt = await Promise.race([
+        getFamilyBetaAgreementStatus(),
+        timeout,
+      ]);
+      if (request !== agreementRequestVersion.current) return false;
+      if (receipt.ownerId !== userId) throw new Error("agreement owner mismatch");
+      setAgreementStatus(receipt.accepted ? "accepted" : "required");
+      return receipt.accepted;
+    } catch (error) {
+      if (request !== agreementRequestVersion.current) return false;
+      console.warn("[auth] agreement status load failed", error);
+      setAgreementStatus("error");
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   const loadProfile = async (userId: string | undefined | null) => {
     const request = ++profileRequestVersion.current;
@@ -159,6 +204,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const acceptAgreement = async (): Promise<boolean> => {
+    try {
+      const receipt = await acceptCurrentFamilyBetaAgreement();
+      const activeUserId = activeUserIdRef.current;
+      if (activeUserId && receipt.ownerId !== activeUserId) {
+        throw new Error("agreement owner mismatch");
+      }
+      agreementRequestVersion.current += 1;
+      setAgreementStatus("accepted");
+      return true;
+    } catch (error) {
+      console.warn("[auth] agreement acceptance failed", error);
+      return false;
+    }
+  };
+
 
   const explicitSignOutRef = useRef(false);
   const [recovering, setRecovering] = useState<boolean>(
@@ -183,12 +244,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       forgetSignedIn();
       activeUserIdRef.current = null;
       profileRequestVersion.current += 1;
+      agreementRequestVersion.current += 1;
       setRecovering(false);
       setSupabaseNetworkMode("demo");
       setSession(null);
       setAuthUserId(null);
       setSetupStatus("checking");
       setSetupError(null);
+      setAgreementStatus("checking");
       setProfile(null);
     }
 
@@ -249,11 +312,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // settled profile/setup state here used to unmount every protected page.
         if (sameUser) return;
         profileRequestVersion.current += 1;
+        agreementRequestVersion.current += 1;
         setSetupStatus("checking");
         setSetupError(null);
+        setAgreementStatus("checking");
         setProfile(null);
         setTimeout(() => {
-          if (active) void loadProfile(nextSession.user.id);
+          if (!active) return;
+          void loadProfile(nextSession.user.id);
+          void loadAgreement(nextSession.user.id);
         }, 0);
         return;
       }
@@ -368,6 +435,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboarded: setupStatus === "onboarded" ? true : setupStatus === "needs_onboarding" ? false : null,
       setupStatus,
       setupError,
+      agreementStatus,
       isDemoMode,
       profile,
       mode,
@@ -394,18 +462,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           await supabase.auth.signOut();
         } finally {
+          agreementRequestVersion.current += 1;
           setRecovering(false);
           setSession(null);
           setAuthUserId(null);
           setSetupStatus("checking");
           setSetupError(null);
+          setAgreementStatus("checking");
           setProfile(null);
           explicitSignOutRef.current = false;
         }
       },
       refreshOnboarded: () => loadProfile(session?.user?.id),
+      refreshAgreement: () => loadAgreement(session?.user?.id),
+      acceptAgreement,
     }),
-    [session, loading, recovering, isDemoMode, setupStatus, setupError, profile, mode]
+    [session, loading, recovering, isDemoMode, setupStatus, setupError, agreementStatus, profile, mode]
   );
 
 

@@ -2,18 +2,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  FAMILY_BETA_AGREEMENT_VERSION,
   FAMILY_BETA_STAGING_PROJECT_REF,
 } from "@/lib/legal/familyBeta";
 
 const mocks = vi.hoisted(() => ({
   signUp: vi.fn(),
   oauth: vi.fn(),
+  acceptAgreement: vi.fn(),
   toastError: vi.fn(),
   auth: {
     user: null as { id: string } | null,
     loading: false,
     recovering: false,
+    acceptAgreement: vi.fn(),
   },
 }));
 
@@ -62,6 +63,7 @@ describe("family beta signup", () => {
     mocks.auth.recovering = false;
     mocks.signUp.mockResolvedValue({ data: { session: { user: { id: "student" } } }, error: null });
     mocks.oauth.mockResolvedValue({ error: null, redirected: false });
+    mocks.auth.acceptAgreement.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -86,7 +88,7 @@ describe("family beta signup", () => {
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
   });
 
-  it("requires the age-13 family agreement and persists its version", async () => {
+  it("requires the age-13 family agreement and stores a service receipt", async () => {
     renderSignup();
 
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeDisabled();
@@ -101,9 +103,11 @@ describe("family beta signup", () => {
     expect(mocks.signUp).toHaveBeenCalledWith(expect.objectContaining({
       email: "family@example.com",
       options: expect.objectContaining({
-        data: { family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION },
+        emailRedirectTo: window.location.origin,
       }),
     }));
+    expect(mocks.signUp.mock.calls[0][0].options).not.toHaveProperty("data");
+    expect(mocks.auth.acceptAgreement).toHaveBeenCalledTimes(1);
   });
 
   it("sends confirmation-required accounts to sign in with the exact release origin", async () => {
@@ -122,9 +126,10 @@ describe("family beta signup", () => {
     expect(mocks.signUp).toHaveBeenCalledWith(expect.objectContaining({
       options: expect.objectContaining({
         emailRedirectTo: window.location.origin,
-        data: { family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION },
       }),
     }));
+    expect(mocks.signUp.mock.calls[0][0].options).not.toHaveProperty("data");
+    expect(sessionStorage.getItem("cc_family_beta_oauth_agreement")).toBe("2026-08-17");
   });
 
   it("clears an unfinished agreement when Google sign-in fails", async () => {

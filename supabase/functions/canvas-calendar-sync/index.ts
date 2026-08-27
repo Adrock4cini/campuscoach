@@ -1,5 +1,8 @@
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import {
+  createClient,
+  type SupabaseClient,
+} from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import {
   parseCanvasCalendar,
   validateCanvasFeedUrl,
@@ -8,6 +11,18 @@ import {
   decryptCanvasToken,
   encryptCanvasToken,
 } from "../_shared/canvas-server.ts";
+import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
+import {
+  logPrivateFailure,
+  privateJsonResponse,
+  privateResponseHeaders,
+  withPrivateJsonErrors,
+} from "../_shared/private-json-response.ts";
 
 type Action = "status" | "connect" | "sync" | "disconnect";
 type Admin = SupabaseClient;
@@ -23,95 +38,187 @@ interface Connection {
   sync_counts: Record<string, number> | null;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return json({ error: "Authentication required" }, 401);
-  }
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !anonKey || !serviceKey) {
-    return json({ error: "School connection is unavailable." }, 503);
-  }
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data } = await userClient.auth.getUser();
-  if (!data.user) return json({ error: "Authentication required" }, 401);
-  const body = await req.json().catch(() => ({})) as {
-    action?: Action;
-    feedUrl?: string;
-  };
-  const action = body.action ?? "status";
-  if (!["status", "connect", "sync", "disconnect"].includes(action)) {
-    return json({ error: "Unsupported action" }, 400);
-  }
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const row = await findConnection(admin, data.user.id);
-  if (action === "status") return json(publicStatus(row));
-  if (action === "disconnect") {
-    if (row) {
-      await archiveCalendarItems(admin, data.user.id, row.canvas_base_url);
-      const result = await admin.from("canvas_calendar_connections").delete()
-        .eq("id", row.id).eq("user_id", data.user.id);
-      if (result.error) return json({ error: "Couldn’t disconnect the calendar." }, 500);
+Deno.serve((req) =>
+  withPrivateJsonErrors(req, corsHeaders, async (requestId) => {
+    const json = (body: unknown, status = 200) => (
+      privateJsonResponse(body, status, corsHeaders, { requestId })
+    );
+    if (req.method === "OPTIONS") {
+      return new Response("ok", {
+        headers: privateResponseHeaders(corsHeaders, requestId),
+      });
     }
-    return json({ ok: true, connected: false });
-  }
-  let connection = row;
-  if (action === "connect") {
-    let feed: URL;
+    if (req.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405);
+    }
+    const authorization = req.headers.get("Authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return json({ error: "Authentication required" }, 401);
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceKey) {
+      logPrivateFailure({
+        errorClass: "canvas_calendar_environment_missing",
+        status: 503,
+        requestId,
+      });
+      return json({ error: "School connection is unavailable." }, 503);
+    }
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data } = await userClient.auth.getUser();
+    if (!data.user) return json({ error: "Authentication required" }, 401);
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const agreementGate = await checkCurrentFamilyBetaAgreement(
+      data.user.id,
+      () =>
+        admin
+          .from("family_beta_agreement_acceptances")
+          .select("user_id, accepted_by, agreement_version, accepted_at")
+          .eq("user_id", data.user.id)
+          .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+          .maybeSingle(),
+    );
+    if (!agreementGate.allowed) {
+      if (agreementGate.lookupFailed) {
+        logPrivateFailure({
+          errorClass: "agreement_check_unavailable",
+          status: 503,
+          requestId,
+        });
+        return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+      }
+      return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+    }
+    let parsedBody: unknown;
     try {
-      feed = validateCanvasFeedUrl(body.feedUrl ?? "");
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Invalid link" }, 400);
+      parsedBody = await req.json();
+    } catch {
+      return json({ error: "Invalid request" }, 400);
     }
-    const saved = await admin.from("canvas_calendar_connections").upsert({
-      user_id: data.user.id,
-      feed_url_ciphertext: await encryptCanvasToken(feed.toString()),
-      canvas_base_url: feed.origin,
-      status: "connected",
+    if (
+      !parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)
+    ) {
+      return json({ error: "Invalid request" }, 400);
+    }
+    const body = parsedBody as { action?: Action; feedUrl?: string };
+    const action = body.action ?? "status";
+    if (!["status", "connect", "sync", "disconnect"].includes(action)) {
+      return json({ error: "Unsupported action" }, 400);
+    }
+    const row = await findConnection(admin, data.user.id);
+    if (action === "status") return json(publicStatus(row));
+    if (action === "disconnect") {
+      if (row) {
+        try {
+          await archiveCalendarItems(admin, data.user.id, row.canvas_base_url);
+        } catch {
+          logPrivateFailure({
+            errorClass: "canvas_calendar_archive_failed",
+            status: 500,
+            requestId,
+          });
+          return json({ error: "Couldn’t disconnect the calendar." }, 500);
+        }
+        const result = await admin.from("canvas_calendar_connections").delete()
+          .eq("id", row.id).eq("user_id", data.user.id);
+        if (result.error) {
+          logPrivateFailure({
+            errorClass: "canvas_calendar_disconnect_failed",
+            status: 500,
+            requestId,
+          });
+          return json({ error: "Couldn’t disconnect the calendar." }, 500);
+        }
+      }
+      return json({ ok: true, connected: false });
+    }
+    let connection = row;
+    if (action === "connect") {
+      let feed: URL;
+      try {
+        feed = validateCanvasFeedUrl(body.feedUrl ?? "");
+      } catch (error) {
+        return json({
+          error: error instanceof Error ? error.message : "Invalid link",
+        }, 400);
+      }
+      const saved = await admin.from("canvas_calendar_connections").upsert({
+        user_id: data.user.id,
+        feed_url_ciphertext: await encryptCanvasToken(feed.toString()),
+        canvas_base_url: feed.origin,
+        status: "connected",
+        last_sync_error: null,
+      }, { onConflict: "user_id" }).select("*").single();
+      if (saved.error || !saved.data) {
+        logPrivateFailure({
+          errorClass: "canvas_calendar_connection_write_failed",
+          status: 500,
+          requestId,
+        });
+        return json(
+          { error: "The Canvas calendar link could not be saved." },
+          500,
+        );
+      }
+      connection = saved.data as Connection;
+    }
+    if (!connection) {
+      return json({ error: "Connect your Canvas calendar first." }, 409);
+    }
+    const syncing = await admin.from("canvas_calendar_connections").update({
+      last_sync_status: "syncing",
       last_sync_error: null,
-    }, { onConflict: "user_id" }).select("*").single();
-    if (saved.error || !saved.data) {
-      return json({ error: "The Canvas calendar link could not be saved." }, 500);
+    }).eq("id", connection.id);
+    if (syncing.error) {
+      logPrivateFailure({
+        errorClass: "canvas_calendar_sync_state_write_failed",
+        status: 500,
+        requestId,
+      });
+      return json({ error: "Canvas calendar could not be refreshed." }, 500);
     }
-    connection = saved.data as Connection;
-  }
-  if (!connection) {
-    return json({ error: "Connect your Canvas calendar first." }, 409);
-  }
-  await admin.from("canvas_calendar_connections").update({
-    last_sync_status: "syncing",
-    last_sync_error: null,
-  }).eq("id", connection.id);
-  try {
-    const result = await importCalendar(admin, connection);
-    const lastSyncedAt = new Date().toISOString();
-    await admin.from("canvas_calendar_connections").update({
-      status: "connected",
-      last_sync_status: result.partial ? "partial" : "success",
-      last_sync_error: result.partial ? "Some calendar items need a syllabus or Canvas connection." : null,
-      last_synced_at: lastSyncedAt,
-      sync_counts: result.counts,
-    }).eq("id", connection.id);
-    return json({ ok: true, connected: true, lastSyncedAt, ...result });
-  } catch (error) {
-    console.error("[canvas-calendar-sync]", error instanceof Error ? error.message : "unknown");
-    await admin.from("canvas_calendar_connections").update({
-      status: "error",
-      last_sync_status: "error",
-      last_sync_error: "Canvas calendar could not be refreshed. Copy a new link from Canvas.",
-    }).eq("id", connection.id);
-    return json({ error: "Canvas calendar could not be refreshed. Copy a new link from Canvas." }, 502);
-  }
-});
+    try {
+      const result = await importCalendar(admin, connection);
+      const lastSyncedAt = new Date().toISOString();
+      const completed = await admin.from("canvas_calendar_connections").update({
+        status: "connected",
+        last_sync_status: result.partial ? "partial" : "success",
+        last_sync_error: result.partial
+          ? "Some calendar items need a syllabus or Canvas connection."
+          : null,
+        last_synced_at: lastSyncedAt,
+        sync_counts: result.counts,
+      }).eq("id", connection.id);
+      if (completed.error) {
+        throw new Error("Canvas calendar sync completion could not be saved");
+      }
+      return json({ ok: true, connected: true, lastSyncedAt, ...result });
+    } catch {
+      logPrivateFailure({
+        errorClass: "canvas_calendar_sync_failed",
+        status: 502,
+        requestId,
+      });
+      await admin.from("canvas_calendar_connections").update({
+        status: "error",
+        last_sync_status: "error",
+        last_sync_error:
+          "Canvas calendar could not be refreshed. Copy a new link from Canvas.",
+      }).eq("id", connection.id);
+      return json({
+        error:
+          "Canvas calendar could not be refreshed. Copy a new link from Canvas.",
+      }, 502);
+    }
+  })
+);
 
 async function findConnection(admin: Admin, userId: string) {
   const result = await admin.from("canvas_calendar_connections").select("*")
@@ -157,7 +264,10 @@ async function importCalendar(admin: Admin, connection: Connection) {
     if (!target) {
       // Use the same course identity as full OAuth so upgrading the connection
       // enriches the existing class instead of creating a duplicate.
-      const externalId = canvasResourceId(connection.canvas_base_url, item.courseId);
+      const externalId = canvasResourceId(
+        connection.canvas_base_url,
+        item.courseId,
+      );
       const client = canvasClassId(
         connection.user_id,
         connection.canvas_base_url,
@@ -183,7 +293,10 @@ async function importCalendar(admin: Admin, connection: Connection) {
         role: "student",
       }, { onConflict: "user_id,class_id" });
     }
-    const externalId = calendarId(connection.canvas_base_url, `event:${item.uid}`);
+    const externalId = calendarId(
+      connection.canvas_base_url,
+      `event:${item.uid}`,
+    );
     const common = {
       user_id: connection.user_id,
       class_id: target.id,
@@ -239,8 +352,12 @@ async function archiveMissingCalendarItems(
   connection: Connection,
   active: Set<string>,
 ) {
-  const prefix = `${new URL(connection.canvas_base_url).hostname.toLowerCase()}:calendar:%`;
-  const result = await admin.from(table).select("id,external_id,source_archived_at")
+  const prefix = `${
+    new URL(connection.canvas_base_url).hostname.toLowerCase()
+  }:calendar:%`;
+  const result = await admin.from(table).select(
+    "id,external_id,source_archived_at",
+  )
     .eq("user_id", connection.user_id).eq("source", "canvas")
     .like("external_id", prefix);
   if (result.error) throw new Error("Calendar archive lookup failed");
@@ -258,15 +375,22 @@ async function archiveMissingCalendarItems(
     }
   }
 }
-async function archiveCalendarItems(admin: Admin, userId: string, baseUrl: string) {
+async function archiveCalendarItems(
+  admin: Admin,
+  userId: string,
+  baseUrl: string,
+) {
   const prefix = `${new URL(baseUrl).hostname.toLowerCase()}:calendar:%`;
   const at = new Date().toISOString();
-  await Promise.all([
+  const results = await Promise.all([
     admin.from("assignments").update({ source_archived_at: at })
       .eq("user_id", userId).eq("source", "canvas").like("external_id", prefix),
     admin.from("exams").update({ source_archived_at: at })
       .eq("user_id", userId).eq("source", "canvas").like("external_id", prefix),
   ]);
+  if (results.some((result) => result.error)) {
+    throw new Error("Canvas calendar coursework archive failed");
+  }
 }
 function calendarId(baseUrl: string, value: string) {
   return `${new URL(baseUrl).hostname.toLowerCase()}:calendar:${value}`;
@@ -282,10 +406,4 @@ function canvasClassId(userId: string, baseUrl: string, courseId: string) {
   return `canvas-${userId.slice(0, 8)}-${host}-${
     courseId.replace(/[^a-z0-9_-]/gi, "")
   }`;
-}
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 }

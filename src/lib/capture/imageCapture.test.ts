@@ -82,14 +82,29 @@ describe("assignment image capture guardrails", () => {
   });
 
   it("builds a private owner-scoped path without trusting the original filename", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    const captureId = "22222222-2222-4222-8222-222222222222";
+    const hash = "abcdef0123456789".repeat(4);
     expect(
       buildCaptureStoragePath(
-        "student-1",
-        "capture-1",
+        ownerId,
+        captureId,
         image("../../Final Exam Answers.JPG", 10),
-        "ABCDEF012345",
+        hash,
       ),
-    ).toBe("student-1/capture-1/abcdef012345.jpg");
+    ).toBe(`${ownerId}/${captureId}/${hash}.jpg`);
+  });
+
+  it("rejects partial hashes and non-canonical owner or capture IDs", () => {
+    const photo = image("page.jpg", 10);
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    const captureId = "22222222-2222-4222-8222-222222222222";
+    expect(() => buildCaptureStoragePath(ownerId, captureId, photo, "a".repeat(63)))
+      .toThrow(/complete SHA-256/i);
+    expect(() => buildCaptureStoragePath("student-1", captureId, photo, "a".repeat(64)))
+      .toThrow(/valid capture owner/i);
+    expect(() => buildCaptureStoragePath(ownerId, "capture-1", photo, "a".repeat(64)))
+      .toThrow(/valid capture owner/i);
   });
 
   it("only offers assignments and exams from the selected class", () => {

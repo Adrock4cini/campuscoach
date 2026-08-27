@@ -3,19 +3,26 @@
 // pipeline. Originals never leave the student's private storage boundary
 // except for the authenticated, short-lived AI processing request.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.110.1";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import { buildAssignmentTutorPractice, extractAssignmentTutorSource } from "../_shared/assignment-tutor.ts";
 import {
   checkStudyWritesPaused,
   STUDY_WRITES_PAUSED_RESPONSE,
 } from "../_shared/study-write-pause.ts";
 import {
+  checkCurrentFamilyBetaAgreement,
+  CURRENT_FAMILY_BETA_AGREEMENT_VERSION,
+  FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE,
+  FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE,
+} from "../_shared/family-beta-agreement.ts";
+import {
   conceptCanonicalKey,
   dedupeConceptCandidates,
   type ExistingConcept,
 } from "../_shared/concept-identity.ts";
 import {
+  consumePaidAiQuota,
   executePaidAiRequest,
   type PaidAiExecutionResult,
 } from "../_shared/paid-ai-quota.ts";
@@ -45,12 +52,22 @@ interface VisionResult {
   concepts?: ExtractedConcept[];
 }
 
+interface LinkedTargetRow {
+  id: string;
+  class_id: string | null;
+  client_class_id: string;
+}
+
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 8_000_000;
 const MAX_TOTAL_BYTES = 24_000_000;
 const CLAIM_MS = 5 * 60 * 1000;
 const AI_HOURLY_LIMIT = 24;
 const AI_DAILY_LIMIT = 96;
+const SOURCE_READ_HOURLY_LIMIT = 60;
+const SOURCE_READ_DAILY_LIMIT = 240;
+const STORAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
+const PROVIDER_TIMEOUT_MS = 60_000;
 const ALLOWED_KINDS = new Set(["scan-assignment", "scan-material"]);
 const ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -59,6 +76,13 @@ const ALLOWED_MIME = new Set([
   "image/heic",
   "image/heif",
 ]);
+
+class CaptureSourceIntegrityError extends Error {
+  constructor() {
+    super("Capture source integrity check failed");
+    this.name = "CaptureSourceIntegrityError";
+  }
+}
 
 const SYSTEM = `You read photos of a student's class assignment, notes, handout, study cards, or textbook.
 
@@ -112,15 +136,34 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   }
 
   const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
+    global: {
+      headers: { Authorization: authorization },
+      fetch: fetchWithStorageTimeout,
+    },
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: authData, error: authError } = await userClient.auth.getUser();
   if (authError || !authData.user) return json({ error: "Authentication required" }, 401);
   const userId = authData.user.id;
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    global: { fetch: fetchWithStorageTimeout },
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const agreementGate = await checkCurrentFamilyBetaAgreement(userId, () =>
+    adminClient
+      .from("family_beta_agreement_acceptances")
+      .select("user_id, accepted_by, agreement_version, accepted_at")
+      .eq("user_id", userId)
+      .eq("agreement_version", CURRENT_FAMILY_BETA_AGREEMENT_VERSION)
+      .maybeSingle()
+  );
+  if (!agreementGate.allowed) {
+    if (agreementGate.lookupFailed) {
+      logPrivateFailure({ errorClass: "agreement_check_unavailable", status: 503, requestId });
+      return json(FAMILY_BETA_AGREEMENT_UNAVAILABLE_RESPONSE, 503);
+    }
+    return json(FAMILY_BETA_AGREEMENT_REQUIRED_RESPONSE, 403);
+  }
   const pauseGate = await checkStudyWritesPaused(
     () => adminClient.rpc("get_study_write_pause"),
   );
@@ -151,7 +194,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   const { data: capture, error: captureError } = await userClient
     .from("captures")
-    .select("id, user_id, class_id, client_class_id, kind, topic, raw_text, assignment_id, exam_id, processing_status, concept_extraction_claim_id, concept_extraction_started_at, practice_source_status, practice_source_text, practice_source_version, practice_source_hash, practice_source_confirmed_at, practice_concept_id")
+    .select("id, user_id, class_id, client_class_id, kind, topic, raw_text, meta, assignment_id, exam_id, processing_status, concept_extraction_claim_id, concept_extraction_started_at, practice_source_status, practice_source_text, practice_source_version, practice_source_hash, practice_source_confirmed_at, practice_concept_id")
     .eq("id", body.captureId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -304,34 +347,60 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   // Only study material may recover durable concepts here. Assignment OCR is
   // a review candidate, never concept/mastery evidence until confirmation.
-  if (capture.kind === "scan-material") {
+  // This helper is invoked only after the complete immutable manifest has been
+  // claimed, downloaded, and byte-hash verified below.
+  const recoverExistingScanMaterial = async (): Promise<Response | null> => {
+    if (capture.kind !== "scan-material") return null;
     const { data: recoveryEvidence, error: recoveryEvidenceError } = await userClient
       .from("concept_capture_evidence")
       .select("concept_id")
       .eq("user_id", userId)
       .eq("capture_id", body.captureId);
-    if (recoveryEvidenceError) return json({ error: "Concept recovery lookup failed" }, 500);
+    if (recoveryEvidenceError) {
+      await failClaim();
+      return json({ error: "Concept recovery lookup failed" }, 500);
+    }
     const recoveryIds = [...new Set((recoveryEvidence ?? []).map((row) => row.concept_id as string))];
-    let existingQuery = userClient
+    if (!recoveryIds.length) return null;
+
+    // Recovery is valid only when the prior server result names this exact,
+    // immutable page manifest. Legacy capture_id-only links are deliberately
+    // reprocessed instead of being rebound to whatever pages happen to exist.
+    const { data: processedRows, error: processedLookupError } = await userClient
+      .from("processed_content")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("capture_id", body.captureId)
+      .eq("model", processedModel)
+      .limit(1);
+    if (processedLookupError) {
+      await failClaim();
+      return json({ error: "Source recovery lookup failed" }, 500);
+    }
+    if (!processedRows?.length) return null;
+
+    const { data: existing, error: existingError } = await userClient
       .from("concepts")
       .select("id, class_id, name, definition")
       .eq("user_id", userId)
+      .in("id", recoveryIds)
       .order("created_at", { ascending: true });
-    // Transitional fallback repairs a primary concept inserted before the
-    // evidence migration. Merged captures are recovered by the evidence path.
-    existingQuery = recoveryIds.length
-      ? existingQuery.in("id", recoveryIds)
-      : existingQuery.eq("capture_id", body.captureId);
-    const { data: existing, error: existingError } = await existingQuery;
-    if (existingError) return json({ error: "Concept recovery lookup failed" }, 500);
+    if (existingError) {
+      await failClaim();
+      return json({ error: "Concept recovery lookup failed" }, 500);
+    }
+    if (!existing?.length) {
+      await failClaim();
+      return json({ error: "Existing concepts no longer match this capture" }, 409);
+    }
     if (existing?.length) {
-      if (existing.some((concept) => concept.class_id !== ownedClass.id)) {
+      if (
+        existing.length !== recoveryIds.length
+        || existing.some((concept) => concept.class_id !== ownedClass.id)
+      ) {
+        await failClaim();
         return json({ error: "Existing concepts do not match the capture class" }, 409);
       }
-      const acquisition = await acquireClaim();
-      if (acquisition.error) return json({ error: "Processing claim failed" }, 500);
-      if (!acquisition.claimed) return changedWhileProcessing();
-
       const existingIds = existing.map((concept) => concept.id);
       const reactivationLease = await renewClaim();
       if (reactivationLease.error) {
@@ -407,44 +476,6 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         }
       }
 
-      const { data: processedRows, error: processedLookupError } = await userClient
-        .from("processed_content")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("capture_id", body.captureId)
-        .limit(1);
-      if (processedLookupError) {
-        await failClaim();
-        return json({ error: "Source recovery lookup failed" }, 500);
-      }
-      if (!processedRows?.length) {
-        const processedLease = await renewClaim();
-        if (processedLease.error) {
-          await failClaim();
-          return json({ error: "Processing claim could not be verified" }, 500);
-        }
-        if (!processedLease.active) return changedWhileProcessing();
-        const recoveredSummary = existing
-          .map((concept) => concept.definition)
-          .filter((definition): definition is string => !!definition)
-          .slice(0, 2)
-          .join(" ");
-        const { error: processedRecoveryError } = await userClient
-          .from("processed_content")
-          .insert({
-            capture_id: body.captureId,
-            user_id: userId,
-            summary: recoveredSummary,
-            key_concepts: existing.map((concept) => concept.name),
-            ocr_text: capture.raw_text,
-            model: "google/gemini-2.5-flash-vision",
-          });
-        if (processedRecoveryError) {
-          await failClaim();
-          return json({ error: "Source recovery failed" }, 500);
-        }
-      }
-
       const { data: recoveredCapture, error: recoveryReadyError } = await updateOwnedClaim({
         processing_status: "ready",
         concept_extraction_claim_id: null,
@@ -461,41 +492,98 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         concepts: existing,
       });
     }
-  }
+    return null;
+  };
 
-  const { data: materials, error: materialsError } = await userClient
-    .from("materials")
-    .select("id, storage_path, mime_type, size_bytes, page_index")
-    .eq("user_id", userId)
-    .eq("capture_id", body.captureId)
-    .in("id", materialIds)
-    .order("page_index", { ascending: true });
-  if (materialsError) return json({ error: "Image lookup failed" }, 500);
-  if (!materials || materials.length !== materialIds.length) {
-    return json({ error: "One or more images do not belong to this capture" }, 409);
-  }
-  let totalBytes = 0;
-  for (const material of materials) {
-    const mime = (material.mime_type ?? "").toLowerCase();
-    const size = material.size_bytes ?? 0;
-    totalBytes += size;
-    if (
-      !material.storage_path
-      || material.storage_path.split("/")[0] !== userId
-      || !ALLOWED_MIME.has(mime)
-      || size < 1
-      || size > MAX_FILE_BYTES
-    ) {
-      return json({ error: "Invalid private image" }, 400);
-    }
-  }
-  if (totalBytes > MAX_TOTAL_BYTES) return json({ error: "Capture exceeds the 24 MB limit" }, 413);
-
+  // Fence the capture lifecycle before reading any material row. The matching
+  // material-delete trigger locks this parent row, so either a rollback
+  // completes first and this query observes it, or this claim commits first
+  // and direct source deletion is denied for the worker's full lifetime.
   const acquisition = await acquireClaim();
   if (acquisition.error) return json({ error: "Processing claim failed" }, 500);
   if (!acquisition.claimed) {
     return json({ ok: true, processing: true, message: "Campus Brain is already reading these pages." });
   }
+
+  const { data: materials, error: materialsError } = await userClient
+    .from("materials")
+    .select("id, kind, storage_path, mime_type, size_bytes, content_hash, page_index")
+    .eq("user_id", userId)
+    .eq("capture_id", body.captureId)
+    .order("page_index", { ascending: true });
+  if (materialsError) {
+    await failClaim();
+    return json({ error: "Image lookup failed" }, 500);
+  }
+  const captureMeta = capture.meta && typeof capture.meta === "object" && !Array.isArray(capture.meta)
+    ? capture.meta as Record<string, unknown>
+    : null;
+  const expectedSourceImageCount = Number.isInteger(captureMeta?.sourceImageCount)
+    ? captureMeta!.sourceImageCount as number
+    : null;
+  const requestedMaterialIds = new Set(materialIds);
+  if (
+    expectedSourceImageCount === null
+    || expectedSourceImageCount < 1
+    || expectedSourceImageCount > MAX_FILES
+    || !materials
+    || materials.length !== expectedSourceImageCount
+    || materials.length !== requestedMaterialIds.size
+    || materials.some((material) => !requestedMaterialIds.has(material.id))
+  ) {
+    await failClaim();
+    return json({ error: "The image list no longer matches this capture" }, 409);
+  }
+  let totalBytes = 0;
+  for (let pageIndex = 0; pageIndex < materials.length; pageIndex += 1) {
+    const material = materials[pageIndex];
+    const mime = (material.mime_type ?? "").toLowerCase();
+    const size = material.size_bytes ?? 0;
+    const contentHash = material.content_hash ?? "";
+    const pathParts = material.storage_path?.split("/") ?? [];
+    const expectedExtension = mime === "image/jpeg"
+      ? "jpg"
+      : mime === "image/png"
+      ? "png"
+      : mime === "image/webp"
+      ? "webp"
+      : mime === "image/heic"
+      ? "heic"
+      : mime === "image/heif"
+      ? "heif"
+      : "invalid";
+    totalBytes += size;
+    if (
+      material.kind !== "image"
+      || !material.storage_path
+      || pathParts.length !== 3
+      || pathParts[0] !== userId
+      || pathParts[1] !== body.captureId
+      || !/^[0-9a-f]{64}$/.test(contentHash)
+      || pathParts[2] !== `${contentHash}.${expectedExtension}`
+      || !ALLOWED_MIME.has(mime)
+      || material.page_index !== pageIndex
+      || size < 1
+      || size > MAX_FILE_BYTES
+    ) {
+      await failClaim();
+      return json({ error: "Invalid private image" }, 400);
+    }
+  }
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    await failClaim();
+    return json({ error: "Capture exceeds the 24 MB limit" }, 413);
+  }
+
+  const sourceManifestHash = await sha256Text(JSON.stringify(materials.map((material) => ({
+    id: material.id,
+    pageIndex: material.page_index,
+    storagePath: material.storage_path,
+    mimeType: material.mime_type?.toLowerCase() ?? null,
+    sizeBytes: material.size_bytes,
+    contentHash: material.content_hash,
+  }))));
+  const processedModel = `google/gemini-2.5-flash:${sourceManifestHash}`;
 
   const content: Array<Record<string, unknown>> = [{
     type: "text",
@@ -507,13 +595,39 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     ].filter(Boolean).join("\n"),
   }];
 
+  // Deny abusive retry/download loops before private bytes leave Storage or
+  // are expanded into base64. The paid-AI permit remains a separate, tighter
+  // limit and is consumed only if durable recovery cannot answer the retry.
+  const sourceReadQuota = await consumePaidAiQuota(
+    (args) => adminClient.rpc("consume_ai_request_quota", args),
+    {
+      userId,
+      functionPrefix: "process-capture-images-source-read",
+      hourlyLimit: SOURCE_READ_HOURLY_LIMIT,
+      dailyLimit: SOURCE_READ_DAILY_LIMIT,
+    },
+  );
+  if (sourceReadQuota.ok === false) {
+    await failClaim();
+    if (sourceReadQuota.status === 503) {
+      logPrivateFailure({ errorClass: "source_read_quota_failed", status: 503, requestId });
+      return json({ error: "Service temporarily unavailable" }, 503);
+    }
+    return json({ error: "Photo processing limit reached. Try again later." }, 429);
+  }
+
   try {
     for (const material of materials) {
       const { data: imageBlob, error: downloadError } = await adminClient.storage
         .from("capture-sources")
         .download(material.storage_path!);
       if (downloadError || !imageBlob) throw downloadError ?? new Error("Private image download failed");
-      const bytes = new Uint8Array(await imageBlob.arrayBuffer());
+      const imageBuffer = await imageBlob.arrayBuffer();
+      const bytes = new Uint8Array(imageBuffer);
+      const actualHash = await sha256Hex(imageBuffer);
+      if (bytes.byteLength !== material.size_bytes || actualHash !== material.content_hash) {
+        throw new CaptureSourceIntegrityError();
+      }
       content.push({
         type: "image_url",
         image_url: {
@@ -521,11 +635,30 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         },
       });
     }
-  } catch {
-    logPrivateFailure({ errorClass: "private_image_download_failed", status: 502, requestId });
+  } catch (error) {
+    const integrityFailure = error instanceof CaptureSourceIntegrityError;
+    logPrivateFailure({
+      errorClass: integrityFailure ? "capture_source_integrity_failed" : "private_image_download_failed",
+      status: integrityFailure ? 409 : 502,
+      requestId,
+    });
     await failClaim();
-    return json({ error: "Private images could not be read" }, 502);
+    return integrityFailure
+      ? json({ error: "A private image no longer matches the saved capture. Start a new capture with the original photo." }, 409)
+      : json({ error: "Private images could not be read" }, 502);
   }
+
+  // Recovery is safe only after the worker owns the complete source manifest
+  // and every byte has matched its immutable material hash.
+  const recoveryResponse = await recoverExistingScanMaterial();
+  if (recoveryResponse) return recoveryResponse;
+
+  const providerLease = await renewClaim();
+  if (providerLease.error) {
+    await failClaim();
+    return json({ error: "Processing claim could not be verified" }, 500);
+  }
+  if (!providerLease.active) return changedWhileProcessing();
 
   let gatewayResult: PaidAiExecutionResult<Response>;
   try {
@@ -551,6 +684,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
             { role: "user", content },
           ],
         }),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       }),
     );
   } catch {
@@ -875,7 +1009,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     summary,
     key_concepts: normalizedConcepts.map((concept) => concept.name),
     ocr_text: sourceText,
-    model: "google/gemini-2.5-flash-vision",
+    model: processedModel,
   });
   if (processedError) {
     await failClaim();
@@ -923,7 +1057,7 @@ function confirmedPracticeCandidate(value: unknown): string | null {
 }
 
 async function validateLinkedTargets(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   input: {
     userId: string;
     clientClassId: string;
@@ -933,7 +1067,7 @@ async function validateLinkedTargets(
   },
 ): Promise<string | null> {
   if (input.assignmentId) {
-    const { data, error } = await client
+    const { data: assignmentData, error } = await client
       .from("assignments")
       .select("id, class_id, client_class_id")
       .eq("id", input.assignmentId)
@@ -941,12 +1075,14 @@ async function validateLinkedTargets(
       .eq("client_class_id", input.clientClassId)
       .is("source_archived_at", null)
       .maybeSingle();
-    if (error || !data || (data.class_id && data.class_id !== input.classId)) {
+    const assignment = assignmentData as LinkedTargetRow | null;
+    if (error || !assignment
+        || (assignment.class_id && assignment.class_id !== input.classId)) {
       return "Assignment does not belong to the capture class";
     }
   }
   if (input.examId) {
-    const { data, error } = await client
+    const { data: examData, error } = await client
       .from("exams")
       .select("id, class_id, client_class_id")
       .eq("id", input.examId)
@@ -954,7 +1090,8 @@ async function validateLinkedTargets(
       .eq("client_class_id", input.clientClassId)
       .is("source_archived_at", null)
       .maybeSingle();
-    if (error || !data || (data.class_id && data.class_id !== input.classId)) {
+    const exam = examData as LinkedTargetRow | null;
+    if (error || !exam || (exam.class_id && exam.class_id !== input.classId)) {
       return "Exam does not belong to the capture class";
     }
   }
@@ -968,6 +1105,20 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
   }
   return btoa(binary);
+}
+
+async function sha256Hex(value: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", value);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Text(value: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function fetchWithStorageTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  return fetch(input, { ...init, signal: AbortSignal.timeout(STORAGE_DOWNLOAD_TIMEOUT_MS) });
 }
 
 function json(body: unknown, status = 200) {

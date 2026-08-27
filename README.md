@@ -10,8 +10,9 @@ problem independently, and save that result to concept mastery.
 
 Prerequisites:
 
-- Node 20 (see `.nvmrc`)
-- npm
+- Node 24.19.0 (see `.nvmrc`)
+- Deno 2.2.12 (see `.deno-version`)
+- npm 11.9.0 (the only supported package manager; see `packageManager`)
 - Chromium and WebKit for browser journeys
 
 ```sh
@@ -19,6 +20,13 @@ npm ci
 cp .env.example .env
 npm run dev
 ```
+
+`package-lock.json` is the sole npm/package-manager lockfile and frontend release
+authority. `deno.lock` separately pins the integrity of the exact npm imports
+used by Supabase Edge Functions. Use `npm ci` for reproducible installs in
+development, CI, Lovable, and production builds. Do not add `bun.lock` or
+`bun.lockb`; competing package-manager lockfiles can make an automated host
+resolve a different dependency graph than the one CI verified.
 
 Configure the three public Supabase values in `.env`. The browser fails closed
 unless the URL is an exact HTTPS Supabase origin, its project ref matches, and
@@ -30,9 +38,12 @@ or the Lovable AI key in a `VITE_` variable.
 Run the same gates expected in CI:
 
 ```sh
+npm run audit:prod
+npm run audit:tooling
 npm run lint
 npm run typecheck
 npm test
+deno task verify:edge
 npm run build
 npx playwright install chromium webkit
 npm run e2e
@@ -42,6 +53,15 @@ git diff --check
 The Playwright journeys build and serve the optimized production bundle across
 desktop Chromium, Pixel-sized Chromium, and iPhone-sized WebKit.
 
+The Edge gate installs the exact `package-lock.json` graph, requires exact
+Supabase npm imports and a frozen `deno.lock`, and uses the pinned Deno runtime.
+It runs the Deno-native Canvas calendar test and type-checks every
+`supabase/functions/*/index.ts` entry point. Frontend verification uses the
+exact Node/npm pair, audits both production and developer dependencies, then
+runs lint, typecheck, unit, build, and cross-device journey gates. The single
+**Required CI** result fails unless both lanes pass; do not deploy while it is
+red.
+
 The protected production workflow additionally runs:
 
 ```sh
@@ -50,10 +70,16 @@ npm run canary:release
 ```
 
 The first command validates the exact backend, release SHA, support address,
-signup state, and passkey state without printing values. The second runs only
-after deployment with a dedicated empty canary account; it proves the published
-bundle, security headers, Auth, required migrations/functions, and sanitized
-error signal through zero-AI invalid requests.
+signup state, and passkey state without printing values. The second validates
+both protected canary identities at runtime, then runs after deployment with
+dedicated accepted and unaccepted empty accounts; it verifies the published
+bundle, direct SPA deep-link fallback, same-origin public release manifest,
+strict security header semantics, both live Auth sessions, the exact
+agreement-denial contract, accepted zero-AI validation responses, both cleanup
+worker denials, the MCP HTTP 410 tombstone, and error-report ingestion. It does
+not prove migration state, RLS isolation, the exact Edge
+revision, alert delivery, or full successful write paths; those remain manual
+staging and operator gates below.
 
 ## Learning boundaries
 
@@ -80,6 +106,13 @@ The launch release changes these Supabase Edge Functions together:
 - `record-study-result`
 - `parse-syllabus`
 - `report-client-error`
+- `cleanup-abandoned-captures`
+- `cleanup-abandoned-syllabi`
+- `mcp` (a private HTTP 410 retirement tombstone; no demo data or tool runtime)
+
+That is ten deployed function revisions: six agreement-guarded student
+study/capture/syllabus endpoints, two secret-bound cleanup workers, the safe
+client-error intake, and the retired MCP tombstone.
 
 They require these server-side secrets:
 

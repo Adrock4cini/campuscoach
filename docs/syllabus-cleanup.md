@@ -229,7 +229,11 @@ $$;
 - Call the function without `x-cleanup-secret`: expect HTTP 401. Call it with a
   malformed value and with a wrong 64-character lowercase-hex value: expect
   HTTP 403. Temporarily make the digest getter unavailable: expect HTTP 503.
-  None of these requests may create a cleanup claim.
+  None of these requests may create a cleanup claim. Every response is private,
+  non-cacheable JSON with `X-Content-Type-Options: nosniff` and an
+  `X-Request-ID`. Server failures return only the shared safe error contract;
+  logs contain a sanitized error class, status, and request ID, never database
+  or Storage messages, paths, source metadata, or credentials.
 - Confirm upload quota acceptance before testing cleanup: the fourth unfinished
   upload for one class is denied, the thirteenth unfinished upload for one user
   is denied, a saved source is excluded from unfinished counts, and another

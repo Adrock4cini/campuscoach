@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   setSupabaseNetworkMode: vi.fn(),
   profileMaybeSingle: vi.fn(),
   classesIs: vi.fn(),
+  getAgreementStatus: vi.fn(),
+  acceptAgreementReceipt: vi.fn(),
+  agreementOwnerId: "student-1",
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -50,8 +53,12 @@ vi.mock("@/lib/demo/supabaseNetworkPolicy", () => ({
   setSupabaseNetworkMode: mocks.setSupabaseNetworkMode,
 }));
 
+vi.mock("@/lib/legal/familyBetaAgreementService", () => ({
+  getFamilyBetaAgreementStatus: mocks.getAgreementStatus,
+  acceptCurrentFamilyBetaAgreement: mocks.acceptAgreementReceipt,
+}));
+
 import { KNOWN_SESSION_KEY } from "@/lib/auth/sessionResilience";
-import { FAMILY_BETA_AGREEMENT_VERSION } from "@/lib/legal/familyBeta";
 import {
   AuthProvider,
   SESSION_RECOVERY_RECHECK_MS,
@@ -59,6 +66,7 @@ import {
 } from "./AuthContext";
 
 function sessionFor(userId: string): Session {
+  mocks.agreementOwnerId = userId;
   return {
     access_token: `access-${userId}`,
     refresh_token: `refresh-${userId}`,
@@ -99,12 +107,10 @@ function AuthRecoverySnapshot() {
 }
 
 function AuthAgreementSnapshot() {
-  const { user } = useAuth();
+  const { agreementStatus } = useAuth();
   return (
     <output aria-label="Agreement status">
-      {user?.user_metadata?.family_beta_agreement_version === FAMILY_BETA_AGREEMENT_VERSION
-        ? "accepted"
-        : "missing"}
+      {agreementStatus}
     </output>
   );
 }
@@ -130,6 +136,18 @@ describe("AuthProvider session restoration", () => {
       error: null,
     });
     mocks.classesIs.mockResolvedValue({ count: 1, error: null });
+    mocks.getAgreementStatus.mockImplementation(async () => ({
+      accepted: true,
+      agreementVersion: "2026-08-17",
+      acceptedAt: "2026-08-27T12:00:00.000Z",
+      ownerId: mocks.agreementOwnerId,
+    }));
+    mocks.acceptAgreementReceipt.mockImplementation(async () => ({
+      accepted: true,
+      agreementVersion: "2026-08-17",
+      acceptedAt: "2026-08-27T12:00:00.000Z",
+      ownerId: mocks.agreementOwnerId,
+    }));
   });
 
   it("restores an existing persisted session on app startup", async () => {
@@ -290,7 +308,13 @@ describe("AuthProvider session restoration", () => {
     expect(screen.getByText("signed-out")).toBeInTheDocument();
   });
 
-  it("applies a same-account agreement metadata update without losing the session", async () => {
+  it("does not let a same-account Auth metadata update satisfy the agreement gate", async () => {
+    mocks.getAgreementStatus.mockImplementationOnce(async () => ({
+      accepted: false,
+      agreementVersion: "2026-08-17",
+      acceptedAt: null,
+      ownerId: "student-1",
+    }));
     mocks.getSession.mockResolvedValue({
       data: { session: sessionFor("student-1") },
       error: null,
@@ -301,17 +325,18 @@ describe("AuthProvider session restoration", () => {
         <AuthAgreementSnapshot />
       </AuthProvider>,
     );
-    expect(await screen.findByRole("status", { name: "Agreement status" })).toHaveTextContent("missing");
+    expect(await screen.findByRole("status", { name: "Agreement status" })).toHaveTextContent("required");
 
     const updated = sessionFor("student-1");
     updated.user.user_metadata = {
-      family_beta_agreement_version: FAMILY_BETA_AGREEMENT_VERSION,
+      family_beta_agreement_version: "2026-08-17",
     };
     await act(async () => {
       mocks.authCallback?.("USER_UPDATED", updated);
     });
 
-    expect(screen.getByRole("status", { name: "Agreement status" })).toHaveTextContent("accepted");
+    expect(screen.getByRole("status", { name: "Agreement status" })).toHaveTextContent("required");
+    expect(mocks.getAgreementStatus).toHaveBeenCalledTimes(1);
     expect(mocks.profileMaybeSingle).toHaveBeenCalledTimes(1);
   });
 

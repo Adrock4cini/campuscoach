@@ -105,11 +105,29 @@ describe("abandoned syllabus source cleanup contract", () => {
     expect(edgeFunction.indexOf("constantTimeEqualHex(suppliedDigest, expectedDigest)")).toBeLessThan(
       edgeFunction.indexOf('"claim_abandoned_syllabus_sources"'),
     );
-    expect(edgeFunction).toContain('return json({ error: "Service unavailable" }, 503)');
+    expect(edgeFunction).toContain("withPrivateJsonErrors(req, {}");
+    expect(edgeFunction).toContain("logPrivateFailure({");
+    expect(edgeFunction).toContain("privateJsonResponse(body, status, {}, { requestId })");
+    expect(edgeFunction).toContain("return json(undefined, 503)");
     expect(edgeFunction).toContain('Deno.env.get("SUPABASE_SECRET_KEYS")');
     expect(edgeFunction).toContain('Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")');
     expect(edgeFunction).toContain('Deno.env.get("ALLOW_SYLLABUS_CLEANUP_TEST_MODE") !== "true"');
     expect(edgeFunction).toContain('requestedTestBefore === "now"');
+  });
+
+  it("returns private request-correlated errors without logging database or Storage details", () => {
+    expect(edgeFunction).toContain('from "../_shared/private-json-response.ts"');
+    expect(edgeFunction).toContain('errorClass: "syllabus_cleanup_claim_failed"');
+    expect(edgeFunction).toContain('errorClass: "syllabus_cleanup_confirm_failed"');
+    expect(edgeFunction).toContain('errorClass: "syllabus_storage_cleanup_failed"');
+    expect(edgeFunction).toContain('errorClass: "syllabus_cleanup_release_failed"');
+    expect(edgeFunction).toContain('event: "syllabus_source_cleanup_completed"');
+    expect(edgeFunction).toContain("requestId,");
+    expect(edgeFunction).not.toContain("claimError.message");
+    expect(edgeFunction).not.toContain("confirmError.message");
+    expect(edgeFunction).not.toContain("removeError.message");
+    expect(edgeFunction).not.toContain("releaseError.message");
+    expect(edgeFunction).not.toMatch(/console\.error/);
   });
 
   it("binds cron to exact Vault UUIDs and documents atomic rotation", () => {
