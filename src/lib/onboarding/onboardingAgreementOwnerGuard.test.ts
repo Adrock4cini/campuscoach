@@ -70,6 +70,7 @@ const expectedBrowserDefinerSignatures = [
   "can_upload_uncommitted_syllabus_source(text)",
   "commit_class_syllabus(uuid,text,uuid,text,text,text,bigint,text,jsonb,jsonb)",
   "get_family_beta_agreement_status()",
+  "get_learning_evidence_contract_status()",
   "has_current_family_beta_agreement()",
   "owns_active_syllabus_storage_path(text)",
   "owns_syllabus_storage_path(text)",
