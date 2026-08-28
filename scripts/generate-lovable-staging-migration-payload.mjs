@@ -9,6 +9,9 @@ export const EXPECTED_FINAL_MIGRATION_VERSION = "20260828110000";
 export const CONTROL_SCHEMA = "cc_staging_migration";
 export const PROTECTED_LOVABLE_PROJECT_IDS = Object.freeze([
   "a08a7f00-4b76-4d5b-ac89-2c15e604054a", // production Campus Coach Pro
+  "14ee9834-144c-4923-9963-b5389d0cc4ca", // previous published Family Beta
+  "22053d35-bc57-4b25-a9a5-3a7ed8e158b2", // abandoned lzw staging authority
+  "33bcdaaa-6765-4b62-a375-a58b661726ea", // quarantined nondeterministic mvi replay
   "0b0043fb-1222-49bd-a350-a068bcb3d844", // unused Lovable shell
   "45c02d1f-91a2-4b8d-8fcd-eea6402e45ad", // quarantined after failed replay
 ]);
