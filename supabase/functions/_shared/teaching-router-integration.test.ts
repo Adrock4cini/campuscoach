@@ -47,4 +47,40 @@ describe("generate-artifact teaching route adapter", () => {
     expect(result.route.kind).toBe("memorize-fact");
     expect(result.taskKind).toBe("memorize-terms");
   });
+
+  it("does not let the first easy fact hide a later problem-solving concept", () => {
+    const result = decideArtifactTeachingRoute({
+      concepts: [
+        { id: "fact", name: "Percent symbol", definition: "Percent means per hundred." },
+        { id: "problem", name: "Percent of a Number", definition: null },
+      ],
+      sourceExcerptByConcept: new Map([
+        ["fact", "Percent means per hundred."],
+        ["problem", "What is 14% of 50?"],
+      ]),
+    });
+    expect(result.route.kind).toBe("solve-problems");
+    expect(result.taskKind).toBe("solve-problems");
+  });
+
+  it("lets an explicit confusable pair outrank a neighboring procedure in the same set", () => {
+    const result = decideArtifactTeachingRoute({
+      concepts: [
+        { id: "procedure", name: "Calculate concentration", definition: "Calculate the concentration from the given values." },
+        {
+          id: "contrast",
+          name: "Hypotonic vs Hypertonic",
+          definition: "Hypotonic: water moves in. Hypertonic: water moves out.",
+        },
+      ],
+      sourceExcerptByConcept: new Map([
+        ["procedure", "Calculate concentration."],
+        ["contrast", "Hypotonic: water moves in. Hypertonic: water moves out."],
+      ]),
+      studentConfusion: "I always mix up hypotonic and hypertonic and get them backwards.",
+    });
+    expect(result.route.kind).toBe("compare-ideas");
+    expect(result.taskKind).toBe("compare-ideas");
+    expect(result.preferredStrategyId).toBe("compare-table");
+  });
 });
