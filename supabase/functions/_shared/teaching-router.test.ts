@@ -36,6 +36,24 @@ describe("teaching router", () => {
     expect(preferredStrategyForRoute(route)).toBe("compare-table");
   });
 
+  it("lets explicit confusion outrank an unrelated procedural verb", () => {
+    const route = classifyLearningProblem({
+      conceptName: "Hypotonic vs Hypertonic",
+      sourceExcerpt: "Calculate concentration, then decide which solution surrounds the cell.",
+      studentConfusion: "I always mix up hypotonic and hypertonic and get them backwards.",
+    });
+    expect(route.kind).toBe("compare-ideas");
+    expect(route.moves).toContain("discrimination-question");
+  });
+
+  it("does not treat generic find language as proof of a procedure", () => {
+    const route = classifyLearningProblem({
+      conceptName: "Supply and demand",
+      sourceExcerpt: "Find the difference between a shift in demand and a movement along the demand curve.",
+    });
+    expect(route.kind).toBe("compare-ideas");
+  });
+
   it("keeps Maryland Annapolis a compact fact instead of becoming a lecture", () => {
     const route = classifyLearningProblem({
       conceptName: "Maryland capital",
