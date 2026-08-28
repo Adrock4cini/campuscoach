@@ -9,6 +9,8 @@
  *   - Recency-weighted (exponential half-life) so September evidence stops
  *     dominating in November.
  *   - Sample-gated: a single lucky round never outranks a cold-start default.
+ *   - Evidence-strength aware: recognition is useful, but independent
+ *     application/transfer carries more weight when we know the evidence tier.
  *
  * What it is deliberately NOT:
  *   - Not a learner-type label. Nothing here ever concludes "visual learner".
@@ -22,6 +24,26 @@
  */
 
 export type StrategyOutcomeSource = "study_result" | "feedback";
+export type LearningEvidenceTier =
+  | "exposure"
+  | "recall"
+  | "discrimination"
+  | "application"
+  | "transfer";
+
+/**
+ * How strongly one observation should influence adaptive strategy ranking.
+ * These are deliberately modest multipliers: the evidence still has to clear
+ * the recency/sample/lift gates below. A flashcard recall remains useful; a
+ * cold transfer problem is simply better proof that a teaching move worked.
+ */
+export const LEARNING_EVIDENCE_WEIGHT: Record<LearningEvidenceTier, number> = {
+  exposure: 0.25,
+  recall: 0.6,
+  discrimination: 0.8,
+  application: 1,
+  transfer: 1.2,
+};
 
 /** One durable outcome row, already owner-scoped by RLS. */
 export interface StrategyOutcomeRecord {
@@ -37,6 +59,8 @@ export interface StrategyOutcomeRecord {
   total: number;
   /** Mastery movement for the attempt, when the caller already had it. */
   masteryDelta?: number | null;
+  /** Strength of the underlying student evidence when known. */
+  evidenceTier?: LearningEvidenceTier | null;
   source: StrategyOutcomeSource;
   occurredAt: string;
 }
@@ -66,7 +90,7 @@ export interface StrategyEvidence {
   format: string | null;
   subjectProfileId: string | null;
   taskKind: string | null;
-  /** Recency-weighted attempts backing this row. */
+  /** Recency- and evidence-strength-weighted attempts backing this row. */
   samples: number;
   /** Recency-weighted success rate, 0-1. */
   successRate: number;
@@ -101,6 +125,14 @@ function accumulate(map: Map<string, Bucket>, key: string, weight: number, succe
   bucket.weight += weight;
   bucket.success += success;
   map.set(key, bucket);
+}
+
+function evidenceTierWeight(record: StrategyOutcomeRecord): number {
+  // Existing rows predate the explicit evidence ladder. Preserve their old
+  // behavior until a caller starts supplying the tier; do not silently rewrite
+  // historical meaning during the rollout.
+  if (!record.evidenceTier) return 1;
+  return LEARNING_EVIDENCE_WEIGHT[record.evidenceTier];
 }
 
 /**
@@ -144,7 +176,7 @@ export function summarizeStrategyEvidence(
     if (typeof record.masteryDelta === "number" && Number.isFinite(record.masteryDelta)) {
       rate = Math.min(1, Math.max(0, rate + Math.max(-0.15, Math.min(0.15, record.masteryDelta))));
     }
-    const weight = recency * sourceWeight * total;
+    const weight = recency * sourceWeight * evidenceTierWeight(record) * total;
     const success = weight * rate;
     const subjectProfileId = record.subjectProfileId ?? null;
     const taskKind = record.taskKind ?? null;
