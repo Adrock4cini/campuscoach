@@ -151,6 +151,60 @@ describe("strategy evidence — later-semester learning", () => {
   });
 });
 
+describe("strategy evidence — evidence ladder", () => {
+  it("gives independent transfer more adaptive weight than recognition-only exposure", () => {
+    const transfer = summarizeStrategyEvidence([
+      ...Array.from({ length: 4 }, (_, index) => outcome({
+        strategyId: "error-spotting",
+        evidenceTier: "transfer",
+        correct: 5,
+        total: 5,
+        masteryDelta: null,
+        occurredAt: daysAgo(index + 1),
+      })),
+      ...Array.from({ length: 4 }, (_, index) => outcome({
+        strategyId: "worked-example",
+        evidenceTier: "application",
+        correct: 2,
+        total: 5,
+        masteryDelta: null,
+        occurredAt: daysAgo(index + 1),
+      })),
+    ], { now: NOW });
+    const exposure = summarizeStrategyEvidence([
+      ...Array.from({ length: 4 }, (_, index) => outcome({
+        strategyId: "error-spotting",
+        evidenceTier: "exposure",
+        correct: 5,
+        total: 5,
+        masteryDelta: null,
+        occurredAt: daysAgo(index + 1),
+      })),
+      ...Array.from({ length: 4 }, (_, index) => outcome({
+        strategyId: "worked-example",
+        evidenceTier: "application",
+        correct: 2,
+        total: 5,
+        masteryDelta: null,
+        occurredAt: daysAgo(index + 1),
+      })),
+    ], { now: NOW });
+
+    const transferRow = evidenceAdjustment(transfer, {
+      strategyId: "error-spotting", subjectProfileId: "math", taskKind: "apply-procedure",
+    }).evidence;
+    const exposureRow = exposure.find((row) => row.strategyId === "error-spotting");
+    expect(transferRow?.meaningful).toBe(true);
+    expect(exposureRow?.samples ?? 0).toBeLessThan(3);
+    expect(exposureRow?.meaningful).toBe(false);
+  });
+
+  it("preserves historical outcome behavior when no evidence tier was stored", () => {
+    const legacy = summarizeStrategyEvidence(LATER_SEMESTER, { now: NOW });
+    expect(rankOf(legacy, "error-spotting")).toBeLessThan(rankOf(legacy, "worked-example"));
+  });
+});
+
 describe("strategy evidence — bucket isolation", () => {
   it("does not let one task kind contaminate another", () => {
     const evidence = summarizeStrategyEvidence(
