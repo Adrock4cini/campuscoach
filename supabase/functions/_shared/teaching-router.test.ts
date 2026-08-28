@@ -80,6 +80,23 @@ describe("teaching router", () => {
     expect(preferredStrategyForRoute(route)).toBe("mini-story");
   });
 
+  it("routes a single accounting workflow as apply-procedure rather than vocabulary", () => {
+    const route = classifyLearningProblem({
+      conceptName: "Journal entry",
+      sourceExcerpt: "Journalize the transaction and post to the ledger.",
+    });
+    expect(route.kind).toBe("apply-procedure");
+    expect(route.moves).toEqual([
+      "student-attempt",
+      "hint",
+      "worked-example",
+      "faded-example",
+      "similar-problem",
+    ]);
+    expect(strategyTaskKindForRoute(route)).toBe("apply-procedure");
+    expect(preferredStrategyForRoute(route)).toBe("worked-example");
+  });
+
   it("routes a multi-item list to chunking before the existing acronym strategy", () => {
     const route = classifyLearningProblem({
       conceptName: "Four review factors",
