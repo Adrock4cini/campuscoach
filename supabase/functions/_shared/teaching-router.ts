@@ -31,7 +31,9 @@ export interface TeachingRoute {
 
 const PERCENT_PROBLEM = /(?:\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\$?\d+(?:\.\d+)?|\$\s*\d+(?:\.\d+)?[^.\n]{0,60}?\d+(?:\.\d+)?\s*(?:%|percent)\s*off)/i;
 const EQUATION_PROBLEM = /(?:\bsolve\b[^\n]{0,80}\bfor\s+[a-z]\b|\b[a-z]\s*=|\d\s*[+\-*/×÷]\s*\d|=\s*\?)/i;
-const PROCEDURE_SIGNAL = /\b(calculate|compute|solve|convert|determine|find|journalize|post|balance|derive|show your work|steps?)\b/i;
+// Generic verbs such as "find" and "determine" occur in definitions and
+// compare/contrast prompts too often to be safe procedure signals by themselves.
+const PROCEDURE_SIGNAL = /\b(calculate|compute|solve|convert|journalize|post|balance|derive|show your work|steps?)\b/i;
 const COMPARE_SIGNAL = /(?:\b(compare|contrast|difference|differentiate|distinguish|versus|mix(?:ed)? up|confus(?:e|ed|ing)|which one)\b|\bvs\.?\b|\bget(?:ting)?\b[^.\n]{0,40}\bbackwards\b)/i;
 const SEQUENCE_SIGNAL = /\b(first|second|third|next|then|finally|in order|sequence|stages?|steps? in order)\b/i;
 const ORDER_MARKER = /\b(first|second|third|next|then|finally)\b/gi;
@@ -59,11 +61,24 @@ function sequenceRoute(): TeachingRoute {
 
 export function classifyLearningProblem(input: TeachingRouteInput): TeachingRoute {
   const text = combined(input);
-  const confusable = COMPARE_SIGNAL.test(`${input.studentConfusion ?? ""} ${text}`);
+  const confusionText = input.studentConfusion ?? "";
+  const explicitStudentConfusion = Boolean(confusionText.trim()) && COMPARE_SIGNAL.test(confusionText);
+  const confusable = explicitStudentConfusion || COMPARE_SIGNAL.test(text);
+
   // Explicitly ordered material can also contain procedural verbs (journalize,
   // post, balance, etc.). Preserve the sequence when multiple order cues make
   // ordering the actual learning target instead of treating it as one problem.
   if (hasExplicitSequence(text)) return sequenceRoute();
+
+  // A student explicitly saying "I mix these up" or "I get these backwards"
+  // is stronger diagnostic evidence than a generic procedural verb elsewhere
+  // in the material. Route the error they actually reported.
+  if (explicitStudentConfusion) return {
+    kind: "compare-ideas", moves: ["student-attempt", "compare-table", "familiar-bridge", "discrimination-question", "spacing"],
+    confusable: true, familiarBridgeEligible: true,
+    reason: "The student explicitly confuses neighbouring ideas: contrast and a lure-resistant choice test come first.",
+  };
+
   if (PERCENT_PROBLEM.test(text) || EQUATION_PROBLEM.test(text) || PROCEDURE_SIGNAL.test(text)) return {
     kind: "solve-problems", moves: ["student-attempt", "hint", "worked-example", "faded-example", "similar-problem"],
     confusable, familiarBridgeEligible: false,
