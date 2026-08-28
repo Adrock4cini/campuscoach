@@ -8,8 +8,12 @@ import {
 } from "../../../scripts/validate-release-env.mjs";
 
 const PRODUCTION_REF = "norsaaoyppctrvxxgjtg";
-const STAGING_REF = "dfpgnmldxphkfmobjbvr";
-const FRESH_STAGING_REF = "lzwaiobgrhwmywugsgjo";
+const PROTECTED_NON_PRODUCTION_REFS = [
+  "dfpgnmldxphkfmobjbvr",
+  "lzwaiobgrhwmywugsgjo",
+  "mviunlhhtcjuuburjxbf",
+];
+const UNREVIEWED_STAGING_REF = "abcdefghijklmnopqrst";
 
 function validEnvironment(overrides: Record<string, string | undefined> = {}) {
   return {
@@ -44,7 +48,11 @@ describe("production release environment validation", () => {
     ["blank", "   ", "required"],
     ["HTTP", `http://${PRODUCTION_REF}.supabase.co`, "https_required"],
     ["non-Supabase host", "https://database.example.edu", "invalid_supabase_host"],
+    ["trailing slash", `https://${PRODUCTION_REF}.supabase.co/`, "origin_required"],
     ["URL path", `https://${PRODUCTION_REF}.supabase.co/rest/v1`, "origin_required"],
+    ["credentials", `https://student:secret@${PRODUCTION_REF}.supabase.co`, "origin_required"],
+    ["query", `https://${PRODUCTION_REF}.supabase.co?redirect=elsewhere`, "origin_required"],
+    ["fragment", `https://${PRODUCTION_REF}.supabase.co#fragment`, "origin_required"],
   ])("rejects a %s Supabase URL", (_label, value, expectedCode) => {
     expect(issueCodes(validEnvironment({ VITE_SUPABASE_URL: value }))).toContain(expectedCode);
   });
@@ -82,26 +90,29 @@ describe("production release environment validation", () => {
     ).toContain("project_ref_mismatch");
   });
 
-  it("rejects the known family-beta staging project from either project field", () => {
-    expect(
-      issueCodes(
-        validEnvironment({
-          VITE_SUPABASE_URL: `https://${STAGING_REF}.supabase.co`,
-          VITE_SUPABASE_PROJECT_ID: STAGING_REF,
-        }),
-      ),
-    ).toContain("staging_project_forbidden");
+  it.each(PROTECTED_NON_PRODUCTION_REFS)(
+    "permanently rejects protected non-production project %s from either project field",
+    (projectRef) => {
+      expect(
+        issueCodes(
+          validEnvironment({
+            VITE_SUPABASE_URL: `https://${projectRef}.supabase.co`,
+            VITE_SUPABASE_PROJECT_ID: projectRef,
+          }),
+        ),
+      ).toContain("protected_project_forbidden");
 
-    expect(issueCodes(validEnvironment({ VITE_SUPABASE_PROJECT_ID: STAGING_REF }))).toContain(
-      "staging_project_forbidden",
-    );
-  });
+      expect(issueCodes(validEnvironment({ VITE_SUPABASE_PROJECT_ID: projectRef }))).toContain(
+        "protected_project_forbidden",
+      );
+    },
+  );
 
   it("rejects every project other than the exact reviewed production backend", () => {
     expect(
       issueCodes(validEnvironment({
-        VITE_SUPABASE_URL: `https://${FRESH_STAGING_REF}.supabase.co`,
-        VITE_SUPABASE_PROJECT_ID: FRESH_STAGING_REF,
+        VITE_SUPABASE_URL: `https://${UNREVIEWED_STAGING_REF}.supabase.co`,
+        VITE_SUPABASE_PROJECT_ID: UNREVIEWED_STAGING_REF,
       })),
     ).toContain("unexpected_production_project");
 

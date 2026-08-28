@@ -71,7 +71,12 @@ cannot be proven by the repository or a successful frontend build.
    at least one year plus `includeSubDomains`,
    Referrer-Policy set to `no-referrer`, `strict-origin`, or
    `strict-origin-when-cross-origin`, Permissions-Policy disabling camera,
-   microphone, and geolocation, and `X-Content-Type-Options: nosniff`.
+   microphone, and geolocation, `X-Content-Type-Options: nosniff`, and
+   `X-Robots-Tag: noindex, nofollow, noarchive` on every HTML response. Keep the
+   invite-only robots meta in the root HTML, serve `robots.txt` as plain text
+   containing only `User-agent: *` followed by `Disallow: /` (no named-crawler
+   group, `Allow`, Sitemap, or other directive), and serve the same-origin
+   `release-manifest.json` as JSON with `Cache-Control: no-store`.
 5. Configure an Edge log drain/alert for sanitized 5xx records and the
    `[client-error]` marker. Never alert on or retain request bodies, OCR text,
    prompts, email addresses, auth tokens, or provider response bodies.
@@ -87,11 +92,64 @@ cannot be proven by the repository or a successful frontend build.
    capture/material/processed-content writes plus both private Storage buckets;
    `20260827126750_capture_request_idempotency.sql` follows before the later
    `20260827127500` mirror retirement. Remain paused through the documented
-   `20260827132000` capture Storage handoff, apply
-   `20260827133000_browser_learning_evidence_write_guard.sql`, and verify its
-   four browser signal/evidence INSERT guards plus authenticated UPDATE guards
-   for `topic_signals`, `exam_debriefs`, and `campus_brain_signals`; owner DELETE
-   remains available before resuming exactly once afterward.
+   `20260827132000` capture Storage handoff, then apply, as separate reviewed
+   transactions and in order,
+   `20260827133000_browser_learning_evidence_write_guard.sql`,
+   `20260827134000_class_client_identity_owner_scope.sql`,
+   `20260827135000_launch_schema_regression_guard.sql`, and
+   `20260827140000_onboarding_agreement_owner_guard.sql`, followed by
+   `20260828100000_learning_evidence_ladder.sql` and
+   `20260828110000_full_scope_readiness.sql`. These last two are a strict
+   handoff: apply `281000` while writes are paused, verify the exact deployed
+   evidence-aware Edge revision and the database trigger/RPC contract directly
+   (the HTTP result route must still return the pause response), then apply
+   `281100` before resuming. The final migration invalidates pre-v11 artifacts,
+   repairs readiness, and rejects new tierless attempts. The legacy RPCs remain
+   service-only solely for bounded exact repair of already-existing NULL-contract
+   retries; they cannot create a fresh legacy attempt. Only after the single controlled resume may the accepted
+   owner run the end-to-end HTTP evidence journey; re-pause immediately if it
+   fails. Verify the `33000`
+   browser signal/evidence policies, owner-scoped class compatibility IDs, the
+   single aggregate-trigger pair and strategy-outcome owner references, and the
+   final onboarding agreement/same-owner boundaries, server-derived evidence
+   tiers, and full-scope readiness denominators before resuming exactly
+   once. For the final boundary, an unaccepted account must be denied
+   INSERT/UPDATE to profiles, classes, enrollments, assignments, exams, and
+   study sessions and INSERT to schools; an accepted owner must retain valid
+   writes. Confirm `flashcards`, `quizzes`, and `readiness_scores` retain SELECT
+   but deny anon/authenticated INSERT, UPDATE, and DELETE while service-role
+   processing remains available. Using two separate accepted staging identities
+   (never the dedicated never-accepted release canary), prove that cross-owner
+   attempts on every enrollment, assignment, exam, flashcard, quiz, study
+   session, readiness score, and class-syllabus request are rejected. Every
+   non-null `class_id` must be owner-bound and, when `client_class_id` is present,
+   must have the class's exact client identity. A syllabus request's non-null
+   `syllabus_id` must also match
+   that owner/class/client identity. Repeat these attempts through the service
+   role. Both `classes.user_id` and `classes.client_class_id` are immutable.
+   Repair any detected identity drift before this migration; after installation,
+   use an operator-reviewed delete/recreate flow rather than an in-place identity
+   mutation. For the never-accepted canary, use an
+   operator-staged, non-student syllabus fixture and a fresh request ID to call
+   `commit_class_syllabus` directly; require SQLSTATE `42501` and verify that no
+   class syllabus, request, assignment, exam, or class update committed. This is
+   the explicit SECURITY DEFINER bypass check—an invalid-body rejection does not
+   prove the agreement trigger. While the study-write pause is still active, the
+   accepted canary's otherwise-valid fresh syllabus commit must instead fail with
+   SQLSTATE `55000` / `study_writes_paused`. Run the same two-account check with
+   valid non-student mnemonic fixtures through the authenticated SECURITY DEFINER
+   `record_memory_trick_feedback` RPC: unaccepted returns `42501`, and accepted
+   returns `55000` while paused. Verify zero feedback mutations. After the single
+   resume, the accepted calls must succeed within their existing owner/shape
+   bounds. Include a valid `word_roots` artifact (one of the expanded canonical
+   16 technique IDs) and verify its feedback persists, while an unknown technique
+   is still rejected. Owner DELETE, service-role account erasure, and explicit
+   service-role/direct-operator processing remain available; a null Auth subject
+   alone is never trusted. Prove the nested DELETE path separately:
+   while paused and still unaccepted, delete a disposable owned class that has
+   only operator-staged manual assignment, exam, flashcard, quiz, and study-session
+   children (no captures or syllabus) and verify the foreign keys become null
+   without an agreement/pause error and without changing another child field.
    The ten revisions include both cleanup workers and the `mcp` HTTP 410
    tombstone; leaving the old MCP handler deployed is a release blocker. Do not
    deploy `seed-beta-user` or any of the four Canvas functions for this release;
@@ -99,18 +157,86 @@ cannot be proven by the repository or a successful frontend build.
    During the compatibility stage, restrict the host to reviewed operators and
    the two canary accounts; do not expose the partially handed-off client to
    students.
+   Before resume, run the exact hosted catalog comparison below. It must return
+   exactly 12 rows, every row `OK`, with `anon_execute = false` and
+   `authenticated_execute = true`. Any missing/unexpected signature or grant is
+   a stop condition. `owns_row(uuid)` is SECURITY INVOKER after migration 15 and
+   therefore is not in this list; any hosted `prosecdef = true` for it is drift
+   and a stop condition.
+
+   ```sql
+   WITH expected(signature) AS (
+     VALUES
+       ('accept_family_beta_agreement(text)'),
+       ('can_delete_uncommitted_capture_source(text)'),
+       ('can_upload_capture_source(text)'),
+       ('can_upload_uncommitted_syllabus_source(text)'),
+       ('commit_class_syllabus(uuid,text,uuid,text,text,text,bigint,text,jsonb,jsonb)'),
+       ('get_family_beta_agreement_status()'),
+       ('get_learning_evidence_contract_status()'),
+       ('has_current_family_beta_agreement()'),
+       ('owns_active_syllabus_storage_path(text)'),
+       ('owns_syllabus_storage_path(text)'),
+       ('record_memory_trick_feedback(uuid,uuid,text,boolean)'),
+       ('study_writes_are_available()')
+   ),
+   actual AS (
+     SELECT
+       p.proname || '(' ||
+         pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',') ||
+         ')' AS signature,
+       has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.prosecdef
+       AND (
+         has_function_privilege('anon', p.oid, 'EXECUTE')
+         OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       )
+   )
+   SELECT
+     coalesce(expected.signature, actual.signature) AS signature,
+     actual.anon_execute,
+     actual.authenticated_execute,
+     CASE
+       WHEN expected.signature IS NOT NULL
+        AND actual.signature IS NOT NULL
+        AND actual.anon_execute IS FALSE
+        AND actual.authenticated_execute IS TRUE
+       THEN 'OK'
+       ELSE 'STOP'
+     END AS release_status
+   FROM expected
+   FULL OUTER JOIN actual USING (signature)
+   ORDER BY signature;
+
+   SELECT p.prosecdef
+   FROM pg_proc p
+   JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'owns_row'
+     AND pg_catalog.oidvectortypes(p.proargtypes) = 'uuid';
+   -- Exactly one row, prosecdef = false. Otherwise STOP.
+   ```
 7. Run the protected **Production release readiness** workflow against the exact
    HTTPS origin. It must validate configuration, find the exact release SHA in
    the deployed bundle, verify the same-origin nonsecret `release-manifest.json`
    matches the expected project ID, signup/passkey/Canvas flags, support address,
-   and SHA, reject cross-origin scripts, verify direct SPA deep-link fallback,
+   and SHA without caching, reject cross-origin scripts, verify direct SPA
+   deep-link fallback and all three deployed invite-only indexing controls,
    authenticate and verify both live canary sessions, prove the unaccepted
    agreement-denial contract, exercise every guarded function's accepted zero-AI validation
-   response, require HTTP 404 from `seed-beta-user` and all four Canvas routes,
-   require a request ID on every reviewed Edge response, and submit the safe
-   error-report event. This does not
-   prove migrations, RLS isolation, exact Edge revisions, successful write paths,
-   or alert delivery.
+   response, require the exact authenticated read-only evidence-contract status
+   showing fresh legacy writes are closed, distinguish the evidence-aware
+   `record-study-result` revision from an
+   older generic validator without creating a study result, require HTTP 404 from
+   `seed-beta-user` and all four Canvas routes, require a request ID on every
+   reviewed Edge response, and submit the safe error-report event. This proves
+   only the final evidence-contract status and that one Edge fingerprint; it does
+   not prove the complete migration ledger, RLS isolation, every Edge revision,
+   successful write paths, or alert delivery.
 8. Confirm the test event reached the operator. A green workflow without a
    delivered alert does not satisfy the monitoring gate.
 

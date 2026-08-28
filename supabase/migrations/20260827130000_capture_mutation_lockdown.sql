@@ -200,24 +200,20 @@ join late_assignment_unsafe_artifacts artifact
  and artifact.artifact_id = attempt.artifact_id
 where attempt.result_status <> 'completed';
 
--- Only an assignment-only concept that lost its final evidence is reset.
--- Shared concepts with any trusted material occurrence keep their mastery and
--- every artifact generated from that trusted capture.
+-- Any concept touched by unconfirmed or mismatched assignment OCR returns to
+-- neutral. The capture established scope/provenance, not student knowledge;
+-- verified retrieval/application can rebuild mastery after the handoff.
 update public.user_concept_mastery mastery
-set strength = 0.15,
+set strength = 0,
     attempts = 0,
     correct = 0,
     streak = 0,
-    last_seen_at = now(),
+    last_seen_at = null,
     next_review_at = now(),
     updated_at = now()
 where exists (
   select 1
   from late_assignment_ocr_quarantine quarantined
-  join public.concepts concept
-    on concept.id = quarantined.concept_id
-   and concept.user_id = quarantined.user_id
-   and concept.retired_at is not null
   where quarantined.user_id = mastery.user_id
     and quarantined.concept_id = mastery.concept_id
 );

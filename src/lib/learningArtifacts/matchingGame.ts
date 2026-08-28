@@ -26,10 +26,19 @@ export interface MatchingConceptResult {
   recovered: boolean;
 }
 
+export interface MatchingFirstChoice {
+  /** Immutable pair on the left that the student was answering. */
+  leftPairId: string;
+  /** Immutable pair owning the right-side answer selected first. */
+  rightPairId: string;
+}
+
 export interface MatchingCompletionResult {
   correctFirstAttempt: number;
   total: number;
   perConcept: MatchingConceptResult[];
+  /** Server-gradeable first choices; the forced final pair is intentionally absent. */
+  firstChoices: MatchingFirstChoice[];
 }
 
 const MIN_PAIRS = 3;

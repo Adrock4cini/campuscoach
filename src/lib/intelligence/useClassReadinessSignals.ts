@@ -8,7 +8,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { explainReadiness, type ReadinessExplanation } from "./readinessExplanation";
+import {
+  explainReadiness,
+  fullScopeStrengths,
+  type ReadinessExplanation,
+} from "./readinessExplanation";
 
 interface Options {
   daysToExam?: number | null;
@@ -56,10 +60,13 @@ export function useClassReadinessSignals(clientClassId: string, options: Options
       if (request !== version.current) return;
       if (concepts.error || mastery.error || captures.error) throw concepts.error || mastery.error || captures.error;
       const rows = (mastery.data ?? []) as { strength: number | null; attempts: number | null }[];
+      const conceptCount = concepts.count ?? 0;
       setRaw({
-        conceptCount: concepts.count ?? 0,
+        conceptCount,
         captureCount: captures.count ?? 0,
-        strengths: rows.map((r) => Number(r.strength) || 0),
+        // A concept with no mastery row is zero evidence, not absent from the
+        // denominator. This also keeps the Class Up Next practice badge honest.
+        strengths: fullScopeStrengths(conceptCount, rows.map((r) => Number(r.strength) || 0)),
         attempts: rows.reduce((sum, r) => sum + (r.attempts ?? 0), 0),
       });
     } catch (e) {

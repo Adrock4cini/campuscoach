@@ -6,7 +6,7 @@
  * original score or inflates mastery.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -38,7 +38,19 @@ import {
   readStudyRunnerState,
   writeStudyRunnerState,
 } from "@/lib/study/studyRunnerState";
-import { leaveSessionCopy, pendingEvidenceSegment } from "@/lib/study/incrementalEvidence";
+import {
+  createEvidenceOutbox,
+  drainEvidenceOutbox,
+  enqueueEvidenceRequest,
+  leaveSessionCopy,
+  pendingEvidenceSegment,
+  restoreEvidenceOutbox,
+  snapshotEvidenceOutbox,
+  type DurableEvidenceOutbox,
+  type DurableEvidenceRequest,
+  type StudyResultSegmentBody,
+  type StudyResultSegmentResponse,
+} from "@/lib/study/incrementalEvidence";
 
 interface Props {
   open: boolean;
@@ -62,6 +74,8 @@ interface AnswerResult {
   correct: boolean;
   confidence: ConfidenceLevel;
   recovery: boolean;
+  /** MC correctness is re-derived by the server from this first selection. */
+  firstSelectedIndex?: number;
 }
 
 interface PendingFinalResult {
@@ -69,6 +83,30 @@ interface PendingFinalResult {
   incorrect: number;
   results: AnswerResult[];
 }
+
+interface ReadinessAggregate {
+  firstReadinessBefore: number | null;
+  latestReadiness: number | null;
+  fallbackDelta: number | null;
+}
+
+interface RunnerPersistenceSnapshot {
+  queue: QueueEntry[];
+  position: number;
+  revealed: boolean;
+  picked: number | null;
+  confidence: ConfidenceLevel | null;
+  correct: number;
+  incorrect: number;
+  mnemonicOpen: boolean;
+  answerResults: AnswerResult[];
+  pendingFinal: PendingFinalResult | null;
+}
+
+type StudyEvidenceOutbox = DurableEvidenceOutbox<
+  StudyResultSegmentBody,
+  StudyResultSegmentResponse
+>;
 
 export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: Props) {
   const items = useMemo(() => {
@@ -86,7 +124,6 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [picked, setPicked] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
   const [mnemonicOpen, setMnemonicOpen] = useState(false);
-  const [startedAt, setStartedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [readiness, setReadiness] = useState<number | null>(null);
@@ -96,9 +133,18 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
-  const attemptIdRef = useRef(createStudyAttemptId());
-  const savedCountRef = useRef(0);
-  const flushingRef = useRef(false);
+  const [hydratedArtifactId, setHydratedArtifactId] = useState<string | null>(null);
+  const evidenceOutboxRef = useRef<StudyEvidenceOutbox>(createEvidenceOutbox());
+  const studyRunIdRef = useRef(createStudyAttemptId());
+  const nextSegmentIndexRef = useRef(0);
+  const durationOffsetSecondsRef = useRef(0);
+  const durationStartedAtRef = useRef(Date.now());
+  const durationPausedRef = useRef(false);
+  const readinessAggregateRef = useRef<ReadinessAggregate>({
+    firstReadinessBefore: null,
+    latestReadiness: null,
+    fallbackDelta: null,
+  });
   const feedbackRef = useRef<HTMLDivElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
   const completionRef = useRef<HTMLDivElement>(null);
@@ -122,24 +168,38 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setPicked(restored?.picked ?? null);
     setConfidence((restored?.confidence as ConfidenceLevel | null) ?? null);
     setMnemonicOpen(restored?.mnemonicOpen ?? false);
+    const restoredResults = (restored?.evidenceResults ?? []) as AnswerResult[];
+    const restoredOutbox = restored?.evidenceOutbox
+      ? restoreEvidenceOutbox(restored.evidenceOutbox)
+      : createEvidenceOutbox<StudyResultSegmentBody, StudyResultSegmentResponse>();
     setDone(false);
     setReadiness(null);
     setReadinessDelta(null);
-    setAnswerResults([]);
-    setPendingFinal(null);
+    setAnswerResults(restoredResults);
+    setPendingFinal(restored?.pendingFinal
+      ? { ...restored.pendingFinal, results: restoredResults }
+      : null);
     setSaveError(null);
     setExitConfirmOpen(false);
     setSubmitting(false);
-    setStartedAt(Date.now());
-    setSavedCount(0);
-    savedCountRef.current = 0;
-    flushingRef.current = false;
-    attemptIdRef.current = createStudyAttemptId();
+    setSavedCount(restoredOutbox.savedAnswerCount);
+    evidenceOutboxRef.current = restoredOutbox;
+    studyRunIdRef.current = restored?.studyRunId ?? createStudyAttemptId();
+    nextSegmentIndexRef.current = restored?.nextSegmentIndex ?? 0;
+    durationOffsetSecondsRef.current = restored?.pendingDurationSeconds ?? 0;
+    durationStartedAtRef.current = Date.now();
+    durationPausedRef.current = Boolean(restored?.pendingFinal);
+    readinessAggregateRef.current = restored?.readinessAggregate ?? {
+      firstReadinessBefore: null,
+      latestReadiness: null,
+      fallbackDelta: null,
+    };
+    setHydratedArtifactId(artifact.id);
   }, [open, artifact.id, items.length]);
 
   // Persist only safe, re-derivable progress on every step.
   useEffect(() => {
-    if (!open || done) return;
+    if (!open || done || hydratedArtifactId !== artifact.id) return;
     writeStudyRunnerState({
       artifactId: artifact.id,
       queue,
@@ -150,10 +210,23 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       correct,
       incorrect,
       mnemonicOpen,
+      studyRunId: studyRunIdRef.current,
+      nextSegmentIndex: nextSegmentIndexRef.current,
+      pendingDurationSeconds: pendingDurationSeconds(
+        durationOffsetSecondsRef.current,
+        durationStartedAtRef.current,
+        durationPausedRef.current,
+      ),
+      evidenceResults: answerResults,
+      pendingFinal: pendingFinal
+        ? { correct: pendingFinal.correct, incorrect: pendingFinal.incorrect }
+        : null,
+      evidenceOutbox: snapshotEvidenceOutbox(evidenceOutboxRef.current),
+      readinessAggregate: readinessAggregateRef.current,
     });
   }, [
-    open, done, artifact.id, queue, position, revealed, picked, confidence,
-    correct, incorrect, mnemonicOpen,
+    open, done, hydratedArtifactId, artifact.id, queue, position, revealed, picked, confidence,
+    correct, incorrect, mnemonicOpen, answerResults, pendingFinal, savedCount,
   ]);
 
 
@@ -175,45 +248,137 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     if (open && items.length === 0) onOpenChange(false);
   }, [items.length, onOpenChange, open]);
 
-  /**
-   * Persist evidence as it is earned. Each flush is its own attempt id, so a
-   * crash or a closed tab on card 7 can never erase cards 1-6.
-   */
-  const flushEvidence = async (all: AnswerResult[]) => {
-    const segment = pendingEvidenceSegment(all, savedCountRef.current);
-    if (!segment || flushingRef.current) return;
-    flushingRef.current = true;
+  const persistRunnerSnapshot = (snapshot: RunnerPersistenceSnapshot) => {
+    if (!open || done || hydratedArtifactId !== artifact.id) return;
+    writeStudyRunnerState({
+      artifactId: artifact.id,
+      queue: snapshot.queue,
+      position: snapshot.position,
+      revealed: snapshot.revealed,
+      picked: snapshot.picked,
+      confidence: snapshot.confidence,
+      correct: snapshot.correct,
+      incorrect: snapshot.incorrect,
+      mnemonicOpen: snapshot.mnemonicOpen,
+      studyRunId: studyRunIdRef.current,
+      nextSegmentIndex: nextSegmentIndexRef.current,
+      pendingDurationSeconds: pendingDurationSeconds(
+        durationOffsetSecondsRef.current,
+        durationStartedAtRef.current,
+        durationPausedRef.current,
+      ),
+      evidenceResults: snapshot.answerResults,
+      pendingFinal: snapshot.pendingFinal
+        ? { correct: snapshot.pendingFinal.correct, incorrect: snapshot.pendingFinal.incorrect }
+        : null,
+      evidenceOutbox: snapshotEvidenceOutbox(evidenceOutboxRef.current),
+      readinessAggregate: readinessAggregateRef.current,
+    });
+  };
+
+  const enqueueEvidence = (all: AnswerResult[], options: { final?: boolean } = {}) => {
+    const outbox = evidenceOutboxRef.current;
+    const segment = pendingEvidenceSegment(all, outbox.queuedResultCount, options);
+    if (!segment) return outbox;
     const attemptId = createStudyAttemptId();
-    try {
-      const { error } = await supabase.functions.invoke("record-study-result", {
-        body: {
-          attemptId,
-          artifactId: artifact.id,
-          correct: segment.correct,
-          total: segment.total,
-          durationSeconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
-          perConcept: summarizeStudyResults(segment.results),
-        },
-      });
-      if (error) throw error;
-      savedCountRef.current += segment.total;
-      setSavedCount(savedCountRef.current);
-    } catch {
-      // Silent: the answers stay in memory and the final save retries them.
-    } finally {
-      flushingRef.current = false;
-    }
+    const now = Date.now();
+    const durationSeconds = pendingDurationSeconds(
+      durationOffsetSecondsRef.current,
+      durationStartedAtRef.current,
+      durationPausedRef.current,
+    );
+    durationOffsetSecondsRef.current = 0;
+    durationStartedAtRef.current = now;
+    durationPausedRef.current = false;
+    const body: StudyResultSegmentBody = {
+      attemptId,
+      studyRunId: studyRunIdRef.current,
+      segmentIndex: nextSegmentIndexRef.current,
+      segmentFinal: options.final === true,
+      artifactId: artifact.id,
+      correct: segment.correct,
+      total: segment.total,
+      durationSeconds,
+      perConcept: summarizeStudyResults(segment.results),
+    };
+    nextSegmentIndexRef.current += 1;
+    enqueueEvidenceRequest(outbox, {
+      attemptId,
+      body,
+      resultCount: segment.resultCount,
+      answerCount: segment.total,
+    });
+    return outbox;
+  };
+
+  const drainEvidence = useCallback((outbox: StudyEvidenceOutbox) => drainEvidenceOutbox(
+    outbox,
+    sendStudyEvidenceRequest,
+    (savedOutbox) => {
+      if (evidenceOutboxRef.current === savedOutbox) {
+        const response = savedOutbox.lastResponse;
+        if (response) {
+          const aggregate = readinessAggregateRef.current;
+          if (aggregate.firstReadinessBefore === null
+              && typeof response.readinessBefore === "number") {
+            aggregate.firstReadinessBefore = response.readinessBefore;
+          }
+          if (typeof response.readiness === "number") {
+            aggregate.latestReadiness = response.readiness;
+          }
+          const segmentDelta = typeof response.readinessDelta === "number"
+            ? response.readinessDelta
+            : typeof response.readiness === "number"
+                && typeof response.readinessBefore === "number"
+              ? response.readiness - response.readinessBefore
+              : null;
+          if (segmentDelta !== null) {
+            aggregate.fallbackDelta = (aggregate.fallbackDelta ?? 0) + segmentDelta;
+          }
+        }
+        setSavedCount(savedOutbox.savedAnswerCount);
+      }
+    },
+  ), []);
+
+  // A reload can happen after the server committed but before its response
+  // arrived. Restore and retry the exact frozen head request automatically;
+  // the stable attempt id makes either outcome idempotent.
+  useEffect(() => {
+    if (!open || hydratedArtifactId !== artifact.id) return;
+    const restoredOutbox = evidenceOutboxRef.current;
+    if (!restoredOutbox.pending.length) return;
+    void drainEvidence(restoredOutbox).catch(() => {
+      // Keep it queued. The next answer or Finish retries the same request.
+    });
+  }, [artifact.id, drainEvidence, hydratedArtifactId, open]);
+
+  /** Send an already-persisted segment while keeping failures retryable. */
+  const flushEvidence = (outbox: StudyEvidenceOutbox) => {
+    void drainEvidence(outbox).catch(() => {
+      // Silent during practice: finish retries the same durable request.
+    });
   };
 
   const record = (wasCorrect: boolean) => {
     if (!confidence || pendingFinal) return;
 
     const conceptId = conceptIdForItem(items[itemIndex], itemIndex, items.length, artifact.concept_ids);
-    const result = conceptId
-      ? { conceptId, correct: wasCorrect, confidence, recovery: currentEntry.recovery }
+    const result: AnswerResult | null = conceptId
+      ? {
+          conceptId,
+          correct: wasCorrect,
+          confidence,
+          recovery: currentEntry.recovery,
+          ...(artifact.kind === "multiple_choice" && picked !== null
+            ? { firstSelectedIndex: picked }
+            : {}),
+        }
       : null;
     const nextResults = result ? [...answerResults, result] : answerResults;
     let nextQueue = queue;
+    const nextCorrect = !currentEntry.recovery && wasCorrect ? correct + 1 : correct;
+    const nextIncorrect = !currentEntry.recovery && !wasCorrect ? incorrect + 1 : incorrect;
 
     if (!currentEntry.recovery) {
       if (wasCorrect) setCorrect((value) => value + 1);
@@ -230,16 +395,51 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
       const finalCorrect = currentEntry.recovery
         ? correct
         : wasCorrect ? correct + 1 : correct;
-      setPendingFinal({
+      const nextPendingFinal = {
         correct: finalCorrect,
         incorrect: Math.max(0, total - finalCorrect),
         results: nextResults,
+      };
+      // Stop the evidence timer when practice ends. Time spent reading the
+      // completion screen or deciding when to save is not learning time.
+      durationOffsetSecondsRef.current = pendingDurationSeconds(
+        durationOffsetSecondsRef.current,
+        durationStartedAtRef.current,
+        false,
+      );
+      durationStartedAtRef.current = Date.now();
+      durationPausedRef.current = true;
+      setPendingFinal(nextPendingFinal);
+      persistRunnerSnapshot({
+        queue: nextQueue,
+        position,
+        revealed,
+        picked,
+        confidence,
+        correct: nextCorrect,
+        incorrect: nextIncorrect,
+        mnemonicOpen,
+        answerResults: nextResults,
+        pendingFinal: nextPendingFinal,
       });
       return;
     }
 
-    // Save what has just been earned before moving on.
-    void flushEvidence(nextResults);
+    // Freeze and persist the exact request before the network can observe it.
+    const outbox = enqueueEvidence(nextResults);
+    persistRunnerSnapshot({
+      queue: nextQueue,
+      position: position + 1,
+      revealed: false,
+      picked: null,
+      confidence: null,
+      correct: nextCorrect,
+      incorrect: nextIncorrect,
+      mnemonicOpen,
+      answerResults: nextResults,
+      pendingFinal: null,
+    });
+    flushEvidence(outbox);
 
     setPosition((value) => value + 1);
     setRevealed(false);
@@ -254,38 +454,39 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   ) => {
     setSubmitting(true);
     setSaveError(null);
-    const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    const segment = pendingEvidenceSegment(results, savedCountRef.current, { final: true });
+    const outbox = enqueueEvidence(results, { final: true });
+    // `submitting` is intentionally not relied on to trigger a later effect:
+    // the final idempotent body must be durable before the first network byte.
+    persistRunnerSnapshot({
+      queue,
+      position,
+      revealed,
+      picked,
+      confidence,
+      correct: finalCorrect,
+      incorrect: Math.max(0, total - finalCorrect),
+      mnemonicOpen,
+      answerResults: results,
+      pendingFinal: { correct: finalCorrect, incorrect: Math.max(0, total - finalCorrect), results },
+    });
     try {
-      const { data, error } = await supabase.functions.invoke("record-study-result", {
-        body: {
-          attemptId: attemptIdRef.current,
-          artifactId: artifact.id,
-          correct: segment ? segment.correct : finalCorrect,
-          total: segment ? segment.total : total,
-          durationSeconds,
-          perConcept: summarizeStudyResults(segment ? segment.results : results),
-        },
-      });
-      if (error) throw error;
-
-      const response = data as {
-        ok?: unknown;
-        sessionId?: unknown;
-        readiness?: unknown;
-        readinessDelta?: unknown;
-      } | null;
-      if (response?.ok !== true || typeof response.sessionId !== "string") {
+      // This joins any in-flight incremental request, then drains every queued
+      // segment in order. Finish never overlaps or re-sends acknowledged work.
+      const response = await drainEvidence(outbox);
+      if (!response) {
         throw new Error("The saved session could not be confirmed.");
       }
 
-      savedCountRef.current = results.length;
-      setSavedCount(results.length);
+      setSavedCount(outbox.savedAnswerCount);
       setDone(true);
       // Saved work is no longer "in progress"; a resume must not replay it.
       clearStudyRunnerState();
-      const nextReadiness = typeof response.readiness === "number" ? response.readiness : null;
-      const nextReadinessDelta = typeof response.readinessDelta === "number" ? response.readinessDelta : null;
+      const readinessAggregate = readinessAggregateRef.current;
+      const nextReadiness = readinessAggregate.latestReadiness ?? response.readiness ?? null;
+      const nextReadinessDelta = readinessAggregate.fallbackDelta
+        ?? (readinessAggregate.firstReadinessBefore !== null && nextReadiness !== null
+          ? nextReadiness - readinessAggregate.firstReadinessBefore
+          : null);
       setReadiness(nextReadiness);
       setReadinessDelta(nextReadinessDelta);
       window.dispatchEvent(new CustomEvent("coach:refresh"));
@@ -318,21 +519,30 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
     setDone(false);
     setReadiness(null);
     setReadinessDelta(null);
-    setStartedAt(Date.now());
     setAnswerResults([]);
     setPendingFinal(null);
     setSaveError(null);
     setExitConfirmOpen(false);
     setSubmitting(false);
     setSavedCount(0);
-    savedCountRef.current = 0;
-    flushingRef.current = false;
-    attemptIdRef.current = createStudyAttemptId();
+    evidenceOutboxRef.current = createEvidenceOutbox();
+    studyRunIdRef.current = createStudyAttemptId();
+    nextSegmentIndexRef.current = 0;
+    durationOffsetSecondsRef.current = 0;
+    durationStartedAtRef.current = Date.now();
+    durationPausedRef.current = false;
+    readinessAggregateRef.current = {
+      firstReadinessBefore: null,
+      latestReadiness: null,
+      fallbackDelta: null,
+    };
   };
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (submitting) return;
-    const hasUnsavedAnswers = !done && (answerResults.length > savedCountRef.current || pendingFinal !== null);
+    const hasUnsavedAnswers = !done && (
+      answerResults.length > evidenceOutboxRef.current.savedResultCount || pendingFinal !== null
+    );
     if (!nextOpen && hasUnsavedAnswers) {
       setExitConfirmOpen(true);
       return;
@@ -758,13 +968,17 @@ function summarizeStudyResults(results: AnswerResult[]) {
   }
   return [...byConcept].flatMap(([conceptId, score]) => {
     if (!score.firstAttempts.length) return [];
-    const correctCount = score.firstAttempts.filter((result) => result.correct).length;
-    const correct = correctCount / score.firstAttempts.length >= 0.5;
+    // Current artifacts contain one item per concept. Stay conservative if a
+    // malformed legacy set repeats one: one miss must never become positive
+    // evidence through majority/tie aggregation.
+    const correct = score.firstAttempts.every((result) => result.correct);
+    const firstSelectedIndex = score.firstAttempts[0]?.firstSelectedIndex;
     return [{
       conceptId,
       correct,
       confidence: aggregateConfidence(score.firstAttempts, correct),
       recovered: !correct && score.recovered,
+      ...(Number.isInteger(firstSelectedIndex) ? { firstSelectedIndex } : {}),
     }];
   });
 }
@@ -773,6 +987,36 @@ function aggregateConfidence(results: AnswerResult[], correct: boolean): Confide
   const rank: Record<ConfidenceLevel, number> = { low: 0, medium: 1, high: 2 };
   const sorted = results.map((result) => result.confidence).sort((a, b) => rank[a] - rank[b]);
   return correct ? sorted[0] ?? "medium" : sorted.at(-1) ?? "medium";
+}
+
+async function sendStudyEvidenceRequest(
+  request: DurableEvidenceRequest<StudyResultSegmentBody>,
+): Promise<StudyResultSegmentResponse> {
+  const { data, error } = await supabase.functions.invoke("record-study-result", {
+    // The outbox retains this exact object until acknowledgement. A retry
+    // after a lost response therefore reuses both body and attempt id.
+    body: request.body,
+  });
+  if (error) throw error;
+  const response = data as {
+    ok?: unknown;
+    sessionId?: unknown;
+    readiness?: unknown;
+    readinessBefore?: unknown;
+    readinessDelta?: unknown;
+  } | null;
+  if (response?.ok !== true || typeof response.sessionId !== "string") {
+    throw new Error("The saved session could not be confirmed.");
+  }
+  return {
+    ok: true,
+    sessionId: response.sessionId,
+    ...(typeof response.readiness === "number" ? { readiness: response.readiness } : {}),
+    ...(typeof response.readinessBefore === "number"
+      ? { readinessBefore: response.readinessBefore }
+      : {}),
+    ...(typeof response.readinessDelta === "number" ? { readinessDelta: response.readinessDelta } : {}),
+  };
 }
 
 function createStudyAttemptId() {
@@ -784,4 +1028,11 @@ function createStudyAttemptId() {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
+function pendingDurationSeconds(offsetSeconds: number, startedAt: number, paused = false) {
+  return Math.min(
+    86_400,
+    Math.max(0, Math.round(offsetSeconds + (paused ? 0 : (Date.now() - startedAt) / 1000))),
+  );
 }

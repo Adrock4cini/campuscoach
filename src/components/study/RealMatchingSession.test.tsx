@@ -18,6 +18,11 @@ vi.mock("@/components/study/RealMatchingGame", () => ({
         { conceptId: "concept-2", firstAttemptCorrect: true, recovered: false },
         { conceptId: "concept-3", firstAttemptCorrect: true, recovered: false },
       ],
+      firstChoices: [
+        { leftPairId: "1", rightPairId: "2" },
+        { leftPairId: "2", rightPairId: "2" },
+        { leftPairId: "3", rightPairId: "3" },
+      ],
     })}>
       Complete matching
     </button>
@@ -55,6 +60,7 @@ const artifact: LearningArtifact<"matching"> = {
 
 describe("RealMatchingSession", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     mocks.invoke.mockReset().mockResolvedValue({
       data: { ok: true, sessionId: "session-1" },
       error: null,
@@ -64,9 +70,11 @@ describe("RealMatchingSession", () => {
   it("saves first-attempt correctness and recovery without score inflation", async () => {
     render(<RealMatchingSession open onOpenChange={vi.fn()} artifact={artifact} />);
 
+    expect(screen.getByRole("button", { name: "Start matching" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
     fireEvent.click(screen.getByRole("button", { name: "Start matching" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete matching" }));
-    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
+    expect(screen.queryByRole("group", { name: /how sure are you before matching/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save Match Lab" }));
 
     await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(1));
@@ -74,6 +82,12 @@ describe("RealMatchingSession", () => {
       artifactId: "artifact-match",
       correct: 2,
       total: 3,
+      confidence: "medium",
+      matchingFirstChoices: [
+        { leftPairId: "1", rightPairId: "2" },
+        { leftPairId: "2", rightPairId: "2" },
+        { leftPairId: "3", rightPairId: "3" },
+      ],
       perConcept: [
         { conceptId: "concept-1", correct: false, confidence: "medium", recovered: true },
         { conceptId: "concept-2", correct: true, confidence: "medium", recovered: false },
@@ -88,20 +102,43 @@ describe("RealMatchingSession", () => {
       .mockResolvedValueOnce({ data: { ok: false }, error: null })
       .mockResolvedValueOnce({ data: { ok: true, sessionId: "session-1" }, error: null });
     render(<RealMatchingSession open onOpenChange={vi.fn()} artifact={artifact} />);
+    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
     fireEvent.click(screen.getByRole("button", { name: "Start matching" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete matching" }));
-    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Match Lab" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/still here/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Try saving again" }));
     expect(await screen.findByText("Match Lab saved")).toBeInTheDocument();
     expect(mocks.invoke.mock.calls[1][1].body.attemptId).toBe(mocks.invoke.mock.calls[0][1].body.attemptId);
+    expect(mocks.invoke.mock.calls[1][1].body).toBe(mocks.invoke.mock.calls[0][1].body);
+  });
+
+  it("restores and confirms the exact frozen request after a reload loses the response", async () => {
+    mocks.invoke
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({ data: { ok: true, sessionId: "session-1" }, error: null });
+    const firstMount = render(<RealMatchingSession open onOpenChange={vi.fn()} artifact={artifact} />);
+    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start matching" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete matching" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Match Lab" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/still here/i);
+    const originalBody = structuredClone(mocks.invoke.mock.calls[0][1].body);
+
+    firstMount.unmount();
+    render(<RealMatchingSession open onOpenChange={vi.fn()} artifact={artifact} />);
+
+    expect(await screen.findByText("Match Lab saved")).toBeInTheDocument();
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    expect(mocks.invoke.mock.calls[1][1].body).toEqual(originalBody);
+    expect(window.sessionStorage.getItem("campus-coach:matching-session")).toBeNull();
   });
 
   it("warns before discarding an unfinished matching session", () => {
     const onOpenChange = vi.fn();
     render(<RealMatchingSession open onOpenChange={onOpenChange} artifact={artifact} />);
+    fireEvent.click(screen.getByRole("button", { name: "Somewhat sure" }));
     fireEvent.click(screen.getByRole("button", { name: "Start matching" }));
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onOpenChange).not.toHaveBeenCalled();

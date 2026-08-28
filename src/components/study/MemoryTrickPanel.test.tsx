@@ -7,13 +7,26 @@ const mocks = vi.hoisted(() => ({
   hook: vi.fn(),
   generate: vi.fn(),
   reload: vi.fn(),
+  recordStrategyFeedbackOutcome: vi.fn(),
   state: {
     artifact: null as unknown,
+    alternateTeaching: null as unknown,
     loading: false,
     generating: false,
     error: null as string | null,
   },
 }));
+
+vi.mock("@/lib/study/strategyEvidence", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/study/strategyEvidence")>(
+    "@/lib/study/strategyEvidence",
+  );
+  return {
+    ...actual,
+    useStrategyEvidence: () => ({ evidence: [], loading: false, reload: vi.fn() }),
+    recordStrategyFeedbackOutcome: mocks.recordStrategyFeedbackOutcome,
+  };
+});
 
 vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
   useLearningArtifact: (kind: unknown, scope: unknown) => {
@@ -44,6 +57,18 @@ function mnemonicArtifact(conceptId = "concept-homeostasis", classId = "english"
     client_class_id: classId,
     study_scope_type: "exam",
     study_scope_id: "exam-1",
+    study_scope_snapshot: {
+      subjectProfile: { id: "life_science" },
+      strategy: {
+        executed: {
+          id: null,
+          modality: null,
+          technique: "association",
+          cost: "ai",
+          deterministic: false,
+        },
+      },
+    },
     concept_ids: [conceptId],
     payload: {
       items: [{
@@ -66,7 +91,9 @@ describe("MemoryTrickPanel", () => {
     mocks.hook.mockClear();
     mocks.generate.mockReset().mockResolvedValue(null);
     mocks.reload.mockReset().mockResolvedValue(undefined);
+    mocks.recordStrategyFeedbackOutcome.mockReset().mockResolvedValue(true);
     mocks.state.artifact = null;
+    mocks.state.alternateTeaching = null;
     mocks.state.loading = false;
     mocks.state.generating = false;
     mocks.state.error = null;
@@ -114,6 +141,12 @@ describe("MemoryTrickPanel", () => {
       conceptIds: ["concept-homeostasis"],
       topic: "Homeostasis",
       studyScope: baseProps.studyScope,
+      alternateTeachingBoundary: {
+        conceptId: "concept-homeostasis",
+        conceptName: "Homeostasis",
+        exactTarget: baseProps.exactTarget,
+        sourceExcerpt: baseProps.sourceExcerpt,
+      },
     });
     expect(screen.getByTestId("academic-grounding")).toHaveTextContent(baseProps.exactTarget);
     expect(screen.getByTestId("academic-grounding")).toHaveTextContent(baseProps.sourceExcerpt);
@@ -142,6 +175,11 @@ describe("MemoryTrickPanel", () => {
       captureId: "capture-1",
       conceptIds: ["concept-homeostasis"],
       studyScope: { type: "recent", id: "capture-capture-1", label: "This capture" },
+      alternateTeachingBoundary: expect.objectContaining({
+        conceptId: "concept-homeostasis",
+        exactTarget: baseProps.exactTarget,
+        sourceExcerpt: baseProps.sourceExcerpt,
+      }),
     }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false, count: 1 }));
   });
@@ -168,6 +206,90 @@ describe("MemoryTrickPanel", () => {
 
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(1));
     expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false, count: 1 });
+  });
+
+  it("renders a grounded comparison alternate instead of a generic failure", () => {
+    mocks.state.alternateTeaching = {
+      schemaVersion: "alternate-teaching-v1",
+      kind: "compare-table",
+      selectedStrategyId: "compare-table",
+      executedStrategyId: "compare-table",
+      deterministic: true,
+      conceptId: "concept-homeostasis",
+      conceptName: "Hypotonic vs hypertonic",
+      prompt: "How are Hypotonic and hypertonic different?",
+      answer: "Hypotonic: lower solute. Hypertonic: higher solute.",
+      sourceExcerpt: "Hypotonic: lower solute. Hypertonic: higher solute.",
+      items: [
+        { label: "Hypotonic", evidence: "lower solute" },
+        { label: "hypertonic", evidence: "higher solute" },
+      ],
+    };
+    render(<MemoryTrickPanel {...baseProps} conceptName="Hypotonic vs hypertonic" />);
+    fireEvent.click(screen.getByRole("button", { name: "Make it stick" }));
+
+    const alternate = screen.getByTestId("alternate-teaching");
+    expect(alternate).toHaveTextContent("Compare and contrast");
+    expect(alternate).toHaveTextContent("Hypotonic");
+    expect(alternate).toHaveTextContent("lower solute");
+    expect(alternate).toHaveTextContent("Hypotonic: lower solute. Hypertonic: higher solute.");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("renders a verified math shortcut as a deterministic teaching turn", () => {
+    mocks.state.alternateTeaching = {
+      schemaVersion: "alternate-teaching-v1",
+      kind: "verified-math-shortcut",
+      selectedStrategyId: "verified-math-shortcut",
+      executedStrategyId: "verified-math-shortcut",
+      deterministic: true,
+      conceptId: "concept-homeostasis",
+      conceptName: "Percent of a number",
+      prompt: "Use this checked shortcut for Percent of a number.",
+      answer: "14% of 50",
+      sourceExcerpt: "14% of 50",
+      shortcut: {
+        id: "percent-swap",
+        title: "Percent swap",
+        statement: "14% of 50 is the same as 50% of 14.",
+        why: "Both expressions are the same product divided by 100.",
+        conditions: "Use only for a% of b; this is not percent change.",
+        example: "14% of 50 = 50% of 14 = 7",
+        verified: true,
+      },
+    };
+    render(<MemoryTrickPanel {...baseProps} conceptName="Percent of a number" />);
+    fireEvent.click(screen.getByRole("button", { name: "Make it stick" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show me a different approach" }));
+
+    const alternate = screen.getByTestId("alternate-teaching");
+    expect(alternate).toHaveTextContent("Verified math shortcut");
+    expect(alternate).toHaveTextContent("14% of 50 = 50% of 14 = 7");
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps a grounded retrieval answer hidden until the student checks", () => {
+    mocks.state.alternateTeaching = {
+      schemaVersion: "alternate-teaching-v1",
+      kind: "retrieval-question",
+      selectedStrategyId: "retrieval-question",
+      executedStrategyId: "retrieval-question",
+      deterministic: true,
+      conceptId: "concept-homeostasis",
+      conceptName: "Homeostasis",
+      prompt: "Without looking, what do you need to remember about Homeostasis?",
+      answer: "Homeostasis maintains stable internal conditions.",
+      sourceExcerpt: "Homeostasis maintains stable internal conditions.",
+    };
+    render(<MemoryTrickPanel {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Make it stick" }));
+
+    expect(screen.getByTestId("alternate-teaching")).toHaveTextContent("Retrieval practice");
+    expect(screen.queryByText("Homeostasis maintains stable internal conditions.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check answer" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Homeostasis maintains stable internal conditions.");
+    expect(screen.getByRole("button", { name: "Make it stick" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("fails closed with a generic error and retries the failed load", () => {
@@ -221,6 +343,33 @@ describe("MemoryTrickPanel", () => {
       rejectFamilies: ["association"],
     }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Try another way" })).toBeEnabled());
+  });
+
+  it("records strategy feedback in the validated artifact subject bucket", () => {
+    const attributed = mnemonicArtifact();
+    attributed.payload.items[0].technique = "familiar_bridge";
+    attributed.study_scope_snapshot = {
+      subjectProfile: { id: "life_science" },
+      strategy: {
+        executed: {
+          id: "familiar-bridge",
+          modality: "association",
+          technique: "familiar_bridge",
+          cost: "ai",
+          deterministic: false,
+        },
+      },
+    };
+    mocks.state.artifact = attributed;
+    render(<MemoryTrickPanel {...baseProps} subjectProfileId="general" />);
+    fireEvent.click(screen.getByRole("button", { name: "Make it stick" }));
+    fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
+
+    expect(mocks.recordStrategyFeedbackOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      strategyId: "familiar-bridge",
+      technique: "familiar_bridge",
+      subjectProfileId: "life_science",
+    }));
   });
 
   it("collapses every alternative behind one umbrella control", async () => {

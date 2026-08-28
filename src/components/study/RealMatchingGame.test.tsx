@@ -115,24 +115,24 @@ describe("RealMatchingGame", () => {
 
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith({
-      correctFirstAttempt: 2,
-      total: 3,
+      correctFirstAttempt: 1,
+      total: 2,
       perConcept: [
         {
           conceptId: "concept-cells",
           firstAttemptCorrect: false,
           recovered: true,
         },
-        {
-          conceptId: "concept-protein",
-          firstAttemptCorrect: true,
-          recovered: false,
-        },
+      ],
+      firstChoices: [
+        { leftPairId: "pair-1", rightPairId: "pair-3" },
+        { leftPairId: "pair-2", rightPairId: "pair-2" },
       ],
     });
-    const completion = screen.getByText(/first-try recall: 2 of 3/i).parentElement!;
+    const completion = screen.getByText(/matched on the first try: 1 of 2 choice opportunities/i).parentElement!;
     expect(completion).toBeVisible();
     expect(completion).toHaveFocus();
+    expect(screen.getByText(/final one-choice match was not counted/i)).toBeVisible();
   });
 
   it("emits completion exactly once even when the parent rerenders", () => {
@@ -155,14 +155,18 @@ describe("RealMatchingGame", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it("reveals grounded source material only after its pair is matched", () => {
+  it("reveals grounded source material only after the full board is complete", () => {
     renderGame();
 
     expect(screen.queryByText(/mitochondria generate ATP/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /review source for cell structures/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /review source for mitochondria/i })).not.toBeInTheDocument();
 
     match("Mitochondria", "Produces usable cellular energy");
-    const review = screen.getByRole("button", { name: /review source for cell structures/i });
+    expect(screen.queryByRole("button", { name: /review source for mitochondria/i })).not.toBeInTheDocument();
+
+    match("Nucleus", "Stores most genetic material");
+    match("Ribosome", "Builds proteins");
+    const review = screen.getByRole("button", { name: /review source for mitochondria/i });
     expect(review).toHaveClass("min-h-11");
     expect(review).toHaveAttribute("aria-expanded", "false");
 
@@ -170,7 +174,66 @@ describe("RealMatchingGame", () => {
     expect(screen.getByText(/from your class material/i)).toHaveTextContent(
       "Mitochondria generate ATP for the cell.",
     );
-    expect(screen.getByRole("button", { name: /hide source/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /hide source for mitochondria/i })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not count the forced final pair as independent discrimination", () => {
+    const { onComplete } = renderGame();
+
+    match("Mitochondria", "Produces usable cellular energy");
+    match("Nucleus", "Stores most genetic material");
+    match("Ribosome", "Builds proteins");
+
+    expect(onComplete).toHaveBeenCalledWith({
+      correctFirstAttempt: 2,
+      total: 2,
+      perConcept: [
+        {
+          conceptId: "concept-cells",
+          firstAttemptCorrect: true,
+          recovered: false,
+        },
+      ],
+      firstChoices: [
+        { leftPairId: "pair-1", rightPairId: "pair-1" },
+        { leftPairId: "pair-2", rightPairId: "pair-2" },
+      ],
+    });
+    expect(screen.getByText(/completed after the choices narrowed/i)).toBeVisible();
+  });
+
+  it("keeps an earlier independent miss when that pair later becomes the final choice", () => {
+    const { onComplete } = renderGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ribosome" }));
+    fireEvent.click(screen.getByRole("button", { name: "Produces usable cellular energy" }));
+    match("Mitochondria", "Produces usable cellular energy");
+    match("Nucleus", "Stores most genetic material");
+    match("Ribosome", "Builds proteins");
+
+    expect(onComplete).toHaveBeenCalledWith({
+      correctFirstAttempt: 2,
+      total: 3,
+      perConcept: [
+        {
+          conceptId: "concept-cells",
+          firstAttemptCorrect: true,
+          recovered: false,
+        },
+        {
+          conceptId: "concept-protein",
+          firstAttemptCorrect: false,
+          recovered: true,
+        },
+      ],
+      firstChoices: [
+        { leftPairId: "pair-1", rightPairId: "pair-1" },
+        { leftPairId: "pair-2", rightPairId: "pair-2" },
+        { leftPairId: "pair-3", rightPairId: "pair-1" },
+      ],
+    });
+    expect(screen.getByText(/recovered after a retry/i)).toBeVisible();
+    expect(screen.queryByText(/final one-choice match was not counted/i)).not.toBeInTheDocument();
   });
 
   it.each([

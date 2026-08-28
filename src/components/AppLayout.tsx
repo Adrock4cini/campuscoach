@@ -92,12 +92,16 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, agreementStatus } = useAuth();
+  const { user, agreementStatus, mode, loading, recovering } = useAuth();
   // Keep the authenticated app shell, background sync, search, and capture
   // providers unmounted until the server-backed agreement receipt is current.
   // Rendering the route gate directly still allows it to redirect to the
   // public agreement page or show a bounded status check.
   if (user && agreementStatus !== "accepted") return <>{children}</>;
+  // Once a closed signed-out session has settled, render the route guard
+  // itself so it can redirect to login. Do not mount the sample-data shell,
+  // sidebar, capture providers, or ambient app controls around that redirect.
+  if (!user && mode === "loading" && !loading && !recovering) return <>{children}</>;
   // Only an identity change may clear owner-scoped drafts. Transient auth
   // loading/recovery states must not reconstruct providers or wipe forms.
   const ownerKey = user?.id ?? "anonymous";

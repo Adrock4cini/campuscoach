@@ -23,12 +23,28 @@ describe("explainReadiness", () => {
       conceptCount: 6,
       captureCount: 2,
       attempts: 12,
-      strengths: [0.9, 0.8, 0.7, 0.4],
+      strengths: [0.9, 0.8, 0.7, 0.7, 0.6, 0.5],
     });
     expect(r.status).toBe("scored");
     expect(r.percent).toBe(70);
-    expect(r.weakCount).toBe(1);
-    expect(r.nextStep).toMatch(/1 concept/);
+    expect(r.weakCount).toBe(0);
+  });
+
+  it("counts active concepts without mastery as zero evidence", () => {
+    const r = explainReadiness({
+      conceptCount: 5,
+      captureCount: 1,
+      attempts: 5,
+      strengths: [1],
+    });
+    expect(r.status).toBe("scored");
+    expect(r.percent).toBe(20);
+    expect(r.weakCount).toBe(4);
+    expect(r.headline).toBe("You're solid on 1 concept; 4 concepts are not yet strong.");
+    expect(r.factors).toContainEqual(expect.objectContaining({
+      label: "Needs attention",
+      detail: "4 concepts need practice",
+    }));
   });
 
   it("surfaces exam pressure and overdue work as factors", () => {

@@ -111,7 +111,7 @@ jobs:
       - name: Verify built public release manifest
         run: node scripts/verify-built-release-manifest.mjs
 
-      - name: Verify published origin and backend canary
+      - name: Verify published origin, evidence contract, and backend canary
         env:
           CANARY_EMAIL: ${{ secrets.PRODUCTION_CANARY_EMAIL }}
           CANARY_PASSWORD: ${{ secrets.PRODUCTION_CANARY_PASSWORD }}

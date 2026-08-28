@@ -15,6 +15,11 @@ import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
 import { checkCaptureConceptReadiness } from "./captureReadiness";
 import { describeFunctionError } from "./functionError";
 import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
+import {
+  parseAlternateTeaching,
+  type AlternateTeaching,
+  type AlternateTeachingBoundary,
+} from "../../../supabase/functions/_shared/alternate-teaching";
 
 export interface LearningArtifactScope {
   captureId?: string;
@@ -23,10 +28,13 @@ export interface LearningArtifactScope {
   classId?: string;
   topic?: string;
   studyScope?: StudyScope;
+  /** Required UI-known academic boundary for a deterministic mnemonic fallback. */
+  alternateTeachingBoundary?: AlternateTeachingBoundary;
 }
 
 interface UseLearningArtifactState<K extends ArtifactKind> {
   artifact: LearningArtifact<K> | null;
+  alternateTeaching: AlternateTeaching | null;
   loading: boolean;
   generating: boolean;
   error: string | null;
@@ -75,9 +83,11 @@ export function useLearningArtifact<K extends ArtifactKind>(
     classId: scope.classId ?? null,
     topic: scope.topic ?? null,
     studyScope: scope.studyScope ?? null,
+    alternateTeachingBoundary: scope.alternateTeachingBoundary ?? null,
   });
   const [state, setState] = useState<UseLearningArtifactState<K>>({
     artifact: null,
+    alternateTeaching: null,
     loading: true,
     generating: false,
     error: null,
@@ -90,6 +100,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
     const request = ++requestVersion.current;
     setState((s) => ({
       artifact: s.scopeKey === scopeKey ? s.artifact : null,
+      alternateTeaching: null,
       loading: true,
       generating: false,
       error: null,
@@ -120,7 +131,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       const { data, error } = await q.maybeSingle();
       if (request !== requestVersion.current) return;
       if (error) {
-        setState({ artifact: null, loading: false, generating: false, error: error.message, captureProcessing: false, scopeKey });
+        setState({ artifact: null, alternateTeaching: null, loading: false, generating: false, error: error.message, captureProcessing: false, scopeKey });
         return;
       }
       const loaded = (data as unknown as LearningArtifact<K> | null) ?? null;
@@ -128,6 +139,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         // A capture may have historical artifacts from another assignment.
         // Practice must resume only the exact server-recorded assignment.
         artifact: belongsToAssignment(loaded, scope.assignmentId) ? loaded : null,
+        alternateTeaching: null,
         loading: false,
         generating: false,
         error: null,
@@ -138,6 +150,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       if (request !== requestVersion.current) return;
       setState({
         artifact: null,
+        alternateTeaching: null,
         loading: false,
         generating: false,
         error: error instanceof Error ? error.message : "Couldn’t load this study set.",
@@ -166,6 +179,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       const request = ++requestVersion.current;
       setState((s) => ({
         artifact: s.scopeKey === scopeKey ? s.artifact : null,
+        alternateTeaching: null,
         loading: false,
         generating: true,
         error: null,
@@ -222,11 +236,38 @@ export function useLearningArtifact<K extends ArtifactKind>(
           setState((s) => ({ ...s, generating: false, error: message }));
           return null;
         }
-        const candidate = (data as { artifact?: unknown } | null)?.artifact;
+        const response = data as { artifact?: unknown; alternateTeaching?: unknown } | null;
+        if (kind === "mnemonic" && response && "alternateTeaching" in response) {
+          const alternateTeaching = scope.alternateTeachingBoundary
+            ? parseAlternateTeaching(response.alternateTeaching, scope.alternateTeachingBoundary)
+            : null;
+          if (!alternateTeaching) {
+            setState((s) => ({
+              ...s,
+              artifact: null,
+              alternateTeaching: null,
+              generating: false,
+              error: "The alternate teaching response could not be confirmed. Please try again.",
+            }));
+            return null;
+          }
+          setState({
+            artifact: null,
+            alternateTeaching,
+            loading: false,
+            generating: false,
+            error: null,
+            captureProcessing: false,
+            scopeKey,
+          });
+          return alternateTeaching;
+        }
+        const candidate = response?.artifact;
         if (!isGeneratedArtifact(candidate, kind)) {
           setState((s) => ({
             ...s,
             artifact: null,
+            alternateTeaching: null,
             generating: false,
             error: "The generated study set could not be confirmed. Please try again.",
           }));
@@ -237,12 +278,13 @@ export function useLearningArtifact<K extends ArtifactKind>(
           setState((s) => ({
             ...s,
             artifact: null,
+            alternateTeaching: null,
             generating: false,
             error: "The generated tutor did not match this assignment. Please try again.",
           }));
           return null;
         }
-        setState({ artifact, loading: false, generating: false, error: null, captureProcessing: false, scopeKey });
+        setState({ artifact, alternateTeaching: null, loading: false, generating: false, error: null, captureProcessing: false, scopeKey });
         return artifact;
       } catch (error) {
         if (request !== requestVersion.current) return null;
@@ -259,7 +301,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
 
   const visibleState = state.scopeKey === scopeKey
     ? state
-    : { artifact: null, loading: true, generating: false, error: null, captureProcessing: false, scopeKey };
+    : { artifact: null, alternateTeaching: null, loading: true, generating: false, error: null, captureProcessing: false, scopeKey };
 
   return { ...visibleState, reload: load, generate };
 }

@@ -18,6 +18,7 @@ import {
   type StrategyEvidence,
   type StrategyOutcomeRecord,
 } from "../../../supabase/functions/_shared/strategy-evidence";
+import { isLearningEvidenceTier } from "../../../supabase/functions/_shared/learning-evidence";
 
 export {
   EVIDENCE_DEFAULTS,
@@ -56,9 +57,8 @@ interface EvidenceQuery {
  * summarizes them. Returns an empty list on any failure so a cold start and a
  * network error behave identically: subject defaults stay in charge.
  *
- * Persisted outcome rows do not yet expose `evidence_tier`; until that schema
- * field lands they intentionally retain legacy weight. New callers can already
- * use the pure evidence model without waiting for the hosted migration.
+ * New outcome rows carry the server-derived evidence tier. Historical rows
+ * remain nullable and preserve their legacy treatment during the rollout.
  */
 export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true }: EvidenceQuery) {
   const [evidence, setEvidence] = useState<StrategyEvidence[]>([]);
@@ -73,7 +73,7 @@ export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true
     try {
       let query = supabase
         .from("study_strategy_outcomes")
-        .select("strategy_id, technique, format, subject_profile, task_kind, correct, total, mastery_delta, outcome_source, occurred_at")
+        .select("strategy_id, technique, format, subject_profile, task_kind, correct, total, mastery_delta, evidence_tier, outcome_source, occurred_at")
         .eq("subject_profile", subjectProfileId);
       if (taskKind) query = query.eq("task_kind", taskKind);
       const { data, error } = await query
@@ -92,6 +92,7 @@ export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true
         correct: Number(row.correct),
         total: Number(row.total),
         masteryDelta: row.mastery_delta === null ? null : Number(row.mastery_delta),
+        evidenceTier: isLearningEvidenceTier(row.evidence_tier) ? row.evidence_tier : null,
         source: row.outcome_source === "feedback" ? "feedback" : "study_result",
         occurredAt: row.occurred_at,
       }));

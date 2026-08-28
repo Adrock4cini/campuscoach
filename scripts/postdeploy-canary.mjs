@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { validateReleaseEnvironment } from "./validate-release-env.mjs";
 
 const REQUIRED_SECURITY_HEADERS = [
   "content-security-policy",
@@ -34,7 +35,21 @@ export const FORBIDDEN_EDGE_FUNCTIONS = Object.freeze([
 ]);
 const SPA_DEEP_LINK_PATH = "/dashboard";
 const RELEASE_MANIFEST_PATH = "/release-manifest.json";
+const ROBOTS_PATH = "/robots.txt";
+const INVITE_ONLY_ROBOTS_DIRECTIVES = Object.freeze([
+  "noarchive",
+  "nofollow",
+  "noindex",
+]);
 const CURRENT_FAMILY_BETA_AGREEMENT_VERSION = "2026-08-17";
+const LEARNING_EVIDENCE_CONTRACT_STATUS = Object.freeze({
+  artifactPromptVersion: "v11-evidence-ladder",
+  contractVersion: 2,
+  legacyWritesClosed: true,
+  readinessScopeVersion: 1,
+});
+const EVIDENCE_REVISION_PROBE = Object.freeze({ evidenceTier: "transfer" });
+const EVIDENCE_REVISION_REJECTION = "evidence classification is server-derived";
 const CANARY_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 export class CanaryFailure extends Error {
@@ -86,6 +101,14 @@ function legacyJwtRole(key) {
 }
 
 export function readCanaryConfiguration(environment) {
+  const releaseEnvironment = validateReleaseEnvironment(environment);
+  if (!releaseEnvironment.ok) {
+    throw new CanaryFailure(
+      "configuration",
+      releaseEnvironment.issues[0]?.message ?? "production release environment validation failed",
+    );
+  }
+
   const release = required(environment, "VITE_RELEASE_SHA");
   if (!/^[0-9a-f]{40}$/i.test(release)) {
     throw new CanaryFailure("configuration", "VITE_RELEASE_SHA must be a full 40-character git commit SHA");
@@ -227,6 +250,118 @@ function assertSecurityHeaders(response, check) {
   }
 }
 
+function hasExactInviteOnlyRobotsDirectives(value) {
+  if (typeof value !== "string") return false;
+  const directives = value
+    .split(",")
+    .map((directive) => directive.trim().toLowerCase())
+    .filter(Boolean)
+    .sort();
+  return (
+    directives.length === INVITE_ONLY_ROBOTS_DIRECTIVES.length
+    && directives.every((directive, index) => directive === INVITE_ONLY_ROBOTS_DIRECTIVES[index])
+  );
+}
+
+function assertInviteOnlyRobotsHeader(response, check) {
+  if (!hasExactInviteOnlyRobotsDirectives(response.headers.get("x-robots-tag"))) {
+    throw new CanaryFailure(
+      check,
+      "x-robots-tag must be exactly noindex, nofollow, noarchive",
+    );
+  }
+}
+
+function htmlAttributes(tag) {
+  const attributes = new Map();
+  const duplicates = new Set();
+  const entries = [];
+  const pattern = /\s([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gu;
+  for (const match of tag.matchAll(pattern)) {
+    const name = match[1].toLowerCase();
+    const value = match[2] ?? match[3] ?? match[4] ?? "";
+    if (attributes.has(name)) duplicates.add(name);
+    attributes.set(name, value);
+    entries.push([name, value]);
+  }
+  return { attributes, duplicates, entries };
+}
+
+function assertInviteOnlyRobotsMeta(html) {
+  const withoutComments = html.replace(/<!--[\s\S]*?-->/gu, "");
+  const head = /<head\b[^>]*>([\s\S]*?)<\/head>/iu.exec(withoutComments)?.[1] ?? "";
+  const robotsMeta = [];
+  const hiddenElements = [];
+  const tokens = head.matchAll(/<\/?(script|template|noscript|style)\b[^>]*>|<meta\b[^>]*>/giu);
+
+  for (const match of tokens) {
+    const tag = match[0];
+    const elementMatch = /^<\/?(script|template|noscript|style)\b/iu.exec(tag);
+    if (elementMatch) {
+      const name = elementMatch[1].toLowerCase();
+      if (/^<\//u.test(tag)) {
+        const index = hiddenElements.lastIndexOf(name);
+        if (index >= 0) hiddenElements.splice(index, 1);
+      } else if (!/\/\s*>$/u.test(tag)) {
+        hiddenElements.push(name);
+      }
+      continue;
+    }
+
+    const parsed = htmlAttributes(tag);
+    const names = parsed.entries
+      .filter(([name]) => name === "name")
+      .map(([, value]) => value.trim().toLowerCase());
+    const isRobotsMeta = names.includes("robots");
+    if (hiddenElements.length > 0 && isRobotsMeta) {
+      throw new CanaryFailure(
+        "invite-only-indexing",
+        "robots meta must not appear inside script, template, noscript, or style content",
+      );
+    }
+    if (hiddenElements.length > 0 || !isRobotsMeta) continue;
+    if (parsed.duplicates.size > 0) {
+      throw new CanaryFailure(
+        "invite-only-indexing",
+        "robots meta must not contain duplicate attributes",
+      );
+    }
+    robotsMeta.push(parsed.attributes);
+  }
+  if (
+    robotsMeta.length !== 1
+    || !hasExactInviteOnlyRobotsDirectives(robotsMeta[0].get("content"))
+  ) {
+    throw new CanaryFailure(
+      "invite-only-indexing",
+      "root HTML must contain exactly one noindex, nofollow, noarchive robots meta tag",
+    );
+  }
+}
+
+function robotsTextDisallowsAll(body) {
+  const directives = [];
+  for (const rawLine of body.split(/\r?\n/u)) {
+    const line = rawLine.replace(/#.*$/u, "").trim();
+    if (!line) continue;
+    const separator = line.indexOf(":");
+    if (separator < 0) return false;
+    const name = line.slice(0, separator).trim().toLowerCase();
+    const value = line.slice(separator + 1).trim();
+    directives.push([name, value.toLowerCase()]);
+  }
+
+  // A crawler-specific group is more specific than `User-agent: *` and may
+  // override its blanket denial. Require the reviewed wildcard-only file so a
+  // later Allow rule, Sitemap, or named crawler exception cannot create a
+  // false-green invite-only canary.
+  return directives.length === 2
+    && directives[0][0] === "user-agent"
+    && directives[0][1] === "*"
+    && directives[1][0] === "disallow"
+    && directives[1][1] === "/";
+}
+
 function scriptAssetUrls(html, origin, check) {
   const urls = [];
   const pattern = /<script\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/giu;
@@ -248,6 +383,7 @@ function scriptAssetUrls(html, origin, check) {
 async function readPublishedHtml(response, check) {
   if (response.status !== 200) throw new CanaryFailure(check, `returned HTTP ${response.status}`);
   assertSecurityHeaders(response, check);
+  assertInviteOnlyRobotsHeader(response, check);
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
   if (!contentType.includes("text/html")) {
     throw new CanaryFailure(check, "did not return HTML");
@@ -290,6 +426,30 @@ async function checkPublishedBundle(config, fetchImpl) {
   ) {
     throw new CanaryFailure("spa-deep-link", "did not return the published SPA bundle");
   }
+
+  return html;
+}
+
+async function checkInviteOnlyIndexing(config, fetchImpl, rootHtml) {
+  assertInviteOnlyRobotsMeta(rootHtml);
+
+  const robotsUrl = new URL(ROBOTS_PATH, `${config.origin}/`).href;
+  const response = await fetchWithTimeout(fetchImpl, robotsUrl, {
+    headers: { Accept: "text/plain" },
+    redirect: "error",
+  });
+  if (response.status !== 200) {
+    throw new CanaryFailure("invite-only-indexing", `robots.txt returned HTTP ${response.status}`);
+  }
+  if (!response.headers.get("content-type")?.toLowerCase().includes("text/plain")) {
+    throw new CanaryFailure("invite-only-indexing", "robots.txt did not return plain text");
+  }
+  if (!robotsTextDisallowsAll(await response.text())) {
+    throw new CanaryFailure(
+      "invite-only-indexing",
+      "robots.txt must contain only User-agent: * followed by Disallow: /",
+    );
+  }
 }
 
 async function checkReleaseManifest(config, fetchImpl) {
@@ -304,6 +464,9 @@ async function checkReleaseManifest(config, fetchImpl) {
   }
   if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
     throw new CanaryFailure("release-manifest", "did not return JSON");
+  }
+  if (response.headers.get("cache-control")?.trim().toLowerCase() !== "no-store") {
+    throw new CanaryFailure("release-manifest", "cache-control must be exactly no-store");
   }
   let manifest;
   try {
@@ -446,6 +609,54 @@ async function checkUnacceptedCanaryAgreement(config, fetchImpl, auth) {
   }
 }
 
+async function checkLearningEvidenceContract(config, fetchImpl, auth) {
+  const response = await fetchWithTimeout(
+    fetchImpl,
+    `${config.supabaseUrl}/rest/v1/rpc/get_learning_evidence_contract_status`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Cache-Control": "no-store",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    },
+  );
+  if (response.status !== 200) {
+    throw new CanaryFailure(
+      "learning-evidence-contract",
+      `status check returned HTTP ${response.status}`,
+    );
+  }
+  if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    throw new CanaryFailure("learning-evidence-contract", "status check did not return JSON");
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new CanaryFailure("learning-evidence-contract", "status check returned invalid JSON");
+  }
+  const expectedKeys = Object.keys(LEARNING_EVIDENCE_CONTRACT_STATUS).sort();
+  if (
+    !body
+    || typeof body !== "object"
+    || Array.isArray(body)
+    || JSON.stringify(Object.keys(body).sort()) !== JSON.stringify(expectedKeys)
+    || body.artifactPromptVersion !== LEARNING_EVIDENCE_CONTRACT_STATUS.artifactPromptVersion
+    || body.contractVersion !== LEARNING_EVIDENCE_CONTRACT_STATUS.contractVersion
+    || body.legacyWritesClosed !== LEARNING_EVIDENCE_CONTRACT_STATUS.legacyWritesClosed
+    || body.readinessScopeVersion !== LEARNING_EVIDENCE_CONTRACT_STATUS.readinessScopeVersion
+  ) {
+    throw new CanaryFailure(
+      "learning-evidence-contract",
+      "database does not report the exact evidence contract with fresh legacy writes closed",
+    );
+  }
+}
+
 async function invokeFunction(config, fetchImpl, accessToken, name, body, expectedStatus, seenRequestIds) {
   const requestId = crypto.randomUUID();
   const response = await fetchWithTimeout(
@@ -514,6 +725,30 @@ async function requireAgreementDenial(response, name) {
   }
 }
 
+async function requireEvidenceAwareRecordStudyResult(response) {
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new CanaryFailure(
+      "record-study-result-evidence-revision",
+      "revision probe returned invalid JSON",
+    );
+  }
+  if (
+    !body
+    || typeof body !== "object"
+    || Array.isArray(body)
+    || JSON.stringify(Object.keys(body).sort()) !== JSON.stringify(["error"])
+    || body.error !== EVIDENCE_REVISION_REJECTION
+  ) {
+    throw new CanaryFailure(
+      "record-study-result-evidence-revision",
+      "deployed function does not enforce the evidence-aware request contract",
+    );
+  }
+}
+
 async function requireFunctionAbsent(config, fetchImpl, accessToken, name) {
   const response = await fetchWithTimeout(
     fetchImpl,
@@ -547,6 +782,7 @@ async function checkBackend(config, fetchImpl) {
     "canary-auth",
   );
   await checkAcceptedCanaryAgreement(config, fetchImpl, auth);
+  await checkLearningEvidenceContract(config, fetchImpl, auth);
   const unacceptedAuth = await authenticateCanary(
     config,
     fetchImpl,
@@ -577,6 +813,16 @@ async function checkBackend(config, fetchImpl) {
   for (const name of INVALID_BODY_FUNCTIONS) {
     await invokeFunction(config, fetchImpl, auth.accessToken, name, {}, 400, seenRequestIds);
   }
+  const evidenceRevisionResponse = await invokeFunction(
+    config,
+    fetchImpl,
+    auth.accessToken,
+    "record-study-result",
+    EVIDENCE_REVISION_PROBE,
+    400,
+    seenRequestIds,
+  );
+  await requireEvidenceAwareRecordStudyResult(evidenceRevisionResponse);
   // Prove the internal cleanup route is deployed and denies a normal signed-in
   // browser without its separate Vault-bound scheduler secret. The canary must
   // never perform a cleanup claim.
@@ -595,7 +841,8 @@ async function checkBackend(config, fetchImpl) {
 
 export async function runPostdeployCanary(environment, fetchImpl = fetch) {
   const config = readCanaryConfiguration(environment);
-  await checkPublishedBundle(config, fetchImpl);
+  const rootHtml = await checkPublishedBundle(config, fetchImpl);
+  await checkInviteOnlyIndexing(config, fetchImpl, rootHtml);
   await checkReleaseManifest(config, fetchImpl);
   await checkBackend(config, fetchImpl);
   return {
@@ -604,14 +851,17 @@ export async function runPostdeployCanary(environment, fetchImpl = fetch) {
       "published-origin",
       "published-bundle",
       "spa-deep-link",
+      "invite-only-indexing",
       "release-manifest",
       "canary-auth",
       "canary-agreement",
+      "learning-evidence-contract",
       "canary-unaccepted-auth",
       "canary-unaccepted-agreement",
       "edge-function-inventory",
       "edge-agreement-contracts",
       "edge-validation-contracts",
+      "record-study-result-evidence-revision",
       "cleanup-worker-denials",
       "mcp-retirement",
       "error-report-ingest",

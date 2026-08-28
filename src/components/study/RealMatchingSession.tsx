@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -18,6 +18,12 @@ import { supabase } from "@/integrations/supabase/client";
 import type { LearningArtifact, MatchingPayload } from "@/lib/learningArtifacts/types";
 import type { MatchingCompletionResult } from "@/lib/learningArtifacts/matchingGame";
 import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
+import {
+  clearMatchingSessionState,
+  readMatchingSessionState,
+  writeMatchingSessionState,
+  type MatchingResultRequestBody,
+} from "@/lib/study/matchingSessionState";
 
 interface Props {
   open: boolean;
@@ -27,6 +33,10 @@ interface Props {
 }
 
 export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted }: Props) {
+  const artifactPairIdentities = useMemo(
+    () => artifact.payload.pairs.map((pair) => ({ id: pair.id, conceptId: pair.conceptId })),
+    [artifact.payload.pairs],
+  );
   const [completion, setCompletion] = useState<MatchingCompletionResult | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
   const [started, setStarted] = useState(false);
@@ -35,20 +45,31 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [completionDurationSeconds, setCompletionDurationSeconds] = useState<number | null>(null);
   const attemptId = useRef(createAttemptId());
+  const frozenRequestBody = useRef<MatchingResultRequestBody | null>(null);
+  const restoredPendingRequest = useRef(false);
+  const saveRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!open) return;
-    setCompletion(null);
-    setConfidence(null);
-    setStarted(false);
+    const restored = readMatchingSessionState({
+      artifactId: artifact.id,
+      pairs: artifactPairIdentities,
+    });
+    setCompletion(restored?.completion ?? null);
+    setConfidence(restored?.confidence ?? null);
+    setStarted(Boolean(restored));
     setSaving(false);
     setSaved(false);
     setSaveError(null);
     setExitConfirmOpen(false);
     setStartedAt(Date.now());
-    attemptId.current = createAttemptId();
-  }, [artifact.id, open]);
+    setCompletionDurationSeconds(restored?.durationSeconds ?? null);
+    attemptId.current = restored?.attemptId ?? createAttemptId();
+    frozenRequestBody.current = restored?.frozenRequestBody ?? null;
+    restoredPendingRequest.current = Boolean(restored?.frozenRequestBody);
+  }, [artifact.id, artifactPairIdentities, open]);
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (saving) return;
@@ -64,20 +85,36 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
     setSaving(true);
     setSaveError(null);
     try {
+      // Freeze the exact first request before invoking the network. A timeout
+      // may mean the server committed even though the response was lost; the
+      // retry must therefore reuse byte-for-byte grading inputs and duration.
+      const body: MatchingResultRequestBody = frozenRequestBody.current ?? {
+        attemptId: attemptId.current,
+        artifactId: artifact.id,
+        correct: completion.correctFirstAttempt,
+        total: completion.total,
+        durationSeconds: completionDurationSeconds
+          ?? Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+        confidence,
+        matchingFirstChoices: completion.firstChoices,
+        perConcept: completion.perConcept.map((result) => ({
+          conceptId: result.conceptId,
+          correct: result.firstAttemptCorrect,
+          confidence,
+          recovered: result.recovered,
+        })),
+      };
+      frozenRequestBody.current = body;
+      writeMatchingSessionState({
+        artifactId: artifact.id,
+        attemptId: attemptId.current,
+        confidence,
+        durationSeconds: body.durationSeconds,
+        completion,
+        frozenRequestBody: body,
+      });
       const { data, error } = await supabase.functions.invoke("record-study-result", {
-        body: {
-          attemptId: attemptId.current,
-          artifactId: artifact.id,
-          correct: completion.correctFirstAttempt,
-          total: completion.total,
-          durationSeconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
-          perConcept: completion.perConcept.map((result) => ({
-            conceptId: result.conceptId,
-            correct: result.firstAttemptCorrect,
-            confidence,
-            recovered: result.recovered,
-          })),
-        },
+        body,
       });
       if (error) throw error;
       const response = data as { ok?: unknown; sessionId?: unknown } | null;
@@ -85,6 +122,7 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
         throw new Error("The saved session could not be confirmed.");
       }
       setSaved(true);
+      clearMatchingSessionState();
       window.dispatchEvent(new CustomEvent("coach:refresh"));
       onCompleted?.();
     } catch (error) {
@@ -94,6 +132,31 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
     } finally {
       setSaving(false);
     }
+  };
+  saveRef.current = save;
+
+  // A reload after the server committed but before its response restores and
+  // retries the exact frozen body once. The stable attempt id makes this a
+  // confirmation/repair, never a second grading event.
+  useEffect(() => {
+    if (!open || !completion || !confidence || !restoredPendingRequest.current) return;
+    restoredPendingRequest.current = false;
+    void saveRef.current();
+  }, [completion, confidence, open]);
+
+  const recordCompletion = (result: MatchingCompletionResult) => {
+    if (!confidence) return;
+    const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+    setCompletion(result);
+    setCompletionDurationSeconds(durationSeconds);
+    writeMatchingSessionState({
+      artifactId: artifact.id,
+      attemptId: attemptId.current,
+      confidence,
+      durationSeconds,
+      completion: result,
+      frozenRequestBody: null,
+    });
   };
 
   return (
@@ -113,11 +176,31 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
           {!started ? (
             <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4">
               <p className="text-sm text-muted-foreground">
-                Tap a term, then tap the answer you think goes with it. You&rsquo;ll rate how sure
-                you were at the end.
+                Before seeing any match feedback, choose how sure you feel about this material.
               </p>
+              <div role="group" aria-label="How sure are you before matching?" className="space-y-2">
+                <p className="text-sm font-medium text-foreground">How sure are you right now?</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {MATCH_CONFIDENCE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={confidence === option.id}
+                      onClick={() => setConfidence(option.id)}
+                      className={`min-h-11 rounded-xl border px-2 text-xs font-medium transition-colors ${
+                        confidence === option.id
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <Button
                 className="w-full"
+                disabled={!confidence}
                 onClick={() => {
                   setStartedAt(Date.now());
                   setStarted(true);
@@ -126,42 +209,21 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
                 Start matching
               </Button>
             </div>
-          ) : saved && completion ? (
+          ) : completion ? (
             <div className="rounded-2xl border border-primary/30 bg-primary/10 p-5 text-center">
               <p className="text-2xl font-semibold text-primary">
                 {completion.correctFirstAttempt} of {completion.total}
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">matched on the first try</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {saved ? "Match Lab result saved" : "matched on the first try"}
+              </p>
             </div>
           ) : (
             <RealMatchingGame
               payload={artifact.payload as MatchingPayload}
               allowedConceptIds={artifact.concept_ids}
-              onComplete={setCompletion}
+              onComplete={recordCompletion}
             />
-          )}
-
-          {completion && !saved && (
-            <div role="group" aria-label="How sure were you while matching?" className="space-y-2">
-              <p className="text-sm font-medium text-foreground">How sure were you while matching?</p>
-              <div className="grid grid-cols-3 gap-2">
-                {MATCH_CONFIDENCE_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={confidence === option.id}
-                    onClick={() => setConfidence(option.id)}
-                    className={`min-h-11 rounded-xl border px-2 text-xs font-medium transition-colors ${
-                      confidence === option.id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
 
           {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
@@ -195,6 +257,7 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 setExitConfirmOpen(false);
+                clearMatchingSessionState();
                 onOpenChange(false);
               }}
             >

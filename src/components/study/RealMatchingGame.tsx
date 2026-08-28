@@ -94,7 +94,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
 
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
-  const [firstAttemptByPair, setFirstAttemptByPair] = useState<Record<string, boolean>>({});
+  const [firstAttemptByPair, setFirstAttemptByPair] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("Choose a term, then choose its match.");
   const [messageKind, setMessageKind] = useState<"instruction" | "correct" | "incorrect">("instruction");
   const [openSources, setOpenSources] = useState<Set<string>>(() => new Set());
@@ -129,11 +129,14 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
     }
 
     completedRef.current = true;
+    const scoredPairs = pairs.filter((pair) => (
+      Object.prototype.hasOwnProperty.call(firstAttemptByPair, pair.id)
+    ));
     const conceptOrder: string[] = [];
     const conceptResults = new Map<string, { firstAttemptCorrect: boolean; recovered: boolean }>();
 
-    for (const pair of pairs) {
-      const pairWasCorrect = firstAttemptByPair[pair.id] === true;
+    for (const pair of scoredPairs) {
+      const pairWasCorrect = firstAttemptByPair[pair.id] === pair.id;
       const existing = conceptResults.get(pair.conceptId);
       if (!existing) {
         conceptOrder.push(pair.conceptId);
@@ -148,11 +151,15 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
     }
 
     onComplete({
-      correctFirstAttempt: pairs.filter((pair) => firstAttemptByPair[pair.id] === true).length,
-      total: pairs.length,
+      correctFirstAttempt: scoredPairs.filter((pair) => firstAttemptByPair[pair.id] === pair.id).length,
+      total: scoredPairs.length,
       perConcept: conceptOrder.map((conceptId) => ({
         conceptId,
         ...conceptResults.get(conceptId)!,
+      })),
+      firstChoices: scoredPairs.map((pair) => ({
+        leftPairId: pair.id,
+        rightPairId: firstAttemptByPair[pair.id],
       })),
     });
   }, [firstAttemptByPair, matchedPairIds.length, onComplete, pairs]);
@@ -176,6 +183,9 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
   const remainingPairs = pairs.filter((pair) => !matched.has(pair.id));
   const remainingRights = shuffledRights.filter((choice) => !matched.has(choice.pairId));
   const selectedPair = pairs.find((pair) => pair.id === selectedPairId) ?? null;
+  const forcedFinalPairId = allMatched
+    ? matchedPairIds[matchedPairIds.length - 1] ?? null
+    : null;
   const chooseLeft = (pair: GroundedMatchingPair) => {
     setSelectedPairId(pair.id);
     setMessage(`Selected ${pair.left}. Now choose its match.`);
@@ -186,11 +196,14 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
     if (!selectedPair || matched.has(choice.pairId)) return;
 
     const isCorrect = selectedPair.id === choice.pairId;
-    setFirstAttemptByPair((current) => (
-      Object.prototype.hasOwnProperty.call(current, selectedPair.id)
-        ? current
-        : { ...current, [selectedPair.id]: isCorrect }
-    ));
+    const isForcedFinalChoice = remainingPairs.length === 1 && remainingRights.length === 1;
+    if (!isForcedFinalChoice) {
+      setFirstAttemptByPair((current) => (
+        Object.prototype.hasOwnProperty.call(current, selectedPair.id)
+          ? current
+          : { ...current, [selectedPair.id]: choice.pairId }
+      ));
+    }
 
     if (!isCorrect) {
       setMessage(`Not a match: ${selectedPair.left} does not match ${choice.label}. Try another answer.`);
@@ -225,7 +238,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
           Match each term
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          Pick one term, then pick its match. A missed first try stays in your score, but retrying helps you learn it.
+          Pick one term, then pick its match. A missed first try stays in your score, but retrying helps you learn it. The final one-choice match does not count as independent evidence.
         </p>
       </div>
 
@@ -321,7 +334,9 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
           {matchedPairIds.map((pairId) => {
             const pair = pairs.find((candidate) => candidate.id === pairId)!;
             const sourceOpen = openSources.has(pairId);
-            const firstTry = firstAttemptByPair[pairId] === true;
+            const firstTry = firstAttemptByPair[pairId] === pairId;
+            const wasScored = Object.prototype.hasOwnProperty.call(firstAttemptByPair, pairId);
+            const wasForcedFinalPair = pairId === forcedFinalPairId && !wasScored;
             const sourceRegionId = `matching-source-${pairs.findIndex((candidate) => candidate.id === pairId)}`;
             return (
               <article key={pair.id} className="min-w-0 rounded-xl border border-primary/30 bg-primary/5 p-3">
@@ -331,9 +346,13 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
                   {cleanStudyText(pair.left)} — {cleanStudyText(pair.right)}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                  {firstTry ? "Matched on the first try" : "Recovered after a retry"}
+                  {wasForcedFinalPair
+                    ? "Completed after the choices narrowed"
+                    : firstTry
+                      ? "Matched on the first try"
+                      : "Recovered after a retry"}
                 </p>
-                {pair.sourceExcerpt && (
+                {allMatched && pair.sourceExcerpt && (
                   <>
                     <button
                       type="button"
@@ -342,7 +361,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
                       onClick={() => toggleSource(pair.id)}
                       className="mt-2 min-h-11 rounded-lg px-2 text-left text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                      {sourceOpen ? "Hide source" : `Review source for ${pair.conceptName}`}
+                      {sourceOpen ? `Hide source for ${pair.left}` : `Review source for ${pair.left}`}
                     </button>
                     {sourceOpen && (
                       <blockquote
@@ -370,8 +389,13 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
         >
           <p className="font-semibold text-foreground">All pairs matched</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            First-try recall: {pairs.filter((pair) => firstAttemptByPair[pair.id] === true).length} of {pairs.length}
+            Matched on the first try: {Object.entries(firstAttemptByPair).filter(([leftId, rightId]) => leftId === rightId).length} of {Object.keys(firstAttemptByPair).length} choice opportunities
           </p>
+          {Object.keys(firstAttemptByPair).length < pairs.length && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              The final one-choice match was not counted as independent evidence.
+            </p>
+          )}
         </div>
       )}
     </section>

@@ -50,13 +50,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # The login demo is intentionally available only on the staging project
-      # identity. This is a fake key: the anonymous-demo firewall asserts that
-      # no REST, Functions, Storage, or Realtime request reaches that project.
-      VITE_SUPABASE_URL: https://dfpgnmldxphkfmobjbvr.supabase.co
-      VITE_SUPABASE_PROJECT_ID: dfpgnmldxphkfmobjbvr
+      # Exercise the staging-only login demo with a synthetic project identity,
+      # never a protected hosted project. The key is fake, and the anonymous-
+      # demo firewall asserts that no REST, Functions, Storage, or Realtime
+      # request leaves the browser journey.
+      VITE_FAMILY_BETA_STAGING_PROJECT_ID: abcdefghijklmnopqrst
+      VITE_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      VITE_SUPABASE_PROJECT_ID: abcdefghijklmnopqrst
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci-placeholder
-      VITE_PUBLIC_SIGNUPS_ENABLED: "false"
+      VITE_PUBLIC_SIGNUPS_ENABLED: "true"
       VITE_CANVAS_CONNECT_ENABLED: "false"
       VITE_PASSKEYS_ENABLED: "false"
       VITE_RELEASE_SHA: ${{ github.sha }}

@@ -13,7 +13,6 @@ import {
   canReadAloud,
   contextualStudentActions,
   readAloud,
-  strategyIdForTechnique,
 } from "@/lib/study/strategyToolbox";
 import {
   recordStrategyFeedbackOutcome,
@@ -27,6 +26,8 @@ import {
 import { evidenceAdjustment, evidenceNote } from "@/lib/study/strategyEvidence";
 import { selectVerifiedTrick } from "@/lib/study/verifiedTricks";
 import { VerifiedTrickCard } from "./VerifiedTrickCard";
+import type { AlternateTeaching } from "../../../supabase/functions/_shared/alternate-teaching";
+import { isRemoteDeterministicMnemonicStrategy } from "../../../supabase/functions/_shared/strategy-execution";
 
 export interface MemoryTrickFeedbackContext {
   artifactId: string;
@@ -40,7 +41,10 @@ export interface MemoryTrickFeedbackContext {
 export interface MemoryTrickPanelProps extends MemoryTrickBoundary {
   onHelpful?: (context: MemoryTrickFeedbackContext) => void | Promise<void>;
   onTryAnother?: (context: MemoryTrickFeedbackContext) => void | Promise<void>;
-  /** Subject family of the class, used only to scope learned evidence. */
+  /**
+   * @deprecated Feedback and evidence use the validated artifact snapshot.
+   * Retained temporarily for call-site compatibility; this value is not trusted.
+   */
   subjectProfileId?: string;
   /** Restores an open Make It Stick panel after backgrounding or a reload. */
   defaultOpen?: boolean;
@@ -72,7 +76,7 @@ function ScopedMemoryTrickPanel(props: MemoryTrickPanelProps) {
         problemText: props.exactTarget,
         sourceExcerpt: props.sourceExcerpt,
       }),
-    [preferGenerated, props.conceptName, props.exactTarget, props.sourceExcerpt, props.subjectProfileId],
+    [preferGenerated, props.conceptName, props.exactTarget, props.sourceExcerpt],
   );
   const panelId = useId();
   const headingId = `${panelId}-heading`;
@@ -140,8 +144,22 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
     conceptIds: [props.conceptId],
     topic: props.conceptName,
     studyScope: props.studyScope,
-  }), [props.captureId, props.classId, props.conceptId, props.conceptName, props.studyScope]);
-  const { artifact, loading, generating, error, generate, reload } =
+    alternateTeachingBoundary: {
+      conceptId: props.conceptId,
+      conceptName: props.conceptName,
+      exactTarget: props.exactTarget,
+      sourceExcerpt: props.sourceExcerpt,
+    },
+  }), [
+    props.captureId,
+    props.classId,
+    props.conceptId,
+    props.conceptName,
+    props.exactTarget,
+    props.sourceExcerpt,
+    props.studyScope,
+  ]);
+  const { artifact, alternateTeaching, loading, generating, error, generate, reload } =
     useLearningArtifact("mnemonic", scope);
   const trick = useMemo(
     () => artifact ? parseMemoryTrickArtifact(artifact, props) : null,
@@ -149,10 +167,10 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
   );
 
   useEffect(() => {
-    if (loading || generating || error || artifact || requestedGeneration.current) return;
+    if (loading || generating || error || artifact || alternateTeaching || requestedGeneration.current) return;
     requestedGeneration.current = true;
     void generate({ regenerate: false, count: 1 });
-  }, [artifact, error, generate, generating, loading]);
+  }, [alternateTeaching, artifact, error, generate, generating, loading]);
 
   const retry = () => {
     if (loading || generating) return;
@@ -168,13 +186,17 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
     void generate({ regenerate: false, count: 1 });
   };
 
-  if (loading || generating || (!error && !artifact && !requestedGeneration.current)) {
+  if (loading || generating || (!error && !artifact && !alternateTeaching && !requestedGeneration.current)) {
     return (
       <p role="status" aria-live="polite" className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         {loading ? "Checking for a memory trick…" : "Creating a memory trick from this concept…"}
       </p>
     );
+  }
+
+  if (alternateTeaching) {
+    return <AlternateTeachingCard teaching={alternateTeaching} />;
   }
 
   // Preferable to a forced trick: say so plainly and point at practice.
@@ -209,6 +231,90 @@ function MemoryTrickLoader(props: MemoryTrickPanelProps) {
   return <MemoryTrickResult trick={trick} {...props} generate={generate} />;
 }
 
+function AlternateTeachingCard({ teaching }: { teaching: AlternateTeaching }) {
+  const [answerVisible, setAnswerVisible] = useState(false);
+
+  if (teaching.kind === "compare-table") {
+    return (
+      <div data-testid="alternate-teaching" className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Compare and contrast
+          </p>
+          <p className="text-sm font-medium leading-relaxed text-foreground">{teaching.prompt}</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {teaching.items.map((item) => (
+            <div key={item.label} className="rounded-xl border border-border/50 bg-background/70 p-3">
+              <p className="text-sm font-semibold text-foreground">{item.label}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {item.evidence ?? "Use the source-supported contrast below."}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2 rounded-xl border border-border/50 bg-background/70 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Source-supported contrast
+          </p>
+          <p className="break-words text-sm leading-relaxed text-foreground">{teaching.answer}</p>
+          <p className="break-words border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground">
+            From your class material: “{teaching.sourceExcerpt}”
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (teaching.kind === "verified-math-shortcut") {
+    return (
+      <div data-testid="alternate-teaching" className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Verified math shortcut
+          </p>
+          <p className="text-sm font-medium leading-relaxed text-foreground">{teaching.prompt}</p>
+        </div>
+        <div className="space-y-2 rounded-xl border border-border/50 bg-background/70 p-3">
+          <p className="text-sm font-semibold text-foreground">{teaching.shortcut.title}</p>
+          <p className="text-sm leading-relaxed text-foreground">{teaching.shortcut.statement}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{teaching.shortcut.why}</p>
+          <p className="text-xs font-medium leading-relaxed text-foreground">{teaching.shortcut.example}</p>
+          <p className="border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground">
+            When it applies: {teaching.shortcut.conditions}
+          </p>
+        </div>
+        <p className="break-words text-xs leading-relaxed text-muted-foreground">
+          From your class material: “{teaching.sourceExcerpt}”
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="alternate-teaching" className="space-y-3">
+      <div className="space-y-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Retrieval practice
+        </p>
+        <p className="text-sm font-medium leading-relaxed text-foreground">{teaching.prompt}</p>
+      </div>
+      {!answerVisible ? (
+        <Button type="button" variant="outline" className="min-h-11" onClick={() => setAnswerVisible(true)}>
+          Check answer
+        </Button>
+      ) : (
+        <div role="status" aria-live="polite" className="space-y-2 rounded-xl border border-border/50 bg-background/70 p-3">
+          <p className="break-words text-sm leading-relaxed text-foreground">{teaching.answer}</p>
+          <p className="break-words border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground">
+            From your class material: “{teaching.sourceExcerpt}”
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MemoryTrickResultProps extends MemoryTrickPanelProps {
   trick: MemoryTrickContent;
   generate: (options?: {
@@ -226,7 +332,6 @@ function MemoryTrickResult({
   studyScope,
   onHelpful,
   onTryAnother,
-  subjectProfileId = "general",
   generate,
 }: MemoryTrickResultProps) {
   const [answerVisible, setAnswerVisible] = useState(false);
@@ -235,6 +340,7 @@ function MemoryTrickResult({
   const [pendingStrategy, setPendingStrategy] = useState<string | null>(null);
   const [alternativesOpen, setAlternativesOpen] = useState(false);
   const alternativesId = useId();
+  const subjectProfileId = trick.subjectProfileId;
   // Contextual controls only: at most three, one per modality, and only the
   // ones that actually apply to this concept right now.
   // What has actually worked for this student on memorization in this
@@ -244,16 +350,20 @@ function MemoryTrickResult({
     taskKind: "memorize-terms",
   });
   const toolboxActions = useMemo(() => contextualStudentActions({
-    subjectProfileId: subjectProfileId as never,
+    subjectProfileId,
     taskKind: "memorize-terms",
     hasGroundedSource: Boolean(trick.sourceExcerpt),
     unavailableModalities: canReadAloud() ? [] : ["verbal" as const],
     observations: { alreadyShown: [trick.technique] },
     evidence: learnedEvidence,
-  }, 2), [learnedEvidence, subjectProfileId, trick.sourceExcerpt, trick.technique]);
+  }, 4).filter((action) => (
+    action.cost === "ai"
+    || action.strategyId === "read-aloud"
+    || isRemoteDeterministicMnemonicStrategy(action.strategyId)
+  )).slice(0, 2), [learnedEvidence, subjectProfileId, trick.sourceExcerpt, trick.technique]);
   /** At most two contextual strategies; the menu adds one trick-refresh option. */
   const alternatives = toolboxActions;
-  const currentStrategyId = strategyIdForTechnique(trick.technique);
+  const currentStrategyId = trick.executedStrategyId;
   const trickNote = useMemo(() => evidenceNote(
     evidenceAdjustment(learnedEvidence, {
       strategyId: currentStrategyId,
@@ -262,6 +372,7 @@ function MemoryTrickResult({
     }).evidence,
   ), [currentStrategyId, learnedEvidence, subjectProfileId]);
   const recordOutcome = (helpful: boolean) => {
+    if (!currentStrategyId || !subjectProfileId) return;
     void recordStrategyFeedbackOutcome({
       helpful,
       strategyId: currentStrategyId,

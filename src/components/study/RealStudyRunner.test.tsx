@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RealStudyRunner } from "./RealStudyRunner";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
@@ -59,6 +59,34 @@ const multipleChoiceArtifact: LearningArtifact<"multiple_choice"> = {
     }],
   },
 };
+
+const twoCardArtifact: LearningArtifact<"flashcards"> = {
+  ...artifact,
+  id: "artifact-two",
+  concept_ids: ["concept-1", "concept-2"],
+  payload: {
+    cards: [
+      artifact.payload.cards[0],
+      {
+        front: "What does 3 + 3 equal?",
+        back: "3 + 3 equals 6.",
+        conceptId: "concept-2",
+        conceptName: "Addition Facts",
+        sourceExcerpt: "3+3 = 6",
+      },
+    ],
+  },
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function rateKnewIt() {
   fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
@@ -191,8 +219,191 @@ describe("real flashcard runner", () => {
     );
     expect(attemptIds[1]).toBe(attemptIds[0]);
     for (const call of invoke.mock.calls) {
-      expect(call[1].body).toMatchObject({ correct: 1, total: 1 });
+      expect(call[1].body).toMatchObject({
+        correct: 1,
+        total: 1,
+        perConcept: [{ conceptId: "concept-1", firstSelectedIndex: 1 }],
+      });
     }
+  });
+
+  it("retries a lost incremental response with the exact same attempt before finishing", async () => {
+    invoke.mockClear();
+    invoke
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({
+        data: { ok: true, sessionId: "segment-1", readiness: 30 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { ok: true, sessionId: "segment-2", readiness: 42 },
+        error: null,
+      });
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
+
+    rateKnewIt();
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    rateKnewIt();
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledTimes(3);
+    const firstBody = invoke.mock.calls[0][1].body;
+    const retriedBody = invoke.mock.calls[1][1].body;
+    const finalBody = invoke.mock.calls[2][1].body;
+    expect(retriedBody).toBe(firstBody);
+    expect(retriedBody.attemptId).toBe(firstBody.attemptId);
+    expect(finalBody.attemptId).not.toBe(firstBody.attemptId);
+    expect(retriedBody.studyRunId).toBe(firstBody.studyRunId);
+    expect(finalBody.studyRunId).toBe(firstBody.studyRunId);
+    expect(firstBody).toMatchObject({ segmentIndex: 0, segmentFinal: false });
+    expect(finalBody).toMatchObject({ segmentIndex: 1, segmentFinal: true });
+    expect(firstBody).toMatchObject({
+      correct: 1,
+      total: 1,
+      perConcept: [{ conceptId: "concept-1", correct: true }],
+    });
+    expect(finalBody).toMatchObject({
+      correct: 1,
+      total: 1,
+      perConcept: [{ conceptId: "concept-2", correct: true }],
+    });
+  });
+
+  it("waits for an in-flight segment and never overlaps it with the final save", async () => {
+    invoke.mockClear();
+    const firstResponse = deferred<{
+      data: { ok: true; sessionId: string; readiness: number };
+      error: null;
+    }>();
+    invoke
+      .mockImplementationOnce(() => firstResponse.promise)
+      .mockResolvedValueOnce({
+        data: { ok: true, sessionId: "segment-2", readiness: 42 },
+        error: null,
+      });
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
+
+    rateKnewIt();
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    rateKnewIt();
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    // Finish joined the active request instead of starting another one.
+    expect(invoke).toHaveBeenCalledTimes(1);
+    const storedBeforeAcknowledgement = JSON.parse(
+      window.sessionStorage.getItem("campus-coach:study-runner") ?? "{}",
+    );
+    expect(storedBeforeAcknowledgement.evidenceOutbox.pending).toHaveLength(2);
+    expect(storedBeforeAcknowledgement.evidenceOutbox.pending[1].body).toMatchObject({
+      segmentIndex: 1,
+      segmentFinal: true,
+      attemptId: storedBeforeAcknowledgement.evidenceOutbox.pending[1].attemptId,
+    });
+    await act(async () => {
+      firstResponse.resolve({
+        data: { ok: true, sessionId: "segment-1", readiness: 30 },
+        error: null,
+      });
+      await firstResponse.promise;
+    });
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(invoke.mock.calls.map((call) => call[1].body.perConcept[0].conceptId)).toEqual([
+      "concept-1",
+      "concept-2",
+    ]);
+  });
+
+  it("restores an unresolved miss and saves its later recovery in the same evidence segment", async () => {
+    invoke.mockClear();
+    const firstMount = render(
+      <RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /review again/i }));
+    expect(screen.getByText("What does 3 + 3 equal?")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+
+    firstMount.unmount();
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
+    expect(screen.getByText("What does 3 + 3 equal?")).toBeInTheDocument();
+
+    rateKnewIt();
+    expect(screen.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /guessing/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /got it this time/i }));
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke.mock.calls[0][1].body).toMatchObject({
+      segmentIndex: 0,
+      segmentFinal: true,
+      correct: 1,
+      total: 2,
+      perConcept: [
+        { conceptId: "concept-1", correct: false, recovered: true },
+        { conceptId: "concept-2", correct: true, recovered: false },
+      ],
+    });
+  });
+
+  it("reports readiness gained across the whole incremental run", async () => {
+    invoke.mockClear();
+    invoke
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          sessionId: "logical-session",
+          readiness: 25,
+          readinessBefore: 20,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          sessionId: "logical-session",
+          readiness: 31,
+          readinessDelta: 6,
+        },
+        error: null,
+      });
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
+
+    rateKnewIt();
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    rateKnewIt();
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+
+    expect(await screen.findByText(/readiness/i)).toHaveTextContent("+11 points · now 31%");
+    expect(invoke.mock.calls[0][1].body.studyRunId).toBe(invoke.mock.calls[1][1].body.studyRunId);
+  });
+
+  it("sends delta time per segment instead of cumulative run time", async () => {
+    invoke.mockClear();
+    const dateNow = vi.spyOn(Date, "now");
+    let now = 1_000_000;
+    dateNow.mockImplementation(() => now);
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
+
+    now += 5_000;
+    rateKnewIt();
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    now += 7_000;
+    rateKnewIt();
+    now += 20_000;
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+
+    expect(invoke.mock.calls[0][1].body.durationSeconds).toBe(5);
+    expect(invoke.mock.calls[1][1].body.durationSeconds).toBe(7);
+    dateNow.mockRestore();
   });
 
   it("uses mobile-sized choices and labels correctness without relying on color", () => {
@@ -242,25 +453,8 @@ describe("real flashcard runner", () => {
   });
 
   it("returns a miss once and saves the first-attempt score plus recovery", async () => {
-    const twoCards: LearningArtifact<"flashcards"> = {
-      ...artifact,
-      id: "artifact-two",
-      concept_ids: ["concept-1", "concept-2"],
-      payload: {
-        cards: [
-          artifact.payload.cards[0],
-          {
-            front: "What does 3 + 3 equal?",
-            back: "3 + 3 equals 6.",
-            conceptId: "concept-2",
-            conceptName: "Addition Facts",
-            sourceExcerpt: "3+3 = 6",
-          },
-        ],
-      },
-    };
     invoke.mockClear();
-    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCards} />);
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={twoCardArtifact} />);
 
     fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
     fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));

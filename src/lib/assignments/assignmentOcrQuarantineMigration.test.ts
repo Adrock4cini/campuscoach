@@ -54,7 +54,7 @@ describe("assignment OCR quarantine migrations", () => {
     expect(artifactCleanup).toContain("capture.kind = 'scan-assignment'");
   });
 
-  it("resets and deletes concept-wide learning only for retired assignment-only concepts", () => {
+  it("neutralizes all OCR-contaminated mastery while deleting only unsafe derivatives", () => {
     const masteryReset = statementBetween(
       initialQuarantine,
       "update public.user_concept_mastery mastery",
@@ -71,7 +71,13 @@ describe("assignment OCR quarantine migrations", () => {
       "delete from public.processed_content processed",
     );
 
-    for (const statement of [masteryReset, outcomeCleanup, signalCleanup]) {
+    expect(masteryReset).toContain("set strength = 0");
+    expect(masteryReset).toContain("last_seen_at = null");
+    expect(masteryReset).toContain("from assignment_ocr_quarantine quarantined");
+    expect(masteryReset).not.toContain("join public.concepts concept");
+    expect(masteryReset).not.toContain("concept.retired_at is not null");
+
+    for (const statement of [outcomeCleanup, signalCleanup]) {
       expect(statement).toContain("join public.concepts concept");
       expect(statement).toContain("concept.retired_at is not null");
     }
@@ -145,14 +151,18 @@ describe("assignment OCR quarantine migrations", () => {
     expect(artifactCleanup).toContain("artifact.payload -> 'problems' -> 0 ->> 'sourceExcerpt' = capture.practice_source_text");
   });
 
-  it("keeps late shared-concept mastery and artifacts while discarding legacy OCR derivatives", () => {
+  it("neutralizes late OCR-contaminated mastery while discarding legacy derivatives", () => {
     const masteryReset = statementBetween(
       postWorkerLockdown,
       "update public.user_concept_mastery mastery",
       "delete from public.study_strategy_outcomes outcome",
     );
 
-    expect(masteryReset).toContain("concept.retired_at is not null");
+    expect(masteryReset).toContain("set strength = 0");
+    expect(masteryReset).toContain("last_seen_at = null");
+    expect(masteryReset).toContain("from late_assignment_ocr_quarantine quarantined");
+    expect(masteryReset).not.toContain("join public.concepts concept");
+    expect(masteryReset).not.toContain("concept.retired_at is not null");
     expect(postWorkerLockdown).toContain("delete from public.processed_content processed");
     expect(postWorkerLockdown).toContain("delete from public.flashcards card");
     expect(postWorkerLockdown).toContain("delete from public.quizzes quiz");

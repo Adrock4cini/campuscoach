@@ -24,6 +24,18 @@ function artifact(overrides: Record<string, unknown> = {}) {
     client_class_id: "english",
     study_scope_type: "exam",
     study_scope_id: "exam-1",
+    study_scope_snapshot: {
+      subjectProfile: { id: "humanities_text" },
+      strategy: {
+        executed: {
+          id: null,
+          modality: null,
+          technique: "association",
+          cost: "ai",
+          deterministic: false,
+        },
+      },
+    },
     concept_ids: ["concept-desert"],
     payload: {
       items: [{
@@ -50,12 +62,53 @@ describe("parseMemoryTrickArtifact", () => {
       provenanceLabel: "AI-created memory trick",
       technique: "association",
       techniqueLabel: "Association",
+      executedStrategyId: null,
+      subjectProfileId: "humanities_text",
       target: "Dessert has two s's; desert has one.",
       sourceExcerpt: "A dessert is a sweet course served after a meal.",
       mnemonic: "Dessert has two s's because you want seconds.",
       howToUse: "Connect the second s in dessert with asking for seconds.",
       selfCheckPrompt: "Without looking, what do you need to remember about Desert vs. dessert?",
       selfCheckAnswer: "Dessert has two s's; desert has one.",
+    });
+  });
+
+  it("uses only validated nested execution and subject metadata for feedback", () => {
+    const attributed = artifact();
+    attributed.payload.items[0].technique = "familiar_bridge";
+    attributed.study_scope_snapshot = {
+      subjectProfile: { id: "life_science" },
+      strategy: {
+        executed: {
+          id: "familiar-bridge",
+          modality: "association",
+          technique: "familiar_bridge",
+          cost: "ai",
+          deterministic: false,
+        },
+      },
+    };
+    expect(parseMemoryTrickArtifact(attributed, boundary)).toMatchObject({
+      executedStrategyId: "familiar-bridge",
+      subjectProfileId: "life_science",
+    });
+
+    const contradictory = artifact();
+    contradictory.study_scope_snapshot = {
+      subjectProfile: { id: "invented_subject" },
+      strategy: {
+        executed: {
+          id: "familiar-bridge",
+          modality: "visual",
+          technique: "association",
+          cost: "ai",
+          deterministic: false,
+        },
+      },
+    };
+    expect(parseMemoryTrickArtifact(contradictory, boundary)).toMatchObject({
+      executedStrategyId: null,
+      subjectProfileId: null,
     });
   });
 
@@ -92,6 +145,10 @@ describe("parseMemoryTrickArtifact", () => {
     const wrongConceptName = artifact();
     wrongConceptName.payload.items[0].conceptName = "Another student's concept";
     expect(parseMemoryTrickArtifact(wrongConceptName, boundary)).toBeNull();
+
+    const wrongSource = artifact();
+    wrongSource.payload.items[0].sourceExcerpt = "A network-authored replacement source.";
+    expect(parseMemoryTrickArtifact(wrongSource, boundary)).toBeNull();
   });
 
   it("changes its boundary key when any source boundary changes", () => {

@@ -73,13 +73,18 @@ The first command validates the exact backend, release SHA, support address,
 signup state, and passkey state without printing values. The second validates
 both protected canary identities at runtime, then runs after deployment with
 dedicated accepted and unaccepted empty accounts; it verifies the published
-bundle, direct SPA deep-link fallback, same-origin public release manifest,
-strict security header semantics, both live Auth sessions, the exact
+bundle, direct SPA deep-link fallback, all deployed invite-only indexing
+controls, the same-origin non-cacheable public release manifest, strict security
+header semantics, both live Auth sessions, the exact
 agreement-denial contract, accepted zero-AI validation responses, both cleanup
-worker denials, the MCP HTTP 410 tombstone, and error-report ingestion. It does
-not prove migration state, RLS isolation, the exact Edge
-revision, alert delivery, or full successful write paths; those remain manual
-staging and operator gates below.
+worker denials, the MCP HTTP 410 tombstone, the exact learning-evidence contract
+with fresh legacy writes closed, the evidence-aware `record-study-result`
+validation fingerprint, and
+error-report ingestion. The contract checks are authenticated and read-only; they
+do not create coursework or study results. The canary still does not prove the
+complete migration ledger, RLS isolation, every Edge revision, alert delivery,
+or full successful write paths; those remain manual staging and operator gates
+below.
 
 ## Learning boundaries
 
@@ -128,7 +133,7 @@ classes and redacted routes; a production log alert must be tested before invite
 
 ## Production rollout
 
-Do not apply every pending `20260827` migration in one unattended pass. The
+Do not apply every pending launch migration in one unattended pass. The
 release has an additive phase, a worker deployment, and a brief write-pause
 phase. Follow [the Study Intelligence rollout](docs/study-intelligence-rollout.md)
 exactly; it is the source of truth for migration order, drain requirements,

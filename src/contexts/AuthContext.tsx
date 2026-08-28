@@ -36,6 +36,7 @@ import {
   acceptCurrentFamilyBetaAgreement,
   getFamilyBetaAgreementStatus,
 } from "@/lib/legal/familyBetaAgreementService";
+import { demoModeEnabled } from "@/lib/legal/familyBeta";
 
 
 const DEMO_KEY = "cc_demo_mode_v1";
@@ -98,9 +99,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const activeUserIdRef = useRef<string | null>(null);
   const profileRequestVersion = useRef(0);
   const agreementRequestVersion = useRef(0);
-  const [isDemoMode, setDemo] = useState<boolean>(
-    typeof window !== "undefined" && localStorage.getItem(DEMO_KEY) === "1"
-  );
+  const [isDemoMode, setDemo] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    if (!demoModeEnabled()) {
+      // A value left by a preview/staging build is not authorization to enter
+      // protected routes in the closed invite-only production release.
+      localStorage.removeItem(DEMO_KEY);
+      return false;
+    }
+    return localStorage.getItem(DEMO_KEY) === "1";
+  });
 
   const loadAgreement = async (userId: string | undefined | null): Promise<boolean> => {
     const request = ++agreementRequestVersion.current;
@@ -246,7 +254,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profileRequestVersion.current += 1;
       agreementRequestVersion.current += 1;
       setRecovering(false);
-      setSupabaseNetworkMode("demo");
+      // A closed invite-only build must not silently become a sample-data
+      // client after a real sign-out. Only a build where demo access is
+      // explicitly available may switch the data policy to demo.
+      setSupabaseNetworkMode(demoModeEnabled() ? "demo" : "loading");
       setSession(null);
       setAuthUserId(null);
       setSetupStatus("checking");
@@ -424,7 +435,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ? "real"
       : recovering
         ? "loading" // reconnecting: never fall back to sample data
-        : "demo"; // anonymous visitors use the sample tour
+        : demoModeEnabled()
+          ? "demo" // anonymous visitors use the sample tour only where enabled
+          : "loading"; // settled closed-beta sign-out; route guards render outside the sample shell
 
   const value = useMemo<AuthState>(
     () => ({
@@ -444,7 +457,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // A sample surface must never coexist with an authenticated Supabase
         // session. Several legacy demo pages still import write clients
         // directly, so this is an account-safety invariant—not a UI preference.
-        if (session?.user) {
+        if (session?.user || !demoModeEnabled()) {
           localStorage.removeItem(DEMO_KEY);
           setDemo(false);
           return;

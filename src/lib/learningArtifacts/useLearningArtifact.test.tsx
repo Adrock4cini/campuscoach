@@ -154,6 +154,137 @@ describe("useLearningArtifact class boundary", () => {
     expect(result.current.error).toBe("offline");
   });
 
+  it("accepts a typed grounded alternate-teaching response without a generic artifact error", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("mnemonic", {
+        classId: "biology",
+        conceptIds: ["concept-tonicity"],
+        alternateTeachingBoundary: {
+          conceptId: "concept-tonicity",
+          conceptName: "Hypotonic vs hypertonic",
+          exactTarget: "Hypotonic: lower solute. Hypertonic: higher solute.",
+          sourceExcerpt: "Hypotonic: lower solute. Hypertonic: higher solute.",
+        },
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: null, error: null });
+    });
+    const alternateTeaching = {
+      schemaVersion: "alternate-teaching-v1",
+      kind: "compare-table",
+      selectedStrategyId: "compare-table",
+      executedStrategyId: "compare-table",
+      deterministic: true,
+      conceptId: "concept-tonicity",
+      conceptName: "Hypotonic vs hypertonic",
+      prompt: "How are Hypotonic and hypertonic different?",
+      answer: "Hypotonic: lower solute. Hypertonic: higher solute.",
+      sourceExcerpt: "Hypotonic: lower solute. Hypertonic: higher solute.",
+      items: [
+        { label: "Hypotonic", evidence: "lower solute" },
+        { label: "hypertonic", evidence: "higher solute." },
+      ],
+    };
+    mocks.invoke.mockResolvedValueOnce({ data: { alternateTeaching }, error: null });
+
+    let generated: unknown;
+    await act(async () => {
+      generated = await result.current.generate({ strategyId: "compare-table" });
+    });
+
+    expect(generated).toEqual(alternateTeaching);
+    expect(result.current.alternateTeaching).toEqual(alternateTeaching);
+    expect(result.current.artifact).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.generating).toBe(false);
+  });
+
+  it("rejects an alternate-teaching response for a different concept", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("mnemonic", {
+        conceptIds: ["concept-a"],
+        alternateTeachingBoundary: {
+          conceptId: "concept-a",
+          conceptName: "A",
+          exactTarget: "A answer",
+          sourceExcerpt: "A answer",
+        },
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: null, error: null });
+    });
+    mocks.invoke.mockResolvedValueOnce({
+      data: {
+        alternateTeaching: {
+          schemaVersion: "alternate-teaching-v1",
+          kind: "retrieval-question",
+          selectedStrategyId: "retrieval-question",
+          executedStrategyId: "retrieval-question",
+          deterministic: true,
+          conceptId: "concept-b",
+          conceptName: "B",
+          prompt: "Recall B",
+          answer: "B answer",
+          sourceExcerpt: "B answer",
+        },
+      },
+      error: null,
+    });
+
+    await act(async () => {
+      await result.current.generate();
+    });
+
+    expect(result.current.alternateTeaching).toBeNull();
+    expect(result.current.error).toMatch(/could not be confirmed/i);
+  });
+
+  it("rejects a self-grounded response that changes the UI-known target", async () => {
+    const { result } = renderHook(() => (
+      useLearningArtifact("mnemonic", {
+        conceptIds: ["concept-a"],
+        alternateTeachingBoundary: {
+          conceptId: "concept-a",
+          conceptName: "A",
+          exactTarget: "A is the trusted class fact.",
+          sourceExcerpt: "A is the trusted class fact.",
+        },
+      })
+    ));
+    await waitFor(() => expect(mocks.pending).toHaveLength(1));
+    await act(async () => {
+      mocks.pending[0].resolve({ data: null, error: null });
+    });
+    mocks.invoke.mockResolvedValueOnce({
+      data: {
+        alternateTeaching: {
+          schemaVersion: "alternate-teaching-v1",
+          kind: "retrieval-question",
+          selectedStrategyId: "retrieval-question",
+          executedStrategyId: "retrieval-question",
+          deterministic: true,
+          conceptId: "concept-a",
+          conceptName: "A",
+          prompt: "Without looking, what do you need to remember about A?",
+          answer: "A is a network-authored replacement.",
+          sourceExcerpt: "A is a network-authored replacement.",
+        },
+      },
+      error: null,
+    });
+
+    await act(async () => {
+      await result.current.generate();
+    });
+
+    expect(result.current.alternateTeaching).toBeNull();
+    expect(result.current.error).toMatch(/could not be confirmed/i);
+  });
+
   it("keeps assignment and routing evidence inside the exact generation scope", async () => {
     const { result } = renderHook(() => (
       useLearningArtifact("practice", {

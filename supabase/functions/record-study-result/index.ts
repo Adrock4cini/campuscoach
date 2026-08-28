@@ -11,6 +11,29 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.1
 import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../_shared/artifact-version.ts";
 import { studyAttemptDisposition } from "../_shared/retry-integrity.ts";
+import { executedStrategyOutcomeMetadata } from "../_shared/strategy-outcome.ts";
+import {
+  evidenceTierForArtifact,
+  isLearningEvidenceTier,
+  isTeachingTaskKind,
+  targetTaskKindFromSnapshot,
+  type TeachingTaskKind,
+} from "../_shared/learning-evidence.ts";
+import type { LearningEvidenceTier } from "../_shared/strategy-evidence.ts";
+import { examReadinessScopeFromSnapshot } from "../_shared/readiness-scope.ts";
+import {
+  gradeMatchingFirstChoices,
+  gradeMultipleChoiceSelections,
+  type MatchingFirstChoice,
+} from "../_shared/discrimination-grading.ts";
+import {
+  aggregateStudyRunSegments,
+  parseStudyRunContract,
+  summarizeAuthoritativeStudyRunEvidence,
+  type GroupedStudyRunSegment,
+  type StoredStudyRunConceptEvidence,
+  type StoredStudyRunSegment,
+} from "../_shared/study-run.ts";
 import { buildAssignmentTutorPractice } from "../_shared/assignment-tutor.ts";
 import { canonicalJsonStringify } from "../_shared/canonical-json.ts";
 import {
@@ -37,15 +60,22 @@ interface PerConcept {
   correct: boolean;
   confidence?: ConfidenceLevel;
   recovered?: boolean;
+  /** Required for current MC evidence; correctness is server-derived. */
+  firstSelectedIndex?: number;
 }
 
 interface Body {
   attemptId?: string;
+  studyRunId?: string;
+  segmentIndex?: number;
+  segmentFinal?: boolean;
   artifactId: string;
   correct?: number;
   total?: number;
   durationSeconds: number;
   perConcept?: PerConcept[];
+  /** Required for current Match Lab evidence; correctness is server-derived. */
+  matchingFirstChoices?: MatchingFirstChoice[];
   /** Practice is graded against the stored transfer problem, never by the client. */
   selectedIndex?: number;
   confidence?: ConfidenceLevel;
@@ -79,11 +109,43 @@ interface StudyResultAttemptRow {
   duration_seconds: number;
   session_id: string | null;
   completed_at: string | null;
+  evidence_contract_version: number | null;
+  evidence_tier: LearningEvidenceTier | null;
+  target_task_kind: TeachingTaskKind | null;
+  readiness_projection: unknown;
+  study_run_id: string | null;
+  study_run_segment: number | null;
+  study_run_final: boolean | null;
+  study_run_correct: number | null;
+  study_run_total: number | null;
+  study_run_concept_ids: string[] | null;
+}
+
+interface StudyRunRow {
+  id: string;
+  user_id: string;
+  artifact_id: string;
+  evidence_contract_version: number;
+  result_status: string;
+  final_segment_index: number | null;
+  session_id: string | null;
+  completed_at: string | null;
+}
+
+interface ReadinessProjection {
+  readiness: number;
+  readinessBefore: number;
+}
+
+interface LegacyReadinessProjection {
+  readiness: number | null;
+  readinessBefore: number | null;
 }
 
 interface PracticeMasteryReservation {
   applied: boolean;
   previousStrength: number;
+  resultingStrength: number;
 }
 
 interface PracticeCaptureBoundaryRow {
@@ -114,10 +176,9 @@ interface PracticeChallengeOwnerRow {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPORTED_KINDS = new Set(["flashcards", "multiple_choice", "matching", "practice"]);
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
+const EVIDENCE_CONTRACT_VERSION = 2;
+const ATTEMPT_SELECT = "artifact_id, challenge_fingerprint, client_request_hash, verified_grading_snapshot, result_status, result_payload, result_request_hash, lease_token, lease_started_at, duration_seconds, session_id, completed_at, evidence_contract_version, evidence_tier, target_task_kind, readiness_projection, study_run_id, study_run_segment, study_run_final, study_run_correct, study_run_total, study_run_concept_ids";
+const STUDY_RUN_SELECT = "id, user_id, artifact_id, evidence_contract_version, result_status, final_segment_index, session_id, completed_at";
 
 Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) => {
   const json = (body: unknown, status = 200) => (
@@ -181,7 +242,19 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   let parsedBody: unknown;
   try { parsedBody = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   if (!isRecord(parsedBody)) return json({ error: "JSON body must be an object" }, 400);
+  if (Object.hasOwn(parsedBody, "evidenceTier")
+      || Object.hasOwn(parsedBody, "evidence_tier")
+      || Object.hasOwn(parsedBody, "targetTaskKind")
+      || Object.hasOwn(parsedBody, "target_task_kind")
+      || Object.hasOwn(parsedBody, "evidenceContractVersion")
+      || Object.hasOwn(parsedBody, "evidence_contract_version")) {
+    return json({ error: "evidence classification is server-derived" }, 400);
+  }
   const body = parsedBody as unknown as Body;
+  const studyRunContract = parseStudyRunContract(parsedBody);
+  if (studyRunContract.kind === "invalid") {
+    return json({ error: studyRunContract.error }, 400);
+  }
 
   if (typeof body.artifactId !== "string" || !UUID_PATTERN.test(body.artifactId)) {
     return json({ error: "artifactId required" }, 400);
@@ -194,6 +267,9 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   }
   if (body.attemptId && !UUID_PATTERN.test(body.attemptId)) {
     return json({ error: "attemptId must be a UUID" }, 400);
+  }
+  if (studyRunContract.kind === "grouped" && !body.attemptId) {
+    return json({ error: "attemptId is required for grouped study results" }, 400);
   }
 
   // The client reuses this id after a lost response.
@@ -210,18 +286,44 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   if (!SUPPORTED_KINDS.has(artifact.kind)) {
     return json({ error: "This study set must be refreshed before results can be saved" }, 409);
   }
+  if (studyRunContract.kind === "grouped" && artifact.kind === "practice") {
+    return json({ error: "assignment practice results cannot be segmented" }, 400);
+  }
 
   // Read the immutable attempt ledger before active-concept gating. An exact
   // retry may legitimately finish history repair after its source concept was
   // retired, but a new result may never add evidence to retired memory.
   const { data: priorAttemptData, error: priorErr } = await adminClient
     .from("study_result_attempts")
-    .select("user_id, client_attempt_id, artifact_id, challenge_fingerprint, client_request_hash, verified_grading_snapshot, result_status, result_payload, result_request_hash, lease_token, lease_started_at, duration_seconds, session_id, completed_at")
+    .select(`user_id, client_attempt_id, ${ATTEMPT_SELECT}`)
     .eq("user_id", userId)
     .eq("client_attempt_id", attemptId)
     .maybeSingle();
   if (priorErr) return json({ error: "attempt lookup failed" }, 500);
   const priorAttempt = priorAttemptData as StudyResultAttemptRow | null;
+
+  const artifactEvidenceTier = evidenceTierForArtifact(artifact.kind);
+  const artifactTargetTaskKind = targetTaskKindFromSnapshot(artifact.study_scope_snapshot);
+  const legacyPriorAttempt = Boolean(
+    priorAttempt && priorAttempt.evidence_contract_version === null,
+  );
+  if (priorAttempt && !legacyPriorAttempt && (
+    priorAttempt.evidence_contract_version !== EVIDENCE_CONTRACT_VERSION
+    || !isLearningEvidenceTier(priorAttempt.evidence_tier)
+    || !isTeachingTaskKind(priorAttempt.target_task_kind)
+  )) {
+    return json({ error: "study result evidence contract is invalid" }, 409);
+  }
+  if (!priorAttempt && (!artifactEvidenceTier || !artifactTargetTaskKind)) {
+    return json({ error: "This study set must be refreshed before results can be saved" }, 409);
+  }
+  const evidenceContractVersion = legacyPriorAttempt ? null : EVIDENCE_CONTRACT_VERSION;
+  const evidenceTier = legacyPriorAttempt
+    ? null
+    : priorAttempt?.evidence_tier ?? artifactEvidenceTier!;
+  const targetTaskKind = legacyPriorAttempt
+    ? null
+    : priorAttempt?.target_task_kind ?? artifactTargetTaskKind!;
 
   const itemConceptIds = artifactItemConceptIds(artifact.kind, artifact.payload);
   if (!itemConceptIds) return json({ error: "study set payload is invalid" }, 409);
@@ -267,6 +369,51 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     return json({ error: "study set class does not match its concepts" }, 409);
   }
 
+  const examReadinessScopeIds = artifact.study_scope_type === "exam"
+    ? examReadinessScopeFromSnapshot(artifact.study_scope_snapshot)
+    : null;
+  if (!priorAttempt && artifact.study_scope_type === "exam") {
+    if (!UUID_PATTERN.test(artifact.study_scope_id)
+        || !examReadinessScopeIds
+        || conceptIds.some((conceptId) => !examReadinessScopeIds.includes(conceptId))) {
+      return json({ error: "This exam study set must be refreshed before results can be saved" }, 409);
+    }
+    // Validate the live assessment before reserving an attempt or applying any
+    // mastery. The atomic projection repeats this check under the class/exam
+    // row locks so an archive race cannot publish an exam readiness value.
+    const { data: activeExam, error: activeExamError } = await supabase
+      .from("exams")
+      .select("id, class_id, client_class_id")
+      .eq("user_id", userId)
+      .eq("id", artifact.study_scope_id)
+      .is("source_archived_at", null)
+      .maybeSingle();
+    if (activeExamError) return json({ error: "exam scope could not be verified" }, 500);
+    const examMatchesClass = Boolean(activeExam) && (realClassId
+      ? activeExam!.class_id === realClassId
+        || (activeExam!.class_id === null && activeExam!.client_class_id === clientClassId)
+      : activeExam!.class_id === null && activeExam!.client_class_id === clientClassId);
+    if (!examMatchesClass) {
+      return json({ error: "This exam study set must be refreshed before results can be saved" }, 409);
+    }
+    const { data: examScopeConcepts, error: examScopeError } = await supabase
+      .from("concepts")
+      .select("id, class_id, client_class_id, retired_at")
+      .eq("user_id", userId)
+      .in("id", examReadinessScopeIds);
+    if (examScopeError) return json({ error: "exam readiness scope could not be verified" }, 500);
+    if (!examScopeConcepts || examScopeConcepts.length !== examReadinessScopeIds.length
+        || examScopeConcepts.some((concept) => (
+          concept.retired_at !== null
+          || !(realClassId
+            ? concept.class_id === realClassId
+              || (concept.class_id === null && concept.client_class_id === clientClassId)
+            : concept.class_id === null && concept.client_class_id === clientClassId)
+        ))) {
+      return json({ error: "This exam study set must be refreshed before results can be saved" }, 409);
+    }
+  }
+
   const claimedAt = new Date().toISOString();
   const leaseToken = crypto.randomUUID();
   let practiceClientRequestHash: string | null = null;
@@ -297,6 +444,9 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     correct: boolean;
     confidence: ConfidenceLevel;
     recovered: boolean;
+    firstSelectedIndex?: number;
+    firstLeftPairId?: string;
+    firstSelectedPairId?: string;
   }>();
   let correct: number;
   let total: number;
@@ -357,14 +507,12 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       return json({ error: "artifactId, correct, total required" }, 400);
     }
     if (!Number.isInteger(body.total) || !Number.isInteger(body.correct)
-        || body.total <= 0 || body.correct < 0 || body.correct > body.total) {
+        || body.total <= 0 || body.total > itemConceptIds.length
+        || body.correct < 0 || body.correct > body.total) {
       return json({ error: "correct and total must be valid whole-number results" }, 400);
     }
-    if (body.total !== itemConceptIds.length) {
-      return json({ error: "total does not match this study set" }, 400);
-    }
-    if (!body.perConcept || body.perConcept.length !== conceptIds.length) {
-      return json({ error: "perConcept must score every item in this study set" }, 400);
+    if (!body.perConcept || body.perConcept.length !== body.total) {
+      return json({ error: "perConcept must score every submitted item" }, 400);
     }
     const allowed = new Set(conceptIds);
     for (const rawResult of body.perConcept as unknown[]) {
@@ -373,6 +521,8 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       }
       const p = rawResult as unknown as PerConcept;
       const confidence = p.confidence ?? "medium";
+      const currentMultipleChoice = artifact.kind === "multiple_choice"
+        && evidenceContractVersion === EVIDENCE_CONTRACT_VERSION;
       if (typeof p.conceptId !== "string"
           || !UUID_PATTERN.test(p.conceptId)
           || !allowed.has(p.conceptId)
@@ -380,21 +530,101 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
           || !["low", "medium", "high"].includes(confidence)
           || typeof p.correct !== "boolean"
           || (p.recovered !== undefined && typeof p.recovered !== "boolean")
-          || (p.recovered === true && p.correct === true)) {
+          || (p.recovered === true && p.correct === true)
+          || (currentMultipleChoice && !isNonNegativeInteger(p.firstSelectedIndex))
+          || (!currentMultipleChoice && p.firstSelectedIndex !== undefined)) {
         return json({ error: "perConcept contains an invalid or duplicate result" }, 400);
       }
       perMap.set(p.conceptId, {
         correct: p.correct,
         confidence,
         recovered: p.recovered === true,
+        ...(currentMultipleChoice ? { firstSelectedIndex: p.firstSelectedIndex } : {}),
       });
     }
     correct = body.correct;
     total = body.total;
-    if (conceptIds.some((id) => !perMap.has(id))
+
+    if (artifact.kind === "multiple_choice"
+        && evidenceContractVersion === EVIDENCE_CONTRACT_VERSION) {
+      if (body.matchingFirstChoices !== undefined) {
+        return json({ error: "multiple-choice grading evidence is invalid" }, 400);
+      }
+      const graded = gradeMultipleChoiceSelections(
+        artifact.payload,
+        [...perMap].map(([conceptId, result]) => ({
+          conceptId,
+          firstSelectedIndex: result.firstSelectedIndex!,
+        })),
+      );
+      if (!graded.ok) return json({ error: graded.reason }, 400);
+      for (const grade of graded.grades) {
+        const submitted = perMap.get(grade.conceptId);
+        if (!submitted || submitted.correct !== grade.correct) {
+          return json({ error: "multiple-choice result does not match its stored question" }, 400);
+        }
+        perMap.set(grade.conceptId, {
+          ...submitted,
+          correct: grade.correct,
+          firstSelectedIndex: grade.firstSelectedIndex,
+        });
+      }
+      correct = graded.grades.filter((grade) => grade.correct).length;
+      total = graded.grades.length;
+    } else if (artifact.kind === "matching"
+        && evidenceContractVersion === EVIDENCE_CONTRACT_VERSION) {
+      if (!Array.isArray(body.matchingFirstChoices) || !isConfidenceLevel(body.confidence)) {
+        return json({ error: "matching result must include first pair choices and confidence" }, 400);
+      }
+      const graded = gradeMatchingFirstChoices(artifact.payload, body.matchingFirstChoices);
+      if (!graded.ok) return json({ error: graded.reason }, 400);
+      const derivedMap = new Map<string, {
+        correct: boolean;
+        confidence: ConfidenceLevel;
+        recovered: boolean;
+        firstLeftPairId: string;
+        firstSelectedPairId: string;
+      }>();
+      for (const grade of graded.grades) {
+        const submitted = perMap.get(grade.conceptId);
+        const recovered = !grade.correct;
+        if (!submitted
+            || submitted.correct !== grade.correct
+            || submitted.confidence !== body.confidence
+            || submitted.recovered !== recovered) {
+          return json({ error: "matching result does not match its stored pairs" }, 400);
+        }
+        derivedMap.set(grade.conceptId, {
+          correct: grade.correct,
+          confidence: body.confidence,
+          recovered,
+          firstLeftPairId: grade.leftPairId,
+          firstSelectedPairId: grade.rightPairId,
+        });
+      }
+      perMap.clear();
+      for (const [conceptId, result] of derivedMap) perMap.set(conceptId, result);
+      correct = graded.grades.filter((grade) => grade.correct).length;
+      total = graded.grades.length;
+    } else if (body.matchingFirstChoices !== undefined) {
+      return json({ error: "matching grading evidence is invalid" }, 400);
+    }
+
+    if (body.correct !== correct || body.total !== total
         || [...perMap.values()].filter((result) => result.correct).length !== correct) {
       return json({ error: "correct and perConcept results do not match" }, 400);
     }
+  }
+  const scoredConceptIds = [...perMap.keys()];
+  if (priorAttempt && !attemptMatchesStudyRunContract(
+    priorAttempt,
+    studyRunContract.kind === "grouped"
+      ? { ...studyRunContract, conceptIds: scoredConceptIds }
+      : null,
+    correct,
+    total,
+  )) {
+    return json({ error: "attemptId already belongs to a different study result" }, 409);
   }
 
   const scorePct = Math.round((correct / total) * 100);
@@ -411,6 +641,15 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       perMap,
       selectedIndex,
       firstSelectedIndex,
+      evidenceContractVersion === EVIDENCE_CONTRACT_VERSION
+        ? { evidenceTier: evidenceTier!, targetTaskKind: targetTaskKind! }
+        : undefined,
+      studyRunContract.kind === "grouped"
+        ? {
+            ...studyRunContract,
+            durationSeconds: Math.trunc(body.durationSeconds),
+          }
+        : undefined,
     );
     practiceChallengeFingerprint = practiceChallengeMaterial
       ? await sha256Hex(practiceChallengeMaterial)
@@ -432,6 +671,219 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     if (completed.result_status !== "completed" || !completed.completed_at
         || !isRecord(completed.result_payload)) {
       return { ok: false as const };
+    }
+
+    if (studyRunContract.kind === "grouped") {
+      const runId = studyRunContract.studyRunId;
+      if (completed.session_id !== runId) return { ok: false as const };
+      const { data: rawRunAttempts, error: runAttemptsError } = await adminClient
+        .from("study_result_attempts")
+        .select("client_attempt_id, study_run_segment, study_run_final, study_run_correct, study_run_total, result_status, duration_seconds, completed_at")
+        .eq("study_run_id", runId)
+        .eq("user_id", userId)
+        .eq("artifact_id", artifact.id)
+        .order("study_run_segment", { ascending: true });
+      if (runAttemptsError || !rawRunAttempts?.length) return { ok: false as const };
+      const runAttempts: Array<StoredStudyRunSegment & { completedAt: string | null }> = [];
+      for (const rawAttempt of rawRunAttempts) {
+        if (typeof rawAttempt.client_attempt_id !== "string"
+            || !UUID_PATTERN.test(rawAttempt.client_attempt_id)
+            || !Number.isInteger(rawAttempt.study_run_segment)
+            || typeof rawAttempt.study_run_final !== "boolean"
+            || !Number.isInteger(rawAttempt.study_run_correct)
+            || !Number.isInteger(rawAttempt.study_run_total)
+            || typeof rawAttempt.result_status !== "string"
+            || !Number.isInteger(rawAttempt.duration_seconds)
+            || (rawAttempt.completed_at !== null && typeof rawAttempt.completed_at !== "string")) {
+          return { ok: false as const };
+        }
+        runAttempts.push({
+          clientAttemptId: rawAttempt.client_attempt_id,
+          segmentIndex: rawAttempt.study_run_segment as number,
+          segmentFinal: rawAttempt.study_run_final,
+          resultStatus: rawAttempt.result_status,
+          correct: rawAttempt.study_run_correct as number,
+          total: rawAttempt.study_run_total as number,
+          durationSeconds: rawAttempt.duration_seconds as number,
+          completedAt: rawAttempt.completed_at,
+        });
+      }
+      const aggregate = aggregateStudyRunSegments(runAttempts);
+      if (!aggregate) return { ok: false as const };
+      const completedAttemptIds = runAttempts
+        .filter((row) => row.resultStatus === "completed")
+        .map((row) => row.clientAttemptId);
+      const { data: rawEvidenceRows, error: evidenceRowsError } = await adminClient
+        .from("study_result_concept_updates")
+        .select("client_attempt_id, concept_id, answer_correct, previous_strength, resulting_strength")
+        .eq("user_id", userId)
+        .in("client_attempt_id", completedAttemptIds);
+      if (evidenceRowsError) return { ok: false as const };
+      const authoritativeEvidence: StoredStudyRunConceptEvidence[] = [];
+      for (const row of rawEvidenceRows ?? []) {
+        if (typeof row.client_attempt_id !== "string"
+            || typeof row.concept_id !== "string"
+            || typeof row.answer_correct !== "boolean") {
+          return { ok: false as const };
+        }
+        authoritativeEvidence.push({
+          clientAttemptId: row.client_attempt_id,
+          conceptId: row.concept_id,
+          correct: row.answer_correct,
+        });
+      }
+      const evidenceSummary = summarizeAuthoritativeStudyRunEvidence(
+        runAttempts,
+        authoritativeEvidence,
+        conceptIds,
+      );
+      if (!evidenceSummary || (aggregate.complete && !evidenceSummary.coverageComplete)) {
+        return { ok: false as const };
+      }
+      const finalAttempt = aggregate.complete
+        ? runAttempts.find((row) => row.segmentIndex === aggregate.finalSegmentIndex) ?? null
+        : null;
+      if (aggregate.complete && (!finalAttempt?.completedAt || !finalAttempt.segmentFinal)) {
+        return { ok: false as const };
+      }
+
+      const canonicalPayload = { ...completed.result_payload, sessionId: runId };
+      const historyPayload = {
+        schemaVersion: 2,
+        studyRunId: runId,
+        sessionId: runId,
+        correct: evidenceSummary.correct,
+        total: evidenceSummary.total,
+        segmentCount: aggregate.segmentCount,
+        complete: aggregate.complete,
+      };
+      const { data: repairedHistory, error: historyError } = await adminClient
+        .from("study_sessions")
+        .update({
+          result_status: aggregate.complete ? "completed" : "processing",
+          result_payload: historyPayload,
+          duration_minutes: Math.max(1, Math.round(aggregate.durationSeconds / 60)),
+          score: evidenceSummary.score,
+          ended_at: aggregate.complete ? finalAttempt!.completedAt : null,
+        })
+        .eq("id", runId)
+        .eq("study_run_id", runId)
+        .eq("user_id", userId)
+        .eq("artifact_id", artifact.id)
+        .eq("client_attempt_id", runId)
+        .is("result_request_hash", null)
+        .select("id")
+        .maybeSingle();
+      if (historyError || repairedHistory?.id !== runId) return { ok: false as const };
+
+      const { data: relinked, error: relinkError } = await adminClient
+        .from("study_result_attempts")
+        .update({
+          result_payload: canonicalPayload,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .eq("client_attempt_id", attemptId)
+        .eq("artifact_id", artifact.id)
+        .eq("study_run_id", runId)
+        .eq("result_request_hash", requestHash)
+        .eq("result_status", "completed")
+        .select("session_id")
+        .maybeSingle();
+      if (relinkError || relinked?.session_id !== runId) return { ok: false as const };
+
+      if (aggregate.complete) {
+        const runCompletedAt = finalAttempt!.completedAt!;
+        const { data: completedRun, error: runCompletionError } = await adminClient
+          .from("study_runs")
+          .update({
+            result_status: "completed",
+            session_id: runId,
+            completed_at: runCompletedAt,
+            updated_at: runCompletedAt,
+          })
+          .eq("id", runId)
+          .eq("user_id", userId)
+          .eq("artifact_id", artifact.id)
+          .eq("result_status", "processing")
+          .eq("final_segment_index", aggregate.finalSegmentIndex!)
+          .select(STUDY_RUN_SELECT)
+          .maybeSingle();
+        if (runCompletionError) return { ok: false as const };
+        if (!completedRun) {
+          const { data: existingRun, error: existingRunError } = await adminClient
+            .from("study_runs")
+            .select(STUDY_RUN_SELECT)
+            .eq("id", runId)
+            .maybeSingle();
+          if (existingRunError
+              || existingRun?.user_id !== userId
+              || existingRun?.artifact_id !== artifact.id
+              || existingRun?.result_status !== "completed"
+              || existingRun?.session_id !== runId
+              || existingRun?.final_segment_index !== aggregate.finalSegmentIndex
+              || existingRun?.completed_at !== runCompletedAt) {
+            return { ok: false as const };
+          }
+        }
+
+        if (artifact.topic && (realClassId || clientClassId)) {
+          await adminClient.from("topic_signals").upsert({
+            user_id: userId,
+            class_id: (realClassId ?? clientClassId) as string,
+            topic_id: artifact.topic,
+            topic_name: artifact.topic,
+            accuracy: evidenceSummary.score,
+            incorrect_count: Math.max(0, evidenceSummary.total - evidenceSummary.correct),
+            time_spent_minutes: Math.max(1, Math.round(aggregate.durationSeconds / 60)),
+            source_type: "study-session",
+            source_id: runId,
+          }, {
+            onConflict: "user_id,source_type,source_id",
+            ignoreDuplicates: true,
+          }).then(() => {}, () => {});
+        }
+
+        const masteryDeltas = (rawEvidenceRows ?? [])
+          .map((row) => (
+            typeof row.previous_strength === "number" && typeof row.resulting_strength === "number"
+              ? row.resulting_strength - row.previous_strength
+              : null
+          ))
+          .filter((value): value is number => typeof value === "number");
+        const averageDelta = masteryDeltas.length
+          ? masteryDeltas.reduce((sum, value) => sum + value, 0) / masteryDeltas.length
+          : null;
+        const snapshot = isRecord(artifact.study_scope_snapshot) ? artifact.study_scope_snapshot : {};
+        const strategyOutcome = executedStrategyOutcomeMetadata(snapshot);
+        const subjectProfile = isRecord(snapshot.subjectProfile) ? snapshot.subjectProfile : {};
+        const { error: strategyOutcomeError } = await adminClient
+          .from("study_strategy_outcomes")
+          .upsert({
+            user_id: userId,
+            client_attempt_id: finalAttempt!.clientAttemptId,
+            class_id: realClassId,
+            artifact_id: artifact.id,
+            subject_profile: typeof subjectProfile.id === "string" ? subjectProfile.id : "general",
+            task_kind: strategyOutcome.taskKind,
+            format: artifact.kind,
+            strategy_id: strategyOutcome.strategyId,
+            technique: strategyOutcome.technique,
+            modality: strategyOutcome.modality,
+            outcome_source: "study_result",
+            correct: evidenceSummary.correct,
+            total: evidenceSummary.total,
+            mastery_delta: averageDelta === null ? null : Number(averageDelta.toFixed(4)),
+            evidence_tier: evidenceTier,
+            occurred_at: runCompletedAt,
+          }, {
+            onConflict: "user_id,client_attempt_id",
+            ignoreDuplicates: true,
+          });
+        if (strategyOutcomeError) return { ok: false as const };
+      }
+
+      return { ok: true as const, payload: canonicalPayload };
     }
 
     let sessionId = completed.session_id;
@@ -577,10 +1029,102 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     if (boundary instanceof Response) return boundary;
   }
 
+  let groupedRun: StudyRunRow | null = null;
+  if (studyRunContract.kind === "grouped") {
+    const loadStudyRun = async () => {
+      const { data, error } = await adminClient
+        .from("study_runs")
+        .select(STUDY_RUN_SELECT)
+        .eq("id", studyRunContract.studyRunId)
+        .maybeSingle();
+      return { run: data as StudyRunRow | null, error };
+    };
+    let loaded = await loadStudyRun();
+    if (loaded.error) return json({ error: "study run lookup failed" }, 500);
+    if (!loaded.run && !priorAttempt) {
+      const { data, error } = await adminClient
+        .from("study_runs")
+        .insert({
+          id: studyRunContract.studyRunId,
+          user_id: userId,
+          artifact_id: artifact.id,
+          evidence_contract_version: EVIDENCE_CONTRACT_VERSION,
+          result_status: "processing",
+        })
+        .select(STUDY_RUN_SELECT)
+        .maybeSingle();
+      if (error?.code === "23505") {
+        loaded = await loadStudyRun();
+        if (loaded.error) return json({ error: "study run lookup failed" }, 500);
+      } else if (error) {
+        return json({ error: "study run reservation failed", retryable: true }, 500);
+      } else {
+        loaded = { run: data as StudyRunRow | null, error: null };
+      }
+    }
+    groupedRun = loaded.run;
+    if (!groupedRun
+        || groupedRun.user_id !== userId
+        || groupedRun.artifact_id !== artifact.id
+        || groupedRun.evidence_contract_version !== EVIDENCE_CONTRACT_VERSION) {
+      return json({ error: "studyRunId already belongs to a different study run" }, 409);
+    }
+    if (!priorAttempt && (
+      groupedRun.result_status === "completed"
+      || groupedRun.final_segment_index !== null
+    )) {
+      return json({ error: "study run is already final" }, 409);
+    }
+    if (!priorAttempt) {
+      const { data: priorSegments, error: priorSegmentsError } = await adminClient
+        .from("study_result_attempts")
+        .select("client_attempt_id")
+        .eq("study_run_id", studyRunContract.studyRunId)
+        .eq("user_id", userId)
+        .eq("artifact_id", artifact.id);
+      if (priorSegmentsError) return json({ error: "study run evidence lookup failed" }, 500);
+      const priorAttemptIds = (priorSegments ?? []).map((row) => row.client_attempt_id);
+      let priorConceptIds: string[] = [];
+      if (priorAttemptIds.length) {
+        const { data: priorEvidence, error: priorEvidenceError } = await adminClient
+          .from("study_result_concept_updates")
+          .select("concept_id")
+          .eq("user_id", userId)
+          .in("client_attempt_id", priorAttemptIds);
+        if (priorEvidenceError) {
+          return json({ error: "study run evidence lookup failed" }, 500);
+        }
+        priorConceptIds = (priorEvidence ?? []).map((row) => row.concept_id);
+      }
+      const priorConceptSet = new Set(priorConceptIds);
+      if (scoredConceptIds.some((conceptId) => priorConceptSet.has(conceptId))) {
+        return json({
+          error: "study run already contains evidence for this concept",
+          reason: "study_run_coverage_conflict",
+          retryable: false,
+        }, 409);
+      }
+      const coveredConcepts = new Set([...priorConceptIds, ...scoredConceptIds]);
+      const exactArtifactCoverage = coveredConcepts.size === conceptIds.length
+        && conceptIds.every((conceptId) => coveredConcepts.has(conceptId));
+      if (studyRunContract.segmentFinal !== exactArtifactCoverage) {
+        return json({
+          error: studyRunContract.segmentFinal
+            ? "final study segment must cover every artifact concept exactly once"
+            : "complete artifact coverage must be marked as the final study segment",
+          reason: "study_run_coverage_conflict",
+          retryable: false,
+        }, 409);
+      }
+    }
+  }
+
   let attempt: StudyResultAttemptRow | null = null;
   let practiceMasteryReservation: PracticeMasteryReservation | null = null;
   const reservePracticeMastery = () => adminClient.rpc(
-    "reserve_practice_study_attempt",
+    evidenceContractVersion === EVIDENCE_CONTRACT_VERSION
+      ? "reserve_practice_study_attempt_v2"
+      : "reserve_practice_study_attempt",
     {
       p_user_id: userId,
       p_client_attempt_id: attemptId,
@@ -610,6 +1154,27 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       if (!repaired.ok) {
         return json({ error: "study history repair failed", retryable: true }, 500);
       }
+      if (evidenceContractVersion === EVIDENCE_CONTRACT_VERSION
+          && (realClassId || clientClassId)) {
+        // Re-entering the atomic projector is safe: it preserves the frozen
+        // per-attempt row while repairing a missing history projection and the
+        // current full-class cache. Completed retries never overwrite an exam
+        // cache from an older artifact denominator.
+        const { error: readinessRepairError } = await adminClient.rpc(
+          "project_study_readiness_v1",
+          {
+            p_user_id: userId,
+            p_client_attempt_id: attemptId,
+            p_artifact_id: artifact.id,
+            p_result_request_hash: requestHash,
+            p_lease_token: priorAttempt.lease_token,
+            p_scored_concept_ids: scoredConceptIds,
+          },
+        );
+        if (readinessRepairError) {
+          return json({ error: "study readiness repair failed", retryable: true }, 500);
+        }
+      }
       return json(repaired.payload);
     }
     if (disposition === "wait") {
@@ -632,7 +1197,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       .eq("result_status", priorAttempt.result_status)
       .eq("lease_token", priorAttempt.lease_token)
       .eq("lease_started_at", priorAttempt.lease_started_at)
-      .select("artifact_id, challenge_fingerprint, client_request_hash, verified_grading_snapshot, result_status, result_payload, result_request_hash, lease_token, lease_started_at, duration_seconds, session_id, completed_at")
+      .select(ATTEMPT_SELECT)
       .maybeSingle();
     if (reclaimError) return json({ error: "attempt reclaim failed" }, 500);
     if (!reclaimed) {
@@ -685,6 +1250,16 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         duration_seconds: Math.trunc(body.durationSeconds),
         session_id: null,
         completed_at: null,
+        evidence_contract_version: EVIDENCE_CONTRACT_VERSION,
+        evidence_tier: evidenceTier,
+        target_task_kind: targetTaskKind,
+        readiness_projection: null,
+        study_run_id: null,
+        study_run_segment: null,
+        study_run_final: null,
+        study_run_correct: null,
+        study_run_total: null,
+        study_run_concept_ids: null,
       };
     } else {
       const { data: insertedAttempt, error: attemptInsertError } = await adminClient
@@ -701,10 +1276,31 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
           lease_token: leaseToken,
           lease_started_at: claimedAt,
           duration_seconds: Math.trunc(body.durationSeconds),
+          evidence_contract_version: EVIDENCE_CONTRACT_VERSION,
+          evidence_tier: evidenceTier,
+          target_task_kind: targetTaskKind,
+          ...(studyRunContract.kind === "grouped"
+            ? {
+                study_run_id: studyRunContract.studyRunId,
+                study_run_segment: studyRunContract.segmentIndex,
+                study_run_final: studyRunContract.segmentFinal,
+                study_run_correct: correct,
+                study_run_total: total,
+                study_run_concept_ids: [...scoredConceptIds].sort(),
+              }
+            : {}),
         })
-        .select("artifact_id, challenge_fingerprint, client_request_hash, verified_grading_snapshot, result_status, result_payload, result_request_hash, lease_token, lease_started_at, duration_seconds, session_id, completed_at")
+        .select(ATTEMPT_SELECT)
         .single();
       if (attemptInsertError) {
+        if (studyRunContract.kind === "grouped"
+            && isStudyRunCoverageError(attemptInsertError)) {
+          return json({
+            error: "study run coverage is invalid; start a new study run",
+            reason: "study_run_coverage_conflict",
+            retryable: false,
+          }, 409);
+        }
         if (attemptInsertError.code === "23505") {
           return json({ error: "study result is already being saved", retryable: true }, 409);
         }
@@ -750,34 +1346,48 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   }
   if (!attempt) return json({ error: "attempt reservation failed" }, 500);
 
-  // The first accepted request owns timing. A mobile retry may arrive later,
-  // but it cannot rewrite the duration used by history or topic signals.
+  // The first accepted request owns this segment's timing. Grouped attempts
+  // carry deltas; the shared history row aggregates them exactly once.
   const attemptDurationMinutes = Math.max(1, Math.round(attempt.duration_seconds / 60));
 
   // study_sessions is presentation/history only. Service-role writes plus the
-  // database guard keep artifact rows immutable to browser clients.
+  // database guard keep artifact rows immutable to browser clients. Grouped
+  // attempts share one deterministic session id for the whole logical run.
   let session: { id: string } | null = null;
   if (attempt.session_id) {
     const { data: linkedSession, error: linkedSessionError } = await adminClient
       .from("study_sessions")
-      .select("id")
+      .select("id, user_id, artifact_id, client_attempt_id, result_request_hash, study_run_id")
       .eq("id", attempt.session_id)
-      .eq("user_id", userId)
-      .eq("artifact_id", artifact.id)
-      .eq("client_attempt_id", attemptId)
-      .eq("result_request_hash", requestHash)
       .maybeSingle();
     if (linkedSessionError) {
       return json({ error: "session lookup failed" }, 500);
     }
-    if (!linkedSession) return json({ error: "attempt history link is invalid" }, 500);
+    if (!linkedSession
+        || linkedSession.user_id !== userId
+        || linkedSession.artifact_id !== artifact.id
+        || (studyRunContract.kind === "grouped"
+          ? linkedSession.id !== studyRunContract.studyRunId
+            || linkedSession.client_attempt_id !== studyRunContract.studyRunId
+            || linkedSession.study_run_id !== studyRunContract.studyRunId
+            || linkedSession.result_request_hash !== null
+          : linkedSession.client_attempt_id !== attemptId
+            || linkedSession.result_request_hash !== requestHash
+            || linkedSession.study_run_id !== null)) {
+      return json({ error: "attempt history link is invalid" }, 500);
+    }
     session = linkedSession;
   } else {
     const sessionValues = {
       user_id: userId,
       artifact_id: artifact.id,
-      client_attempt_id: attemptId,
-      result_request_hash: requestHash,
+      client_attempt_id: studyRunContract.kind === "grouped"
+        ? studyRunContract.studyRunId
+        : attemptId,
+      result_request_hash: studyRunContract.kind === "grouped" ? null : requestHash,
+      study_run_id: studyRunContract.kind === "grouped"
+        ? studyRunContract.studyRunId
+        : null,
       result_status: "processing",
       result_payload: null,
       class_id: realClassId,
@@ -794,23 +1404,40 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     };
     const { data: insertedSession, error: sessionInsertError } = await adminClient
       .from("study_sessions")
-      .insert(sessionValues)
+      .insert({
+        ...(studyRunContract.kind === "grouped" ? { id: studyRunContract.studyRunId } : {}),
+        ...sessionValues,
+      })
       .select("id")
       .maybeSingle();
     if (sessionInsertError?.code === "23505") {
-      const { data: recoveredSession, error: recoveredSessionError } = await adminClient
+      const recoveredQuery = adminClient
         .from("study_sessions")
-        .update(sessionValues)
-        .eq("user_id", userId)
-        .eq("client_attempt_id", attemptId)
-        .eq("artifact_id", artifact.id)
-        .eq("result_request_hash", requestHash)
-        .select("id")
-        .maybeSingle();
+        .select("id, user_id, artifact_id, client_attempt_id, result_request_hash, study_run_id");
+      const { data: recoveredSession, error: recoveredSessionError } = studyRunContract.kind === "grouped"
+        ? await recoveredQuery.eq("id", studyRunContract.studyRunId).maybeSingle()
+        : await recoveredQuery
+          .eq("user_id", userId)
+          .eq("client_attempt_id", attemptId)
+          .eq("artifact_id", artifact.id)
+          .eq("result_request_hash", requestHash)
+          .maybeSingle();
       if (recoveredSessionError) {
         return json({ error: "session recovery failed" }, 500);
       }
-      session = recoveredSession;
+      if (!recoveredSession
+          || recoveredSession.user_id !== userId
+          || recoveredSession.artifact_id !== artifact.id
+          || (studyRunContract.kind === "grouped"
+            ? recoveredSession.client_attempt_id !== studyRunContract.studyRunId
+              || recoveredSession.study_run_id !== studyRunContract.studyRunId
+              || recoveredSession.result_request_hash !== null
+            : recoveredSession.client_attempt_id !== attemptId
+              || recoveredSession.result_request_hash !== requestHash
+              || recoveredSession.study_run_id !== null)) {
+        return json({ error: "session recovery conflict" }, 409);
+      }
+      session = { id: recoveredSession.id };
     } else if (sessionInsertError) {
       return json({ error: "session insert failed" }, 500);
     } else {
@@ -835,11 +1462,26 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }
     attempt.session_id = session.id;
   }
+  if (studyRunContract.kind === "grouped" && groupedRun?.session_id !== session.id) {
+    const { data: linkedRun, error: runLinkError } = await adminClient
+      .from("study_runs")
+      .update({ session_id: session.id, updated_at: new Date().toISOString() })
+      .eq("id", studyRunContract.studyRunId)
+      .eq("user_id", userId)
+      .eq("artifact_id", artifact.id)
+      .select("session_id")
+      .maybeSingle();
+    if (runLinkError || linkedRun?.session_id !== session.id) {
+      return json({ error: "study run history link failed", retryable: true }, 500);
+    }
+    groupedRun!.session_id = session.id;
+  }
 
   // 4. Update user_concept_mastery per concept.
   // Per-concept results if provided; otherwise apply overall pass/fail to each.
   const now = new Date();
   const previousStrengthByConcept = new Map<string, number>();
+  const resultingStrengthByConcept = new Map<string, number>();
   let appliedAny = false;
   if (artifact.kind === "practice") {
     if (!practiceMasteryReservation) {
@@ -847,9 +1489,12 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }
     appliedAny = practiceMasteryReservation.applied;
     previousStrengthByConcept.set(conceptIds[0], practiceMasteryReservation.previousStrength);
-  } else for (const conceptId of conceptIds) {
+    resultingStrengthByConcept.set(conceptIds[0], practiceMasteryReservation.resultingStrength);
+  } else for (const conceptId of scoredConceptIds) {
     const { data: applied, error: applyErr } = await adminClient.rpc(
-      "apply_study_concept_result_v2",
+      evidenceContractVersion === EVIDENCE_CONTRACT_VERSION
+        ? "apply_study_concept_result_v3"
+        : "apply_study_concept_result_v2",
       {
         p_user_id: userId,
         p_attempt_id: attemptId,
@@ -871,14 +1516,26 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         .eq("result_request_hash", requestHash)
         .eq("result_status", "processing")
         .eq("lease_token", attempt.lease_token);
+      if (studyRunContract.kind === "grouped" && isStudyRunCoverageError(applyErr)) {
+        return json({
+          error: "study run coverage is invalid; start a new study run",
+          reason: "study_run_coverage_conflict",
+          retryable: false,
+        }, 409);
+      }
       return json({ error: "mastery update failed" }, 500);
     }
     const result = applied as {
       applied?: boolean;
       previousStrength?: number | null;
+      resultingStrength?: number | null;
     } | null;
     appliedAny = appliedAny || result?.applied === true;
     previousStrengthByConcept.set(conceptId, Number(result?.previousStrength) || 0);
+    resultingStrengthByConcept.set(
+      conceptId,
+      Number(result?.resultingStrength ?? result?.previousStrength) || 0,
+    );
   }
 
   // A reclaimed request may be repairing the projections after mastery was
@@ -905,71 +1562,72 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     return json({ error: "study result was superseded; retry safely", retryable: true }, 409);
   }
 
-  // 5. Recompute class readiness from mastery.
+  const markActiveAttemptFailed = async () => {
+    await adminClient
+      .from("study_result_attempts")
+      .update({ result_status: "failed", updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("client_attempt_id", attemptId)
+      .eq("artifact_id", artifact.id)
+      .eq("result_request_hash", requestHash)
+      .eq("result_status", "processing")
+      .eq("lease_token", attempt.lease_token);
+  };
+
+  const derivedWriteFailure = async (message: string) => {
+    // Mastery is already idempotently committed. Marking the projection phase
+    // failed lets the exact same outbox request reclaim immediately and repair
+    // readiness/strategy rows without waiting for the active lease to expire.
+    await markActiveAttemptFailed();
+    return json({ error: message, retryable: true }, 500);
+  };
+
+  // 5. Project full-scope readiness in one service-only database transaction.
+  // The RPC owns the denominator, class/exam locks, missing-as-zero math,
+  // frozen attempt history and current caches. Keeping those steps together
+  // prevents a slower concurrent worker from publishing an older calculation.
   let readiness: number | null = null;
   let readinessBefore: number | null = null;
   if (realClassId || clientClassId) {
-    const isExamScope = artifact.study_scope_type === "exam";
-    let activeConceptIds = conceptIds;
-    if (!isExamScope) {
-      let activeConceptQuery = supabase
-        .from("concepts")
-        .select("id")
-        .eq("user_id", userId)
-        .is("retired_at", null);
-      activeConceptQuery = realClassId
-        ? activeConceptQuery.eq("class_id", realClassId)
-        : activeConceptQuery.eq("client_class_id", clientClassId!);
-      const { data: activeConcepts } = await activeConceptQuery;
-      activeConceptIds = (activeConcepts ?? []).map((concept) => concept.id as string);
+    if (!shouldWriteDerivedEvidence) {
+      return await derivedWriteFailure("readiness evidence was not committed");
     }
-
-    const { data: masteryAll } = activeConceptIds.length
-      ? await supabase
-        .from("user_concept_mastery")
-        .select("concept_id, strength")
-        .eq("user_id", userId)
-        .in("concept_id", activeConceptIds)
-      : { data: [] as Array<{ concept_id: string; strength: number }> };
-    const vals = (masteryAll ?? []).map((r) => Number(r.strength) || 0);
-    if (vals.length) {
-      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-      readiness = Math.round(clamp(avg, 0, 1) * 100);
-
-      const beforeVals = (masteryAll ?? []).map((row) => {
-        const conceptId = row.concept_id as string;
-        if (!perMap.has(conceptId)) return Number(row.strength) || 0;
-        return previousStrengthByConcept.get(conceptId) ?? 0;
-      });
-      const beforeAvg = beforeVals.reduce((a, b) => a + b, 0) / beforeVals.length;
-      readinessBefore = Math.round(clamp(beforeAvg, 0, 1) * 100);
+    const { data: projected, error: projectionError } = await adminClient.rpc(
+      "project_study_readiness_v1",
+      {
+        p_user_id: userId,
+        p_client_attempt_id: attemptId,
+        p_artifact_id: artifact.id,
+        p_result_request_hash: requestHash,
+        p_lease_token: attempt.lease_token,
+        p_scored_concept_ids: scoredConceptIds,
+      },
+    );
+    if (projectionError) {
+      return await derivedWriteFailure("readiness projection failed");
     }
-    if (readiness !== null) {
-      if (shouldWriteDerivedEvidence) {
-        await adminClient.from("readiness_scores").upsert({
-          user_id: userId,
-          class_id: realClassId,
-          client_class_id: clientClassId,
-          readiness,
-          source_attempt_id: attemptId,
-          computed_at: now.toISOString(),
-        }, {
-          onConflict: "user_id,source_attempt_id",
-          ignoreDuplicates: true,
-        });
+    if (evidenceContractVersion === EVIDENCE_CONTRACT_VERSION) {
+      const parsedProjection = parseReadinessProjection(projected);
+      if (!parsedProjection) {
+        return await derivedWriteFailure("readiness projection was invalid");
       }
-      if (isExamScope && artifact.study_scope_id) {
-        await adminClient
-          .from("exams")
-          .update({ readiness })
-          .eq("user_id", userId)
-          .eq("id", artifact.study_scope_id);
+      readiness = parsedProjection.readiness;
+      readinessBefore = parsedProjection.readinessBefore;
+    } else {
+      const legacyProjection = parseLegacyReadinessProjection(projected);
+      if (!legacyProjection) {
+        return await derivedWriteFailure("legacy readiness repair was invalid");
       }
+      readiness = legacyProjection.readiness;
+      readinessBefore = legacyProjection.readinessBefore;
     }
   }
 
   // 6. Optional topic_signal (best-effort, non-fatal).
-  if (shouldWriteDerivedEvidence && artifact.topic && (realClassId || clientClassId)) {
+  if (studyRunContract.kind !== "grouped"
+      && shouldWriteDerivedEvidence
+      && artifact.topic
+      && (realClassId || clientClassId)) {
     await adminClient.from("topic_signals").upsert({
       user_id: userId,
       class_id: (realClassId ?? clientClassId) as string,
@@ -986,41 +1644,53 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }).then(() => {}, () => {});
   }
 
-  // 7. Strategy-effectiveness evidence (best-effort, non-fatal).
+  // 7. Strategy-effectiveness evidence is part of the durable learning loop.
   // Only ranking metadata is stored — never question text, answers, concept
   // content, or source excerpts. Owner-scoped; no cross-student aggregation.
-  if (shouldWriteDerivedEvidence) {
+  if (studyRunContract.kind !== "grouped" && shouldWriteDerivedEvidence) {
     const snapshot = isRecord(artifact.study_scope_snapshot) ? artifact.study_scope_snapshot : {};
-    const strategy = isRecord(snapshot.strategy) ? snapshot.strategy : {};
+    const strategyOutcome = executedStrategyOutcomeMetadata(snapshot);
     const subjectProfile = isRecord(snapshot.subjectProfile) ? snapshot.subjectProfile : {};
-    const masteryDeltas = conceptIds
-      .map((conceptId) => previousStrengthByConcept.get(conceptId))
+    const masteryDeltas = scoredConceptIds
+      .map((conceptId) => {
+        const previous = previousStrengthByConcept.get(conceptId);
+        const resulting = resultingStrengthByConcept.get(conceptId);
+        return typeof previous === "number" && typeof resulting === "number"
+          ? resulting - previous
+          : null;
+      })
       .filter((value): value is number => typeof value === "number");
-    const averagePrevious = masteryDeltas.length
+    const averageDelta = masteryDeltas.length
       ? masteryDeltas.reduce((a, b) => a + b, 0) / masteryDeltas.length
       : null;
-    await adminClient.from("study_strategy_outcomes").upsert({
+    const { error: strategyOutcomeError } = await adminClient.from("study_strategy_outcomes").upsert({
       user_id: userId,
       client_attempt_id: attemptId,
       class_id: realClassId,
       artifact_id: artifact.id,
       subject_profile: typeof subjectProfile.id === "string" ? subjectProfile.id : "general",
-      task_kind: typeof strategy.taskKind === "string" ? strategy.taskKind : null,
+      task_kind: strategyOutcome.taskKind,
       format: artifact.kind,
-      strategy_id: typeof strategy.id === "string" ? strategy.id : null,
-      technique: typeof strategy.technique === "string" ? strategy.technique : null,
-      modality: typeof strategy.modality === "string" ? strategy.modality : null,
+      strategy_id: strategyOutcome.strategyId,
+      technique: strategyOutcome.technique,
+      modality: strategyOutcome.modality,
       outcome_source: "study_result",
       correct,
       total,
-      mastery_delta: averagePrevious === null
+      mastery_delta: averageDelta === null
         ? null
-        : Number((correct / total - averagePrevious).toFixed(4)),
+        : Number(averageDelta.toFixed(4)),
+      evidence_tier: evidenceContractVersion === EVIDENCE_CONTRACT_VERSION
+        ? evidenceTier
+        : null,
       occurred_at: now.toISOString(),
     }, {
       onConflict: "user_id,client_attempt_id",
       ignoreDuplicates: true,
-    }).then(() => {}, () => {});
+    });
+    if (strategyOutcomeError) {
+      return await derivedWriteFailure("strategy evidence update failed");
+    }
   }
 
   const resultPayload = {
@@ -1031,7 +1701,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     readinessDelta: readiness !== null && readinessBefore !== null
       ? readiness - readinessBefore
       : null,
-    updatedConcepts: conceptIds.length,
+    updatedConcepts: scoredConceptIds.length,
     recoveredConcepts: [...perMap.values()].filter((result) => result.recovered).length,
   };
 
@@ -1356,14 +2026,100 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
+function attemptMatchesStudyRunContract(
+  attempt: StudyResultAttemptRow,
+  contract: (GroupedStudyRunSegment & { conceptIds: string[] }) | null,
+  correct: number,
+  total: number,
+) {
+  if (!contract) {
+    return attempt.study_run_id === null
+      && attempt.study_run_segment === null
+      && attempt.study_run_final === null
+      && attempt.study_run_correct === null
+      && attempt.study_run_total === null
+      && attempt.study_run_concept_ids === null;
+  }
+  return attempt.study_run_id === contract.studyRunId
+    && attempt.study_run_segment === contract.segmentIndex
+    && attempt.study_run_final === contract.segmentFinal
+    && attempt.study_run_correct === correct
+    && attempt.study_run_total === total
+    && sameStringSet(attempt.study_run_concept_ids, contract.conceptIds);
+}
+
+function sameStringSet(left: string[] | null, right: string[]) {
+  if (!left || left.length !== right.length) return false;
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
+function isStudyRunCoverageError(error: unknown) {
+  if (!isRecord(error) || typeof error.message !== "string") return false;
+  return [
+    "study run segment concepts",
+    "study run segment repeats concept evidence",
+    "final study run segment",
+    "complete artifact coverage",
+    "study run concept evidence cannot appear",
+  ].some((fragment) => error.message.includes(fragment));
+}
+
+function parseReadinessProjection(value: unknown): ReadinessProjection | null {
+  if (!isRecord(value)
+      || value.schemaVersion !== 1
+      || !["recent", "class", "exam"].includes(String(value.scopeType))
+      || !isPercentageInteger(value.responseReadiness)
+      || !isPercentageInteger(value.responseReadinessBefore)) {
+    return null;
+  }
+  return {
+    readiness: value.responseReadiness,
+    readinessBefore: value.responseReadinessBefore,
+  };
+}
+
+function parseLegacyReadinessProjection(value: unknown): LegacyReadinessProjection | null {
+  if (!isRecord(value)
+      || value.schemaVersion !== 0
+      || !["recent", "class", "exam"].includes(String(value.scopeType))) {
+    return null;
+  }
+  if (value.scopeType === "exam") {
+    return value.responseReadiness === null && value.responseReadinessBefore === null
+      ? { readiness: null, readinessBefore: null }
+      : null;
+  }
+  if (!isPercentageInteger(value.responseReadiness)
+      || !isPercentageInteger(value.responseReadinessBefore)) {
+    return null;
+  }
+  return {
+    readiness: value.responseReadiness,
+    readinessBefore: value.responseReadinessBefore,
+  };
+}
+
+function isPercentageInteger(value: unknown): value is number {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value >= 0
+    && value <= 100;
+}
+
 function parsePracticeMasteryReservation(
   reservation: Record<string, unknown>,
 ): PracticeMasteryReservation {
+  const previousStrength = typeof reservation.previousStrength === "number"
+    ? reservation.previousStrength
+    : 0;
   return {
     applied: reservation.masteryApplied === true,
-    previousStrength: typeof reservation.previousStrength === "number"
-      ? reservation.previousStrength
-      : 0,
+    previousStrength,
+    resultingStrength: typeof reservation.resultingStrength === "number"
+      ? reservation.resultingStrength
+      : previousStrength,
   };
 }
 
@@ -1375,17 +2131,43 @@ async function studyResultRequestHash(
     correct: boolean;
     confidence: ConfidenceLevel;
     recovered: boolean;
+    firstSelectedIndex?: number;
+    firstLeftPairId?: string;
+    firstSelectedPairId?: string;
   }>,
   selectedIndex?: number,
   firstSelectedIndex?: number,
+  evidence?: {
+    evidenceTier: LearningEvidenceTier;
+    targetTaskKind: TeachingTaskKind;
+  },
+  studyRun?: GroupedStudyRunSegment & { durationSeconds: number },
 ) {
   const canonicalResult: Record<string, unknown> = {
+    ...(evidence
+      ? {
+          schemaVersion: "learning-evidence-v2",
+          evidenceTier: evidence.evidenceTier,
+          targetTaskKind: evidence.targetTaskKind,
+        }
+      : {}),
     artifactId,
     correct,
     total,
     perConcept: [...perConcept.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([conceptId, result]) => ({ conceptId, ...result })),
+    ...(studyRun
+      ? {
+          studyRun: {
+            schemaVersion: 2,
+            studyRunId: studyRun.studyRunId,
+            segmentIndex: studyRun.segmentIndex,
+            segmentFinal: studyRun.segmentFinal,
+            durationSeconds: studyRun.durationSeconds,
+          },
+        }
+      : {}),
   };
   // Keep legacy hashes byte-for-byte compatible while binding a practice
   // attempt to the exact transfer choice the student submitted.

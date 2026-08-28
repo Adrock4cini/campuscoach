@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getAgreementStatus: vi.fn(),
   acceptAgreementReceipt: vi.fn(),
   agreementOwnerId: "student-1",
+  demoModeEnabled: true,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -58,6 +59,10 @@ vi.mock("@/lib/legal/familyBetaAgreementService", () => ({
   acceptCurrentFamilyBetaAgreement: mocks.acceptAgreementReceipt,
 }));
 
+vi.mock("@/lib/legal/familyBeta", () => ({
+  demoModeEnabled: () => mocks.demoModeEnabled,
+}));
+
 import { KNOWN_SESSION_KEY } from "@/lib/auth/sessionResilience";
 import {
   AuthProvider,
@@ -82,10 +87,11 @@ function AuthSnapshot() {
 }
 
 function AuthModeSnapshot() {
-  const { mode, enableDemoMode } = useAuth();
+  const { mode, isDemoMode, enableDemoMode } = useAuth();
   return (
     <div>
       <output aria-label="Data mode">{mode}</output>
+      <output aria-label="Demo access">{String(isDemoMode)}</output>
       <button type="button" onClick={enableDemoMode}>Enable demo</button>
     </div>
   );
@@ -130,6 +136,7 @@ describe("AuthProvider session restoration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.authCallback = undefined;
+    mocks.demoModeEnabled = true;
     localStorage.clear();
     mocks.profileMaybeSingle.mockResolvedValue({
       data: { onboarded_at: "2026-01-01", schools: null },
@@ -185,6 +192,57 @@ describe("AuthProvider session restoration", () => {
     expect(screen.getByRole("status", { name: "Data mode" })).toHaveTextContent("real");
     expect(localStorage.getItem("cc_demo_mode_v1")).toBeNull();
     expect(mocks.setSupabaseNetworkMode).not.toHaveBeenCalledWith("demo");
+  });
+
+  it("discards a stale demo marker when the closed release disables demo access", async () => {
+    localStorage.setItem("cc_demo_mode_v1", "1");
+    mocks.demoModeEnabled = false;
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    render(
+      <AuthProvider>
+        <AuthModeSnapshot />
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole("status", { name: "Demo access" })).toHaveTextContent("false");
+    expect(screen.getByRole("status", { name: "Data mode" })).toHaveTextContent("loading");
+    expect(localStorage.getItem("cc_demo_mode_v1")).toBeNull();
+    expect(mocks.setSupabaseNetworkMode).not.toHaveBeenCalledWith("demo");
+
+    fireEvent.click(screen.getByRole("button", { name: "Enable demo" }));
+    expect(screen.getByRole("status", { name: "Demo access" })).toHaveTextContent("false");
+    expect(localStorage.getItem("cc_demo_mode_v1")).toBeNull();
+  });
+
+  it("keeps a closed, settled signed-out session out of demo data mode", async () => {
+    mocks.demoModeEnabled = false;
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    render(
+      <AuthProvider>
+        <AuthModeSnapshot />
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole("status", { name: "Data mode" })).toHaveTextContent("loading");
+    expect(screen.getByRole("status", { name: "Demo access" })).toHaveTextContent("false");
+    expect(mocks.setSupabaseNetworkMode).toHaveBeenLastCalledWith("loading");
+  });
+
+  it("restores an explicitly enabled demo outside the closed release", async () => {
+    localStorage.setItem("cc_demo_mode_v1", "1");
+    mocks.demoModeEnabled = true;
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    render(
+      <AuthProvider>
+        <AuthModeSnapshot />
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole("status", { name: "Demo access" })).toHaveTextContent("true");
+    expect(localStorage.getItem("cc_demo_mode_v1")).toBe("1");
   });
 
   it("does not let a stale startup result overwrite a newer sign-in", async () => {

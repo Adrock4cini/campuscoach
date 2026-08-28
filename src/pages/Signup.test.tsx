@@ -1,9 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  FAMILY_BETA_STAGING_PROJECT_REF,
-} from "@/lib/legal/familyBeta";
+
+const FAMILY_BETA_TEST_STAGING_PROJECT_REF = "abcdefghijklmnopqrst";
 
 const mocks = vi.hoisted(() => ({
   signUp: vi.fn(),
@@ -54,8 +53,9 @@ function renderSignup() {
 describe("family beta signup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("VITE_SUPABASE_PROJECT_ID", FAMILY_BETA_STAGING_PROJECT_REF);
-    vi.stubEnv("VITE_SUPABASE_URL", `https://${FAMILY_BETA_STAGING_PROJECT_REF}.supabase.co`);
+    vi.stubEnv("VITE_FAMILY_BETA_STAGING_PROJECT_ID", FAMILY_BETA_TEST_STAGING_PROJECT_REF);
+    vi.stubEnv("VITE_SUPABASE_PROJECT_ID", FAMILY_BETA_TEST_STAGING_PROJECT_REF);
+    vi.stubEnv("VITE_SUPABASE_URL", `https://${FAMILY_BETA_TEST_STAGING_PROJECT_REF}.supabase.co`);
     vi.stubEnv("VITE_PUBLIC_SIGNUPS_ENABLED", "true");
     sessionStorage.clear();
     mocks.auth.user = null;

@@ -1,4 +1,9 @@
 import { CURRENT_ARTIFACT_PROMPT_VERSION, type StudyScope } from "./types";
+import { aiMnemonicStrategyExecution } from "../../../supabase/functions/_shared/strategy-execution";
+import {
+  SUBJECT_PROFILES,
+  type SubjectProfileId,
+} from "../../../supabase/functions/_shared/subject-profiles";
 
 export type MemoryTrickOrigin = "known" | "ai_created";
 
@@ -27,6 +32,10 @@ export interface MemoryTrickContent {
   provenanceLabel: "Known memory trick" | "AI-created memory trick";
   technique: MemoryTrickTechnique;
   techniqueLabel: string;
+  /** Validated nested execution identity; null means no strategy credit. */
+  executedStrategyId: string | null;
+  /** Validated generator subject bucket; null means no personalization write. */
+  subjectProfileId: SubjectProfileId | null;
   target: string;
   sourceExcerpt: string;
   mnemonic: string;
@@ -92,6 +101,37 @@ function origin(value: unknown): MemoryTrickOrigin | null {
   return value === "known" || value === "ai_created" ? value : null;
 }
 
+function subjectProfileId(value: unknown): SubjectProfileId | null {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(SUBJECT_PROFILES, value)
+    ? value as SubjectProfileId
+    : null;
+}
+
+function validatedExecutedStrategyId(
+  artifact: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  parsedOrigin: MemoryTrickOrigin,
+): string | null {
+  if (parsedOrigin !== "ai_created") return null;
+  const snapshot = record(artifact.study_scope_snapshot);
+  const strategy = record(snapshot?.strategy);
+  const executed = record(strategy?.executed);
+  if (!executed) return null;
+
+  const expected = aiMnemonicStrategyExecution("ai", payload);
+  const nestedId = executed.id === null ? null : text(executed.id, 120);
+  const nestedTechnique = executed.technique === null ? null : text(executed.technique, 120);
+  const nestedModality = executed.modality === null ? null : text(executed.modality, 120);
+  if (
+    nestedId !== expected.strategyId
+    || nestedTechnique !== expected.technique
+    || nestedModality !== expected.modality
+    || executed.cost !== "ai"
+    || executed.deterministic !== false
+  ) return null;
+  return expected.strategyId;
+}
+
 /**
  * Validates an artifact at the final UI boundary. The query hook already
  * applies these filters, but repeating them here prevents a stale or malformed
@@ -123,6 +163,7 @@ export function parseMemoryTrickArtifact(
   const target = text(item.target, 500);
   const itemSource = item.sourceExcerpt === undefined ? null : text(item.sourceExcerpt);
   if (!target || target !== text(expected.exactTarget, 500)) return null;
+  if (itemSource && itemSource !== text(expected.sourceExcerpt, 600)) return null;
 
   const artifactId = text(artifact.id, 160);
   const mnemonic = text(item.mnemonic, 500);
@@ -130,6 +171,8 @@ export function parseMemoryTrickArtifact(
   const parsedTechnique = technique(item.technique);
   const parsedOrigin = origin(item.origin);
   if (!artifactId || !mnemonic || !howToUse || !parsedTechnique || !parsedOrigin) return null;
+  const snapshot = record(artifact.study_scope_snapshot);
+  const profile = record(snapshot?.subjectProfile);
 
   return {
     artifactId,
@@ -139,6 +182,8 @@ export function parseMemoryTrickArtifact(
       : "AI-created memory trick",
     technique: parsedTechnique,
     techniqueLabel: TECHNIQUE_LABELS[parsedTechnique],
+    executedStrategyId: validatedExecutedStrategyId(artifact, payload, parsedOrigin),
+    subjectProfileId: subjectProfileId(profile?.id),
     target,
     sourceExcerpt: itemSource ?? expected.sourceExcerpt,
     mnemonic,

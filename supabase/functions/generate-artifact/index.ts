@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.1
 import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import type { Database, Json } from "../../../src/integrations/supabase/types.ts";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../_shared/artifact-version.ts";
+import { buildAlternateTeaching } from "../_shared/alternate-teaching.ts";
 import { buildAssignmentTutorPractice } from "../_shared/assignment-tutor.ts";
 import {
   buildAssignmentReviewSource,
@@ -45,9 +46,17 @@ import {
   type StrategyModality,
 } from "../_shared/strategy-catalog.ts";
 import {
+  aiMnemonicStrategyExecution,
+  deterministicArtifactStrategyExecution,
+  executeMnemonicStrategy,
+  type DeterministicArtifactKind,
+  type StrategyExecutionMetadata,
+} from "../_shared/strategy-execution.ts";
+import {
   summarizeStrategyEvidence,
   type StrategyOutcomeRecord,
 } from "../_shared/strategy-evidence.ts";
+import { isLearningEvidenceTier } from "../_shared/learning-evidence.ts";
 import { decideArtifactTeachingRoute } from "../_shared/teaching-router-integration.ts";
 import { detectVerifiedShortcuts } from "../_shared/math-shortcuts.ts";
 import { buildAcct2010RuntimeMap, type Acct2010RuntimeMap } from "../_shared/acct-2010-runtime.ts";
@@ -235,6 +244,12 @@ const MNEMONIC_TECHNIQUE_GUIDE = MNEMONIC_TECHNIQUE_CATALOG
 const PROMPT_VERSION = CURRENT_ARTIFACT_PROMPT_VERSION;
 const MAX_CONCEPTS = 8;
 const MAX_CANDIDATE_CONCEPTS = 100;
+const GRADED_ARTIFACT_KINDS = new Set<ArtifactKind>([
+  "flashcards",
+  "multiple_choice",
+  "matching",
+  "practice",
+]);
 const ASSIGNMENT_PRACTICE_STRATEGY_ID = "worked-example";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const AI_HOURLY_LIMIT = 30;
@@ -463,6 +478,17 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
           || scope.topics.length > 50
           || scope.topics.some((topic) => typeof topic !== "string" || topic.length > 200)
         ))) return json({ error: "studyScope is invalid" }, 400);
+  }
+  if (body.studyScope?.type === "exam"
+      && GRADED_ARTIFACT_KINDS.has(body.kind)
+      && Boolean(body.conceptIds?.length)) {
+    // A selected subset may shape an ungraded memory aid, but it cannot define
+    // the denominator used to claim exam readiness. Graded exam sets must let
+    // the server resolve the complete owner-scoped exam concept universe.
+    return json({
+      error: "Build graded exam practice from the full test scope, not a selected concept subset",
+      reason: "exam_readiness_scope_must_be_complete",
+    }, 400);
   }
 
   // A photographed assignment is Tutor-only: its OCR is never gradeable, and
@@ -895,6 +921,13 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   );
   let payload: Record<string, unknown>;
   let modelUsed = MODEL;
+  // Catalog cost describes the selected teaching method. Execution cost records
+  // what this request actually did. Deterministic artifact builders stay
+  // deterministic even when a normally-AI strategy was selected as a soft
+  // teaching preference.
+  let executionMetadata: StrategyExecutionMetadata | null = body.kind === "mnemonic"
+    ? null
+    : deterministicArtifactStrategyExecution(body.kind as DeterministicArtifactKind, strategyMetadata.cost);
 
   if (body.kind === "practice") {
     const concept = typedConcepts[0];
@@ -956,26 +989,56 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     payload = validated.payload;
   } else {
     if (!template) return json({ error: "No generation template is available" }, 501);
-    const learnerAudience = await loadLearnerAudience(supabase, userId);
-    const key = Deno.env.get("LOVABLE_API_KEY");
-    if (!key) return json({ error: "Study generation is temporarily unavailable" }, 503);
-    const gateway = await callGateway(
-      key,
-      userId,
-      requestId,
-      learnerAudience,
-      template,
-      body,
-      typedConcepts,
-      count,
-      sourceByConcept,
-      exactTargetByConcept,
-      mnemonicPreferences,
-      subject.primary,
-      subjectTechniques,
-      strategyMetadata.id,
-      verifiedShortcuts,
-    );
+    const execution = await executeMnemonicStrategy({
+      strategyId: strategyMetadata.id,
+      strategyCost: strategyMetadata.cost,
+      runAi: async (): Promise<GatewayResult> => {
+        const key = Deno.env.get("LOVABLE_API_KEY");
+        if (!key) {
+          return {
+            ok: false,
+            status: 503,
+            error: "Study generation is temporarily unavailable",
+          };
+        }
+        const learnerAudience = await loadLearnerAudience(supabase, userId);
+        return callGateway(
+          key,
+          userId,
+          requestId,
+          learnerAudience,
+          template,
+          body,
+          typedConcepts,
+          count,
+          sourceByConcept,
+          exactTargetByConcept,
+          mnemonicPreferences,
+          subject.primary,
+          subjectTechniques,
+          strategyMetadata.id,
+          verifiedShortcuts,
+        );
+      },
+    });
+    if (execution.kind === "deterministic-fallback") {
+      const concept = typedConcepts[0];
+      const alternateTeaching = buildAlternateTeaching({
+        selectedStrategyId: execution.strategyId,
+        conceptId: concept.id,
+        conceptName: concept.name,
+        exactTarget: exactTargetByConcept.get(concept.id) ?? "",
+        sourceExcerpt: sourceByConcept.get(concept.id) ?? null,
+      });
+      if (alternateTeaching) {
+        return json({ alternateTeaching });
+      }
+      return json({
+        error: "No useful memory trick or grounded practice turn is available for this one yet.",
+        reason: NO_USEFUL_MNEMONIC_ERROR,
+      }, 422);
+    }
+    const gateway = execution.value;
     if (!gateway.ok) return gatewayResponse(gateway, requestId);
     const validated = validateArtifactPayload(generatedKind, gateway.payload, {
       ...validationOptions,
@@ -1001,6 +1064,14 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       }, 502);
     }
     payload = validated.payload;
+    // Attribute the AI execution to what survived validation and will actually
+    // be displayed. The selected strategy is only intent; mixed or ambiguous
+    // displayed techniques deliberately receive no strategy credit.
+    executionMetadata = aiMnemonicStrategyExecution(strategyMetadata.cost, payload);
+  }
+
+  if (!executionMetadata) {
+    return json({ error: "Study strategy execution could not be confirmed" }, 500);
   }
 
   const generatedItems = artifactPayloadItems(body.kind, payload);
@@ -1054,11 +1125,31 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       conceptIds: generatedConceptIds,
       generatedAt: selectionNow,
       selectionAlgorithm: "study-intelligence-v1",
+      ...(resolvedScope.type === "exam"
+        ? {
+            readinessScope: {
+              schemaVersion: 1,
+              type: "exam",
+              conceptIds: rankedCandidates.map(({ concept }) => concept.id),
+            },
+          }
+        : {}),
       strategy: {
-        id: strategyMetadata.id,
-        modality: strategyMetadata.modality,
-        cost: strategyMetadata.cost,
-        deterministic: strategyMetadata.deterministic,
+        selected: {
+          id: strategyMetadata.id,
+          modality: strategyMetadata.modality,
+          cost: strategyMetadata.cost,
+          technique: strategyMetadata.technique,
+          learnedFromOutcomes: strategyMetadata.learnedFromOutcomes,
+          note: strategyMetadata.note,
+        },
+        executed: {
+          id: executionMetadata.strategyId,
+          modality: executionMetadata.modality,
+          cost: executionMetadata.cost,
+          deterministic: executionMetadata.deterministic,
+          technique: executionMetadata.technique,
+        },
         verifiedShortcutIds: verifiedShortcuts.map((shortcut) => shortcut.id),
         taskKind,
         teachingRoute: {
@@ -1067,11 +1158,6 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
           confusable: teachingDecision.route.confusable,
           reason: teachingDecision.route.reason,
         },
-        technique: strategyMetadata.technique,
-        // Recorded so the study result can be attributed back to the strategy
-        // that produced this set, and so the ranking stays auditable.
-        learnedFromOutcomes: strategyMetadata.learnedFromOutcomes,
-        note: strategyMetadata.note,
       },
       subjectProfile: {
         id: subject.primary,
@@ -1722,7 +1808,7 @@ async function loadStrategyEvidence(
     });
     const { data, error } = await adminClient
       .from("study_strategy_outcomes")
-      .select("strategy_id, technique, format, subject_profile, task_kind, correct, total, mastery_delta, outcome_source, occurred_at")
+      .select("strategy_id, technique, format, subject_profile, task_kind, correct, total, mastery_delta, evidence_tier, outcome_source, occurred_at")
       .eq("user_id", userId)
       .eq("subject_profile", subjectProfileId)
       .eq("task_kind", taskKind)
@@ -1738,6 +1824,7 @@ async function loadStrategyEvidence(
       correct: Number(row.correct),
       total: Number(row.total),
       masteryDelta: row.mastery_delta === null ? null : Number(row.mastery_delta),
+      evidenceTier: isLearningEvidenceTier(row.evidence_tier) ? row.evidence_tier : null,
       source: row.outcome_source === "feedback" ? "feedback" : "study_result",
       occurredAt: row.occurred_at as string,
     }));

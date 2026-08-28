@@ -33,6 +33,9 @@ passes. This beta is for invited students age 13 and older only.
       capture, study, or syllabus Edge route; missing receipt returns HTTP 403.
 - [ ] The dedicated canary has a current durable receipt before its invalid-body
       Edge probes, and the canary verifies that receipt before expecting HTTP 400.
+- [ ] That accepted canary can read the exact v2 learning-evidence contract status
+      showing fresh legacy writes are closed and receives the evidence-aware server-derived-classification rejection
+      from `record-study-result`; neither probe creates coursework or a study result.
 - [ ] A separate dedicated canary has no receipt; all six guarded functions
       return private HTTP 403 with `reason: family_beta_agreement_required` for
       it. The two accounts have different email addresses and Auth UUIDs.
@@ -46,6 +49,52 @@ passes. This beta is for invited students age 13 and older only.
       current receipt and an open study-write gate. Accepted owner writes retain
       their existing bounds after resume; owner DELETE and service-role result
       projection/account erasure still work.
+- [ ] Without a current receipt, authenticated INSERT/UPDATE to profiles,
+      classes, enrollments, assignments, exams, and study sessions plus INSERT
+      to schools fails. A paused accepted user also cannot INSERT/UPDATE study
+      sessions; valid history writes resume only after the gate opens. An
+      accepted owner retains valid onboarding/deadline/history writes.
+- [ ] `flashcards`, `quizzes`, and `readiness_scores` retain SELECT but anon and
+      authenticated INSERT/UPDATE/DELETE privileges are false; their obsolete
+      write policies are absent and service-role processing remains available.
+- [ ] With two separate accepted staging identities, every enrollment,
+      assignment, exam, flashcard, quiz, study-session, readiness-score, and
+      class-syllabus-request `class_id` rejects the other identity's owner and,
+      when `client_class_id` is present, rejects a client key different from the
+      referenced class. Repeat through the service role. A non-null syllabus
+      request `syllabus_id` also rejects any different owner/class/client
+      identity. Both `classes.user_id` and `classes.client_class_id` reject
+      reassignment. Repair preflight drift before migration; after installation,
+      use an operator-reviewed delete/recreate flow, never an in-place class
+      identity mutation. Do not accept the
+      agreement for the dedicated never-accepted release canary to run this test.
+- [ ] With an operator-staged non-student syllabus fixture and a fresh request
+      ID, the never-accepted canary's direct authenticated
+      `commit_class_syllabus` call fails with SQLSTATE `42501` and commits no
+      syllabus, request, assignment, exam, or class mutation. An invalid-body
+      error does not prove this SECURITY DEFINER agreement boundary.
+- [ ] While paused, the accepted canary's otherwise-valid fresh
+      `commit_class_syllabus` call fails with SQLSTATE `55000` and
+      `study_writes_paused`. With valid operator-staged non-student mnemonic
+      fixtures, `record_memory_trick_feedback` fails with `42501` for the
+      never-accepted canary and `55000` for the accepted canary while paused,
+      committing no feedback mutation. After the single resume, the accepted
+      syllabus and feedback calls succeed within their owner/shape bounds. A
+      valid `word_roots` artifact persists feedback through the expanded
+      canonical 16-technique allowlist; an unknown technique remains rejected.
+- [ ] While paused and never accepted, deleting a disposable owned class with
+      only operator-staged manual assignment, exam, flashcard, quiz, and study-
+      session children (no capture or syllabus) succeeds and nulls the child
+      class references without changing any other child field. This proves the
+      narrowly scoped nested FK path preserves owner DELETE without allowing an
+      arbitrary authenticated UPDATE around the agreement/pause guard.
+- [ ] Hosted `pg_proc` plus `has_function_privilege` shows the exact reviewed
+      browser-executable `SECURITY DEFINER` inventory using the catalog
+      comparison in `family-beta-operations.md`: exactly 12 rows, all `OK`, all
+      `anon_execute = false`, and all `authenticated_execute = true`.
+      `owns_row(uuid)` returns exactly one catalog row with `prosecdef = false`;
+      any anon definer, unexpected signature/grant, or definer-form `owns_row`
+      blocks release.
 - [ ] Password sign-in, forgot password, reset link, and sign-out all work.
 - [ ] After onboarding, reload, browser restart, explicit sign-out, and subsequent
       password sign-in all return the same account without rerunning setup.
@@ -148,15 +197,22 @@ passes. This beta is for invited students age 13 and older only.
       JSON with a request ID and exposes no provider/DB/source details on 5xx.
 - [ ] The published host enforces CSP (`frame-ancestors 'none'`, `object-src
       'none'`), one-year HSTS with `includeSubDomains`, strict Referrer-Policy,
-      Permissions-Policy disabling camera/microphone/geolocation, and `nosniff`.
+      Permissions-Policy disabling camera/microphone/geolocation, `nosniff`, and
+      `X-Robots-Tag: noindex, nofollow, noarchive` on every HTML response; the
+      root robots meta remains present and `robots.txt` contains only
+      `User-agent: *` followed by `Disallow: /`, with no crawler-specific group
+      or additional directive.
 - [ ] Same-origin `release-manifest.json` exactly matches the deployed SHA,
       production Supabase project ID, disabled signup and Canvas Connect flags,
-      reviewed passkey state, and public support address; the page loads no
-      cross-origin scripts.
+      reviewed passkey state, and public support address, returns JSON with
+      `Cache-Control: no-store`, and the page loads no cross-origin scripts.
 - [ ] A sanitized browser crash test reaches the production operator alert;
       neither the event nor Edge 5xx logs contain student content or identifiers.
 - [ ] The protected **Production release readiness** workflow passes against the
       exact deployed commit and both dedicated empty canary accounts.
+- [ ] Its read-only evidence checks report contract v2, artifact prompt
+      `v11-evidence-ladder`, readiness-scope v1, and closed fresh legacy writes, and
+      reject a generic old `record-study-result` validation response.
 - [ ] The workflow uses the protected `PRODUCTION_ORIGIN` variable and exposes
       no dispatch input that can substitute a different website.
 - [ ] The workflow ran from protected `main`; its four account credentials were
@@ -166,10 +222,18 @@ passes. This beta is for invited students age 13 and older only.
       authenticated browser INSERT/UPDATE on captures, materials, and processed
       content plus INSERT into both source buckets. Service-role recovery and
       DELETE/account erasure remained available. The rollout remained paused
-      through verification of `20260827132000` and the
-      `20260827133000` browser learning-evidence guard, then resumed exactly
-      once before the public canary. The recorded host maintenance rule was
-      removed only while invites remained closed.
+      through verification of `20260827132000`, the `20260827133000` browser
+      learning-evidence guard, `20260827134000` owner-scoped class identity,
+      `20260827135000` launch-schema regression guard, and `20260827140000`
+      onboarding agreement/owner guard, `20260828100000` evidence ladder, and
+      `20260828110000` full-scope readiness repair, then resumed exactly once before the
+      public canary. Agreement denial, accepted-owner success, and cross-owner
+      owner/client reference canaries across all eight class-child tables plus
+      the syllabus-result identity check passed before that resume. The three
+      browser-read-only legacy tables' ACLs and immutable class owner/client
+      identity were also verified.
+      The recorded host maintenance rule was removed only while invites remained
+      closed.
 - [ ] The deployed Edge inventory contains exactly the ten reviewed revisions,
       including both cleanup workers and the private `mcp` HTTP 410 tombstone;
       no historical MCP demo/tool response remains, and the five forbidden

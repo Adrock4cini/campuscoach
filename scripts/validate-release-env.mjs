@@ -1,7 +1,12 @@
 import { pathToFileURL } from "node:url";
 
-const FAMILY_BETA_STAGING_PROJECT_REF = "dfpgnmldxphkfmobjbvr";
 const PRODUCTION_SUPABASE_PROJECT_REF = "norsaaoyppctrvxxgjtg";
+const PROTECTED_SUPABASE_PROJECT_REFS = Object.freeze([
+  PRODUCTION_SUPABASE_PROJECT_REF,
+  "dfpgnmldxphkfmobjbvr", // previous Family Beta
+  "lzwaiobgrhwmywugsgjo", // abandoned remixed staging
+  "mviunlhhtcjuuburjxbf", // quarantined staging
+]);
 const SUPABASE_HOST_PATTERN = /^([a-z0-9-]+)\.supabase\.co$/u;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
@@ -49,9 +54,7 @@ function parseHttpsOrigin(value, variable, issues) {
     url.username ||
     url.password ||
     url.port ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash
+    value !== url.origin
   ) {
     issues.push(
       issue(
@@ -173,15 +176,16 @@ export function validateReleaseEnvironment(environment) {
     );
   }
 
-  if (
-    projectId === FAMILY_BETA_STAGING_PROJECT_REF ||
-    urlProjectRef === FAMILY_BETA_STAGING_PROJECT_REF
-  ) {
+  const configuredRefs = [projectId, urlProjectRef].filter(Boolean);
+  if (configuredRefs.some((projectRef) => (
+    projectRef !== PRODUCTION_SUPABASE_PROJECT_REF
+    && PROTECTED_SUPABASE_PROJECT_REFS.includes(projectRef)
+  ))) {
     issues.push(
       issue(
-        "staging_project_forbidden",
+        "protected_project_forbidden",
         "VITE_SUPABASE_PROJECT_ID",
-        "The family-beta staging Supabase project cannot be used for a production release.",
+        "A previous, abandoned, or quarantined Supabase project cannot be used for a production release.",
       ),
     );
   } else if (

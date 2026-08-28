@@ -157,16 +157,16 @@ describe("strategy evidence — evidence ladder", () => {
       ...Array.from({ length: 4 }, (_, index) => outcome({
         strategyId: "error-spotting",
         evidenceTier: "transfer",
-        correct: 5,
-        total: 5,
+        correct: 1,
+        total: 1,
         masteryDelta: null,
         occurredAt: daysAgo(index + 1),
       })),
       ...Array.from({ length: 4 }, (_, index) => outcome({
         strategyId: "worked-example",
         evidenceTier: "application",
-        correct: 2,
-        total: 5,
+        correct: 0,
+        total: 1,
         masteryDelta: null,
         occurredAt: daysAgo(index + 1),
       })),
@@ -175,16 +175,16 @@ describe("strategy evidence — evidence ladder", () => {
       ...Array.from({ length: 4 }, (_, index) => outcome({
         strategyId: "error-spotting",
         evidenceTier: "exposure",
-        correct: 5,
-        total: 5,
+        correct: 1,
+        total: 1,
         masteryDelta: null,
         occurredAt: daysAgo(index + 1),
       })),
       ...Array.from({ length: 4 }, (_, index) => outcome({
         strategyId: "worked-example",
         evidenceTier: "application",
-        correct: 2,
-        total: 5,
+        correct: 0,
+        total: 1,
         masteryDelta: null,
         occurredAt: daysAgo(index + 1),
       })),
@@ -196,12 +196,40 @@ describe("strategy evidence — evidence ladder", () => {
     const exposureRow = exposure.find((row) => row.strategyId === "error-spotting");
     expect(transferRow?.meaningful).toBe(true);
     expect(exposureRow?.samples ?? 0).toBeLessThan(3);
-    expect(exposureRow?.meaningful).toBe(false);
+    expect(exposureRow?.meaningful ?? false).toBe(false);
   });
 
   it("preserves historical outcome behavior when no evidence tier was stored", () => {
     const legacy = summarizeStrategyEvidence(LATER_SEMESTER, { now: NOW });
     expect(rankOf(legacy, "error-spotting")).toBeLessThan(rankOf(legacy, "worked-example"));
+  });
+
+  it("keeps lower-tier success as format preference without claiming higher-order strategy success", () => {
+    const evidence = summarizeStrategyEvidence([
+      ...Array.from({ length: 8 }, (_, index) => outcome({
+        strategyId: "retrieval-question",
+        format: "flashcards",
+        taskKind: "solve-problems",
+        evidenceTier: "recall",
+        correct: 1,
+        total: 1,
+        masteryDelta: 0,
+        occurredAt: daysAgo(index + 1),
+      })),
+      ...Array.from({ length: 8 }, (_, index) => outcome({
+        strategyId: null,
+        format: "multiple_choice",
+        taskKind: "solve-problems",
+        evidenceTier: "discrimination",
+        correct: 0,
+        total: 1,
+        masteryDelta: 0,
+        occurredAt: daysAgo(index + 1),
+      })),
+    ], { now: NOW });
+
+    expect(evidence.some((row) => row.strategyId === "retrieval-question")).toBe(false);
+    expect(evidence.some((row) => row.format === "flashcards")).toBe(true);
   });
 });
 

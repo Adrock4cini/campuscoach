@@ -1,3 +1,5 @@
+import { evidenceMeetsTaskMinimum } from "./learning-evidence.ts";
+
 /**
  * Strategy-effectiveness evidence — the layer that makes the adaptive loop
  * actually LEARN instead of re-reading a static subject profile forever.
@@ -153,7 +155,8 @@ export function summarizeStrategyEvidence(
 
   const strategyBuckets = new Map<string, Bucket>();
   const formatBuckets = new Map<string, Bucket>();
-  const contextBuckets = new Map<string, Bucket>();
+  const strategyContextBuckets = new Map<string, Bucket>();
+  const formatContextBuckets = new Map<string, Bucket>();
   const identity = new Map<string, {
     strategyId: string | null;
     format: string | null;
@@ -182,23 +185,29 @@ export function summarizeStrategyEvidence(
     const taskKind = record.taskKind ?? null;
     const context = contextKey(subjectProfileId, taskKind);
 
-    accumulate(contextBuckets, context, weight, success);
-    if (record.strategyId) {
+    // A recall round can teach us that the student enjoys/uses flashcards, but
+    // it cannot prove that the executed strategy taught them to solve a
+    // problem. Keep those two baselines separate so lower-tier format evidence
+    // never smuggles itself into higher-order pedagogy ranking.
+    if (record.strategyId && evidenceMeetsTaskMinimum(record.evidenceTier, taskKind)) {
       const key = `s:${context}|${record.strategyId}`;
       identity.set(key, { strategyId: record.strategyId, format: null, subjectProfileId, taskKind });
       accumulate(strategyBuckets, key, weight, success);
+      accumulate(strategyContextBuckets, context, weight, success);
     }
     if (record.format) {
       const key = `f:${context}|${record.format}`;
       identity.set(key, { strategyId: null, format: record.format, subjectProfileId, taskKind });
       accumulate(formatBuckets, key, weight, success);
+      accumulate(formatContextBuckets, context, weight, success);
     }
   }
 
   const out: StrategyEvidence[] = [];
   for (const [key, bucket] of [...strategyBuckets, ...formatBuckets]) {
     const who = identity.get(key)!;
-    const context = contextBuckets.get(contextKey(who.subjectProfileId, who.taskKind));
+    const context = (who.strategyId ? strategyContextBuckets : formatContextBuckets)
+      .get(contextKey(who.subjectProfileId, who.taskKind));
     const baseline = context && context.weight >= 1
       ? context.success / context.weight
       : EVIDENCE_DEFAULTS.neutralBaseline;

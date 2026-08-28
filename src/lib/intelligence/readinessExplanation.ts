@@ -54,6 +54,19 @@ function pluralConcepts(n: number) {
   return `${n} concept${n === 1 ? "" : "s"}`;
 }
 
+/** Keep every active concept in the readiness denominator. */
+export function fullScopeStrengths(conceptCount: number, strengths: readonly number[]): number[] {
+  const scopeCount = Number.isFinite(conceptCount)
+    ? Math.max(0, Math.trunc(conceptCount))
+    : 0;
+  const scoped = strengths
+    .slice(0, scopeCount)
+    .map((strength) => Math.max(0, Math.min(1, Number(strength) || 0)));
+  return scoped.length < scopeCount
+    ? [...scoped, ...Array<number>(scopeCount - scoped.length).fill(0)]
+    : scoped;
+}
+
 export function explainReadiness(signals: ReadinessSignals): ReadinessExplanation {
   const {
     conceptCount,
@@ -64,7 +77,8 @@ export function explainReadiness(signals: ReadinessSignals): ReadinessExplanatio
     overdueAssignments = 0,
   } = signals;
 
-  const weakCount = strengths.filter((s) => s < WEAK_STRENGTH).length;
+  const scopedStrengths = fullScopeStrengths(conceptCount, strengths);
+  const weakCount = scopedStrengths.filter((s) => s < WEAK_STRENGTH).length;
   const factors: ReadinessFactor[] = [];
 
   factors.push(
@@ -94,7 +108,7 @@ export function explainReadiness(signals: ReadinessSignals): ReadinessExplanatio
   if (weakCount > 0) {
     factors.push({
       label: "Needs attention",
-      detail: `${pluralConcepts(weakCount)} you keep missing`,
+      detail: `${pluralConcepts(weakCount)} ${weakCount === 1 ? "needs" : "need"} practice`,
       tone: "gap",
     });
   }
@@ -142,16 +156,16 @@ export function explainReadiness(signals: ReadinessSignals): ReadinessExplanatio
     };
   }
 
-  const avg = strengths.length
-    ? strengths.reduce((sum, s) => sum + s, 0) / strengths.length
+  const avg = scopedStrengths.length
+    ? scopedStrengths.reduce((sum, s) => sum + s, 0) / scopedStrengths.length
     : 0;
   const percent = Math.max(0, Math.min(100, Math.round(avg * 100)));
   const label = percent >= 80 ? "Exam ready" : percent >= 60 ? "Getting there" : "Needs work";
 
   const headline =
     weakCount > 0
-      ? `You're solid on ${pluralConcepts(strengths.length - weakCount)} and shaky on ${weakCount}.`
-      : `You've answered ${attempts} questions and you're holding steady across ${pluralConcepts(strengths.length)}.`;
+      ? `You're solid on ${pluralConcepts(scopedStrengths.length - weakCount)}; ${pluralConcepts(weakCount)} ${weakCount === 1 ? "is" : "are"} not yet strong.`
+      : `You've answered ${attempts} questions and you're holding steady across ${pluralConcepts(scopedStrengths.length)}.`;
 
   return {
     status: "scored",
@@ -161,7 +175,7 @@ export function explainReadiness(signals: ReadinessSignals): ReadinessExplanatio
     factors,
     nextStep:
       weakCount > 0
-        ? `Drill the ${pluralConcepts(weakCount)} you keep missing first.`
+        ? `Practice the ${pluralConcepts(weakCount)} that ${weakCount === 1 ? "isn't" : "aren't"} strong yet first.`
         : "Keep spacing your reviews — short sets beat cramming.",
     weakCount,
   };

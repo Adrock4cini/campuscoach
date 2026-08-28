@@ -63,7 +63,16 @@ function originHeaders() {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
   };
+}
+
+function indexHtml(script = '<script type="module" src="/assets/index.js"></script>') {
+  return `<!doctype html><html><head><meta name="robots" content="noindex, nofollow, noarchive" /></head><body>${script}</body></html>`;
+}
+
+function manifestResponse(body: Record<string, unknown>) {
+  return Response.json(body, { headers: { "Cache-Control": "no-store" } });
 }
 
 function successfulFetch() {
@@ -71,20 +80,26 @@ function successfulFetch() {
     const url = String(input);
     const requestId = new Headers(init?.headers).get("x-request-id") ?? crypto.randomUUID();
     if (url === ORIGIN) {
-      return new Response('<script type="module" src="/assets/index.js"></script>', {
+      return new Response(indexHtml(), {
         status: 200,
         headers: originHeaders(),
       });
     }
     if (url === `${ORIGIN}/dashboard`) {
-      return new Response('<script type="module" src="/assets/index.js"></script>', {
+      return new Response(indexHtml(), {
         status: 200,
         headers: originHeaders(),
       });
     }
+    if (url === `${ORIGIN}/robots.txt`) {
+      return new Response("User-agent: *\nDisallow: /\n", {
+        status: 200,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
     if (url === `${ORIGIN}/assets/index.js`) return new Response(`const release="${RELEASE}"`, { status: 200 });
     if (url.startsWith(`${ORIGIN}/release-manifest.json?`)) {
-      return Response.json({
+      return manifestResponse({
         schemaVersion: 1,
         releaseSha: RELEASE,
         supabaseProjectId: "norsaaoyppctrvxxgjtg",
@@ -127,6 +142,14 @@ function successfulFetch() {
         ownerId: ACCEPTED_ID,
       });
     }
+    if (url.endsWith("/rest/v1/rpc/get_learning_evidence_contract_status")) {
+      return Response.json({
+        artifactPromptVersion: "v11-evidence-ladder",
+        contractVersion: 2,
+        legacyWritesClosed: true,
+        readinessScopeVersion: 1,
+      });
+    }
     if (FORBIDDEN_EDGE_FUNCTIONS.some((name) => url.endsWith(`/functions/v1/${name}`))) {
       return new Response(null, { status: 404 });
     }
@@ -158,6 +181,15 @@ function successfulFetch() {
           reason: "family_beta_agreement_required",
           retryable: false,
         }, { status: 403, headers: privateHeaders({}, requestId) });
+      }
+      if (
+        url.endsWith("/functions/v1/record-study-result")
+        && JSON.parse(String(init?.body ?? "{}"))?.evidenceTier === "transfer"
+      ) {
+        return Response.json({ error: "evidence classification is server-derived" }, {
+          status: 400,
+          headers: privateHeaders({}, requestId),
+        });
       }
       return Response.json({ error: "validation failed" }, {
         status: 400,
@@ -206,21 +238,35 @@ describe("post-deploy release canary", () => {
     expect(() => readCanaryConfiguration(environment({ CANARY_PASSWORD: undefined })))
       .toThrow("CANARY_PASSWORD is required");
     expect(() => readCanaryConfiguration(environment({ VITE_RELEASE_SHA: "not-a-sha" })))
-      .toThrow("VITE_RELEASE_SHA must be a full 40-character git commit SHA");
+      .toThrow("VITE_RELEASE_SHA must contain the full 40-character git commit SHA");
     expect(() => readCanaryConfiguration(environment({ VITE_SUPABASE_PUBLISHABLE_KEY: "sb_secret_private" })))
-      .toThrow("cannot be a secret key");
+      .toThrow("must never contain a secret Supabase key");
     expect(() => readCanaryConfiguration(environment({ VITE_SUPABASE_PUBLISHABLE_KEY: legacyKey("service_role") })))
-      .toThrow("cannot be a secret key");
+      .toThrow("must never contain a secret Supabase key");
     expect(() => readCanaryConfiguration(environment({ UNACCEPTED_CANARY_PASSWORD: undefined })))
       .toThrow("UNACCEPTED_CANARY_PASSWORD is required");
     expect(() => readCanaryConfiguration(environment({ VITE_SUPABASE_PROJECT_ID: "wrong-project" })))
-      .toThrow("VITE_SUPABASE_PROJECT_ID must match VITE_SUPABASE_URL");
+      .toThrow("VITE_SUPABASE_PROJECT_ID must exactly match");
     expect(() => readCanaryConfiguration(environment({ RELEASE_PRODUCTION_ORIGIN: "https://app.campuscompanion.com:8443" })))
       .toThrow("RELEASE_PRODUCTION_ORIGIN must be an HTTPS origin");
     for (const value of [undefined, "", "true", "TRUE", "0", " false "]) {
       expect(() => readCanaryConfiguration(environment({ VITE_CANVAS_CONNECT_ENABLED: value })))
-        .toThrow("VITE_CANVAS_CONNECT_ENABLED must be false for this release");
+        .toThrow("VITE_CANVAS_CONNECT_ENABLED must be explicitly set to false for this release");
     }
+  });
+
+  it("reuses production release validation so a different backend cannot pass standalone canaries", async () => {
+    const otherRef = "abcdefghijklmnopqrst";
+    const fetchImpl = successfulFetch();
+    await expect(runPostdeployCanary(environment({
+      VITE_SUPABASE_URL: `https://${otherRef}.supabase.co`,
+      VITE_SUPABASE_PROJECT_ID: otherRef,
+    }), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "configuration",
+      message: expect.stringContaining("exact reviewed production Supabase project"),
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("requires separate accepted and unaccepted canary identities", async () => {
@@ -236,14 +282,17 @@ describe("post-deploy release canary", () => {
         "published-origin",
         "published-bundle",
         "spa-deep-link",
+        "invite-only-indexing",
         "release-manifest",
         "canary-auth",
         "canary-agreement",
+        "learning-evidence-contract",
         "canary-unaccepted-auth",
         "canary-unaccepted-agreement",
         "edge-function-inventory",
         "edge-agreement-contracts",
         "edge-validation-contracts",
+        "record-study-result-evidence-revision",
         "cleanup-worker-denials",
         "mcp-retirement",
         "error-report-ingest",
@@ -252,12 +301,21 @@ describe("post-deploy release canary", () => {
     const functionCalls = fetchImpl.mock.calls
       .map(([input]) => String(input))
       .filter((url) => url.includes("/functions/v1/"));
-    expect(functionCalls).toHaveLength(21);
+    expect(functionCalls).toHaveLength(22);
     expect(new Set(functionCalls.map((url) => url.split("/functions/v1/")[1]))).toEqual(
       new Set([...REVIEWED_EDGE_FUNCTIONS, ...FORBIDDEN_EDGE_FUNCTIONS]),
     );
     expect(functionCalls).toContain(`${SUPABASE}/functions/v1/cleanup-abandoned-captures`);
     expect(functionCalls).toContain(`${SUPABASE}/functions/v1/cleanup-abandoned-syllabi`);
+
+    const contractCall = fetchImpl.mock.calls.find(([input]) => (
+      String(input) === `${SUPABASE}/rest/v1/rpc/get_learning_evidence_contract_status`
+    ));
+    expect(contractCall).toBeDefined();
+    expect((contractCall?.[1] as RequestInit).method).toBe("POST");
+    expect((contractCall?.[1] as RequestInit).body).toBe("{}");
+    expect(new Headers((contractCall?.[1] as RequestInit).headers).get("authorization"))
+      .toBe(`Bearer ${ACCEPTED_TOKEN}`);
 
     for (const name of FORBIDDEN_EDGE_FUNCTIONS) {
       const calls = fetchImpl.mock.calls.filter(([input]) => (
@@ -293,12 +351,92 @@ describe("post-deploy release canary", () => {
       const calls = fetchImpl.mock.calls.filter(([input]) => (
         String(input) === `${SUPABASE}/functions/v1/${name}`
       ));
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(name === "record-study-result" ? 3 : 2);
       expect(new Headers((calls[0]?.[1] as RequestInit).headers).get("authorization"))
         .toBe(`Bearer ${UNACCEPTED_TOKEN}`);
       expect(new Headers((calls[1]?.[1] as RequestInit).headers).get("authorization"))
         .toBe(`Bearer ${ACCEPTED_TOKEN}`);
+      if (name === "record-study-result") {
+        expect((calls[2]?.[1] as RequestInit).body)
+          .toBe(JSON.stringify({ evidenceTier: "transfer" }));
+        expect(new Headers((calls[2]?.[1] as RequestInit).headers).get("authorization"))
+          .toBe(`Bearer ${ACCEPTED_TOKEN}`);
+      }
     }
+  });
+
+  it("fails when the final fresh-write-closed evidence contract is absent or reports drift", async () => {
+    for (const response of [
+      new Response(null, { status: 404 }),
+      Response.json({
+        artifactPromptVersion: "v11-evidence-ladder",
+        contractVersion: 2,
+        legacyWritesClosed: false,
+        readinessScopeVersion: 1,
+      }),
+    ]) {
+      const fetchImpl = successfulFetch();
+      const baseFetch = successfulFetch();
+      fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input).endsWith("/rest/v1/rpc/get_learning_evidence_contract_status")) {
+          return response.clone();
+        }
+        return baseFetch(input, init);
+      });
+      await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+        name: "CanaryFailure",
+        check: "learning-evidence-contract",
+      });
+    }
+  });
+
+  it("fails when record-study-result returns a generic old-revision validation", async () => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (
+        String(input).endsWith("/functions/v1/record-study-result")
+        && JSON.parse(String(init?.body ?? "{}"))?.evidenceTier === "transfer"
+      ) {
+        const requestId = new Headers(init?.headers).get("x-request-id") ?? crypto.randomUUID();
+        return Response.json({ error: "artifactId required" }, {
+          status: 400,
+          headers: privateHeaders({}, requestId),
+        });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "record-study-result-evidence-revision",
+    });
+  });
+
+  it("fails when the evidence-aware rejection carries an unexpected response shape", async () => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (
+        String(input).endsWith("/functions/v1/record-study-result")
+        && JSON.parse(String(init?.body ?? "{}"))?.evidenceTier === "transfer"
+      ) {
+        const requestId = new Headers(init?.headers).get("x-request-id") ?? crypto.randomUUID();
+        return Response.json({
+          error: "evidence classification is server-derived",
+          contractVersion: 1,
+        }, {
+          status: 400,
+          headers: privateHeaders({}, requestId),
+        });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "record-study-result-evidence-revision",
+    });
   });
 
   it("fails closed when production security headers are absent", async () => {
@@ -310,13 +448,123 @@ describe("post-deploy release canary", () => {
     });
   });
 
+  it.each([
+    [ORIGIN, "published-origin"],
+    [`${ORIGIN}/dashboard`, "spa-deep-link"],
+  ])("requires the invite-only X-Robots-Tag on HTML response %s", async (target, check) => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === target) {
+        const headers: Record<string, string> = originHeaders();
+        delete headers["X-Robots-Tag"];
+        return new Response(indexHtml(), { status: 200, headers });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check,
+      message: `${check}: x-robots-tag must be exactly noindex, nofollow, noarchive`,
+    });
+  });
+
+  it("requires the deployed root HTML to retain the invite-only robots meta", async () => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === ORIGIN) {
+        return new Response('<script type="module" src="/assets/index.js"></script>', {
+          status: 200,
+          headers: originHeaders(),
+        });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "invite-only-indexing",
+      message: expect.stringContaining("root HTML must contain exactly one"),
+    });
+  });
+
+  it.each(["script", "template", "noscript", "style"])(
+    "rejects a robots meta hidden inside %s content",
+    async (element) => {
+      const fetchImpl = successfulFetch();
+      const baseFetch = successfulFetch();
+      fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input) === ORIGIN) {
+          const html = `<!doctype html><html><head><${element}><meta name="robots" content="noindex, nofollow, noarchive"></${element}><meta name="robots" content="noindex, nofollow, noarchive"></head><body><script type="module" src="/assets/index.js"></script></body></html>`;
+          return new Response(html, { status: 200, headers: originHeaders() });
+        }
+        return baseFetch(input, init);
+      });
+
+      await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+        name: "CanaryFailure",
+        check: "invite-only-indexing",
+        message: expect.stringContaining("must not appear inside"),
+      });
+    },
+  );
+
+  it.each([
+    '<meta name="robots" name="robots" content="noindex, nofollow, noarchive">',
+    '<meta name="robots" content="noindex, nofollow, noarchive" content="noindex, nofollow, noarchive">',
+  ])("rejects duplicate robots-meta attributes", async (meta) => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === ORIGIN) {
+        const html = `<!doctype html><html><head>${meta}</head><body><script type="module" src="/assets/index.js"></script></body></html>`;
+        return new Response(html, { status: 200, headers: originHeaders() });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "invite-only-indexing",
+      message: expect.stringContaining("duplicate attributes"),
+    });
+  });
+
+  it.each([
+    ["wildcard Allow", "User-agent: *\nDisallow: /\nAllow: /public\n"],
+    [
+      "crawler-specific override",
+      "User-agent: *\nDisallow: /\nUser-agent: Googlebot\nAllow: /\n",
+    ],
+  ])("rejects a deployed robots.txt with a %s", async (_label, robots) => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === `${ORIGIN}/robots.txt`) {
+        return new Response(robots, {
+          status: 200,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "invite-only-indexing",
+      message: expect.stringContaining("must contain only User-agent: *"),
+    });
+  });
+
   it("fails when a direct SPA deep link does not return the published bundle", async () => {
     const fetchImpl = successfulFetch();
     const baseFetch = successfulFetch();
     fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url === `${ORIGIN}/dashboard`) {
-        return new Response('<script type="module" src="/assets/stale.js"></script>', {
+        return new Response(indexHtml('<script type="module" src="/assets/stale.js"></script>'), {
           status: 200,
           headers: originHeaders(),
         });
@@ -335,7 +583,7 @@ describe("post-deploy release canary", () => {
   ])("rejects %s cross-origin script assets", async (_label, html) => {
     const fetchImpl = successfulFetch();
     fetchImpl.mockImplementationOnce(async () => new Response(
-      html,
+      indexHtml(html),
       { status: 200, headers: originHeaders() },
     ));
     await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
@@ -349,7 +597,7 @@ describe("post-deploy release canary", () => {
     const baseFetch = successfulFetch();
     fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
       if (String(input).startsWith(`${ORIGIN}/release-manifest.json?`)) {
-        return Response.json({
+        return manifestResponse({
           schemaVersion: 1,
           releaseSha: RELEASE,
           supabaseProjectId: "wrong-project",
@@ -371,7 +619,7 @@ describe("post-deploy release canary", () => {
     const baseFetch = successfulFetch();
     fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
       if (String(input).startsWith(`${ORIGIN}/release-manifest.json?`)) {
-        return Response.json({
+        return manifestResponse({
           schemaVersion: 1,
           releaseSha: RELEASE,
           supabaseProjectId: "norsaaoyppctrvxxgjtg",
@@ -386,6 +634,31 @@ describe("post-deploy release canary", () => {
     await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
       name: "CanaryFailure",
       check: "release-manifest",
+    });
+  });
+
+  it("requires the deployed release manifest to be non-cacheable", async () => {
+    const fetchImpl = successfulFetch();
+    const baseFetch = successfulFetch();
+    fetchImpl.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).startsWith(`${ORIGIN}/release-manifest.json?`)) {
+        return Response.json({
+          schemaVersion: 1,
+          releaseSha: RELEASE,
+          supabaseProjectId: "norsaaoyppctrvxxgjtg",
+          publicSignupsEnabled: false,
+          canvasConnectEnabled: false,
+          passkeysEnabled: false,
+          publicSupportEmail: "support@campuscompanion.app",
+        });
+      }
+      return baseFetch(input, init);
+    });
+
+    await expect(runPostdeployCanary(environment(), fetchImpl)).rejects.toMatchObject({
+      name: "CanaryFailure",
+      check: "release-manifest",
+      message: "release-manifest: cache-control must be exactly no-store",
     });
   });
 

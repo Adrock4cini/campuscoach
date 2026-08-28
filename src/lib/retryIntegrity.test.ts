@@ -42,6 +42,10 @@ describe("study result retry integrity", () => {
       process.cwd(),
       "supabase/functions/record-study-result/index.ts",
     ), "utf8");
+    const readinessMigration = readFileSync(resolve(
+      process.cwd(),
+      "supabase/migrations/20260828110000_full_scope_readiness.sql",
+    ), "utf8");
 
     expect(retryMigration).toContain("primary key (user_id, client_attempt_id, concept_id)");
     expect(retryMigration).toContain("for update;");
@@ -63,16 +67,22 @@ describe("study result retry integrity", () => {
     expect(practiceGuard).toContain("pg_advisory_xact_lock");
     expect(practiceGuard).toContain("to service_role;");
     expect(practiceGuard).not.toContain("artifact_id uuid not null references public.learning_artifacts");
-    expect(edgeFunction).toContain('adminClient.rpc(\n      "apply_study_concept_result_v2"');
+    expect(edgeFunction).toContain('"apply_study_concept_result_v3"');
+    expect(edgeFunction).toContain(': "apply_study_concept_result_v2"');
+    expect(edgeFunction).toContain("evidence classification is server-derived");
     expect(edgeFunction).toContain('adminClient\n    .from("study_result_attempts")');
     expect(edgeFunction).toContain("result_request_hash: requestHash");
     expect(edgeFunction).toContain("priorAttempt.result_request_hash !== requestHash");
     expect(edgeFunction).toContain('artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION');
-    expect(edgeFunction).toContain("perConcept must score every item in this study set");
+    expect(edgeFunction).toContain("perConcept must score every submitted item");
+    expect(edgeFunction).toContain("body.total > itemConceptIds.length");
+    expect(edgeFunction).toContain("const scoredConceptIds = [...perMap.keys()]");
     expect(edgeFunction).toContain("correct and perConcept results do not match");
     expect(edgeFunction).not.toContain('.upsert(rows, { onConflict: "user_id,concept_id" })');
     expect(edgeFunction).toContain("const shouldWriteDerivedEvidence = appliedAny || Boolean(priorAttempt)");
-    expect(edgeFunction).toContain('onConflict: "user_id,source_attempt_id"');
+    expect(edgeFunction).toContain('"project_study_readiness_v1"');
+    expect(readinessMigration).toContain("on conflict (user_id, source_attempt_id) do update");
+    expect(readinessMigration).toContain("study attempt lease was superseded");
     expect(edgeFunction).toContain('onConflict: "user_id,client_attempt_id"');
   });
 
