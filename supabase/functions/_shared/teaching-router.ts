@@ -32,8 +32,12 @@ export interface TeachingRoute {
 const PERCENT_PROBLEM = /(?:\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\$?\d+(?:\.\d+)?|\$\s*\d+(?:\.\d+)?[^.\n]{0,60}?\d+(?:\.\d+)?\s*(?:%|percent)\s*off)/i;
 const EQUATION_PROBLEM = /(?:\bsolve\b[^\n]{0,80}\bfor\s+[a-z]\b|\b[a-z]\s*=|\d\s*[+\-*/×÷]\s*\d|=\s*\?)/i;
 // Generic verbs such as "find" and "determine" occur in definitions and
-// compare/contrast prompts too often to be safe procedure signals by themselves.
-const PROCEDURE_SIGNAL = /\b(calculate|compute|solve|convert|journalize|post|balance|derive|show your work|steps?)\b/i;
+// compare/contrast prompts too often to be safe problem signals by themselves.
+const CALCULATION_SIGNAL = /\b(calculate|compute|solve|convert|derive|show your work)\b/i;
+// A procedure is a repeatable workflow rather than merely an arithmetic
+// answer. Keeping it distinct lets the toolbox teach the sequence/decision
+// pattern with a worked then faded example instead of reducing it to vocab.
+const APPLY_PROCEDURE_SIGNAL = /\b(journalize|post(?:ing)?\s+(?:to\s+)?(?:the\s+)?ledger|prepare\s+(?:an?\s+)?trial balance|reconcile|record\s+(?:the\s+)?transaction|classify\s+(?:the\s+)?account)\b/i;
 const COMPARE_SIGNAL = /(?:\b(compare|contrast|difference|differentiate|distinguish|versus|mix(?:ed)? up|confus(?:e|ed|ing)|which one)\b|\bvs\.?\b|\bget(?:ting)?\b[^.\n]{0,40}\bbackwards\b)/i;
 const SEQUENCE_SIGNAL = /\b(first|second|third|next|then|finally|in order|sequence|stages?|steps? in order)\b/i;
 const ORDER_MARKER = /\b(first|second|third|next|then|finally)\b/gi;
@@ -59,6 +63,13 @@ function sequenceRoute(): TeachingRoute {
   };
 }
 
+function compareRoute(reason: string): TeachingRoute {
+  return {
+    kind: "compare-ideas", moves: ["student-attempt", "compare-table", "familiar-bridge", "discrimination-question", "spacing"],
+    confusable: true, familiarBridgeEligible: true, reason,
+  };
+}
+
 export function classifyLearningProblem(input: TeachingRouteInput): TeachingRoute {
   const text = combined(input);
   const confusionText = input.studentConfusion ?? "";
@@ -73,22 +84,23 @@ export function classifyLearningProblem(input: TeachingRouteInput): TeachingRout
   // A student explicitly saying "I mix these up" or "I get these backwards"
   // is stronger diagnostic evidence than a generic procedural verb elsewhere
   // in the material. Route the error they actually reported.
-  if (explicitStudentConfusion) return {
-    kind: "compare-ideas", moves: ["student-attempt", "compare-table", "familiar-bridge", "discrimination-question", "spacing"],
-    confusable: true, familiarBridgeEligible: true,
-    reason: "The student explicitly confuses neighbouring ideas: contrast and a lure-resistant choice test come first.",
-  };
+  if (explicitStudentConfusion) return compareRoute(
+    "The student explicitly confuses neighbouring ideas: contrast and a lure-resistant choice test come first.",
+  );
 
-  if (PERCENT_PROBLEM.test(text) || EQUATION_PROBLEM.test(text) || PROCEDURE_SIGNAL.test(text)) return {
+  if (PERCENT_PROBLEM.test(text) || EQUATION_PROBLEM.test(text) || CALCULATION_SIGNAL.test(text)) return {
     kind: "solve-problems", moves: ["student-attempt", "hint", "worked-example", "faded-example", "similar-problem"],
     confusable, familiarBridgeEligible: false,
-    reason: "Concrete procedure/checkable problem: doing and transfer beat memorizing.",
+    reason: "Checkable problem: doing and transfer beat memorizing.",
   };
-  if (confusable) return {
-    kind: "compare-ideas", moves: ["student-attempt", "compare-table", "familiar-bridge", "discrimination-question", "spacing"],
-    confusable: true, familiarBridgeEligible: true,
-    reason: "Neighbouring ideas are confused: contrast and a lure-resistant choice test come first.",
+  if (APPLY_PROCEDURE_SIGNAL.test(text)) return {
+    kind: "apply-procedure", moves: ["student-attempt", "hint", "worked-example", "faded-example", "similar-problem"],
+    confusable, familiarBridgeEligible: false,
+    reason: "Repeatable procedure: model the workflow, fade the support, then apply it independently.",
   };
+  if (confusable) return compareRoute(
+    "Neighbouring ideas are confused: contrast and a lure-resistant choice test come first.",
+  );
   if (SEQUENCE_SIGNAL.test(text)) return sequenceRoute();
   if (LIST_SIGNAL.test(text)) return {
     kind: "memorize-list", moves: ["student-attempt", "chunking", "acronym", "story-chain", "retrieval-question", "spacing"],
