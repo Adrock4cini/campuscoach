@@ -143,6 +143,7 @@ set search_path = ''
 as $$
 declare
   v_contract_version smallint;
+  v_artifact_id uuid;
   v_artifact public.learning_artifacts%rowtype;
   v_exam_marker uuid;
   v_scope_json jsonb;
@@ -164,17 +165,24 @@ begin
     return new;
   end if;
 
-  select attempt.evidence_contract_version, artifact
-    into v_contract_version, v_artifact
+  select attempt.evidence_contract_version, artifact.id
+    into v_contract_version, v_artifact_id
   from public.study_result_attempts attempt
   join public.learning_artifacts artifact
     on artifact.id = attempt.artifact_id
    and artifact.user_id = attempt.user_id
   where attempt.user_id = new.user_id
-    and attempt.client_attempt_id = new.client_attempt_id;
+    and attempt.client_attempt_id = new.client_attempt_id
+  for share of attempt, artifact;
   if not found or v_contract_version is distinct from 2 then
     return new;
   end if;
+
+  select artifact.*
+    into strict v_artifact
+  from public.learning_artifacts artifact
+  where artifact.id = v_artifact_id
+    and artifact.user_id = new.user_id;
   if v_artifact.study_scope_type <> 'exam' then
     return new;
   end if;

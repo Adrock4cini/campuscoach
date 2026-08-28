@@ -434,20 +434,20 @@ begin
       or p_artifact ->> 'kind' is distinct from 'practice'
       or p_artifact ->> 'capture_id' is distinct from p_capture_id::text
       or jsonb_typeof(p_artifact -> 'concept_ids') is distinct from 'array'
-      or case
+      or (case
         when jsonb_typeof(p_artifact -> 'concept_ids') = 'array'
           then jsonb_array_length(p_artifact -> 'concept_ids') <> 1
         else true
-      end
+      end)
       or p_artifact -> 'concept_ids' ->> 0 is distinct from p_concept_id::text
       or jsonb_typeof(p_artifact -> 'study_scope_snapshot') is distinct from 'object'
       or jsonb_typeof(p_artifact -> 'payload') is distinct from 'object'
       or jsonb_typeof(p_artifact -> 'payload' -> 'problems') is distinct from 'array'
-      or case
+      or (case
         when jsonb_typeof(p_artifact -> 'payload' -> 'problems') = 'array'
           then jsonb_array_length(p_artifact -> 'payload' -> 'problems') <> 1
         else true
-      end
+      end)
       or coalesce(p_artifact ->> 'study_scope_type', '') not in ('recent', 'exam', 'class')
       or coalesce(p_artifact ->> 'study_scope_id', '') = ''
       or coalesce(p_artifact ->> 'prompt_version', '') = '' then

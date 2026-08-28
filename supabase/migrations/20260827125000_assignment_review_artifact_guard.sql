@@ -38,11 +38,11 @@ begin
       or p_artifact ->> 'user_id' is distinct from p_user_id::text
       or p_artifact ->> 'capture_id' is not null
       or jsonb_typeof(p_artifact -> 'concept_ids') is distinct from 'array'
-      or case
+      or (case
         when jsonb_typeof(p_artifact -> 'concept_ids') = 'array'
           then jsonb_array_length(p_artifact -> 'concept_ids') not between 1 and 8
         else true
-      end
+      end)
       or jsonb_typeof(p_artifact -> 'study_scope_snapshot') is distinct from 'object'
       or jsonb_typeof(p_artifact -> 'payload') is distinct from 'object'
       or coalesce(p_artifact ->> 'study_scope_type', '') not in ('recent', 'exam', 'class')

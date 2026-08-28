@@ -10,6 +10,7 @@ export const CONTROL_SCHEMA = "cc_staging_migration";
 export const PROTECTED_LOVABLE_PROJECT_IDS = Object.freeze([
   "a08a7f00-4b76-4d5b-ac89-2c15e604054a", // production Campus Coach Pro
   "0b0043fb-1222-49bd-a350-a068bcb3d844", // unused Lovable shell
+  "45c02d1f-91a2-4b8d-8fcd-eea6402e45ad", // quarantined after failed replay
 ]);
 export const POST_PHASE_GATES = Object.freeze([
   {
@@ -313,6 +314,207 @@ export function scanTopLevelSql(sql) {
   return statements;
 }
 
+function findTopLevelDollarQuotes(sql) {
+  const quotes = [];
+  let index = 0;
+  while (index < sql.length) {
+    if (sql[index] === "-" && sql[index + 1] === "-") {
+      const newline = sql.indexOf("\n", index + 2);
+      index = newline < 0 ? sql.length : newline;
+      continue;
+    }
+    if (sql[index] === "/" && sql[index + 1] === "*") {
+      let depth = 1;
+      index += 2;
+      while (index < sql.length && depth > 0) {
+        if (sql[index] === "/" && sql[index + 1] === "*") {
+          depth += 1;
+          index += 2;
+        } else if (sql[index] === "*" && sql[index + 1] === "/") {
+          depth -= 1;
+          index += 2;
+        } else {
+          index += 1;
+        }
+      }
+      continue;
+    }
+    if (sql[index] === "'" || sql[index] === '"') {
+      const delimiter = sql[index];
+      index += 1;
+      while (index < sql.length) {
+        if (delimiter === "'" && sql[index] === "\\") {
+          index += 2;
+        } else if (sql[index] === delimiter && sql[index + 1] === delimiter) {
+          index += 2;
+        } else if (sql[index] === delimiter) {
+          index += 1;
+          break;
+        } else {
+          index += 1;
+        }
+      }
+      continue;
+    }
+    if (sql[index] === "$") {
+      const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/u.exec(sql.slice(index))?.[0];
+      if (tag) {
+        const bodyStart = index + tag.length;
+        const close = sql.indexOf(tag, bodyStart);
+        if (close < 0) {
+          throw new LovableStagingPayloadFailure("sql-lexer", "unterminated dollar quote");
+        }
+        quotes.push({ start: index, end: close + tag.length, body: sql.slice(bodyStart, close) });
+        index = close + tag.length;
+        continue;
+      }
+    }
+    index += 1;
+  }
+  return quotes;
+}
+
+function scanPlpgsqlBodyTokens(body) {
+  const tokens = [];
+  let index = 0;
+  while (index < body.length) {
+    if (/\s/u.test(body[index])) {
+      index += 1;
+      continue;
+    }
+    if (body[index] === "-" && body[index + 1] === "-") {
+      const newline = body.indexOf("\n", index + 2);
+      index = newline < 0 ? body.length : newline;
+      continue;
+    }
+    if (body[index] === "/" && body[index + 1] === "*") {
+      let depth = 1;
+      index += 2;
+      while (index < body.length && depth > 0) {
+        if (body[index] === "/" && body[index + 1] === "*") {
+          depth += 1;
+          index += 2;
+        } else if (body[index] === "*" && body[index + 1] === "/") {
+          depth -= 1;
+          index += 2;
+        } else {
+          index += 1;
+        }
+      }
+      continue;
+    }
+    if (body[index] === "'" || body[index] === '"') {
+      const delimiter = body[index];
+      index += 1;
+      while (index < body.length) {
+        if (delimiter === "'" && body[index] === "\\") {
+          index += 2;
+        } else if (body[index] === delimiter && body[index + 1] === delimiter) {
+          index += 2;
+        } else if (body[index] === delimiter) {
+          index += 1;
+          break;
+        } else {
+          index += 1;
+        }
+      }
+      tokens.push({ kind: "opaque", value: null });
+      continue;
+    }
+    if (body[index] === "$") {
+      const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/u.exec(body.slice(index))?.[0];
+      if (tag) {
+        const close = body.indexOf(tag, index + tag.length);
+        if (close < 0) {
+          throw new LovableStagingPayloadFailure("sql-lexer", "unterminated nested dollar quote");
+        }
+        index = close + tag.length;
+        tokens.push({ kind: "opaque", value: null });
+        continue;
+      }
+    }
+    if (/[A-Za-z_]/u.test(body[index])) {
+      const start = index;
+      index += 1;
+      while (index < body.length && /[A-Za-z0-9_$]/u.test(body[index])) index += 1;
+      tokens.push({ kind: "word", value: body.slice(start, index).toLowerCase() });
+      continue;
+    }
+    tokens.push({ kind: "symbol", value: body[index] });
+    index += 1;
+  }
+  return tokens;
+}
+
+function assertNoTopLevelCaseInPlpgsqlConditions(tokens) {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    const previous = tokens[index - 1];
+    const startsIfStatement = token.kind === "word"
+      && token.value === "if"
+      && previous?.value !== "end"
+      && (
+        index === 0
+        || (previous.kind === "symbol" && previous.value === ";")
+        || (previous.kind === "word" && ["begin", "then", "else", "loop"].includes(previous.value))
+        || (previous.kind === "symbol" && previous.value === ">" && tokens[index - 2]?.value === ">")
+      );
+    const startsElsifCondition = token.kind === "word" && ["elsif", "elseif"].includes(token.value);
+    if (
+      !startsIfStatement
+      && !startsElsifCondition
+    ) {
+      continue;
+    }
+
+    let parenthesisDepth = 0;
+    let caseDepth = 0;
+    for (let conditionIndex = index + 1; conditionIndex < tokens.length; conditionIndex += 1) {
+      const conditionToken = tokens[conditionIndex];
+      if (conditionToken.kind === "symbol") {
+        if (conditionToken.value === "(") parenthesisDepth += 1;
+        if (conditionToken.value === ")") parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+        if (conditionToken.value === ";" && parenthesisDepth === 0 && caseDepth === 0) break;
+        continue;
+      }
+      if (conditionToken.kind !== "word") continue;
+
+      if (conditionToken.value === "case") {
+        if (parenthesisDepth === 0) {
+          throw new LovableStagingPayloadFailure(
+            "postgres-parse-ambiguity",
+            "CASE expressions at the top level of a PL/pgSQL IF or ELSIF condition must be parenthesized",
+          );
+        }
+        caseDepth += 1;
+        continue;
+      }
+      if (conditionToken.value === "end" && caseDepth > 0) {
+        caseDepth -= 1;
+        continue;
+      }
+      if (conditionToken.value === "then" && parenthesisDepth === 0 && caseDepth === 0) break;
+    }
+  }
+}
+
+function assertParenthesizedPlpgsqlCases(sql, statements) {
+  const dollarQuotes = findTopLevelDollarQuotes(sql);
+  for (const statement of statements) {
+    const isDoBlock = statement.words[0] === "do"
+      && (!statement.words.includes("language") || includesSequence(statement.words, ["language", "plpgsql"]));
+    const isPlpgsqlRoutine = ["function", "procedure"].some((kind) => statement.words.includes(kind))
+      && includesSequence(statement.words, ["language", "plpgsql"]);
+    if (!isDoBlock && !isPlpgsqlRoutine) continue;
+
+    const bodies = dollarQuotes.filter(({ start, end }) => start >= statement.start && end <= statement.end);
+    const body = bodies.at(-1)?.body;
+    if (body === undefined) continue;
+    const tokens = scanPlpgsqlBodyTokens(body);
+    assertNoTopLevelCaseInPlpgsqlConditions(tokens);
+  }
+}
+
 function includesSequence(words, sequence) {
   for (let index = 0; index <= words.length - sequence.length; index += 1) {
     if (sequence.every((word, offset) => words[index + offset] === word)) return true;
@@ -350,6 +552,7 @@ export function analyzeMigrationSql(sql) {
       "migration must contain only semicolon-terminated top-level statements",
     );
   }
+  assertParenthesizedPlpgsqlCases(sql, statements);
   assertTransactionalStatements(statements);
 
   const transactionIndexes = statements

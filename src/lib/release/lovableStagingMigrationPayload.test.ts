@@ -98,10 +98,11 @@ describe("Lovable Cloud staging migration payloads", () => {
     expect(outerFiles).toHaveLength(16);
   });
 
-  it("forbids production and the unused Lovable shell as migration targets", () => {
+  it("forbids every protected Lovable project in all four payload builders", () => {
     expect(PROTECTED_LOVABLE_PROJECT_IDS).toEqual([
       "a08a7f00-4b76-4d5b-ac89-2c15e604054a",
       "0b0043fb-1222-49bd-a350-a068bcb3d844",
+      "45c02d1f-91a2-4b8d-8fcd-eea6402e45ad",
     ]);
     for (const projectId of PROTECTED_LOVABLE_PROJECT_IDS) {
       expect(() => buildBootstrapPayload({
@@ -109,6 +110,17 @@ describe("Lovable Cloud staging migration payloads", () => {
         candidateSha: CANDIDATE_SHA,
       }, manifest)).toThrow("forbidden for this Lovable project");
       expect(() => buildAttemptPayload({
+        ...configFor(manifest.entries[0]),
+        projectId,
+      }, manifest)).toThrow("forbidden for this Lovable project");
+      expect(() => buildGatePayload({
+        projectId,
+        candidateSha: CANDIDATE_SHA,
+        ordinal: POST_PHASE_GATES[0].targetOrdinal,
+        version: POST_PHASE_GATES[0].targetVersion,
+        gateAttestation: POST_PHASE_GATES[0].attestation,
+      }, manifest)).toThrow("forbidden for this Lovable project");
+      expect(() => buildMigrationPayload({
         ...configFor(manifest.entries[0]),
         projectId,
       }, manifest)).toThrow("forbidden for this Lovable project");
@@ -334,6 +346,155 @@ describe("Lovable Cloud staging migration payloads", () => {
       "create database forbidden;",
     ];
     for (const sql of rejected) expect(() => analyzeMigrationSql(sql)).toThrow("transaction-safety");
+  });
+
+  it("rejects unparenthesized CASE expressions in PL/pgSQL conditions", () => {
+    const rejected = [
+      `
+        do $body$
+        begin
+          if true or case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+      `
+        do $body$
+        begin
+          if false then
+            null;
+          elseif case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+      `
+        do $body$
+        begin
+          if true and /* an ignored comment */
+             case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+      `
+        do $body$
+        begin
+          if case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+      `
+        do $body$
+        begin
+          if not -- comment between the guarded tokens
+             case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+      `
+        do $body$
+        begin
+          if false then
+            null;
+          elsif /* comment before the expression */
+            case when true then false else true end then
+            null;
+          end if;
+        end;
+        $body$;
+      `,
+    ];
+    for (const sql of rejected) {
+      expect(() => analyzeMigrationSql(sql)).toThrow("postgres-parse-ambiguity");
+    }
+
+    expect(() => analyzeMigrationSql(`
+      do $body$
+      begin
+        if true or /* allowed before an explicit parenthesis */
+           (case when true then false else true end) then
+          null;
+        end if;
+      end;
+      $body$;
+    `)).not.toThrow();
+
+    expect(() => analyzeMigrationSql(`
+      do $body$
+      begin
+        if not (case when true then false else true end) then
+          null;
+        elsif coalesce(case when true then false else true end, false) then
+          null;
+        end if;
+      end;
+      $body$;
+    `)).not.toThrow();
+  });
+
+  it("scopes the CASE guard to PL/pgSQL bodies and ignores lexical lookalikes", () => {
+    const allowed = [
+      "select true or case when true then false else true end;",
+      "select $text$ top-level OR CASE text $text$;",
+      `
+        create function public.sql_case()
+        returns boolean language sql as $sql$
+          select true and case when true then false else true end
+        $sql$;
+      `,
+      `
+        create function public.plpgsql_return_case()
+        returns boolean language plpgsql as $function$
+        begin
+          return true or case when true then false else true end;
+        end;
+        $function$;
+      `,
+      `
+        do $body$
+        begin
+          -- OR CASE in a comment is not executable syntax.
+          perform 'AND CASE in a string';
+          perform "OR CASE in a quoted identifier";
+          perform $nested$OR CASE in nested dollar text$nested$;
+          perform true or (/* comment */ case when true then false else true end);
+          alter table public.example
+            add column if not exists ready boolean default case when true then false else true end;
+          if true then
+            null;
+          end if;
+          case when true then
+            null;
+          else
+            null;
+          end case;
+        end;
+        $body$;
+      `,
+    ];
+    for (const sql of allowed) expect(() => analyzeMigrationSql(sql)).not.toThrow();
+  });
+
+  it("keeps the full-scope trigger on scalar artifact identity plus a locked row fetch", () => {
+    const migration = manifest.entries.find(({ version }) => version === "20260828110000")?.sql;
+    expect(migration).toBeDefined();
+    expect(migration).not.toMatch(
+      /select\s+attempt\.evidence_contract_version\s*,\s*artifact\s+into\s+v_contract_version\s*,\s*v_artifact/iu,
+    );
+    expect(migration).toMatch(
+      /select\s+attempt\.evidence_contract_version\s*,\s*artifact\.id\s+into\s+v_contract_version\s*,\s*v_artifact_id[\s\S]*?for\s+share\s+of\s+attempt\s*,\s*artifact\s*;/iu,
+    );
+    expect(migration).toMatch(
+      /select\s+artifact\.\*\s+into\s+strict\s+v_artifact\s+from\s+public\.learning_artifacts\s+artifact\s+where\s+artifact\.id\s*=\s*v_artifact_id\s+and\s+artifact\.user_id\s*=\s*new\.user_id\s*;/iu,
+    );
   });
 
   it("ignores transaction-looking text inside comments, strings, identifiers, and dollar quotes", () => {
