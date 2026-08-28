@@ -21,6 +21,7 @@ import {
 
 export {
   EVIDENCE_DEFAULTS,
+  LEARNING_EVIDENCE_WEIGHT,
   MAX_EVIDENCE_ADJUSTMENT,
   evidenceAdjustment,
   evidenceNote,
@@ -30,6 +31,7 @@ export {
 
 export type {
   EvidenceOptions,
+  LearningEvidenceTier,
   StrategyEvidence,
   StrategyOutcomeRecord,
   StrategyOutcomeSource,
@@ -53,6 +55,10 @@ interface EvidenceQuery {
  * Loads this student's own outcome rows (RLS keeps it owner-only) and
  * summarizes them. Returns an empty list on any failure so a cold start and a
  * network error behave identically: subject defaults stay in charge.
+ *
+ * Persisted outcome rows do not yet expose `evidence_tier`; until that schema
+ * field lands they intentionally retain legacy weight. New callers can already
+ * use the pure evidence model without waiting for the hosted migration.
  */
 export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true }: EvidenceQuery) {
   const [evidence, setEvidence] = useState<StrategyEvidence[]>([]);
