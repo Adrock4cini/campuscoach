@@ -2057,13 +2057,14 @@ function sameStringSet(left: string[] | null, right: string[]) {
 
 function isStudyRunCoverageError(error: unknown) {
   if (!isRecord(error) || typeof error.message !== "string") return false;
+  const message = error.message;
   return [
     "study run segment concepts",
     "study run segment repeats concept evidence",
     "final study run segment",
     "complete artifact coverage",
     "study run concept evidence cannot appear",
-  ].some((fragment) => error.message.includes(fragment));
+  ].some((fragment) => message.includes(fragment));
 }
 
 function parseReadinessProjection(value: unknown): ReadinessProjection | null {
