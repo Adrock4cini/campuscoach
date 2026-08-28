@@ -353,7 +353,7 @@ There is no earlier resume point in this handoff.
 - User A cannot load or mutate User B's concepts, artifacts, mastery, feedback,
   captures, source objects, or classes.
 - The exact hosted `pg_proc` / `has_function_privilege` catalog comparison in
-  `family-beta-operations.md` returns 11 rows, all `OK`, with zero anon-executable
+  `family-beta-operations.md` returns 12 rows, all `OK`, with zero anon-executable
   SECURITY DEFINER functions. The expected authenticated signatures are
   `accept_family_beta_agreement(text)`,
   `can_delete_uncommitted_capture_source(text)`,
