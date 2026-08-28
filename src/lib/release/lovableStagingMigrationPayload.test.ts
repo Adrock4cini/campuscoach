@@ -101,6 +101,9 @@ describe("Lovable Cloud staging migration payloads", () => {
   it("forbids every protected Lovable project in all four payload builders", () => {
     expect(PROTECTED_LOVABLE_PROJECT_IDS).toEqual([
       "a08a7f00-4b76-4d5b-ac89-2c15e604054a",
+      "14ee9834-144c-4923-9963-b5389d0cc4ca",
+      "22053d35-bc57-4b25-a9a5-3a7ed8e158b2",
+      "33bcdaaa-6765-4b62-a375-a58b661726ea",
       "0b0043fb-1222-49bd-a350-a068bcb3d844",
       "45c02d1f-91a2-4b8d-8fcd-eea6402e45ad",
     ]);
