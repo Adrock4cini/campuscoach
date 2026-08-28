@@ -454,6 +454,7 @@ describe("Lovable Cloud staging migration payloads", () => {
         create function public.plpgsql_return_case()
         returns boolean language plpgsql as $function$
         begin
+          -- RETURN is parsed as a normal SQL expression, unlike IF's read-until-THEN condition.
           return true or case when true then false else true end;
         end;
         $function$;
