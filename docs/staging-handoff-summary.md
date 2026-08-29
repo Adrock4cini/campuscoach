@@ -1,0 +1,1 @@
+The staging workflow uses a non-persistent checkout credential so the reviewed candidate remains clean for integrity verification. The migration runner itself remains unchanged.
