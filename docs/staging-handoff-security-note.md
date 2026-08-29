@@ -1,0 +1,1 @@
+Security invariant: removing persisted checkout credentials is not a bypass. The exact SHA and clean worktree checks remain, and the replay runner continues enforcing protected targets, migration bytes, allowed transitions, and attestations.
