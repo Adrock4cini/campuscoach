@@ -1,0 +1,1 @@
+Primary handoff contract: `docs/staging-actions-checkout-handoff.md`. Executable regression: `scripts/__tests__/staging-workflow-checkout.test.mjs`.
