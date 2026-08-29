@@ -1,0 +1,1 @@
+Why: GitHub Actions can persist checkout authentication in repository-local git configuration. The hardened runner requires a completely clean reviewed candidate, so staging checkout must avoid persisting that metadata.
