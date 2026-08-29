@@ -1,0 +1,1 @@
+Operators should continue dispatching from the main workflow and supplying the separately reviewed release-candidate SHA. Workflow implementation commits are not release-candidate substitutions.
