@@ -1,0 +1,1 @@
+Do not dispatch staging from this branch. Merge only after CI, then dispatch the workflow from main.
