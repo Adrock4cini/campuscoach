@@ -1,0 +1,1 @@
+Live rehearsal acceptance: the next dispatch must pass the git-candidate cleanliness guard before any remote mutation is considered. If any later guard fails, staging remains the only permitted target and rollout stops for inspection.
