@@ -1,4 +1,7 @@
-import { evidenceMeetsTaskMinimum } from "./learning-evidence.ts";
+import {
+  evidenceMeetsTaskMinimum,
+  type LearningEvidenceTier,
+} from "./learning-evidence.ts";
 
 /**
  * Strategy-effectiveness evidence — the layer that makes the adaptive loop
@@ -26,12 +29,7 @@ import { evidenceMeetsTaskMinimum } from "./learning-evidence.ts";
  */
 
 export type StrategyOutcomeSource = "study_result" | "feedback";
-export type LearningEvidenceTier =
-  | "exposure"
-  | "recall"
-  | "discrimination"
-  | "application"
-  | "transfer";
+export type { LearningEvidenceTier } from "./learning-evidence.ts";
 
 /**
  * How strongly one observation should influence adaptive strategy ranking.
