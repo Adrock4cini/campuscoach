@@ -1,0 +1,1 @@
+CI should execute the staging workflow checkout regression alongside existing repository tests.
