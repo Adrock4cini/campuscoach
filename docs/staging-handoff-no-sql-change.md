@@ -1,0 +1,1 @@
+No SQL migration file is part of this handoff fix. This keeps the previously reviewed migration corpus byte-identical while correcting only the GitHub Actions checkout transport.
