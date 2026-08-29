@@ -1,0 +1,1 @@
+Target remains the disposable staging project supplied at dispatch time and independently protected by the replay runner.
