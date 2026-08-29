@@ -1,0 +1,1 @@
+Scope is intentionally narrow: GitHub Actions checkout behavior only. No application source, migration SQL, Supabase target configuration, release-candidate contents, or replay-runner safety rules are changed.
