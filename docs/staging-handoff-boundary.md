@@ -1,0 +1,1 @@
+Boundary: this change affects only the staging workflow checkout. Production, Family Beta, Lovable staging, and migration SQL remain untouched.
