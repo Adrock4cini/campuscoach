@@ -1,0 +1,1 @@
+Audit point: first live rehearsal failed before remote mutation; this branch changes only checkout credential persistence.
