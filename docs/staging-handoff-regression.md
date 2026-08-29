@@ -1,0 +1,1 @@
+Regression requirement: staging checkout must not persist GitHub credentials, must resolve to the operator-supplied candidate SHA, and must remain porcelain-clean before the hardened replay runner starts.
