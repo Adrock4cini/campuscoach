@@ -1,0 +1,109 @@
+name: Staging migration phase
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: "20-character disposable staging Supabase project ref"
+        required: true
+        type: string
+      candidate_sha:
+        description: "Exact reviewed 40-character release candidate SHA"
+        required: true
+        type: string
+      expected_current_version:
+        description: "Current canonical migration version, or none for first phase"
+        required: true
+        type: string
+      through_version:
+        description: "Approved phase through-version"
+        required: true
+        type: string
+      blank_preflight_attestation:
+        description: "First phase only: <ref>:zero-auth-users:zero-public-tables:zero-ledger-rows"
+        required: false
+        type: string
+      phase_gate_attestation:
+        description: "Later phases only: exact gate token from rollout runbook"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: campus-companion-staging-migration
+  cancel-in-progress: false
+
+jobs:
+  apply-reviewed-phase:
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+      REVIEWED_SUPABASE_CLI_VERSION: "2.115.0"
+      REVIEWED_SUPABASE_CLI_LINUX_AMD64_SHA256: "ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3"
+
+    steps:
+      - name: Require explicit staging credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+          test -n "${SUPABASE_DB_PASSWORD:-}"
+
+      - name: Check out exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Require candidate SHA exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ inputs.candidate_sha }}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Install reviewed Supabase CLI binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="supabase_${REVIEWED_SUPABASE_CLI_VERSION}_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            "https://github.com/supabase/cli/releases/download/v${REVIEWED_SUPABASE_CLI_VERSION}/${archive}" \
+            --output "/tmp/${archive}"
+          echo "${REVIEWED_SUPABASE_CLI_LINUX_AMD64_SHA256}  /tmp/${archive}" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/supabase-cli"
+          tar -xzf "/tmp/${archive}" -C "$RUNNER_TEMP/supabase-cli" supabase
+          chmod 0755 "$RUNNER_TEMP/supabase-cli/supabase"
+          echo "$RUNNER_TEMP/supabase-cli" >> "$GITHUB_PATH"
+
+      - name: Verify reviewed CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(supabase --version)" = "${REVIEWED_SUPABASE_CLI_VERSION}"
+
+      - name: Run exactly one hardened migration transition
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --project-ref "${{ inputs.project_ref }}"
+            --expected-project-ref "${{ inputs.project_ref }}"
+            --candidate-sha "${{ inputs.candidate_sha }}"
+            --expected-current-version "${{ inputs.expected_current_version }}"
+            --through-version "${{ inputs.through_version }}"
+            --approved-cli-version "${REVIEWED_SUPABASE_CLI_VERSION}"
+            --apply
+          )
+          if [[ -n "${{ inputs.blank_preflight_attestation }}" ]]; then
+            args+=(--blank-preflight-attestation "${{ inputs.blank_preflight_attestation }}")
+          fi
+          if [[ -n "${{ inputs.phase_gate_attestation }}" ]]; then
+            args+=(--phase-gate-attestation "${{ inputs.phase_gate_attestation }}")
+          fi
+          npm run migrate:staging:phase -- "${args[@]}"
