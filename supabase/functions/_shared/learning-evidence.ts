@@ -1,4 +1,9 @@
-import type { LearningEvidenceTier } from "./strategy-evidence.ts";
+export type LearningEvidenceTier =
+  | "exposure"
+  | "recall"
+  | "discrimination"
+  | "application"
+  | "transfer";
 
 export type TeachingTaskKind =
   | "memorize-terms"
