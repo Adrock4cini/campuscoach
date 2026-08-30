@@ -199,6 +199,7 @@ export function buildNextUpSummary(
 
   const nextDue: NextDueSummary | null = nextAssignment
     ? {
+        assignmentId: nextAssignment.id,
         classId: nextAssignment.client_class_id ?? nextAssignment.class_id,
         className: classNameFor(classes, nextAssignment.class_id, nextAssignment.client_class_id),
         title: nextAssignment.title,
