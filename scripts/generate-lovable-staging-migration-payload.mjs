@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-export const EXPECTED_MIGRATION_COUNT = 63;
-export const EXPECTED_FINAL_MIGRATION_VERSION = "20260828110000";
+export const EXPECTED_MIGRATION_COUNT = 64;
+export const EXPECTED_FINAL_MIGRATION_VERSION = "20260830231658";
 export const CONTROL_SCHEMA = "cc_staging_migration";
 export const PROTECTED_LOVABLE_PROJECT_IDS = Object.freeze([
   "a08a7f00-4b76-4d5b-ac89-2c15e604054a", // production Campus Coach Pro
@@ -99,6 +99,13 @@ export const POST_PHASE_GATES = Object.freeze([
     targetOrdinal: 63,
     targetVersion: "20260828110000",
     attestation: "writes-paused-evidence-contract-edge-deployed-verified",
+  },
+  {
+    previousOrdinal: 63,
+    previousVersion: "20260828110000",
+    targetOrdinal: 64,
+    targetVersion: "20260830231658",
+    attestation: "writes-paused-practice-source-confirmation-verified",
   },
 ].map((gate) => Object.freeze(gate)));
 export const EXPECTED_OUTER_TRANSACTION_FILES = Object.freeze([
@@ -1074,7 +1081,7 @@ export function buildGatePayload(config, manifest = readLovableMigrationManifest
   if (!gate) {
     throw new LovableStagingPayloadFailure(
       "phase-gate",
-      "the selected migration is not one of the 12 gated post-phase transitions",
+      "the selected migration is not one of the 13 gated post-phase transitions",
     );
   }
   if (config.gateAttestation !== gate.attestation) {

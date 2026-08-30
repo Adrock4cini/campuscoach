@@ -126,6 +126,16 @@ const DISCOUNT_CALCULATE_COLON = new RegExp(
   `^\\s*calculate\\s+the\\s+sale\\s+price\\s*:\\s*\\$\\s*(${NUMBER_SOURCE})\\s+(${ITEM_LABEL_SOURCE})\\s+(${NUMBER_SOURCE})\\s*(?:%|percent)\\s*off\\s*[?!.]?\\s*$`,
   "i",
 );
+// The learner-facing copy advertises the ordinary two-sentence textbook form
+// ("A jacket costs $80. It is 25% off. What is the sale price?"). Parse it
+// deterministically rather than leaving the advertised case unsupported.
+const DISCOUNT_COSTS_SENTENCES = new RegExp(
+  `^\\s*(?:a|an|the)\\s+(${ITEM_LABEL_SOURCE})\\s+costs\\s+\\$\\s*(${NUMBER_SOURCE})\\s*[.,;]?\\s*`
+  + `(?:it|the\\s+\\1)\\s+is\\s+(?:on\\s+sale\\s+(?:for|at)\\s+)?(${NUMBER_SOURCE})\\s*(?:%|percent)\\s*off\\s*[.,;!?]?\\s*`
+  + `(?:(?:what|find|calculate|compute|determine)\\s+(?:is\\s+)?the\\s+sale\\s+price\\s*[?.!]?\\s*)?$`,
+  "i",
+);
+
 
 function decimal(raw: string): Decimal {
   const [integerPart, fractionPart = ""] = raw.split(".");
@@ -341,6 +351,8 @@ function parseProblems(sourceExcerpt: string): ParsedProblemMatch[] {
     { match: sourceExcerpt.match(DISCOUNT_LABEL_COSTS), priceIndex: 2, labelIndex: 1, percentIndex: 3 },
     { match: sourceExcerpt.match(DISCOUNT_FIND_SALE), priceIndex: 1, labelIndex: 2, percentIndex: 3 },
     { match: sourceExcerpt.match(DISCOUNT_CALCULATE_COLON), priceIndex: 1, labelIndex: 2, percentIndex: 3 },
+    { match: sourceExcerpt.match(DISCOUNT_COSTS_SENTENCES), priceIndex: 2, labelIndex: 1, percentIndex: 3 },
+
   ];
   for (const wrapper of wrappedDiscounts) {
     if (!wrapper.match) continue;

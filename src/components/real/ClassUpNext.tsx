@@ -49,7 +49,9 @@ export function ClassUpNext({ classId, className }: Props) {
   const { open: openCapture } = useCapture();
   const [addAssignment, setAddAssignment] = useState(false);
   const [addExam, setAddExam] = useState(false);
-  const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
+  const { signals, loading: signalsLoading, error: signalsError, reload: reloadSignals } =
+    useClassReadinessSignals(classId);
+
   const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
   // Three honest signals, shown separately: urgency (the date chip),
   // coverage (do we have material), practice (what the student demonstrated).
@@ -86,7 +88,7 @@ export function ClassUpNext({ classId, className }: Props) {
                   </div>
                   <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextExam.exam_date))}</Badge>
                 </div>
-                {!signalsLoading && (
+                {!signalsLoading && !signalsError && (
                   <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
                     <Badge
                       variant="outline"
@@ -136,7 +138,30 @@ export function ClassUpNext({ classId, className }: Props) {
           </div>
         )}
 
-        {!signalsLoading && !material.sufficient ? (
+        {/* Never claim "nothing captured" from a failed evidence read. An
+            unavailable check is its own truthful state with a real retry. */}
+        {signalsError ? (
+          <div className="space-y-2 rounded-2xl border border-warning/40 bg-warning/10 p-3">
+            <div className="flex items-start gap-2">
+              <FileQuestion className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">Couldn’t check this class’s material</p>
+                <p className="text-xs text-muted-foreground">
+                  Your captures and concepts are still saved. Campus Companion just couldn’t read them right now.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 w-full rounded-xl"
+              onClick={() => { void reloadSignals(); }}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : !signalsLoading && !material.sufficient ? (
+
           <div className="space-y-2 rounded-2xl border border-warning/40 bg-warning/10 p-3">
             <div className="flex items-start gap-2">
               <FileQuestion className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
