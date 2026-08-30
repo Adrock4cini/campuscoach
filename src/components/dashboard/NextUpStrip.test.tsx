@@ -10,7 +10,7 @@ describe("next up strip", () => {
         <NextUpStrip
           summary={{
             nextTest: { classId: "bio", className: "Biology", title: "Unit 3", when: "Friday", readinessLabel: "Getting there", insufficient: false, count: 2 },
-            nextDue: { classId: "eng", className: "English", title: "Essay draft", when: "today", overdue: false, count: 3 },
+            nextDue: { assignmentId: "a-1", classId: "eng", className: "English", title: "Essay draft", when: "today", overdue: false, count: 3 },
           }}
         />
       </MemoryRouter>,
