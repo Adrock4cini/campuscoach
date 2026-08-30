@@ -20,9 +20,29 @@ export async function checkCaptureConceptReadiness(
   captureId: string,
 ): Promise<CaptureConceptReadiness> {
   if (!captureId) return { state: "unknown" };
+
+  // `concept_capture_evidence` ships in 20260827100000_concept_capture_evidence.sql.
+  // The generated types come from a backend that is behind that migration, so
+  // this one table is reached through a narrow structural view rather than by
+  // editing generated types or weakening the probe itself. Built inside the
+  // try below so a throwing client stays a "unknown" probe, never a crash.
+  type EvidenceClient = {
+    from: (table: string) => {
+      select: (
+        columns: string,
+        options: { count: "exact"; head: true },
+      ) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => PromiseLike<{ count: number | null; error: unknown }>;
+      };
+    };
+  };
+
   try {
     const [conceptResult, captureResult] = await Promise.all([
-      supabase
+      (supabase as unknown as EvidenceClient)
         .from("concept_capture_evidence")
         .select("concept_id", { count: "exact", head: true })
         .eq("capture_id", captureId),
