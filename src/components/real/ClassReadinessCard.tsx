@@ -56,8 +56,15 @@ export function ClassReadinessCard({ classId, daysToExam, overdueAssignments }: 
             )}
           </div>
           {scored && (
-            <span className="shrink-0 font-display text-2xl font-bold tabular-nums text-foreground">
-              {explanation.percent}%
+            // Never a bare number: a naked "62%" reads like a grade. The unit
+            // label keeps it unambiguous that this is practice readiness.
+            <span className="shrink-0 text-right leading-none">
+              <span className="block font-display text-2xl font-bold tabular-nums text-foreground">
+                {explanation.percent}%
+              </span>
+              <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                ready
+              </span>
             </span>
           )}
           <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
