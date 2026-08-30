@@ -34,6 +34,8 @@ export interface NextTestSummary {
 }
 
 export interface NextDueSummary {
+  /** Real assignment id, so the strip can drill straight into that assignment. */
+  assignmentId: string;
   classId: string | null;
   className: string;
   title: string;
@@ -197,6 +199,7 @@ export function buildNextUpSummary(
 
   const nextDue: NextDueSummary | null = nextAssignment
     ? {
+        assignmentId: nextAssignment.id,
         classId: nextAssignment.client_class_id ?? nextAssignment.class_id,
         className: classNameFor(classes, nextAssignment.class_id, nextAssignment.client_class_id),
         title: nextAssignment.title,

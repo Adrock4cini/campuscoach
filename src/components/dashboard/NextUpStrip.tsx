@@ -43,7 +43,7 @@ export function NextUpStrip({ summary, loading = false }: { summary: NextUpSumma
       )}
       {nextDue && (
         <Row
-          to="/assignments"
+          to={`/assignments/${encodeURIComponent(nextDue.assignmentId)}`}
           icon={ClipboardList}
           label="Next due"
           title={`${nextDue.className} · ${nextDue.when}`}

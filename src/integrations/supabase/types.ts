@@ -954,6 +954,27 @@ export type Database = {
           },
         ]
       }
+      family_beta_agreement_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_by: string
+          agreement_version: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_by: string
+          agreement_version: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_by?: string
+          agreement_version?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       flashcards: {
         Row: {
           anonymized: boolean
@@ -1971,6 +1992,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_family_beta_agreement: {
+        Args: { p_agreement_version: string }
+        Returns: Json
+      }
       apply_study_concept_result: {
         Args: {
           p_attempt_id: string
@@ -2034,6 +2059,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_family_beta_agreement_status: { Args: never; Returns: Json }
       get_syllabus_cleanup_invocation_digest: { Args: never; Returns: string }
       owns_active_syllabus_storage_path: {
         Args: { p_path: string }

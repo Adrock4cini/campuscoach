@@ -10,7 +10,7 @@ describe("next up strip", () => {
         <NextUpStrip
           summary={{
             nextTest: { classId: "bio", className: "Biology", title: "Unit 3", when: "Friday", readinessLabel: "Getting there", insufficient: false, count: 2 },
-            nextDue: { classId: "eng", className: "English", title: "Essay draft", when: "today", overdue: false, count: 3 },
+            nextDue: { assignmentId: "a-1", classId: "eng", className: "English", title: "Essay draft", when: "today", overdue: false, count: 3 },
           }}
         />
       </MemoryRouter>,
@@ -19,7 +19,7 @@ describe("next up strip", () => {
     expect(screen.getByRole("link", { name: /Biology · Friday/ })).toHaveAttribute("href", "/exams");
     expect(screen.getByText(/Getting there/)).toBeInTheDocument();
     expect(screen.getByText("2 tests coming up")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /English · today/ })).toHaveAttribute("href", "/assignments");
+    expect(screen.getByRole("link", { name: /English · today/ })).toHaveAttribute("href", "/assignments/a-1");
     expect(screen.getByText("3 due this week")).toBeInTheDocument();
   });
 
