@@ -9,6 +9,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   acceptCurrentFamilyBetaAgreement,
+  FamilyBetaAgreementBackendMissingError,
   getFamilyBetaAgreementStatus,
 } from "./familyBetaAgreementService";
 
@@ -67,5 +68,40 @@ describe("family beta agreement service", () => {
 
     await expect(getFamilyBetaAgreementStatus()).rejects.toThrow("agreement status invalid");
     await expect(getFamilyBetaAgreementStatus()).rejects.toThrow("agreement status unavailable");
+  });
+});
+
+describe("backends without an agreement surface", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("distinguishes an undeployed status RPC from a failed check", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function public.get_family_beta_agreement_status" },
+    });
+
+    await expect(getFamilyBetaAgreementStatus())
+      .rejects.toBeInstanceOf(FamilyBetaAgreementBackendMissingError);
+  });
+
+  it("distinguishes an undeployed acceptance RPC from a failed acceptance", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function public.accept_family_beta_agreement" },
+    });
+
+    await expect(acceptCurrentFamilyBetaAgreement())
+      .rejects.toBeInstanceOf(FamilyBetaAgreementBackendMissingError);
+  });
+
+  it("still fails closed on a transport or permission error", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "permission denied" } });
+    await expect(getFamilyBetaAgreementStatus()).rejects.toThrow("agreement status unavailable");
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("still fails closed when the payload is malformed rather than absent", async () => {
+    rpc.mockResolvedValueOnce({ data: { accepted: true }, error: null });
+    await expect(getFamilyBetaAgreementStatus()).rejects.toThrow("agreement status invalid");
   });
 });

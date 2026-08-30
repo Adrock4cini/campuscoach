@@ -71,6 +71,11 @@ export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true
     }
     setLoading(true);
     try {
+      // `evidence_tier` ships in 20260828100000_learning_evidence_ladder.sql.
+      // The generated types come from a backend that is behind that migration,
+      // so the row shape is narrowed here. The selected columns — including
+      // evidence_tier — are deliberately unchanged: both evidence readers must
+      // keep consuming the tier.
       let query = supabase
         .from("study_strategy_outcomes")
         .select("strategy_id, technique, format, subject_profile, task_kind, correct, total, mastery_delta, evidence_tier, outcome_source, occurred_at")
@@ -83,7 +88,20 @@ export function useStrategyEvidence({ subjectProfileId, taskKind, enabled = true
         setEvidence([]);
         return;
       }
-      const records: StrategyOutcomeRecord[] = data.map((row) => ({
+      const rows = data as unknown as Array<{
+        strategy_id: string | null;
+        technique: string | null;
+        format: string | null;
+        subject_profile: string | null;
+        task_kind: string | null;
+        correct: number | string;
+        total: number | string;
+        mastery_delta: number | string | null;
+        evidence_tier: unknown;
+        outcome_source: string | null;
+        occurred_at: string;
+      }>;
+      const records: StrategyOutcomeRecord[] = rows.map((row) => ({
         strategyId: row.strategy_id,
         technique: row.technique,
         format: row.format,
