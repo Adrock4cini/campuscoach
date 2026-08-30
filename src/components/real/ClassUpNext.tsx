@@ -138,7 +138,30 @@ export function ClassUpNext({ classId, className }: Props) {
           </div>
         )}
 
-        {!signalsLoading && !material.sufficient ? (
+        {/* Never claim "nothing captured" from a failed evidence read. An
+            unavailable check is its own truthful state with a real retry. */}
+        {signalsError ? (
+          <div className="space-y-2 rounded-2xl border border-warning/40 bg-warning/10 p-3">
+            <div className="flex items-start gap-2">
+              <FileQuestion className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">Couldn’t check this class’s material</p>
+                <p className="text-xs text-muted-foreground">
+                  Your captures and concepts are still saved. Campus Companion just couldn’t read them right now.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 w-full rounded-xl"
+              onClick={() => { void reloadSignals(); }}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : !signalsLoading && !material.sufficient ? (
+
           <div className="space-y-2 rounded-2xl border border-warning/40 bg-warning/10 p-3">
             <div className="flex items-start gap-2">
               <FileQuestion className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
