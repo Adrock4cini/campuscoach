@@ -153,7 +153,7 @@ describe("Lovable Cloud staging migration payloads", () => {
     expect(payload).toContain("staging target contains cron jobs");
     expect(payload).toContain("staging target contains vault secrets");
     expect(payload).not.toMatch(/(?:insert|update|delete|create|alter)\s+(?:into\s+)?supabase_migrations\.schema_migrations/iu);
-    expect(payload.match(/^ {2}\(\d+, '\d{14}',/gmu)).toHaveLength(63);
+    expect(payload.match(/^ {2}\(\d+, '\d{14}',/gmu)).toHaveLength(64);
     for (const entry of manifest.entries) {
       expect(payload).toContain(entry.fileSha256);
       expect(payload).toContain(entry.gitBlobSha1);
