@@ -19,7 +19,7 @@ describe("next up strip", () => {
     expect(screen.getByRole("link", { name: /Biology · Friday/ })).toHaveAttribute("href", "/exams");
     expect(screen.getByText(/Getting there/)).toBeInTheDocument();
     expect(screen.getByText("2 tests coming up")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /English · today/ })).toHaveAttribute("href", "/assignments");
+    expect(screen.getByRole("link", { name: /English · today/ })).toHaveAttribute("href", "/assignments/a-1");
     expect(screen.getByText("3 due this week")).toBeInTheDocument();
   });
 
