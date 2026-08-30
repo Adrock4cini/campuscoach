@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
 } from "@/lib/learningArtifacts/coachStudyScope";
 import {
   Brain, Zap, Target, Gamepad2, Clock,
-  ArrowRight, Sparkles, Trophy
+  ArrowLeft, ArrowRight, Sparkles, Trophy
 } from "lucide-react";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { readStudyLabState } from "@/lib/study/studyLabState";
@@ -104,9 +104,29 @@ export default function StudyLab() {
     navigate(`/study-lab/session?mode=${mode}&classId=${effectiveClass}&topic=${encodeURIComponent(recommendedTopic ?? "all")}`);
 
 
+  // Studying is always entered *from* somewhere. Keep that origin reachable so
+  // finishing (or bailing out of) a session never becomes a dead end.
+  const origin = requestedAssignmentId
+    ? { to: `/assignments/${encodeURIComponent(requestedAssignmentId)}`, label: "Back to assignment" }
+    : preselectedClass
+      ? {
+          to: `/classes/${encodeURIComponent(preselectedClass)}`,
+          label: `Back to ${availableClasses.find((c) => c.id === preselectedClass)?.name ?? "class"}`,
+        }
+      : null;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 md:space-y-8">
       <div>
+        {origin && (
+          <Link
+            to={origin.to}
+            className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            {origin.label}
+          </Link>
+        )}
         <div className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-primary/90 mb-1.5">
           <Sparkles className="h-3 w-3" /> Study Lab
         </div>
