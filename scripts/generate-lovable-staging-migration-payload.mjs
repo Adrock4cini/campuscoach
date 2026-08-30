@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-export const EXPECTED_MIGRATION_COUNT = 63;
-export const EXPECTED_FINAL_MIGRATION_VERSION = "20260828110000";
+export const EXPECTED_MIGRATION_COUNT = 64;
+export const EXPECTED_FINAL_MIGRATION_VERSION = "20260830231658";
 export const CONTROL_SCHEMA = "cc_staging_migration";
 export const PROTECTED_LOVABLE_PROJECT_IDS = Object.freeze([
   "a08a7f00-4b76-4d5b-ac89-2c15e604054a", // production Campus Coach Pro
