@@ -324,7 +324,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     );
   } catch {
     logPrivateFailure({ errorClass: "gateway_request_failed", status: 502, requestId });
-    return json({ error: "AI extraction failed. Please try again." }, 502);
+    return json({ error: "We couldn’t read this file. Please try again." }, 502);
   }
   if (gatewayResult.ok === false) {
     if (gatewayResult.status === 503) {
@@ -337,7 +337,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   if (!gwRes.ok) {
     logPrivateFailure({ errorClass: "gateway_response_failed", status: 502, requestId });
-    return json({ error: "AI extraction failed. Please try again." }, 502);
+    return json({ error: "We couldn’t read this file. Please try again." }, 502);
   }
 
   let gw: unknown;

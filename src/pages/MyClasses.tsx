@@ -10,6 +10,7 @@ import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles,
 import { Link, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
+import { buildDuplicateLabels } from "@/lib/realData/classDuplicates";
 
 export default function MyClasses() {
   const { classes, isReal, loading, error, reload } = useMyClasses();
@@ -18,6 +19,17 @@ export default function MyClasses() {
   const [searchParams] = useSearchParams();
   const choosingSyllabusClass = searchParams.get("intent") === "syllabus";
   const canvasConnectEnabled = isCanvasConnectEnabled();
+  // Duplicates are labelled, never hidden: the copy we hid could be the one
+  // holding the student's work.
+  const duplicateLabels = buildDuplicateLabels(
+    classes.map((item) => ({
+      id: item.id,
+      name: item.name,
+      term: item.term ?? null,
+      section: item.section ?? null,
+    })),
+  );
+
 
   if (realMode && !loading && error) {
     return (
@@ -128,12 +140,18 @@ export default function MyClasses() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-display text-lg font-semibold leading-tight text-foreground">{c.name}</h3>
+                      {duplicateLabels[c.id] && (
+                        <p className="mt-0.5 text-[11px] text-warning">
+                          {duplicateLabels[c.id].suffix} · {duplicateLabels[c.id].note}
+                        </p>
+                      )}
                       {hasProfessor && (
                         <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                           <User className="h-3 w-3 shrink-0" />
                           {c.professor}
                         </p>
                       )}
+
                       {(c.courseCode || c.term || c.section) && (
                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                           {[c.courseCode, c.term, c.section ? `Sec. ${c.section}` : ""].filter(Boolean).join(" · ")}

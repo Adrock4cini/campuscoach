@@ -8,6 +8,8 @@ import {
   normalizeWeekdays,
   type Weekday,
 } from "@/lib/calendar/classSchedule";
+import { isExactDuplicateClass } from "@/lib/realData/classDuplicates";
+
 
 const optionalText = (max: number) => z.string().trim().max(max);
 
@@ -157,12 +159,43 @@ function classWritePayload(input: ClassEditorValues, existingMeta?: unknown) {
   };
 }
 
+export class DuplicateClassError extends Error {
+  constructor(name: string) {
+    super(`You already have a class named “${name}” this term. Open that class instead.`);
+    this.name = "DuplicateClassError";
+  }
+}
+
 export async function createClass(
   userId: string,
   stableId: string,
   input: ClassEditorValues,
 ): Promise<SavedClassIdentity> {
   const payload = classWritePayload(input);
+
+  // Adding the same class twice is never intentional. Existing rows are never
+  // touched — the new write is refused so a duplicate is not created at all.
+  const { data: existingClasses } = await supabase
+    .from("classes")
+    .select("id, name, term, section")
+    .eq("user_id", userId);
+  if (
+    existingClasses
+    && isExactDuplicateClass(
+      { name: payload.name, term: payload.term, section: payload.section },
+      existingClasses.map((row) => ({
+        id: row.id as string,
+        name: (row.name as string) ?? "",
+        term: row.term as string | null,
+        section: row.section as string | null,
+      })),
+      stableId,
+    )
+  ) {
+    throw new DuplicateClassError(payload.name);
+  }
+
+
   const { data, error } = await supabase
     .from("classes")
     .upsert({

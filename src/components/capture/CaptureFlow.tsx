@@ -255,11 +255,18 @@ export function CaptureFlow({
       && (!initialExamId || draft.examId === initialExamId)
       && (!initialTopic || draft.topic === initialTopic),
     );
+    // An empty draft is not work in progress. Tapping the capture button must
+    // open the menu, not silently reopen the last kind the student abandoned.
+    const draftHasContent = Boolean(
+      draft && (draft.text?.trim() || draft.topic?.trim() || draft.hadPhotos),
+    );
     const restorable = Boolean(
       draft && draftMeta && (!realMode || draftMeta.availableForRealUsers)
       && (!canOpenInitial || draft!.kind === initialKind)
-      && exactEntryScope,
+      && exactEntryScope
+      && (canOpenInitial || draftHasContent),
     );
+
 
     setStage(canOpenInitial || restorable ? "context" : "menu");
     setKind(canOpenInitial ? initialKind! : restorable ? draft!.kind : null);

@@ -99,18 +99,35 @@ describe("RealAssignmentDetail", () => {
     expect(screen.getByText("Show your work")).toBeInTheDocument();
   });
 
-  it("starts a new exact assignment capture when no saved help exists", async () => {
+  it("keeps adding pages as a separate explicit action", async () => {
     renderDetail();
 
     expect(await screen.findByText(/guided walkthroughs currently cover one percent-of or percent-discount problem/i))
       .toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "Capture one problem" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add assignment pages" }));
 
     expect(mocks.openCapture).toHaveBeenCalledWith("scan-assignment", {
       classId: "bio",
       assignmentId: "a-1",
     });
   });
+
+  it("routes Get help into the tutor with assignmentId and classId, never the scanner", async () => {
+    renderDetail();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Get help with this" }));
+
+    expect(mocks.openCapture).not.toHaveBeenCalled();
+    const location = screen.getByTestId("location").textContent ?? "";
+    const [pathname, query = ""] = location.split("?");
+    expect(pathname).toBe("/study-lab");
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({
+      classId: "bio",
+      assignmentId: "a-1",
+      intent: "assignment-help",
+    });
+  });
+
 
   it("continues a ready capture in Assignment Tutor with all target ids", async () => {
     mocks.getLatestCaptureForAssignment.mockResolvedValue(assignmentCapture("ready"));
@@ -137,7 +154,7 @@ describe("RealAssignmentDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("Campus Companion is still reading this assignment.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Capture one problem" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add assignment pages" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry processing" }));
 
     await waitFor(() => expect(mocks.retryCaptureProcessing).toHaveBeenCalledWith("capture-1"));
@@ -218,7 +235,7 @@ describe("RealAssignmentDetail", () => {
     renderDetail();
 
     expect(await screen.findByText("Couldn’t load this assignment")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Capture one problem" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add assignment pages" })).not.toBeInTheDocument();
   });
 
   it("says plainly when the assignment was deleted elsewhere", async () => {

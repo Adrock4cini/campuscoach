@@ -613,6 +613,17 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }
   }
 
+  // A study set is always about ONE class. Without a resolvable class boundary
+  // and without an explicit concept/capture selection, the query below would
+  // load every concept the student owns and let another class's material leak
+  // into this set. Refuse instead of guessing.
+  if (!evidenceConceptIds && !body.conceptIds?.length && !resolvedClientClassId) {
+    return json({
+      error: "Choose a class before building a study set",
+      reason: "class_scope_required",
+    }, 400);
+  }
+
   const conceptSelect = "id, name, definition, examples, professor_emphasis, class_id, client_class_id, capture_id, identity_key, source_kind, meta, created_at";
   let conceptQuery = supabase
     .from("concepts")
@@ -629,6 +640,11 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   } else if (resolvedClientClassId) {
     conceptQuery = conceptQuery.eq("client_class_id", resolvedClientClassId);
   }
+
+  // Explicit concept/capture selections are still bounded by the requested
+  // class below (`enforceClassBoundary`); this keeps a Coach or capture link
+  // from widening the set beyond the class the student is studying.
+
 
   // Stable foundations have their own bounded query so 15 freshly activated
   // map rows cannot displace the student's captured material from the normal

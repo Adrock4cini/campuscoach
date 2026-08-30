@@ -14,6 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  ASSIGNMENT_FILTER_TITLE,
+  dueChipLabel,
+  filterAssignments,
+  parseAssignmentFilter,
+} from "@/lib/dashboard/dueStatus";
+
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -32,16 +39,21 @@ export function RealAssignmentsView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedClassId = searchParams.get("classId") || undefined;
   const selectedAssignmentId = searchParams.get("assignmentId") || undefined;
+  const dueFilter = parseAssignmentFilter(searchParams.get("filter"));
   const {
     classes: myClasses,
     loading: classesLoading,
     error: classesError,
     reload: reloadClasses,
   } = useMyClasses();
-  const { items, loading, error, reload } = useRealAssignments(selectedClassId);
+  const { items: allItems, loading, error, reload } = useRealAssignments(selectedClassId);
+  // The list a student opens from an At-a-glance counter must contain exactly
+  // the items that counter counted.
+  const items = filterAssignments(allItems, dueFilter);
   const [addOpen, setAddOpen] = useState(false);
 
   const classNameFor = (id: string | null) => myClasses.find((c) => c.id === id)?.name ?? "Class";
+
 
   const toggleStatus = async (id: string, next: AssignmentStatus) => {
     const updated = await updateAssignment(id, { status: next });
@@ -64,10 +76,14 @@ export function RealAssignmentsView() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">Assignments</h1>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">
+            {ASSIGNMENT_FILTER_TITLE[dueFilter]}
+          </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            {items.filter((a) => a.status !== "complete").length} active
-            {selectedClassId && (
+            {dueFilter === "all"
+              ? `${items.filter((a) => a.status !== "complete").length} active`
+              : `${items.length} ${items.length === 1 ? "assignment" : "assignments"}`}
+            {(selectedClassId || dueFilter !== "all") && (
               <button
                 type="button"
                 className="ml-2 text-primary hover:underline"
@@ -78,6 +94,7 @@ export function RealAssignmentsView() {
             )}
           </p>
         </div>
+
         <Button size="sm" onClick={() => setAddOpen(true)} disabled={classesLoading || Boolean(classesError) || myClasses.length === 0}>
           <Plus className="h-4 w-4 mr-1" /> Add
         </Button>
@@ -104,12 +121,24 @@ export function RealAssignmentsView() {
           <CardContent className="p-8 text-center space-y-3">
             <ListChecks className="h-8 w-8 text-muted-foreground mx-auto" />
             <div>
-              <p className="font-medium text-foreground">No assignments yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Add your first assignment to start tracking due dates and progress.</p>
+              <p className="font-medium text-foreground">
+                {dueFilter === "all" ? "No assignments yet" : "Nothing in this list"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {dueFilter === "all"
+                  ? "Add your first assignment to start tracking due dates and progress."
+                  : "Nothing matches this filter right now."}
+              </p>
             </div>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add assignment
-            </Button>
+            {dueFilter === "all" ? (
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add assignment
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setSearchParams({})}>
+                Show all assignments
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -117,12 +146,8 @@ export function RealAssignmentsView() {
           {items.map((a) => {
             const fromCanvas = a.source === "canvas";
             const days = daysUntil(a.due_date);
-            const dueChip =
-              days === null ? "No date" :
-              days < 0 ? `${-days}d overdue` :
-              days === 0 ? "Due today" :
-              days === 1 ? "Due tomorrow" :
-              `Due in ${days}d`;
+            const dueChip = dueChipLabel(a.due_date);
+
             const dueTone =
               days === null ? "text-muted-foreground" :
               days <= 1 ? "text-danger" :

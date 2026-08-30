@@ -624,6 +624,42 @@ export type Database = {
           },
         ]
       }
+      concept_capture_evidence: {
+        Row: {
+          capture_id: string
+          concept_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          capture_id: string
+          concept_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          capture_id?: string
+          concept_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_capture_evidence_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_capture_evidence_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       concepts: {
         Row: {
           capture_id: string | null

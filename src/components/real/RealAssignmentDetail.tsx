@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Clock, HelpCircle, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, Clock, HelpCircle, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useCapture } from "@/contexts/CaptureContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
-import { daysUntil } from "@/lib/realData/hooks";
+import { dueChipLabel } from "@/lib/dashboard/dueStatus";
+
+
 import {
   getAssignment,
   updateAssignment,
@@ -131,12 +133,9 @@ export function RealAssignmentDetail() {
     );
   }
 
-  const days = daysUntil(assignment.due_date);
-  const dueChip =
-    days === null ? "No due date" :
-    days < 0 ? `${-days}d overdue` :
-    days === 0 ? "Due today" :
-    days === 1 ? "Due tomorrow" : `Due in ${days}d`;
+  
+  const dueChip = dueChipLabel(assignment.due_date);
+
   const captureMatchesAssignment = Boolean(
     assignmentCapture
     && assignment.client_class_id
@@ -163,6 +162,38 @@ export function RealAssignmentDetail() {
     navigate(`/study-lab?${params.toString()}`);
   };
 
+  /**
+   * "Get help with this" is a tutor door, never the scanner. When this
+   * assignment already has grounded material (a matching ready capture, or
+   * notes describing the work), the student goes straight into Study Lab with
+   * assignmentId + classId preserved. Adding missing pages stays a separate,
+   * explicit action.
+   */
+  const hasGroundedMaterial = Boolean(
+    (captureMatchesAssignment && captureStatus === "ready")
+    || (assignment.notes && assignment.notes.trim().length > 0),
+  );
+
+  const openAssignmentHelp = () => {
+    if (!assignment.client_class_id) {
+      toast.error("Attach this assignment to a class first.");
+      return;
+    }
+    if (captureMatchesAssignment && captureStatus === "ready" && practiceSourceConfirmed) {
+      continueAssignmentHelp();
+      return;
+    }
+    const params = new URLSearchParams({
+      classId: assignment.client_class_id,
+      assignmentId: assignment.id,
+      intent: "assignment-help",
+    });
+    if (captureMatchesAssignment && captureStatus === "ready" && assignmentCapture) {
+      params.set("captureId", assignmentCapture.id);
+    }
+    navigate(`/study-lab?${params.toString()}`);
+  };
+
   const practiceCapturedConcept = () => {
     if (!assignment.client_class_id) return;
     const params = new URLSearchParams({
@@ -170,6 +201,7 @@ export function RealAssignmentDetail() {
     });
     navigate(`/study-lab?${params.toString()}`);
   };
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -213,16 +245,24 @@ export function RealAssignmentDetail() {
                 ))}
               </SelectContent>
             </Select>
+            {hasGroundedMaterial && (
+              <Button className="min-h-11" onClick={openAssignmentHelp}>
+                <HelpCircle className="h-4 w-4 mr-1.5" />
+                {practiceSourceConfirmed && captureStatus === "ready"
+                  ? "Open percent walkthrough"
+                  : "Get help with this"}
+              </Button>
+            )}
             {!assignmentCapture && (
-              <Button className="min-h-11" onClick={openAssignmentCapture}>
-                <HelpCircle className="h-4 w-4 mr-1.5" /> Capture one problem
+              <Button
+                variant={hasGroundedMaterial ? "outline" : "default"}
+                className="min-h-11"
+                onClick={openAssignmentCapture}
+              >
+                <Camera className="h-4 w-4 mr-1.5" /> Add assignment pages
               </Button>
             )}
-            {captureStatus === "ready" && practiceSourceConfirmed && (
-              <Button className="min-h-11" onClick={continueAssignmentHelp}>
-                <HelpCircle className="h-4 w-4 mr-1.5" /> Open percent walkthrough
-              </Button>
-            )}
+
             {captureStatus === "ready" && assignmentCapture && assignment.client_class_id && (
               <AssignmentProblemReview
                 captureId={assignmentCapture.id}

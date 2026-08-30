@@ -88,12 +88,30 @@ export function ProfessorHints({ hints, onAdd, onDelete, onTogglePin, compact }:
             </div>
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onTogglePin?.(hint.id)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              aria-label={hint.pinned ? "Unpin hint" : "Pin hint"}
+              onClick={() => onTogglePin?.(hint.id)}
+            >
               <Pin className={`h-3 w-3 ${hint.pinned ? "text-warning" : "text-muted-foreground"}`} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDelete?.(hint.id)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              aria-label="Delete hint"
+              onClick={() => {
+                // Deleting a teacher hint is destructive and easy to hit by
+                // accident on a phone: always ask first.
+                if (!window.confirm("Delete this hint? This cannot be undone.")) return;
+                onDelete?.(hint.id);
+              }}
+            >
               <Trash2 className="h-3 w-3 text-muted-foreground" />
             </Button>
+
           </div>
         </div>
       ))}
