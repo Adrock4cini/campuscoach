@@ -8,6 +8,19 @@
 
 export const LAST_ROUTE_KEY = "cc_last_route_v1";
 
+/**
+ * Today/Dashboard is the product home. Default entry (plain sign-in, root,
+ * onboarding or agreement completion without an explicit destination) always
+ * resolves here — never to whichever tab happened to be visited last.
+ */
+export const DEFAULT_HOME_ROUTE = "/dashboard";
+
+/** Resolves an entry destination: an intentional deep link, else Today. */
+export function resolveEntryRoute(next?: unknown): string {
+  if (typeof next === "string" && next !== "/" && isRestorableRoute(next)) return next;
+  return DEFAULT_HOME_ROUTE;
+}
+
 const NEVER_RESTORE = [
   "/login",
   "/signup",

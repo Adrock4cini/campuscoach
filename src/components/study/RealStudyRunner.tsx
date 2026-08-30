@@ -767,6 +767,38 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                             </p>
                           )}
                         </div>
+                        {question.conceptId && question.conceptName && question.sourceExcerpt
+                          && (artifact.client_class_id || artifact.class_id) && (
+                          <MemoryTrickPanel
+                            defaultOpen={mnemonicOpen}
+                            onOpenChange={setMnemonicOpen}
+                            conceptId={question.conceptId}
+                            conceptName={question.conceptName}
+                            exactTarget={question.sourceExcerpt}
+                            sourceExcerpt={question.sourceExcerpt}
+                            classId={(artifact.client_class_id ?? artifact.class_id)!}
+                            captureId={captureIdForArtifact(artifact)}
+                            studyScope={studyScopeForArtifact(artifact)}
+                            onHelpful={async (feedback) => {
+                              const saved = await recordMemoryTrickFeedback({
+                                artifactId: feedback.artifactId,
+                                conceptId: feedback.conceptId,
+                                technique: feedback.technique,
+                                helpful: true,
+                              });
+                              if (saved) toast.success("We’ll use that to choose future memory tricks.");
+                            }}
+                            onTryAnother={async (feedback) => {
+                              await recordMemoryTrickFeedback({
+                                artifactId: feedback.artifactId,
+                                conceptId: feedback.conceptId,
+                                technique: feedback.technique,
+                                helpful: false,
+                              });
+                            }}
+                          />
+                        )}
+
                         <div className="flex justify-end">
                           <Button onClick={() => record(picked === question.answerIndex)}>
                             {position >= queue.length - 1 && (currentEntry.recovery || picked === question.answerIndex)
