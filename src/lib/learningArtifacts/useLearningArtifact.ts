@@ -15,6 +15,8 @@ import type { ArtifactKind, LearningArtifact, StudyScope } from "./types";
 import { checkCaptureConceptReadiness } from "./captureReadiness";
 import { describeFunctionError } from "./functionError";
 import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
+import { sanitizeLearnerContent } from "@/lib/study/sanitizeLearnerText";
+
 import {
   parseAlternateTeaching,
   type AlternateTeaching,
@@ -303,5 +305,16 @@ export function useLearningArtifact<K extends ArtifactKind>(
     ? state
     : { artifact: null, alternateTeaching: null, loading: true, generating: false, error: null, captureProcessing: false, scopeKey };
 
-  return { ...visibleState, reload: load, generate };
+  // Render-time sanitation only: QA/import prefixes such as "DUPLICATE TEST:"
+  // must never reach a learner-facing prompt, option or title. The stored rows
+  // are left exactly as generated.
+  const artifact = visibleState.artifact
+    ? ({
+        ...visibleState.artifact,
+        payload: sanitizeLearnerContent(visibleState.artifact.payload),
+      } as LearningArtifact<K>)
+    : null;
+
+  return { ...visibleState, artifact, reload: load, generate };
 }
+

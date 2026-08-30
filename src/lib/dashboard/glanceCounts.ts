@@ -7,6 +7,7 @@
 import type { RealAssignment } from "@/lib/realData/assignments";
 import type { RealExam } from "@/lib/realData/exams";
 import { daysBetween } from "./classAlerts";
+import { classifyDue, isOpenAssignment } from "./dueStatus";
 
 /** Tests within this window count as "coming up". */
 export const TESTS_COMING_DAYS = 14;
@@ -22,10 +23,6 @@ export interface GlanceCounts {
   testsComing: number;
 }
 
-function isOpen(assignment: RealAssignment) {
-  return assignment.status !== "complete" && !!assignment.due_date;
-}
-
 export function buildGlanceCounts(
   assignments: RealAssignment[],
   exams: RealExam[],
@@ -36,13 +33,15 @@ export function buildGlanceCounts(
   let upcoming = 0;
 
   for (const assignment of assignments) {
-    if (!isOpen(assignment)) continue;
-    const days = daysBetween(assignment.due_date!, now);
-    if (days === null) continue;
-    if (days < 0) overdue += 1;
-    else if (days === 0) dueToday += 1;
-    else if (days <= 7) upcoming += 1;
+    if (!isOpenAssignment(assignment)) continue;
+    // Shared classification: these counters and the list a student opens from
+    // them must never disagree.
+    const bucket = classifyDue(assignment.due_date, now);
+    if (bucket === "overdue") overdue += 1;
+    else if (bucket === "today") dueToday += 1;
+    else if (bucket === "soon") upcoming += 1;
   }
+
 
   let testsComing = 0;
   for (const exam of exams) {
