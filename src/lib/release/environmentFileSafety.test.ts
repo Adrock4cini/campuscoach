@@ -1,15 +1,28 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("environment file safety", () => {
-  it("does not track a developer .env file", () => {
-    const tracked = execFileSync("git", ["ls-files", ".env"], { encoding: "utf8" }).trim();
+  it("keeps .env deployable and free of privileged credentials", () => {
     const gitignore = readFileSync(".gitignore", "utf8");
-    expect(tracked).toBe("");
-    expect(gitignore).toMatch(/^\.env$/m);
-    expect(gitignore).toMatch(/^!\.env\.example$/m);
+    // The hosted production build is produced from the repository snapshot, so
+    // ignoring .env ships a bundle with undefined Supabase browser config.
+    expect(gitignore).not.toMatch(/^\.env$/m);
+    expect(gitignore).not.toMatch(/^\.env\.\*$/m);
+    expect(gitignore).toMatch(/^\.env\.local$/m);
+
+    const env = readFileSync(".env", "utf8");
+    expect(env).not.toContain("sb_secret_");
+    expect(env).not.toContain("SERVICE_ROLE");
+    expect(env).not.toContain("service_role");
+    for (const variable of [
+      "VITE_SUPABASE_URL",
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "VITE_SUPABASE_PROJECT_ID",
+    ]) {
+      expect(env).toContain(variable);
+    }
   });
+
 
   it("uses only a clearly fake publishable key in examples and demo CI", () => {
     const example = readFileSync(".env.example", "utf8");
