@@ -24,7 +24,7 @@ import {
 import { normalizeTimeKey } from "@/lib/calendar/classSchedule";
 import { shouldSkipCompletedOnboarding } from "@/lib/onboarding/onboardingEntry";
 import { isDateKey } from "@/lib/calendar/dateKey";
-import { DEFAULT_HOME_ROUTE } from "@/lib/app/routeMemory";
+import { readLastRoute } from "@/lib/app/routeMemory";
 
 
 export const ONBOARDING_STEPS = [
@@ -144,7 +144,7 @@ export default function Onboarding() {
         description: "Welcome to Campus Companion.",
       });
       await refreshOnboarded();
-      nav(DEFAULT_HOME_ROUTE, { replace: true });
+      nav(readLastRoute() ?? "/dashboard", { replace: true });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Please try again.";
       toast.error("Couldn't finish setup", { description: message });
