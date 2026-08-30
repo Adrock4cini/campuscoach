@@ -351,6 +351,8 @@ function parseProblems(sourceExcerpt: string): ParsedProblemMatch[] {
     { match: sourceExcerpt.match(DISCOUNT_LABEL_COSTS), priceIndex: 2, labelIndex: 1, percentIndex: 3 },
     { match: sourceExcerpt.match(DISCOUNT_FIND_SALE), priceIndex: 1, labelIndex: 2, percentIndex: 3 },
     { match: sourceExcerpt.match(DISCOUNT_CALCULATE_COLON), priceIndex: 1, labelIndex: 2, percentIndex: 3 },
+    { match: sourceExcerpt.match(DISCOUNT_COSTS_SENTENCES), priceIndex: 2, labelIndex: 1, percentIndex: 3 },
+
   ];
   for (const wrapper of wrappedDiscounts) {
     if (!wrapper.match) continue;
