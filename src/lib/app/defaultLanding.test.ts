@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_HOME_ROUTE, resolveEntryRoute, writeLastRoute } from "./routeMemory";
 
@@ -38,7 +39,7 @@ describe("default landing route", () => {
 });
 
 describe("root gate wiring", () => {
-  const app = readFileSync(new URL("../../App.tsx", import.meta.url), "utf8");
+  const app = readFileSync(path.resolve(process.cwd(), "src/App.tsx"), "utf8");
 
   it("resolves the root entry to Today, not the last visited tab", () => {
     expect(app).toContain("<Navigate to={DEFAULT_HOME_ROUTE} replace />");
