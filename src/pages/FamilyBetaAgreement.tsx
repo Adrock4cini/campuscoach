@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { resolveEntryRoute } from "@/lib/app/routeMemory";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   consumePendingFamilyBetaAgreement,
@@ -20,7 +21,7 @@ export default function FamilyBetaAgreement() {
   } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
-  const next = (loc.state as { next?: string } | null)?.next ?? "/";
+  const next = resolveEntryRoute((loc.state as { next?: string } | null)?.next);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
 

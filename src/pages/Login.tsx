@@ -17,6 +17,7 @@ import {
   markPasskeyOfferPending,
   signInWithPasskey,
 } from "@/lib/auth/passkeys";
+import { resolveEntryRoute } from "@/lib/app/routeMemory";
 import { isFamilyBetaStaging, publicSignupsEnabled } from "@/lib/legal/familyBeta";
 
 export default function Login() {
@@ -27,7 +28,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
-  const next = (loc.state as { next?: string } | null)?.next ?? "/";
+  const next = resolveEntryRoute((loc.state as { next?: string } | null)?.next);
   const passkeyOk = useMemo(() => canUsePasskeys(), []);
   const openRegistration = publicSignupsEnabled();
   const stagingBeta = isFamilyBetaStaging();
