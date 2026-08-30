@@ -173,6 +173,12 @@ export default function StudyLab() {
           </CardContent>
         </Card>
       )}
+      {/* Never keep a test scope from a different class silently: say it was dropped. */}
+      {isRealUser && requestedExamId && effectiveClass !== preselectedClass && (
+        <p role="status" className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          You switched classes, so this session is no longer scoped to that test.
+        </p>
+      )}
       {isRealUser && !classesError && effectiveClass && (
         assignmentHelp && activeCaptureId && requestedAssignmentId ? (
           <AssignmentTutorSet
