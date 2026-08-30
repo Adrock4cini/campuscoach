@@ -49,7 +49,9 @@ export function ClassUpNext({ classId, className }: Props) {
   const { open: openCapture } = useCapture();
   const [addAssignment, setAddAssignment] = useState(false);
   const [addExam, setAddExam] = useState(false);
-  const { signals, loading: signalsLoading } = useClassReadinessSignals(classId);
+  const { signals, loading: signalsLoading, error: signalsError, reload: reloadSignals } =
+    useClassReadinessSignals(classId);
+
   const material = assessMaterial(signals, { examTitle: nextExam?.title ?? null });
   // Three honest signals, shown separately: urgency (the date chip),
   // coverage (do we have material), practice (what the student demonstrated).
