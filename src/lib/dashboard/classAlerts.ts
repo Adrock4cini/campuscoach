@@ -34,6 +34,8 @@ export interface NextTestSummary {
 }
 
 export interface NextDueSummary {
+  /** Real assignment id, so the strip can drill straight into that assignment. */
+  assignmentId: string;
   classId: string | null;
   className: string;
   title: string;
