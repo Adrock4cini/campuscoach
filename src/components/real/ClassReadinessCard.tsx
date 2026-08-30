@@ -27,8 +27,36 @@ const toneText: Record<ReadinessTone, string> = {
 
 export function ClassReadinessCard({ classId, daysToExam, overdueAssignments }: Props) {
   const [open, setOpen] = useState(false);
-  const { explanation, signals, loading } = useClassReadinessSignals(classId, { daysToExam, overdueAssignments });
-  const scored = explanation.status === "scored" && explanation.percent !== null;
+  const { explanation, signals, loading, error, reload } =
+    useClassReadinessSignals(classId, { daysToExam, overdueAssignments });
+  // A failed evidence read is not zero evidence. Never let a network or
+  // schema failure be reported to the student as "nothing captured".
+  const scored = !error && explanation.status === "scored" && explanation.percent !== null;
+
+  if (error) {
+    return (
+      <Card className="shadow-card">
+        <CardContent className="space-y-2 p-5">
+          <p className="text-xs font-medium text-primary">How ready you are</p>
+          <p className="font-display text-lg font-semibold text-foreground">
+            Couldn’t check your evidence
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Your captures, concepts and practice history are still saved. Campus Companion just couldn’t read them
+            right now.
+          </p>
+          <button
+            type="button"
+            onClick={() => { void reload(); }}
+            className="min-h-11 text-sm font-medium text-primary hover:underline"
+          >
+            Try again
+          </button>
+        </CardContent>
+      </Card>
+    );
+  }
+
 
   return (
     <Card className="shadow-card">
