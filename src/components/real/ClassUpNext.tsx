@@ -88,7 +88,7 @@ export function ClassUpNext({ classId, className }: Props) {
                   </div>
                   <Badge variant="outline" className="shrink-0 text-[10px]">{dueChip(daysUntil(nextExam.exam_date))}</Badge>
                 </div>
-                {!signalsLoading && (
+                {!signalsLoading && !signalsError && (
                   <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
                     <Badge
                       variant="outline"
