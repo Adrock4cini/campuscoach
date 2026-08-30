@@ -321,6 +321,12 @@ export type Database = {
           kind: string
           local_id: string | null
           meta: Json
+          practice_concept_id: string | null
+          practice_source_confirmed_at: string | null
+          practice_source_hash: string | null
+          practice_source_status: string
+          practice_source_text: string | null
+          practice_source_version: number
           processing_status: string
           raw_text: string | null
           topic: string | null
@@ -344,6 +350,12 @@ export type Database = {
           kind: string
           local_id?: string | null
           meta?: Json
+          practice_concept_id?: string | null
+          practice_source_confirmed_at?: string | null
+          practice_source_hash?: string | null
+          practice_source_status?: string
+          practice_source_text?: string | null
+          practice_source_version?: number
           processing_status?: string
           raw_text?: string | null
           topic?: string | null
@@ -367,6 +379,12 @@ export type Database = {
           kind?: string
           local_id?: string | null
           meta?: Json
+          practice_concept_id?: string | null
+          practice_source_confirmed_at?: string | null
+          practice_source_hash?: string | null
+          practice_source_status?: string
+          practice_source_text?: string | null
+          practice_source_version?: number
           processing_status?: string
           raw_text?: string | null
           topic?: string | null
@@ -394,6 +412,13 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_practice_concept_id_fkey"
+            columns: ["practice_concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
             referencedColumns: ["id"]
           },
         ]
@@ -670,9 +695,11 @@ export type Database = {
           embedding: string | null
           examples: string[]
           id: string
+          identity_key: string | null
           meta: Json
           name: string
           professor_emphasis: boolean
+          retired_at: string | null
           slug: string
           source_kind: string | null
           updated_at: string
@@ -687,9 +714,11 @@ export type Database = {
           embedding?: string | null
           examples?: string[]
           id?: string
+          identity_key?: string | null
           meta?: Json
           name: string
           professor_emphasis?: boolean
+          retired_at?: string | null
           slug: string
           source_kind?: string | null
           updated_at?: string
@@ -704,9 +733,11 @@ export type Database = {
           embedding?: string | null
           examples?: string[]
           id?: string
+          identity_key?: string | null
           meta?: Json
           name?: string
           professor_emphasis?: boolean
+          retired_at?: string | null
           slug?: string
           source_kind?: string | null
           updated_at?: string
@@ -2080,6 +2111,23 @@ export type Database = {
         }
         Returns: Json
       }
+      confirm_assignment_practice_source: {
+        Args: {
+          p_assignment_id: string
+          p_capture_id: string
+          p_client_class_id: string
+          p_concept_definition: string
+          p_concept_example: string
+          p_concept_identity_key: string
+          p_concept_name: string
+          p_concept_slug: string
+          p_expected_version: number
+          p_source_hash: string
+          p_source_text: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       confirm_syllabus_cleanup_claims: {
         Args: { p_claim_token: string; p_storage_paths: string[] }
         Returns: {
@@ -2096,7 +2144,19 @@ export type Database = {
         Returns: boolean
       }
       get_family_beta_agreement_status: { Args: never; Returns: Json }
+      get_study_write_pause: { Args: never; Returns: Json }
       get_syllabus_cleanup_invocation_digest: { Args: never; Returns: string }
+      insert_confirmed_assignment_practice_artifact: {
+        Args: {
+          p_artifact: Json
+          p_capture_id: string
+          p_concept_id: string
+          p_source_hash: string
+          p_source_version: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
       owns_active_syllabus_storage_path: {
         Args: { p_path: string }
         Returns: boolean
@@ -2119,6 +2179,10 @@ export type Database = {
       release_syllabus_cleanup_claims: {
         Args: { p_claim_token: string; p_storage_paths: string[] }
         Returns: number
+      }
+      set_study_writes_paused: {
+        Args: { p_paused: boolean; p_reason?: string }
+        Returns: Json
       }
     }
     Enums: {
