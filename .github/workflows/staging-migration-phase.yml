@@ -106,4 +106,4 @@ jobs:
           if [[ -n "${{ inputs.phase_gate_attestation }}" ]]; then
             args+=(--phase-gate-attestation "${{ inputs.phase_gate_attestation }}")
           fi
-          npm run migrate:staging:phase -- "${args[@]}"
+          node scripts/replay-blank-staging-migrations.mjs "${args[@]}"
