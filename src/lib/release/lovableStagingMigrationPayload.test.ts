@@ -174,7 +174,7 @@ describe("Lovable Cloud staging migration payloads", () => {
     expect(analyzeMigrationSql(payload).hasOuterTransaction).toBe(true);
   });
 
-  it("encodes the exact 12 documented post-phase gates", () => {
+  it("encodes the exact 13 documented post-phase gates", () => {
     expect(POST_PHASE_GATES).toEqual([
       [51, "20260827125500", 52, "20260827126000", "writes-paused-edge-deployed-tested-drained"],
       [52, "20260827126000", 53, "20260827126500", "writes-paused-agreement-migration-verified"],
@@ -188,6 +188,7 @@ describe("Lovable Cloud staging migration payloads", () => {
       [60, "20260827135000", 61, "20260827140000", "writes-paused-launch-schema-regression-verified"],
       [61, "20260827140000", 62, "20260828100000", "writes-paused-onboarding-owner-guard-verified"],
       [62, "20260828100000", 63, "20260828110000", "writes-paused-evidence-contract-edge-deployed-verified"],
+      [63, "20260828110000", 64, "20260830231658", "writes-paused-practice-source-confirmation-verified"],
     ].map(([previousOrdinal, previousVersion, targetOrdinal, targetVersion, attestation]) => ({
       previousOrdinal,
       previousVersion,
