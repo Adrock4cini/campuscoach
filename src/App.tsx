@@ -45,7 +45,7 @@ import { getOnboardingRedirect, getSetupGate } from "@/lib/auth/protectedRoute";
 import { setupErrorCopy } from "@/lib/auth/setupStatus";
 import { AppContentErrorBoundary } from "@/components/AppContentErrorBoundary";
 
-import { readLastRoute, writeLastRoute } from "@/lib/app/routeMemory";
+import { DEFAULT_HOME_ROUTE, writeLastRoute } from "@/lib/app/routeMemory";
 
 
 function DemoOnly({
@@ -165,8 +165,9 @@ function RootGate() {
   const gate = getSetupGate({ signedIn: Boolean(user), setupStatus });
   if (gate) return <SetupPanel gate={gate} />;
   if (user && setupStatus === "needs_onboarding") return <Navigate to="/onboarding" replace />;
-  // Returning students land back where they were, not on a generic Today page.
-  return <Navigate to={(user && readLastRoute()) || "/dashboard"} replace />;
+  // Today is the home. A plain sign-in / root entry always lands on the
+  // command center; intentional deep links keep their own origin via Protected.
+  return <Navigate to={DEFAULT_HOME_ROUTE} replace />;
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
