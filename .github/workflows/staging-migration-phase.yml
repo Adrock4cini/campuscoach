@@ -81,36 +81,16 @@ jobs:
           chmod 0755 "$RUNNER_TEMP/supabase-cli/supabase"
           echo "$RUNNER_TEMP/supabase-cli" >> "$GITHUB_PATH"
 
-      - name: Verify reviewed CLI version
+      - name: Verify reviewed CLI version and restore candidate cleanliness
         shell: bash
         run: |
           set -euo pipefail
           test "$(supabase --version)" = "${REVIEWED_SUPABASE_CLI_VERSION}"
-
-      - name: Diagnose candidate immediately before replay
-        shell: bash
-        run: |
-          set -euo pipefail
-          status="$(git status --porcelain=v1 --untracked-files=all)"
-          if [[ -n "$status" ]]; then
-            printf 'Candidate changed after CLI verification:\n%s\n' "$status"
-            exit 1
-          fi
-          node - <<'NODE'
-          const { spawnSync } = require('node:child_process');
-          const result = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
-            cwd: process.cwd(),
-            encoding: 'utf8',
-            env: { ...process.env, NO_COLOR: '1' },
-            stdio: 'pipe',
-          });
-          console.log(`node-git-status-exit=${result.status}`);
-          console.log(`node-git-status-stdout=${JSON.stringify(result.stdout ?? '')}`);
-          console.log(`node-git-status-stderr=${JSON.stringify(result.stderr ?? '')}`);
-          if (result.error || result.status !== 0 || (result.stdout ?? '').trim() || (result.stderr ?? '').trim()) {
-            process.exitCode = 1;
-          }
-          NODE
+          # Supabase CLI 2.115.0 writes this update-check marker even for --version.
+          # Remove only that known disposable side effect, then demand a fully clean candidate.
+          rm -f -- supabase/.temp/cli-latest
+          rmdir --ignore-fail-on-non-empty supabase/.temp 2>/dev/null || true
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Run exactly one hardened migration transition
         shell: bash
