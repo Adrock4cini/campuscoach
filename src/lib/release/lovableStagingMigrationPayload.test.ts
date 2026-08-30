@@ -36,11 +36,11 @@ function configFor(entry: { ordinal: number; version: string }) {
 describe("Lovable Cloud staging migration payloads", () => {
   const manifest = readLovableMigrationManifest();
 
-  it("builds one deterministic, exact 63-file manifest", () => {
+  it("builds one deterministic, exact 64-file manifest", () => {
     expect(manifest.entries).toHaveLength(EXPECTED_MIGRATION_COUNT);
     expect(manifest.entries.at(-1)?.version).toBe(EXPECTED_FINAL_MIGRATION_VERSION);
-    expect(new Set(manifest.entries.map(({ version }) => version)).size).toBe(63);
-    expect(new Set(manifest.entries.map(({ filename }) => filename)).size).toBe(63);
+    expect(new Set(manifest.entries.map(({ version }) => version)).size).toBe(64);
+    expect(new Set(manifest.entries.map(({ filename }) => filename)).size).toBe(64);
     expect(manifest.inventorySha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(readLovableMigrationManifest()).toEqual(manifest);
 
