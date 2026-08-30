@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_HOME_ROUTE, resolveEntryRoute, writeLastRoute } from "./routeMemory";
 
@@ -33,5 +34,19 @@ describe("default landing route", () => {
   it("rejects off-site destinations", () => {
     expect(resolveEntryRoute("https://evil.example.com")).toBe("/dashboard");
     expect(resolveEntryRoute("//evil.example.com")).toBe("/dashboard");
+  });
+});
+
+describe("root gate wiring", () => {
+  const app = readFileSync(new URL("../../App.tsx", import.meta.url), "utf8");
+
+  it("resolves the root entry to Today, not the last visited tab", () => {
+    expect(app).toContain("<Navigate to={DEFAULT_HOME_ROUTE} replace />");
+    expect(app).not.toContain("readLastRoute()");
+  });
+
+  it("still routes intentional deep links and the Classes tab", () => {
+    expect(app).toContain('path="/classes"');
+    expect(app).toContain("state={{ next: `${loc.pathname}${loc.search}` }}");
   });
 });
