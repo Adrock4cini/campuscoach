@@ -232,10 +232,10 @@ describe("Lovable Cloud staging migration payloads", () => {
       ordinal: 51,
       version: manifest.entries[50].version,
       gateAttestation: POST_PHASE_GATES[0].attestation,
-    }, manifest)).toThrow("not one of the 12 gated");
+    }, manifest)).toThrow("not one of the 13 gated");
   });
 
-  it("allows ordinals 1-51 without gates and blocks 52-63 without the exact durable gate", () => {
+  it("allows ordinals 1-51 without gates and blocks 52-64 without the exact durable gate", () => {
     for (const entry of manifest.entries) {
       const attempt = buildAttemptPayload(configFor(entry), manifest);
       const migration = buildMigrationPayload(configFor(entry), manifest);

@@ -100,6 +100,13 @@ export const POST_PHASE_GATES = Object.freeze([
     targetVersion: "20260828110000",
     attestation: "writes-paused-evidence-contract-edge-deployed-verified",
   },
+  {
+    previousOrdinal: 63,
+    previousVersion: "20260828110000",
+    targetOrdinal: 64,
+    targetVersion: "20260830231658",
+    attestation: "writes-paused-practice-source-confirmation-verified",
+  },
 ].map((gate) => Object.freeze(gate)));
 export const EXPECTED_OUTER_TRANSACTION_FILES = Object.freeze([
   "20260817100000_middle_school_learner_type.sql",
@@ -1074,7 +1081,7 @@ export function buildGatePayload(config, manifest = readLovableMigrationManifest
   if (!gate) {
     throw new LovableStagingPayloadFailure(
       "phase-gate",
-      "the selected migration is not one of the 12 gated post-phase transitions",
+      "the selected migration is not one of the 13 gated post-phase transitions",
     );
   }
   if (config.gateAttestation !== gate.attestation) {
