@@ -497,10 +497,12 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
         total,
       });
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Please try again.";
-      setSaveError("Your answers are still here. Try saving again.");
-      toast.error(`Couldn't save results: ${detail}`);
+      // Answers stay in this runner's state and its persisted outbox, so the
+      // retention claim is only true while this screen is open — say so.
+      setSaveError("Your answers are still on this screen. Try saving again before you leave.");
+      toast.error(describeStudentFacingFailure(error, "Couldn't save your results"));
     } finally {
+
       setSubmitting(false);
     }
   };
