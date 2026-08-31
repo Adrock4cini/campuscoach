@@ -1233,6 +1233,30 @@ export type Database = {
           },
         ]
       }
+      practice_challenge_consumptions: {
+        Row: {
+          artifact_id: string
+          challenge_fingerprint: string
+          client_attempt_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          artifact_id: string
+          challenge_fingerprint: string
+          client_attempt_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          artifact_id?: string
+          challenge_fingerprint?: string
+          client_attempt_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       processed_content: {
         Row: {
           anonymized: boolean
@@ -1415,6 +1439,7 @@ export type Database = {
           id: string
           momentum: number | null
           readiness: number
+          source_attempt_id: string | null
           user_id: string
           visibility: string
         }
@@ -1427,6 +1452,7 @@ export type Database = {
           id?: string
           momentum?: number | null
           readiness: number
+          source_attempt_id?: string | null
           user_id: string
           visibility?: string
         }
@@ -1439,6 +1465,7 @@ export type Database = {
           id?: string
           momentum?: number | null
           readiness?: number
+          source_attempt_id?: string | null
           user_id?: string
           visibility?: string
         }
@@ -1524,48 +1551,87 @@ export type Database = {
       study_result_attempts: {
         Row: {
           artifact_id: string
+          challenge_fingerprint: string | null
           client_attempt_id: string
+          client_request_hash: string | null
           completed_at: string | null
           created_at: string
           duration_seconds: number
+          evidence_contract_version: number | null
+          evidence_tier: string | null
           lease_started_at: string
           lease_token: string
+          readiness_projection: Json | null
           result_payload: Json | null
           result_request_hash: string
           result_status: string
           session_id: string | null
+          study_run_concept_ids: string[] | null
+          study_run_correct: number | null
+          study_run_final: boolean | null
+          study_run_id: string | null
+          study_run_segment: number | null
+          study_run_total: number | null
+          target_task_kind: string | null
           updated_at: string
           user_id: string
+          verified_grading_snapshot: Json | null
         }
         Insert: {
           artifact_id: string
+          challenge_fingerprint?: string | null
           client_attempt_id: string
+          client_request_hash?: string | null
           completed_at?: string | null
           created_at?: string
           duration_seconds: number
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           lease_started_at?: string
           lease_token: string
+          readiness_projection?: Json | null
           result_payload?: Json | null
           result_request_hash: string
           result_status?: string
           session_id?: string | null
+          study_run_concept_ids?: string[] | null
+          study_run_correct?: number | null
+          study_run_final?: boolean | null
+          study_run_id?: string | null
+          study_run_segment?: number | null
+          study_run_total?: number | null
+          target_task_kind?: string | null
           updated_at?: string
           user_id: string
+          verified_grading_snapshot?: Json | null
         }
         Update: {
           artifact_id?: string
+          challenge_fingerprint?: string | null
           client_attempt_id?: string
+          client_request_hash?: string | null
           completed_at?: string | null
           created_at?: string
           duration_seconds?: number
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           lease_started_at?: string
           lease_token?: string
+          readiness_projection?: Json | null
           result_payload?: Json | null
           result_request_hash?: string
           result_status?: string
           session_id?: string | null
+          study_run_concept_ids?: string[] | null
+          study_run_correct?: number | null
+          study_run_final?: boolean | null
+          study_run_id?: string | null
+          study_run_segment?: number | null
+          study_run_total?: number | null
+          target_task_kind?: string | null
           updated_at?: string
           user_id?: string
+          verified_grading_snapshot?: Json | null
         }
         Relationships: [
           {
@@ -1576,11 +1642,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "study_result_attempts_run_session_fkey"
+            columns: ["session_id", "study_run_id"]
+            isOneToOne: false
+            referencedRelation: "study_sessions"
+            referencedColumns: ["id", "study_run_id"]
+          },
+          {
             foreignKeyName: "study_result_attempts_session_id_fkey"
             columns: ["session_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "study_sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_result_attempts_study_run_owner_artifact_fkey"
+            columns: ["study_run_id", "user_id", "artifact_id"]
+            isOneToOne: false
+            referencedRelation: "study_runs"
+            referencedColumns: ["id", "user_id", "artifact_id"]
           },
         ]
       }
@@ -1592,9 +1672,12 @@ export type Database = {
           client_attempt_id: string
           concept_id: string
           confidence_level: string | null
+          evidence_contract_version: number | null
+          evidence_tier: string | null
           previous_strength: number
           recovered: boolean
           resulting_strength: number | null
+          target_task_kind: string | null
           user_id: string
         }
         Insert: {
@@ -1604,9 +1687,12 @@ export type Database = {
           client_attempt_id: string
           concept_id: string
           confidence_level?: string | null
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           previous_strength: number
           recovered?: boolean
           resulting_strength?: number | null
+          target_task_kind?: string | null
           user_id: string
         }
         Update: {
@@ -1616,9 +1702,12 @@ export type Database = {
           client_attempt_id?: string
           concept_id?: string
           confidence_level?: string | null
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           previous_strength?: number
           recovered?: boolean
           resulting_strength?: number | null
+          target_task_kind?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1634,6 +1723,53 @@ export type Database = {
             columns: ["concept_id"]
             isOneToOne: false
             referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_runs: {
+        Row: {
+          artifact_id: string
+          completed_at: string | null
+          created_at: string
+          evidence_contract_version: number
+          final_segment_index: number | null
+          id: string
+          result_status: string
+          session_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          artifact_id: string
+          completed_at?: string | null
+          created_at?: string
+          evidence_contract_version?: number
+          final_segment_index?: number | null
+          id: string
+          result_status?: string
+          session_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          artifact_id?: string
+          completed_at?: string | null
+          created_at?: string
+          evidence_contract_version?: number
+          final_segment_index?: number | null
+          id?: string
+          result_status?: string
+          session_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_runs_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "learning_artifacts"
             referencedColumns: ["id"]
           },
         ]
@@ -1655,6 +1791,7 @@ export type Database = {
           result_status: string
           score: number | null
           started_at: string
+          study_run_id: string | null
           study_scope_id: string
           study_scope_label: string | null
           study_scope_snapshot: Json
@@ -1679,6 +1816,7 @@ export type Database = {
           result_status?: string
           score?: number | null
           started_at?: string
+          study_run_id?: string | null
           study_scope_id?: string
           study_scope_label?: string | null
           study_scope_snapshot?: Json
@@ -1703,6 +1841,7 @@ export type Database = {
           result_status?: string
           score?: number | null
           started_at?: string
+          study_run_id?: string | null
           study_scope_id?: string
           study_scope_label?: string | null
           study_scope_snapshot?: Json
@@ -1732,8 +1871,11 @@ export type Database = {
         Row: {
           artifact_id: string | null
           class_id: string | null
+          client_attempt_id: string | null
           correct: number
           created_at: string
+          evidence_contract_version: number | null
+          evidence_tier: string | null
           format: string | null
           id: string
           mastery_delta: number | null
@@ -1750,8 +1892,11 @@ export type Database = {
         Insert: {
           artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           correct: number
           created_at?: string
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           format?: string | null
           id?: string
           mastery_delta?: number | null
@@ -1768,8 +1913,11 @@ export type Database = {
         Update: {
           artifact_id?: string | null
           class_id?: string | null
+          client_attempt_id?: string | null
           correct?: number
           created_at?: string
+          evidence_contract_version?: number | null
+          evidence_tier?: string | null
           format?: string | null
           id?: string
           mastery_delta?: number | null
@@ -2086,6 +2234,19 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_study_concept_result_v3: {
+        Args: {
+          p_attempt_id: string
+          p_class_id: string
+          p_concept_id: string
+          p_confidence: string
+          p_correct: boolean
+          p_recovered?: boolean
+          p_seen_at?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       can_upload_uncommitted_syllabus_source: {
         Args: { p_path: string }
         Returns: boolean
@@ -2143,10 +2304,55 @@ export type Database = {
         }
         Returns: boolean
       }
+      ensure_acct_2010_map_concepts: {
+        Args: {
+          p_class_id: string
+          p_client_class_id: string
+          p_seeds: Json
+          p_user_id: string
+        }
+        Returns: {
+          capture_id: string | null
+          class_id: string | null
+          client_class_id: string | null
+          created_at: string
+          definition: string | null
+          embedding: string | null
+          examples: string[]
+          id: string
+          identity_key: string | null
+          meta: Json
+          name: string
+          professor_emphasis: boolean
+          retired_at: string | null
+          slug: string
+          source_kind: string | null
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "concepts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_family_beta_agreement_status: { Args: never; Returns: Json }
+      get_learning_evidence_contract_status: { Args: never; Returns: Json }
       get_study_write_pause: { Args: never; Returns: Json }
       get_syllabus_cleanup_invocation_digest: { Args: never; Returns: string }
       insert_confirmed_assignment_practice_artifact: {
+        Args: {
+          p_artifact: Json
+          p_capture_id: string
+          p_concept_id: string
+          p_source_hash: string
+          p_source_version: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      insert_confirmed_assignment_review_artifact: {
         Args: {
           p_artifact: Json
           p_capture_id: string
@@ -2163,6 +2369,17 @@ export type Database = {
       }
       owns_row: { Args: { _user_id: string }; Returns: boolean }
       owns_syllabus_storage_path: { Args: { p_path: string }; Returns: boolean }
+      project_study_readiness_v1: {
+        Args: {
+          p_artifact_id: string
+          p_client_attempt_id: string
+          p_lease_token: string
+          p_result_request_hash: string
+          p_scored_concept_ids: string[]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       recompute_topic_scores: {
         Args: { _class_id?: string }
         Returns: undefined
@@ -2180,9 +2397,43 @@ export type Database = {
         Args: { p_claim_token: string; p_storage_paths: string[] }
         Returns: number
       }
+      reserve_practice_study_attempt: {
+        Args: {
+          p_artifact_id: string
+          p_challenge_fingerprint: string
+          p_client_attempt_id: string
+          p_client_request_hash: string
+          p_duration_seconds: number
+          p_lease_started_at: string
+          p_lease_token: string
+          p_result_request_hash: string
+          p_user_id: string
+          p_verified_grading_snapshot: Json
+        }
+        Returns: Json
+      }
+      reserve_practice_study_attempt_v2: {
+        Args: {
+          p_artifact_id: string
+          p_challenge_fingerprint: string
+          p_client_attempt_id: string
+          p_client_request_hash: string
+          p_duration_seconds: number
+          p_lease_started_at: string
+          p_lease_token: string
+          p_result_request_hash: string
+          p_user_id: string
+          p_verified_grading_snapshot: Json
+        }
+        Returns: Json
+      }
       set_study_writes_paused: {
         Args: { p_paused: boolean; p_reason?: string }
         Returns: Json
+      }
+      study_run_has_exact_concept_evidence_v2: {
+        Args: { p_study_run_id: string }
+        Returns: boolean
       }
     }
     Enums: {
