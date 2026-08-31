@@ -185,20 +185,18 @@ describe("real capture processing integrity", () => {
         };
       }
       if (table === "assignments") {
+        // Chainable filter stub: the ownership query shape may change without
+        // breaking every unrelated capture test.
+        const chain = () => {
+          const node: Record<string, unknown> = {
+            maybeSingle: async () => mocks.assignmentOwnershipLookup(),
+          };
+          node.eq = () => chain();
+          node.is = () => chain();
+          return node;
+        };
         return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                eq: () => ({
-                  eq: () => ({
-                    is: () => ({
-                      maybeSingle: async () => ({ data: { id: "assignment-new" }, error: null }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          }),
+          select: () => chain(),
           delete: () => ({
             eq: (column: string, value: string) => {
               mocks.assignmentDeleteById(column, value);
@@ -207,6 +205,7 @@ describe("real capture processing integrity", () => {
           }),
         };
       }
+
       if (table === "materials") {
         return {
           insert: mocks.materialInsert,
