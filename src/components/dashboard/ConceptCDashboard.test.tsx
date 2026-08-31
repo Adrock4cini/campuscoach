@@ -40,8 +40,10 @@ function urgent(id: string, overrides: Partial<UrgentItem> = {}): UrgentItem {
     classId: "c1",
     className: "Biology",
     title: `Task ${id}`,
-    when: "today",
+    when: "Due today",
+    bucket: "today",
     daysOut: 0,
+
     tone: "danger",
     stale: false,
     score: 90,
