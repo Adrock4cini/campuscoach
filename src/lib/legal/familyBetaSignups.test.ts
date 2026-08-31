@@ -21,6 +21,7 @@ async function load(env: Record<string, string | boolean | undefined>) {
   vi.stubEnv("VITE_SUPABASE_PROJECT_ID", projectId);
   vi.stubEnv("VITE_SUPABASE_URL", typeof env.url === "string" ? env.url : (projectId ? `https://${projectId}.supabase.co` : ""));
   vi.stubEnv("VITE_PUBLIC_SIGNUPS_ENABLED", typeof env.flag === "string" ? env.flag : "");
+  vi.stubEnv("VITE_OPEN_BETA_SIGNUPS", typeof env.openBeta === "string" ? env.openBeta : "false");
   return import("./familyBeta");
 }
 
