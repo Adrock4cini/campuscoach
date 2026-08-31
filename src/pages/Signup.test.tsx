@@ -70,8 +70,9 @@ describe("family beta signup", () => {
     vi.unstubAllEnvs();
   });
 
-  it("keeps public self-registration closed by default", () => {
+  it("keeps public self-registration closed when neither signup switch is on", () => {
     vi.stubEnv("VITE_PUBLIC_SIGNUPS_ENABLED", "false");
+    vi.stubEnv("VITE_OPEN_BETA_SIGNUPS", "false");
     vi.stubEnv("VITE_SUPABASE_PROJECT_ID", "norsaaoyppctrvxxgjtg");
     renderSignup();
 

@@ -54,18 +54,32 @@ export function isFamilyBetaStaging() {
   );
 }
 
-export function publicSignupsEnabled() {
+function stagingSignupsEnabled() {
   return isFamilyBetaStaging() && import.meta.env.VITE_PUBLIC_SIGNUPS_ENABLED === "true";
 }
 
 /**
+ * Owner-approved open beta. This is the only switch that may open self-serve
+ * account creation on the production backend. It affects the signup surface
+ * only: it never relaxes row-level security and never enables demo mode.
+ */
+export function openBetaSignupsEnabled() {
+  return import.meta.env.VITE_OPEN_BETA_SIGNUPS === "true";
+}
+
+export function publicSignupsEnabled() {
+  return stagingSignupsEnabled() || openBetaSignupsEnabled();
+}
+
+/**
  * The sample tour is a development/staging affordance, not an alternate
- * authentication path for the closed production beta. Production can expose
- * it only on the reviewed staging backend while self-serve beta access is
- * explicitly enabled there. Local development keeps the existing demo flow.
+ * authentication path for real students. Production can expose it only on the
+ * reviewed staging backend while self-serve beta access is explicitly enabled
+ * there. Local development keeps the existing demo flow. The open-beta signup
+ * switch intentionally does not enable it.
  */
 export function demoModeEnabled() {
-  return import.meta.env.DEV || publicSignupsEnabled();
+  return import.meta.env.DEV || stagingSignupsEnabled();
 }
 
 export function rememberPendingFamilyBetaAgreement() {
