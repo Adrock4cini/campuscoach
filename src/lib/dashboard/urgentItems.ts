@@ -70,8 +70,10 @@ export function buildUrgentItems(
 
   for (const a of assignments) {
     if (a.status === "complete" || !a.due_date) continue;
-    const days = daysBetween(a.due_date, now);
+    // One canonical calculation for placement, chip and counters.
+    const days = daysUntilDue(a.due_date, now);
     if (days === null || days > 1) continue;
+    const bucket = classifyDue(a.due_date, now);
     const stale = days < -STALE_OVERDUE_DAYS;
     items.push({
       id: a.id,
@@ -79,7 +81,8 @@ export function buildUrgentItems(
       classId: a.client_class_id ?? a.class_id,
       className: classNameFor(classes, a.class_id, a.client_class_id),
       title: a.title,
-      when: whenLabel(a.due_date, now),
+      when: dueChipLabel(a.due_date, now),
+      bucket,
       daysOut: days,
       tone: stale ? "calm" : days < 0 ? "danger" : days === 0 ? "danger" : "warning",
       stale,
@@ -98,12 +101,14 @@ export function buildUrgentItems(
       className: classNameFor(classes, e.class_id, e.client_class_id),
       title: e.title,
       when: whenLabel(e.exam_date, now),
+      bucket: days === 0 ? "today" : "soon",
       daysOut: days,
       tone: days <= 1 ? "danger" : "warning",
       stale: false,
       score: 100 - days * 4,
     });
   }
+
 
   return items.sort((a, b) => b.score - a.score || a.daysOut - b.daysOut);
 }
