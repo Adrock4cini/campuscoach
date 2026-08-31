@@ -4,7 +4,7 @@
  */
 import { Link } from "react-router-dom";
 import { CalendarDays, ChevronRight, FileText, GraduationCap } from "lucide-react";
-import type { UrgentItem } from "@/lib/dashboard/urgentItems";
+import { DUE_BUCKET_LABEL, type UrgentItem } from "@/lib/dashboard/urgentItems";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<UrgentItem["tone"], string> = {
@@ -60,10 +60,14 @@ export function TodayList({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">{item.title}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {item.className} · <span className={TONE[item.tone]}>{item.when}</span>
+                      {/* Status is always the canonical due bucket, never words
+                          the student happened to type into the title. */}
+                      <span className={cn("font-medium", TONE[item.tone])}>{DUE_BUCKET_LABEL[item.bucket]}</span>
+                      {" · "}{item.className} · <span className={TONE[item.tone]}>{item.when}</span>
                       {item.stale && " · still open"}
                     </span>
                   </span>
+
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </button>
               </li>
