@@ -1115,10 +1115,17 @@ export function CaptureFlow({
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
                     <p className="text-sm font-medium text-foreground">
-                      {meta?.requiresImages ? "Your photos and choices are still here." : "Your note is still here."}
+                      {/* Never claim retention we cannot prove. Photos are
+                          in-memory files: if the selection is empty they are
+                          genuinely gone and the student must be told. */}
+                      {meta?.requiresImages
+                        ? (images.length > 0
+                          ? "Your photos and choices are still here."
+                          : "Your choices are here, but the photos need to be taken again.")
+                        : "Your note is still here."}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {captureError ?? "We couldn't save it yet. Check your connection and try again."}
+                      {captureError ?? "We couldn't save it yet. Please try again."}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -1127,18 +1134,22 @@ export function CaptureFlow({
                       onClick={() => setStage("context")}
                       className="flex-1 h-11 rounded-2xl border border-border/50 bg-background/30 text-sm font-medium text-foreground"
                     >
-                      {meta?.requiresImages ? "Review capture" : "Review note"}
+                      {meta?.requiresImages
+                        ? (images.length > 0 ? "Review capture" : "Add photos again")
+                        : "Review note"}
                     </button>
                     <button
                       type="button"
                       onClick={() => void startProcessing()}
-                      className="btn-glow flex-1 h-11 rounded-2xl text-sm font-medium"
+                      disabled={Boolean(meta?.requiresImages) && images.length === 0}
+                      className="btn-glow flex-1 h-11 rounded-2xl text-sm font-medium disabled:opacity-50"
                     >
                       Try again
                     </button>
                   </div>
                 </div>
               )}
+
             </div>
           </motion.div>
         </motion.div>

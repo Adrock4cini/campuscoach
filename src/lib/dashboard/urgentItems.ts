@@ -12,9 +12,19 @@ import type { ClassInfo } from "@/data/demo";
 import type { RealAssignment } from "@/lib/realData/assignments";
 import type { RealExam } from "@/lib/realData/exams";
 import { daysBetween, whenLabel, type AlertTone } from "./classAlerts";
+import { classifyDue, daysUntilDue, dueChipLabel, type DueBucket } from "./dueStatus";
 
 /** Past this many days overdue, an item stops screaming and asks for a decision. */
 export const STALE_OVERDUE_DAYS = 14;
+
+/** The one honest status word for a row, derived only from the real date. */
+export const DUE_BUCKET_LABEL: Record<DueBucket, string> = {
+  overdue: "Overdue",
+  today: "Due today",
+  soon: "Upcoming",
+  later: "Upcoming",
+  none: "No due date",
+};
 
 export interface UrgentItem {
   id: string;
@@ -22,8 +32,14 @@ export interface UrgentItem {
   classId: string | null;
   className: string;
   title: string;
-  /** "3d overdue", "today", "Fri". */
+  /** "3d overdue", "Due today", "Fri". */
   when: string;
+  /**
+   * Canonical due classification. Counters, section placement and this row's
+   * chip all read this, so a title that still says "Due Today" can never act
+   * as status.
+   */
+  bucket: DueBucket;
   daysOut: number;
   tone: AlertTone;
   /** Overdue long enough that we ask the student to resolve it. */
@@ -31,6 +47,7 @@ export interface UrgentItem {
   /** Ordering score, higher = handle sooner. */
   score: number;
 }
+
 
 function classNameFor(classes: ClassInfo[], classId: string | null, clientClassId: string | null) {
   const match = classes.find((c) => c.id === clientClassId || c.id === classId || c.uuid === classId);
@@ -53,8 +70,10 @@ export function buildUrgentItems(
 
   for (const a of assignments) {
     if (a.status === "complete" || !a.due_date) continue;
-    const days = daysBetween(a.due_date, now);
+    // One canonical calculation for placement, chip and counters.
+    const days = daysUntilDue(a.due_date, now);
     if (days === null || days > 1) continue;
+    const bucket = classifyDue(a.due_date, now);
     const stale = days < -STALE_OVERDUE_DAYS;
     items.push({
       id: a.id,
@@ -62,7 +81,8 @@ export function buildUrgentItems(
       classId: a.client_class_id ?? a.class_id,
       className: classNameFor(classes, a.class_id, a.client_class_id),
       title: a.title,
-      when: whenLabel(a.due_date, now),
+      when: dueChipLabel(a.due_date, now),
+      bucket,
       daysOut: days,
       tone: stale ? "calm" : days < 0 ? "danger" : days === 0 ? "danger" : "warning",
       stale,
@@ -81,12 +101,14 @@ export function buildUrgentItems(
       className: classNameFor(classes, e.class_id, e.client_class_id),
       title: e.title,
       when: whenLabel(e.exam_date, now),
+      bucket: days === 0 ? "today" : "soon",
       daysOut: days,
       tone: days <= 1 ? "danger" : "warning",
       stale: false,
       score: 100 - days * 4,
     });
   }
+
 
   return items.sort((a, b) => b.score - a.score || a.daysOut - b.daysOut);
 }

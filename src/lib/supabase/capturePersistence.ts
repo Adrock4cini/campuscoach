@@ -712,33 +712,44 @@ async function assertCaptureTargets(input: {
 }, userId: string): Promise<void> {
   assertActiveCaptureOwner(userId);
   if (input.assignmentId) {
+    // Ownership is anchored on the stable `client_class_id`. Older rows were
+    // created before the class UUID column existed, so a NULL `class_id` is
+    // missing plumbing — never proof that the assignment belongs elsewhere.
     const { data, error } = await supabase
       .from("assignments")
-      .select("id")
+      .select("id, class_id")
       .eq("id", input.assignmentId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
-      .eq("class_id", input.classUuid)
       .is("source_archived_at", null)
       .maybeSingle();
     assertActiveCaptureOwner(userId);
-    if (error || !data) throw new Error("That assignment does not belong to this class.");
+    // A failed read is not a boundary violation. Saying "does not belong to
+    // this class" for a dropped request teaches the student to distrust a
+    // correct choice.
+    if (error) throw new Error("We couldn't check this assignment. Check your connection and try again.");
+    if (!data || (data.class_id !== null && data.class_id !== input.classUuid)) {
+      throw new Error("That assignment does not belong to this class.");
+    }
   }
   if (input.examId) {
     assertActiveCaptureOwner(userId);
     const { data, error } = await supabase
       .from("exams")
-      .select("id")
+      .select("id, class_id")
       .eq("id", input.examId)
       .eq("user_id", userId)
       .eq("client_class_id", input.clientClassId)
-      .eq("class_id", input.classUuid)
       .is("source_archived_at", null)
       .maybeSingle();
     assertActiveCaptureOwner(userId);
-    if (error || !data) throw new Error("That test does not belong to this class.");
+    if (error) throw new Error("We couldn't check this test. Check your connection and try again.");
+    if (!data || (data.class_id !== null && data.class_id !== input.classUuid)) {
+      throw new Error("That test does not belong to this class.");
+    }
   }
 }
+
 
 async function uploadCaptureImages(
   captureId: string,

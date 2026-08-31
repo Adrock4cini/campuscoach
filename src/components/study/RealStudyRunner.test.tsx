@@ -184,7 +184,7 @@ describe("real flashcard runner", () => {
     await waitFor(() => {
       expect(screen.queryByText(/saving results/i)).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("alert")).toHaveTextContent(/answers are still here/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/answers are still on this screen/i);
     expect(screen.getByRole("button", { name: /try saving again/i })).toBeEnabled();
     expect(screen.queryByText("Session saved")).not.toBeInTheDocument();
   });
@@ -206,7 +206,7 @@ describe("real flashcard runner", () => {
     );
 
     rateMcCorrectAndFinish();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still here/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still on this screen/i);
 
     fireEvent.click(screen.getByRole("button", { name: /try saving again/i }));
     expect(await screen.findByText("Session saved")).toBeInTheDocument();
@@ -489,7 +489,7 @@ describe("real flashcard runner", () => {
     render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={artifact} />);
     rateKnewIt();
     fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still here/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still on this screen/i);
     expect(screen.queryByText("Session saved")).not.toBeInTheDocument();
   });
 });

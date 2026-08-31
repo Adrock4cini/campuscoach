@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   signalDelete: vi.fn(),
   assignmentDeleteById: vi.fn(),
   assignmentDelete: vi.fn(),
+  assignmentOwnershipLookup: vi.fn(
+    async () => ({ data: { id: "assignment-new", class_id: "class-uuid-1" }, error: null }),
+  ) as unknown as () => Promise<{ data: { id: string; class_id: string | null } | null; error: unknown }>,
+
   createAssignment: vi.fn(),
   getSession: vi.fn(),
   invoke: vi.fn(),
@@ -114,6 +118,10 @@ describe("real capture processing integrity", () => {
     mocks.signalDelete.mockReset().mockResolvedValue({ error: null });
     mocks.assignmentDeleteById.mockReset();
     mocks.assignmentDelete.mockReset().mockResolvedValue({ error: null });
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockReset()
+      .mockResolvedValue({ data: { id: "assignment-new", class_id: "class-uuid-1" }, error: null });
+
     mocks.createAssignment.mockReset();
     mocks.activeOwnerId = "user-1";
     mocks.getSession.mockReset().mockResolvedValue({
@@ -185,20 +193,18 @@ describe("real capture processing integrity", () => {
         };
       }
       if (table === "assignments") {
+        // Chainable filter stub: the ownership query shape may change without
+        // breaking every unrelated capture test.
+        const chain = () => {
+          const node: Record<string, unknown> = {
+            maybeSingle: async () => mocks.assignmentOwnershipLookup(),
+          };
+          node.eq = () => chain();
+          node.is = () => chain();
+          return node;
+        };
         return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                eq: () => ({
-                  eq: () => ({
-                    is: () => ({
-                      maybeSingle: async () => ({ data: { id: "assignment-new" }, error: null }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          }),
+          select: () => chain(),
           delete: () => ({
             eq: (column: string, value: string) => {
               mocks.assignmentDeleteById(column, value);
@@ -207,6 +213,7 @@ describe("real capture processing integrity", () => {
           }),
         };
       }
+
       if (table === "materials") {
         return {
           insert: mocks.materialInsert,
@@ -398,6 +405,41 @@ describe("real capture processing integrity", () => {
     expect(capture.context.assignmentId).toBe("assignment-new");
     expect(mocks.assignmentDeleteById).not.toHaveBeenCalled();
   });
+
+  it("accepts an existing assignment whose class UUID was never backfilled", async () => {
+    // Legacy manual assignments carry the stable client_class_id but a NULL
+    // class_id. That is missing plumbing, not a class-boundary violation.
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: { id: "assignment-legacy", class_id: null }, error: null });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-legacy";
+
+    await expect(persistCaptureResult(capture, [], "user-1")).resolves.toBe("capture-1");
+  });
+
+  it("still refuses an assignment that belongs to a different class", async () => {
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: { id: "assignment-other", class_id: "class-uuid-2" }, error: null });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-other";
+
+    await expect(persistCaptureResult(capture, [], "user-1"))
+      .rejects.toThrow("That assignment does not belong to this class.");
+  });
+
+  it("does not blame class ownership when the ownership check itself fails", async () => {
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: null, error: { message: "network" } });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-legacy";
+
+    await expect(persistCaptureResult(capture, [], "user-1"))
+      .rejects.toThrow("We couldn't check this assignment.");
+  });
+
 
   it("returns the server review candidate for a typed assignment capture", async () => {
     mocks.createAssignment.mockResolvedValue({ id: "assignment-new" });
