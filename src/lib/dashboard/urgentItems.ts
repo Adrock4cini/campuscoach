@@ -12,9 +12,19 @@ import type { ClassInfo } from "@/data/demo";
 import type { RealAssignment } from "@/lib/realData/assignments";
 import type { RealExam } from "@/lib/realData/exams";
 import { daysBetween, whenLabel, type AlertTone } from "./classAlerts";
+import { classifyDue, daysUntilDue, dueChipLabel, type DueBucket } from "./dueStatus";
 
 /** Past this many days overdue, an item stops screaming and asks for a decision. */
 export const STALE_OVERDUE_DAYS = 14;
+
+/** The one honest status word for a row, derived only from the real date. */
+export const DUE_BUCKET_LABEL: Record<DueBucket, string> = {
+  overdue: "Overdue",
+  today: "Due today",
+  soon: "Upcoming",
+  later: "Upcoming",
+  none: "No due date",
+};
 
 export interface UrgentItem {
   id: string;
@@ -22,8 +32,14 @@ export interface UrgentItem {
   classId: string | null;
   className: string;
   title: string;
-  /** "3d overdue", "today", "Fri". */
+  /** "3d overdue", "Due today", "Fri". */
   when: string;
+  /**
+   * Canonical due classification. Counters, section placement and this row's
+   * chip all read this, so a title that still says "Due Today" can never act
+   * as status.
+   */
+  bucket: DueBucket;
   daysOut: number;
   tone: AlertTone;
   /** Overdue long enough that we ask the student to resolve it. */
@@ -31,6 +47,7 @@ export interface UrgentItem {
   /** Ordering score, higher = handle sooner. */
   score: number;
 }
+
 
 function classNameFor(classes: ClassInfo[], classId: string | null, clientClassId: string | null) {
   const match = classes.find((c) => c.id === clientClassId || c.id === classId || c.uuid === classId);
