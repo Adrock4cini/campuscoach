@@ -118,6 +118,10 @@ describe("real capture processing integrity", () => {
     mocks.signalDelete.mockReset().mockResolvedValue({ error: null });
     mocks.assignmentDeleteById.mockReset();
     mocks.assignmentDelete.mockReset().mockResolvedValue({ error: null });
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockReset()
+      .mockResolvedValue({ data: { id: "assignment-new", class_id: "class-uuid-1" }, error: null });
+
     mocks.createAssignment.mockReset();
     mocks.activeOwnerId = "user-1";
     mocks.getSession.mockReset().mockResolvedValue({
