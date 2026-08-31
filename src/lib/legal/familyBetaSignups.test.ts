@@ -104,3 +104,25 @@ describe("family beta self-serve signup gate", () => {
     expect(mod.demoModeEnabled()).toBe(true);
   });
 });
+
+describe("owner-approved open beta signups", () => {
+  it("opens self-serve signup on production without enabling demo mode", async () => {
+    const mod = await load({
+      projectId: "norsaaoyppctrvxxgjtg",
+      flag: "false",
+      openBeta: "true",
+    });
+
+    expect(mod.publicSignupsEnabled()).toBe(true);
+    expect(mod.isFamilyBetaStaging()).toBe(false);
+    expect(mod.demoModeEnabled()).toBe(false);
+  });
+
+  it("stays closed unless the open beta switch is exactly true", async () => {
+    const off = await load({ projectId: "norsaaoyppctrvxxgjtg", flag: "false", openBeta: "false" });
+    expect(off.publicSignupsEnabled()).toBe(false);
+
+    const fuzzy = await load({ projectId: "norsaaoyppctrvxxgjtg", flag: "false", openBeta: "1" });
+    expect(fuzzy.publicSignupsEnabled()).toBe(false);
+  });
+});
