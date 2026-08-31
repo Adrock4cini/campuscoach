@@ -402,6 +402,41 @@ describe("real capture processing integrity", () => {
     expect(mocks.assignmentDeleteById).not.toHaveBeenCalled();
   });
 
+  it("accepts an existing assignment whose class UUID was never backfilled", async () => {
+    // Legacy manual assignments carry the stable client_class_id but a NULL
+    // class_id. That is missing plumbing, not a class-boundary violation.
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: { id: "assignment-legacy", class_id: null }, error: null });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-legacy";
+
+    await expect(persistCaptureResult(capture, [], "user-1")).resolves.toBe("capture-1");
+  });
+
+  it("still refuses an assignment that belongs to a different class", async () => {
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: { id: "assignment-other", class_id: "class-uuid-2" }, error: null });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-other";
+
+    await expect(persistCaptureResult(capture, [], "user-1"))
+      .rejects.toThrow("That assignment does not belong to this class.");
+  });
+
+  it("does not blame class ownership when the ownership check itself fails", async () => {
+    (mocks.assignmentOwnershipLookup as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ data: null, error: { message: "network" } });
+    const capture = result();
+    capture.kind = "scan-assignment";
+    capture.context.assignmentId = "assignment-legacy";
+
+    await expect(persistCaptureResult(capture, [], "user-1"))
+      .rejects.toThrow("We couldn't check this assignment.");
+  });
+
+
   it("returns the server review candidate for a typed assignment capture", async () => {
     mocks.createAssignment.mockResolvedValue({ id: "assignment-new" });
     mocks.invoke.mockResolvedValue({
