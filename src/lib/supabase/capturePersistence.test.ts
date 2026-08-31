@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   signalDelete: vi.fn(),
   assignmentDeleteById: vi.fn(),
   assignmentDelete: vi.fn(),
+  assignmentOwnershipLookup: vi.fn(
+    async () => ({ data: { id: "assignment-new", class_id: "class-uuid-1" }, error: null }),
+  ) as unknown as () => Promise<{ data: { id: string; class_id: string | null } | null; error: unknown }>,
+
   createAssignment: vi.fn(),
   getSession: vi.fn(),
   invoke: vi.fn(),
