@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useClassReadinessSignals } from "@/lib/intelligence/useClassReadinessSignals";
+import { deriveClassTruth } from "@/lib/intelligence/classTruth";
 
 interface Props {
   classId: string;
@@ -24,26 +25,12 @@ export function ClassTruthSignals({ classId }: Props) {
     );
   }
 
-  const hasMaterial = signals.captureCount > 0 || signals.conceptCount > 0;
-  const materialLabel = !hasMaterial
-    ? "Need material"
-    : signals.captureCount >= 3 || signals.conceptCount >= 5
-      ? "Good material"
-      : "Some material";
-
-  const preparednessLabel = signals.attempts === 0
-    ? "Not practiced"
-    : explanation.status === "scored" && explanation.percent !== null
-      ? `${explanation.label} · ${explanation.percent}%`
-      : explanation.label;
-
-  const nextAction = !hasMaterial
-    ? "Add material"
-    : signals.attempts === 0
-      ? "Start practice"
-      : explanation.weakCount > 0
-        ? "Practice weak spots"
-        : "Quick review";
+  const { materialLabel, preparednessLabel, nextAction } = deriveClassTruth({
+    captureCount: signals.captureCount,
+    conceptCount: signals.conceptCount,
+    attempts: signals.attempts,
+    explanation,
+  });
 
   return (
     <div className="mt-4 space-y-3 rounded-2xl bg-background/35 px-3 py-3">
