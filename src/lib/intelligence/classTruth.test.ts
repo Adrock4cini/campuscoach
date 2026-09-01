@@ -29,17 +29,26 @@ describe("deriveClassTruth", () => {
     });
   });
 
-  it("never asks for a first capture after material exists", () => {
+  it("states only that material exists before practice", () => {
     expect(deriveClassTruth({
       captureCount: 1,
       conceptCount: 2,
       attempts: 0,
       explanation: explanation(),
     })).toEqual({
-      materialLabel: "Some material",
+      materialLabel: "Material added",
       preparednessLabel: "Not practiced",
       nextAction: "Start practice",
     });
+  });
+
+  it("does not turn more captures into an unsupported coverage claim", () => {
+    expect(deriveClassTruth({
+      captureCount: 12,
+      conceptCount: 30,
+      attempts: 0,
+      explanation: explanation(),
+    }).materialLabel).toBe("Material added");
   });
 
   it("shows a readiness percent only after the explainer says evidence is scored", () => {
@@ -49,7 +58,7 @@ describe("deriveClassTruth", () => {
       attempts: 3,
       explanation: explanation({ status: "scored", label: "Needs work", percent: 40, weakCount: 3 }),
     })).toEqual({
-      materialLabel: "Good material",
+      materialLabel: "Material added",
       preparednessLabel: "Needs work · 40%",
       nextAction: "Practice weak spots",
     });
