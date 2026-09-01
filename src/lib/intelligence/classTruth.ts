@@ -15,11 +15,10 @@ export interface ClassTruth {
 
 export function deriveClassTruth({ captureCount, conceptCount, attempts, explanation }: ClassTruthInput): ClassTruth {
   const hasMaterial = captureCount > 0 || conceptCount > 0;
-  const materialLabel = !hasMaterial
-    ? "Need material"
-    : captureCount >= 3 || conceptCount >= 5
-      ? "Good material"
-      : "Some material";
+  // Capture/concept counts prove that material exists, not how completely it
+  // covers a class or exam. Keep this label factual until we have a real
+  // syllabus/item coverage denominator.
+  const materialLabel = hasMaterial ? "Material added" : "Need material";
 
   const preparednessLabel = attempts === 0
     ? "Not practiced"
