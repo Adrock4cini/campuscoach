@@ -9,6 +9,7 @@ import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles,
 import { Link, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { ClassTruthSignals } from "@/components/real/ClassTruthSignals";
+import { useMyClassesTruth } from "@/lib/intelligence/useMyClassesTruth";
 import { isCanvasConnectEnabled } from "@/lib/canvas/feature";
 import { buildDuplicateLabels } from "@/lib/realData/classDuplicates";
 
@@ -19,6 +20,9 @@ export default function MyClasses() {
   const [searchParams] = useSearchParams();
   const choosingSyllabusClass = searchParams.get("intent") === "syllabus";
   const canvasConnectEnabled = isCanvasConnectEnabled();
+  const truthState = useMyClassesTruth(realMode && !choosingSyllabusClass
+    ? classes.map((item) => ({ id: item.id }))
+    : []);
   const duplicateLabels = buildDuplicateLabels(
     classes.map((item) => ({
       id: item.id,
@@ -57,14 +61,10 @@ export default function MyClasses() {
             <div className="flex flex-col justify-center gap-2 pt-2 sm:flex-row">
               {canvasConnectEnabled && (
                 <Button asChild>
-                  <Link to="/integrations/canvas">
-                    <Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas
-                  </Link>
+                  <Link to="/integrations/canvas"><Link2 className="mr-1.5 h-4 w-4" /> Connect Canvas</Link>
                 </Button>
               )}
-              <Button variant="outline" asChild>
-                <Link to="/classes/new">Add manually</Link>
-              </Button>
+              <Button variant="outline" asChild><Link to="/classes/new">Add manually</Link></Button>
             </div>
           </CardContent>
         </Card>
@@ -77,16 +77,9 @@ export default function MyClasses() {
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground">My Classes</h1>
         {!realMode && (
-          <Link
-            to="/path-to-graduation"
-            aria-label="Degree path coming soon"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-          >
-            <Map className="h-4 w-4 text-primary" />
-            <span>Degree path</span>
-            <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">
-              Coming soon
-            </Badge>
+          <Link to="/path-to-graduation" aria-label="Degree path coming soon" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
+            <Map className="h-4 w-4 text-primary" /><span>Degree path</span>
+            <Badge variant="outline" className="hidden px-1.5 py-0 text-[9px] uppercase tracking-wider sm:inline-flex">Coming soon</Badge>
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         )}
@@ -95,15 +88,8 @@ export default function MyClasses() {
       {choosingSyllabusClass && (
         <Card role="status" className="border-primary/30 bg-primary/5 shadow-card">
           <CardContent className="flex gap-3 p-4 sm:p-5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <FileText className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="font-display font-semibold text-foreground">Which class is this syllabus for?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Choose the class first so its file, assignments, exams, and calendar dates stay together.
-              </p>
-            </div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></span>
+            <div><h2 className="font-display font-semibold text-foreground">Which class is this syllabus for?</h2><p className="mt-1 text-sm text-muted-foreground">Choose the class first so its file, assignments, exams, and calendar dates stay together.</p></div>
           </CardContent>
         </Card>
       )}
@@ -114,126 +100,47 @@ export default function MyClasses() {
           const hasSchedule = c.days.length > 0 || Boolean(c.time);
           const hasLocation = Boolean(c.location);
           const hasCurrentTopic = Boolean(c.currentTopic && c.currentTopic !== "Getting started");
-
           return (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-            >
-              <Link
-                to={choosingSyllabusClass
-                  ? `/classes/${encodeURIComponent(c.id)}/syllabus`
-                  : `/classes/${encodeURIComponent(c.id)}`}
-                aria-label={choosingSyllabusClass ? `Choose ${c.name} for syllabus` : `Open ${c.name}`}
-                className="block h-full"
-              >
+            <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+              <Link to={choosingSyllabusClass ? `/classes/${encodeURIComponent(c.id)}/syllabus` : `/classes/${encodeURIComponent(c.id)}`} aria-label={choosingSyllabusClass ? `Choose ${c.name} for syllabus` : `Open ${c.name}`} className="block h-full">
                 <Card className="group h-full cursor-pointer overflow-hidden rounded-[26px] border-border/50 bg-card/70 shadow-card backdrop-blur-md transition-all hover:border-border/80 hover:shadow-elevated">
                   <CardContent className="p-4 sm:p-5">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-sm font-semibold text-primary-foreground shadow-sm ${c.color}`}>
-                        {c.name.trim().charAt(0)}
-                      </div>
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-sm font-semibold text-primary-foreground shadow-sm ${c.color}`}>{c.name.trim().charAt(0)}</div>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate font-display text-lg font-semibold leading-tight text-foreground">{c.name}</h3>
-                        {duplicateLabels[c.id] && (
-                          <p className="mt-0.5 text-[11px] text-warning">
-                            {duplicateLabels[c.id].suffix} · {duplicateLabels[c.id].note}
-                          </p>
-                        )}
-                        {hasProfessor && (
-                          <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                            <User className="h-3 w-3 shrink-0" />
-                            {c.professor}
-                          </p>
-                        )}
-                        {(c.courseCode || c.term || c.section) && (
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                            {[c.courseCode, c.term, c.section ? `Sec. ${c.section}` : ""].filter(Boolean).join(" · ")}
-                          </p>
-                        )}
+                        {duplicateLabels[c.id] && <p className="mt-0.5 text-[11px] text-warning">{duplicateLabels[c.id].suffix} · {duplicateLabels[c.id].note}</p>}
+                        {hasProfessor && <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground"><User className="h-3 w-3 shrink-0" />{c.professor}</p>}
+                        {(c.courseCode || c.term || c.section) && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{[c.courseCode, c.term, c.section ? `Sec. ${c.section}` : ""].filter(Boolean).join(" · ")}</p>}
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     </div>
 
                     {(hasSchedule || hasLocation || hasCurrentTopic) && (
                       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                        {hasSchedule && (
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="h-3 w-3" />
-                            <span>{[
-                              c.days.join(", "),
-                              c.time ? `${c.time}${c.endTime ? `–${c.endTime}` : ""}` : "",
-                            ].filter(Boolean).join(" · ")}</span>
-                          </div>
-                        )}
+                        {hasSchedule && <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /><span>{[c.days.join(", "), c.time ? `${c.time}${c.endTime ? `–${c.endTime}` : ""}` : ""].filter(Boolean).join(" · ")}</span></div>}
                         {hasLocation && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /><span>{c.location}</span></div>}
                         {hasCurrentTopic && <div className="flex min-w-0 items-center gap-1.5"><BookOpen className="h-3 w-3 shrink-0" /><span className="truncate">{c.currentTopic}</span></div>}
                       </div>
                     )}
+                    {c.nextExamDate && <div className="mt-3 flex items-center gap-2"><Badge variant="secondary" className="bg-danger/10 text-xs text-danger">Exam in {getDaysUntil(c.nextExamDate)} days</Badge></div>}
 
-                    {c.nextExamDate && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-danger/10 text-xs text-danger">
-                          Exam in {getDaysUntil(c.nextExamDate)} days
-                        </Badge>
-                      </div>
-                    )}
+                    {realMode && !choosingSyllabusClass
+                      ? <ClassTruthSignals truth={truthState.byClassId[c.id]} loading={truthState.loading} error={truthState.error} />
+                      : <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary"><FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>Select this class for the syllabus</span></div>}
 
-                    {realMode && !choosingSyllabusClass ? (
-                      <ClassTruthSignals classId={c.id} />
-                    ) : (
-                      <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary">
-                        <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>Select this class for the syllabus</span>
-                      </div>
-                    )}
-
-                    {c.chapters.length > 0 && (
-                      <div className="mt-3 flex items-center gap-1.5">
-                        {c.chapters.map(ch => (
-                          <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>
-                            {ch.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-success" /> :
-                             ch.status === "in-progress" ? <Loader2 className="h-4 w-4 text-warning" /> :
-                             <Circle className="h-4 w-4 text-muted-foreground/30" />}
-                          </div>
-                        ))}
-                        <span className="ml-1 text-xs text-muted-foreground">chapters</span>
-                      </div>
-                    )}
+                    {c.chapters.length > 0 && <div className="mt-3 flex items-center gap-1.5">{c.chapters.map(ch => <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>{ch.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-success" /> : ch.status === "in-progress" ? <Loader2 className="h-4 w-4 text-warning" /> : <Circle className="h-4 w-4 text-muted-foreground/30" />}</div>)}<span className="ml-1 text-xs text-muted-foreground">chapters</span></div>}
                   </CardContent>
                 </Card>
               </Link>
-              {realMode && !choosingSyllabusClass && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild>
-                    <Link to={`/classes/${encodeURIComponent(c.id)}/edit`} aria-label={`Edit ${c.name}`}>
-                      <Pencil className="mr-1.5 h-4 w-4" /> Edit class
-                    </Link>
-                  </Button>
-                  <Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild>
-                    <Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`} aria-label={`Add or view syllabus for ${c.name}`}>
-                      <FileText className="mr-1.5 h-4 w-4" /> Syllabus
-                    </Link>
-                  </Button>
-                </div>
-              )}
+              {realMode && !choosingSyllabusClass && <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/edit`} aria-label={`Edit ${c.name}`}><Pencil className="mr-1.5 h-4 w-4" /> Edit class</Link></Button><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`} aria-label={`Add or view syllabus for ${c.name}`}><FileText className="mr-1.5 h-4 w-4" /> Syllabus</Link></Button></div>}
             </motion.div>
           );
         })}
       </div>
 
-      <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" asChild>
-        <Link to="/classes/new"><Plus className="h-4 w-4" /> Add class</Link>
-      </Button>
-      {isReal && canvasConnectEnabled && (
-        <Button variant="ghost" className="h-12 w-full rounded-2xl" asChild>
-          <Link to="/integrations/canvas">
-            <Link2 className="mr-2 h-4 w-4" /> Connect Canvas
-          </Link>
-        </Button>
-      )}
+      <Button variant="outline" className="h-12 w-full rounded-2xl border-dashed" asChild><Link to="/classes/new"><Plus className="h-4 w-4" /> Add class</Link></Button>
+      {isReal && canvasConnectEnabled && <Button variant="ghost" className="h-12 w-full rounded-2xl" asChild><Link to="/integrations/canvas"><Link2 className="mr-2 h-4 w-4" /> Connect Canvas</Link></Button>}
     </div>
   );
 }
