@@ -10,6 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# This repository is npm-only (see packageManager in package.json and CI).
+# Ignore lockfiles generated when another package manager is run locally or by tooling.
+bun.lock
+bun.lockb
 # .env holds only public browser config (project URL + publishable key) and MUST
 # stay tracked: the hosted production build is made from the git snapshot, and
 # an untracked .env ships a bundle with undefined Supabase config.
