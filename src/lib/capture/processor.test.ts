@@ -161,6 +161,33 @@ describe("capture journey", () => {
     expect(listCaptures()).toEqual([]);
   });
 
+  it("does not contribute intelligence when a photo belongs to another class", async () => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = "failed";
+      result.classMismatch = {
+        detectedSubject: "Accounting, business & economics",
+        detectedSubjectId: "business_economics",
+        selectedClassName: "BIOL",
+      };
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "scan-material",
+      { classId: "biology", date: "2026-09-02" },
+      {
+        simulateDerivedContent: false,
+        requireRemotePersistence: true,
+        ownerId: "user-1",
+        attachments: [new File(["credits and debits"], "ledger.jpg", { type: "image/jpeg" })],
+      },
+    );
+
+    expect(result.classMismatch?.selectedClassName).toBe("BIOL");
+    expect(mocks.contributeStudySignal).not.toHaveBeenCalled();
+    expect(mocks.updateCampusBrainAggregate).not.toHaveBeenCalled();
+  });
+
   it("does not report success when a required remote save fails", async () => {
     mocks.persistCaptureResult.mockResolvedValueOnce(null);
 

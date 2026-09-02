@@ -50,6 +50,24 @@ describe("photo capture worker integrity", () => {
     expect(unreadableBranch).not.toContain('.from("captures")');
   });
 
+  it("stops a confident class mismatch before every learning-evidence write", () => {
+    const mismatchStart = source.indexOf("if (classMismatch && body.keepInSelectedClass !== true)");
+    const assignmentWrite = source.indexOf('if (capture.kind === "scan-assignment") {\n    // OCR is evidence', mismatchStart);
+    const conceptWrite = source.indexOf('.from("concepts")\n      .upsert(conceptRows, {', mismatchStart);
+    const mismatchBranch = source.slice(mismatchStart, assignmentWrite);
+
+    expect(mismatchStart).toBeGreaterThan(-1);
+    expect(assignmentWrite).toBeGreaterThan(mismatchStart);
+    expect(conceptWrite).toBeGreaterThan(mismatchStart);
+    expect(mismatchBranch).toContain("await failClaim()");
+    expect(mismatchBranch).toContain("classGuardVersion: CAPTURE_CLASS_GUARD_VERSION");
+    expect(mismatchBranch).toContain("classMismatch,");
+    expect(mismatchBranch).not.toContain('.from("concepts")');
+    expect(mismatchBranch).not.toContain('.from("user_concept_mastery")');
+    expect(mismatchBranch).not.toContain('.from("concept_capture_evidence")');
+    expect(mismatchBranch).not.toContain('.from("processed_content")');
+  });
+
   it("stores assignment OCR only as a review candidate before confirmation", () => {
     const assignmentStart = source.indexOf(
       'if (capture.kind === "scan-assignment") {\n    // OCR is evidence',

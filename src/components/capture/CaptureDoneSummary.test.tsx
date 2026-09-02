@@ -49,6 +49,34 @@ describe("capture done summary", () => {
 });
 
 describe("failed capture recovery", () => {
+  it("warns before a wrong-subject photo can enter the study set", async () => {
+    const onConfirmClassMismatch = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CaptureDoneSummary
+        result={result({
+          processingStatus: "failed",
+          captureId: "db-capture-1",
+          classMismatch: {
+            detectedSubject: "Accounting, business & economics",
+            detectedSubjectId: "business_accounting",
+            selectedClassName: "BIOL",
+          },
+        })}
+        sample={false}
+        className="BIOL"
+        onClose={vi.fn()}
+        onOpenClass={vi.fn()}
+        onConfirmClassMismatch={onConfirmClassMismatch}
+      />,
+    );
+
+    expect(screen.getByText("Looks like Accounting, business & economics")).toBeInTheDocument();
+    expect(screen.getByText(/nothing was added to its study set/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry processing/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Keep it in BIOL" }));
+    await waitFor(() => expect(onConfirmClassMismatch).toHaveBeenCalledTimes(1));
+  });
+
   it("retries processing in place instead of sending the student to the class page", async () => {
     const onRetryProcessing = vi.fn().mockResolvedValue(undefined);
     render(

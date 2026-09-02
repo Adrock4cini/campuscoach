@@ -32,10 +32,16 @@ import {
   privateResponseHeaders,
   withPrivateJsonErrors,
 } from "../_shared/private-json-response.ts";
+import {
+  CAPTURE_CLASS_GUARD_VERSION,
+  detectCaptureClassMismatch,
+} from "../_shared/capture-class-guard.ts";
 
 interface Body {
   captureId?: string;
   materialIds?: string[];
+  /** Explicit student choice after the worker reports a confident mismatch. */
+  keepInSelectedClass?: boolean;
 }
 
 interface ExtractedConcept {
@@ -204,7 +210,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   const { data: ownedClass, error: classError } = await userClient
     .from("classes")
-    .select("id, client_class_id")
+    .select("id, client_class_id, name, meta")
     .eq("user_id", userId)
     .eq("client_class_id", capture.client_class_id)
     .is("source_archived_at", null)
@@ -740,6 +746,30 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     return json({
       error: "No readable academic material was found. Try a clearer, closer photo.",
     }, 422);
+  }
+
+  const ownedClassMeta = ownedClass.meta
+    && typeof ownedClass.meta === "object"
+    && !Array.isArray(ownedClass.meta)
+      ? ownedClass.meta as Record<string, unknown>
+      : null;
+  const classMismatch = detectCaptureClassMismatch({
+    selectedClassName: ownedClass.name,
+    selectedClassCode: typeof ownedClassMeta?.code === "string" ? ownedClassMeta.code : null,
+    sourceText,
+    summary,
+    conceptNames: concepts.map((concept) => concept.name),
+  });
+  if (classMismatch && body.keepInSelectedClass !== true) {
+    // Fail closed before assignment review, concepts, mastery, evidence, or
+    // processed content can inherit the wrong class. The private originals
+    // remain available for the student's explicit "Keep it here" retry.
+    await failClaim();
+    return json({
+      ok: true,
+      classGuardVersion: CAPTURE_CLASS_GUARD_VERSION,
+      classMismatch,
+    });
   }
 
   if (capture.kind === "scan-assignment") {
