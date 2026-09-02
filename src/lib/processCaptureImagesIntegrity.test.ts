@@ -60,7 +60,8 @@ describe("photo capture worker integrity", () => {
     expect(assignmentWrite).toBeGreaterThan(mismatchStart);
     expect(conceptWrite).toBeGreaterThan(mismatchStart);
     expect(mismatchBranch).toContain("await failClaim()");
-    expect(mismatchBranch).toContain("return json({ ok: true, classMismatch })");
+    expect(mismatchBranch).toContain("classGuardVersion: CAPTURE_CLASS_GUARD_VERSION");
+    expect(mismatchBranch).toContain("classMismatch,");
     expect(mismatchBranch).not.toContain('.from("concepts")');
     expect(mismatchBranch).not.toContain('.from("user_concept_mastery")');
     expect(mismatchBranch).not.toContain('.from("concept_capture_evidence")');
