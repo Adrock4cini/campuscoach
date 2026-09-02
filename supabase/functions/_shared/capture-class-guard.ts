@@ -4,6 +4,8 @@ import {
   type SubjectProfileId,
 } from "./subject-profiles.ts";
 
+export const CAPTURE_CLASS_GUARD_VERSION = "photo-wrong-class-gate-v2";
+
 export interface CaptureClassMismatch {
   detectedSubject: string;
   detectedSubjectId: SubjectProfileId;
