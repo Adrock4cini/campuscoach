@@ -32,7 +32,10 @@ import {
   privateResponseHeaders,
   withPrivateJsonErrors,
 } from "../_shared/private-json-response.ts";
-import { detectCaptureClassMismatch } from "../_shared/capture-class-guard.ts";
+import {
+  CAPTURE_CLASS_GUARD_VERSION,
+  detectCaptureClassMismatch,
+} from "../_shared/capture-class-guard.ts";
 
 interface Body {
   captureId?: string;
@@ -762,7 +765,11 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     // processed content can inherit the wrong class. The private originals
     // remain available for the student's explicit "Keep it here" retry.
     await failClaim();
-    return json({ ok: true, classMismatch });
+    return json({
+      ok: true,
+      classGuardVersion: CAPTURE_CLASS_GUARD_VERSION,
+      classMismatch,
+    });
   }
 
   if (capture.kind === "scan-assignment") {
