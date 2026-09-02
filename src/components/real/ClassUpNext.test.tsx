@@ -2,7 +2,7 @@
  * ClassUpNext — the three-signal test card (urgency chip + Coverage +
  * Practice) and the act-first assignment actions.
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
@@ -83,11 +83,17 @@ function renderUpNext() {
 
 describe("ClassUpNext three-signal test card", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-29T12:00:00.000Z"));
     mocks.assignments = [];
     mocks.exams = [];
     mocks.signals = { conceptCount: 0, captureCount: 0, strengths: [], attempts: 0 };
     mocks.signalsLoading = false;
     mocks.openCapture.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows Coverage and Practice chips next to the date urgency chip", () => {
