@@ -661,10 +661,14 @@ export async function persistCaptureResult(
     try {
       const imageResult = await invokeImageProcessing(captureId, materialIds, userId);
       result.processingStatus = imageResult.processingStatus;
-      result.practiceSource = imageResult.practiceSource;
+      if (imageResult.practiceSource) result.practiceSource = imageResult.practiceSource;
+      if (imageResult.classMismatch) {
+        result.classMismatch = imageResult.classMismatch;
+        result.processingMessage = "Nothing was added to this class's study set.";
+      }
       if (imageResult.processingStatus === "ready") {
         dispatchConceptsExtracted(captureId);
-      } else {
+      } else if (!imageResult.classMismatch) {
         result.processingMessage = "Campus Brain is already reading these pages.";
       }
     } catch (err) {
@@ -845,13 +849,19 @@ async function invokeImageProcessing(
   captureId: string,
   materialIds: string[],
   userId?: string,
+  options: { keepInSelectedClass?: boolean } = {},
 ): Promise<{
-  processingStatus: "processing" | "ready";
-  practiceSource: AssignmentPracticeSource;
+  processingStatus: "processing" | "ready" | "failed";
+  practiceSource?: AssignmentPracticeSource;
+  classMismatch?: CaptureResult["classMismatch"];
 }> {
   if (userId) assertActiveCaptureOwner(userId);
   const { data, error } = await invokeEdgeFunction("process-capture-images", {
-    body: { captureId, materialIds },
+    body: {
+      captureId,
+      materialIds,
+      ...(options.keepInSelectedClass ? { keepInSelectedClass: true } : {}),
+    },
   });
   if (userId) assertActiveCaptureOwner(userId);
   const response = data as {
@@ -860,9 +870,24 @@ async function invokeImageProcessing(
     error?: string;
     message?: string;
     practiceSource?: unknown;
+    classMismatch?: unknown;
   } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Image processing failed");
+  }
+  const mismatch = response.classMismatch;
+  if (
+    mismatch
+    && typeof mismatch === "object"
+    && !Array.isArray(mismatch)
+    && typeof (mismatch as Record<string, unknown>).detectedSubject === "string"
+    && typeof (mismatch as Record<string, unknown>).detectedSubjectId === "string"
+    && typeof (mismatch as Record<string, unknown>).selectedClassName === "string"
+  ) {
+    return {
+      processingStatus: "failed",
+      classMismatch: mismatch as NonNullable<CaptureResult["classMismatch"]>,
+    };
   }
   return {
     processingStatus: response.processing ? "processing" : "ready",
@@ -959,13 +984,19 @@ export interface RetryCaptureInput {
 }
 
 export interface CaptureProcessingResult {
+  processingStatus: "processing" | "ready" | "failed";
+  practiceSource?: AssignmentPracticeSource;
+  classMismatch?: CaptureResult["classMismatch"];
+}
+
+interface CaptureConceptProcessingResult {
   processingStatus: "processing" | "ready";
   practiceSource?: AssignmentPracticeSource;
 }
 
 export async function retryCaptureConceptsWithResult(
   capture: RetryCaptureInput,
-): Promise<CaptureProcessingResult> {
+): Promise<CaptureConceptProcessingResult> {
   const rawText = (capture.rawText ?? "").trim();
   if (!rawText && capture.kind !== "scan-assignment") {
     throw new Error("This capture has no source text to process.");
@@ -992,10 +1023,11 @@ export async function retryCaptureConcepts(
 export async function retryCaptureImagesWithResult(
   captureId: string,
   materialIds: string[],
+  options: { keepInSelectedClass?: boolean } = {},
 ): Promise<CaptureProcessingResult> {
   if (!materialIds.length) throw new Error("This capture has no saved images to process.");
   const userId = getAnonUserId();
-  const result = await invokeImageProcessing(captureId, materialIds, userId);
+  const result = await invokeImageProcessing(captureId, materialIds, userId, options);
   if (result.processingStatus === "ready") dispatchConceptsExtracted(captureId);
   return result;
 }
@@ -1003,7 +1035,7 @@ export async function retryCaptureImagesWithResult(
 export async function retryCaptureImages(
   captureId: string,
   materialIds: string[],
-): Promise<"processing" | "ready"> {
+): Promise<"processing" | "ready" | "failed"> {
   return (await retryCaptureImagesWithResult(captureId, materialIds)).processingStatus;
 }
 
@@ -1015,7 +1047,7 @@ export async function retryCaptureImages(
  */
 export async function retryCaptureProcessing(
   captureId: string,
-): Promise<"processing" | "ready"> {
+): Promise<"processing" | "ready" | "failed"> {
   const userId = getAnonUserId();
   const { data: capture, error } = await supabase
     .from("captures")

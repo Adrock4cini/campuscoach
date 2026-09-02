@@ -3,6 +3,7 @@ import type { CaptureResult } from "@/lib/capture/types";
 import {
   persistCaptureResult,
   retryCaptureConcepts,
+  retryCaptureImagesWithResult,
   retryCaptureProcessing,
   selectTrustworthyProcessedContent,
 } from "./capturePersistence";
@@ -335,6 +336,45 @@ describe("real capture processing integrity", () => {
     }));
     expect(mocks.captureDelete).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a class mismatch and sends explicit Keep it here confirmation", async () => {
+    mocks.activeOwnerId = "user-1";
+    mocks.invoke
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          classMismatch: {
+            detectedSubject: "Accounting, business & economics",
+            detectedSubjectId: "business_accounting",
+            selectedClassName: "BIOL",
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { ok: true }, error: null });
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .resolves.toEqual(expect.objectContaining({
+        processingStatus: "failed",
+        classMismatch: expect.objectContaining({ selectedClassName: "BIOL" }),
+      }));
+    await expect(retryCaptureImagesWithResult(
+      "capture-1",
+      ["material-1"],
+      { keepInSelectedClass: true },
+    )).resolves.toEqual(expect.objectContaining({ processingStatus: "ready" }));
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "process-capture-images", expect.objectContaining({
+      body: { captureId: "capture-1", materialIds: ["material-1"] },
+    }));
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "process-capture-images", expect.objectContaining({
+      body: {
+        captureId: "capture-1",
+        materialIds: ["material-1"],
+        keepInSelectedClass: true,
+      },
+    }));
   });
 
   it("rejects a changed page retry without deleting the first durable capture", async () => {

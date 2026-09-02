@@ -218,7 +218,7 @@ export async function commitCapture(
     /* non-browser env */
   }
 
-  if (remotePersistence) {
+  if (remotePersistence && !result.classMismatch) {
     // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
     void (async () => {
       try {
