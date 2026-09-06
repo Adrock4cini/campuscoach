@@ -218,7 +218,11 @@ export async function commitCapture(
     /* non-browser env */
   }
 
-  if (remotePersistence && !result.classMismatch) {
+  // A saved private photo is not yet study evidence. Wait until image
+  // processing (including its class guard) succeeds before contributing it.
+  const photosAwaitingClassCheck = (options.attachments?.length ?? 0) > 0
+    && result.processingStatus !== "ready";
+  if (remotePersistence && !result.classMismatch && !photosAwaitingClassCheck) {
     // Aggregate-safe signal for the shared Campus Brain (counts + labels only).
     void (async () => {
       try {

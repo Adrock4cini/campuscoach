@@ -35,8 +35,16 @@ import {
   type AssignmentPracticeSource,
 } from "@/lib/assignments/assignmentPracticeSource";
 import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
+import { CAPTURE_CLASS_GUARD_VERSION } from "../../../supabase/functions/_shared/capture-class-guard";
 
 const CAPTURE_SOURCE_BUCKET = "capture-sources";
+
+class CaptureClassGuardUnavailableError extends Error {
+  constructor() {
+    super("Photo class checking couldn't be verified. Your photos are saved. Please try again later.");
+    this.name = "CaptureClassGuardUnavailableError";
+  }
+}
 
 class CaptureSourceRetryConflictError extends Error {
   constructor() {
@@ -675,7 +683,9 @@ export async function persistCaptureResult(
       if (isOwnerMismatchError(err)) throw err;
       warn("persistCaptureResult.process-images", err);
       result.processingStatus = "failed";
-      result.processingMessage = "Your photos are private and saved, but Campus Brain couldn't finish reading them.";
+      result.processingMessage = err instanceof CaptureClassGuardUnavailableError
+        ? err.message
+        : "Your photos are private and saved, but Campus Brain couldn't finish reading them.";
     }
   }
 
@@ -856,6 +866,29 @@ async function invokeImageProcessing(
   classMismatch?: CaptureResult["classMismatch"];
 }> {
   if (userId) assertActiveCaptureOwner(userId);
+  // Frontend and Edge Function deployments are independent. A legacy worker
+  // must never receive capture ids merely because this client has warning UI.
+  // Probe on every attempt (including Keep), without any processable source.
+  try {
+    const { data, error } = await invokeEdgeFunction<{
+      ok?: unknown;
+      classGuardVersion?: unknown;
+    }>("process-capture-images", {
+      body: { action: "verify-class-guard" },
+    });
+    if (userId) assertActiveCaptureOwner(userId);
+    if (
+      error
+      || data?.ok !== true
+      || data?.classGuardVersion !== CAPTURE_CLASS_GUARD_VERSION
+    ) {
+      throw new CaptureClassGuardUnavailableError();
+    }
+  } catch (error) {
+    if (userId) assertActiveCaptureOwner(userId);
+    if (isOwnerMismatchError(error)) throw error;
+    throw new CaptureClassGuardUnavailableError();
+  }
   const { data, error } = await invokeEdgeFunction("process-capture-images", {
     body: {
       captureId,
@@ -871,19 +904,29 @@ async function invokeImageProcessing(
     message?: string;
     practiceSource?: unknown;
     classMismatch?: unknown;
+    classGuardVersion?: unknown;
   } | null;
   if (error || response?.ok !== true) {
     throw error ?? new Error(response?.message ?? response?.error ?? "Image processing failed");
   }
+  if (response.classGuardVersion !== CAPTURE_CLASS_GUARD_VERSION) {
+    throw new CaptureClassGuardUnavailableError();
+  }
   const mismatch = response.classMismatch;
-  if (
-    mismatch
-    && typeof mismatch === "object"
-    && !Array.isArray(mismatch)
-    && typeof (mismatch as Record<string, unknown>).detectedSubject === "string"
-    && typeof (mismatch as Record<string, unknown>).detectedSubjectId === "string"
-    && typeof (mismatch as Record<string, unknown>).selectedClassName === "string"
-  ) {
+  if (mismatch !== undefined && mismatch !== null) {
+    const hasWarningText = (key: string) => (
+      typeof (mismatch as Record<string, unknown>)[key] === "string"
+      && ((mismatch as Record<string, unknown>)[key] as string).trim().length > 0
+    );
+    if (
+      typeof mismatch !== "object"
+      || Array.isArray(mismatch)
+      || !hasWarningText("detectedSubject")
+      || !hasWarningText("detectedSubjectId")
+      || !hasWarningText("selectedClassName")
+    ) {
+      throw new CaptureClassGuardUnavailableError();
+    }
     return {
       processingStatus: "failed",
       classMismatch: mismatch as NonNullable<CaptureResult["classMismatch"]>,
@@ -997,6 +1040,9 @@ interface CaptureConceptProcessingResult {
 export async function retryCaptureConceptsWithResult(
   capture: RetryCaptureInput,
 ): Promise<CaptureConceptProcessingResult> {
+  if (capture.kind === "scan-material") {
+    throw new Error("Retry this capture's saved photos so its class can be checked before adding concepts.");
+  }
   const rawText = (capture.rawText ?? "").trim();
   if (!rawText && capture.kind !== "scan-assignment") {
     throw new Error("This capture has no source text to process.");
@@ -1058,11 +1104,10 @@ export async function retryCaptureProcessing(
   if (error || !capture) throw new Error("We couldn't find this capture to retry.");
 
   const rawText = (capture.raw_text ?? "").trim();
-  // Assignment OCR is untrusted until the student confirms the exact problem.
-  // Image-backed assignments must return to the image worker even when OCR is
-  // already present. Typed assignments have no material rows and use the text
-  // endpoint's capture-only review-candidate branch below.
-  if (capture.kind !== "scan-assignment" && rawText) {
+  // Saved photo OCR must return through the image worker's class guard, never
+  // the text extractor. Typed assignments have no material rows and use the
+  // text endpoint's capture-only review-candidate branch below.
+  if (capture.kind !== "scan-assignment" && capture.kind !== "scan-material" && rawText) {
     return retryCaptureConcepts({
       id: capture.id,
       kind: capture.kind,

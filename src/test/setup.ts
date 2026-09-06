@@ -1,9 +1,11 @@
 import "@testing-library/jest-dom";
 
-Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-  configurable: true,
-  value: () => {},
-});
+if (typeof HTMLElement !== "undefined") {
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
+}
 
 class TestResizeObserver implements ResizeObserver {
   observe() {}
@@ -16,7 +18,7 @@ Object.defineProperty(globalThis, "ResizeObserver", {
   value: TestResizeObserver,
 });
 
-Object.defineProperty(window, "matchMedia", {
+if (typeof window !== "undefined") Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({
     matches: false,

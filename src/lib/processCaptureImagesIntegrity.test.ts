@@ -51,7 +51,7 @@ describe("photo capture worker integrity", () => {
   });
 
   it("stops a confident class mismatch before every learning-evidence write", () => {
-    const mismatchStart = source.indexOf("if (classMismatch && body.keepInSelectedClass !== true)");
+    const mismatchStart = source.lastIndexOf("if (classMismatch && body.keepInSelectedClass !== true)");
     const assignmentWrite = source.indexOf('if (capture.kind === "scan-assignment") {\n    // OCR is evidence', mismatchStart);
     const conceptWrite = source.indexOf('.from("concepts")\n      .upsert(conceptRows, {', mismatchStart);
     const mismatchBranch = source.slice(mismatchStart, assignmentWrite);

@@ -38,6 +38,8 @@ import {
 } from "../_shared/capture-class-guard.ts";
 
 interface Body {
+  /** Read-only compatibility check; deliberately carries no source IDs. */
+  action?: "verify-class-guard";
   captureId?: string;
   materialIds?: string[];
   /** Explicit student choice after the worker reports a confident mismatch. */
@@ -121,8 +123,8 @@ const slugify = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "concept";
 
 Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) => {
-  const json = (body: unknown, status = 200) => (
-    privateJsonResponse(body, status, corsHeaders, { requestId })
+  const json = (body: Record<string, unknown>, status = 200) => (
+    privateJsonResponse({ ...body, classGuardVersion: CAPTURE_CLASS_GUARD_VERSION }, status, corsHeaders, { requestId })
   );
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: privateResponseHeaders(corsHeaders, requestId) });
@@ -190,6 +192,11 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     return json({ error: "JSON body must be an object" }, 400);
   }
   const body = parsedBody as Body;
+  if (body.action === "verify-class-guard") {
+    // Old workers reject this ID-free request before acquiring a capture claim.
+    // New clients must verify this contract before sending any photo to ingest.
+    return json({ ok: true });
+  }
   if (!body.captureId || !Array.isArray(body.materialIds)) {
     return json({ error: "captureId and materialIds are required" }, 400);
   }
@@ -217,6 +224,12 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     .maybeSingle();
   if (classError) return json({ error: "Class lookup failed" }, 500);
   if (!ownedClass) return json({ error: "Class not found" }, 404);
+
+  const ownedClassMeta = ownedClass.meta
+    && typeof ownedClass.meta === "object"
+    && !Array.isArray(ownedClass.meta)
+      ? ownedClass.meta as Record<string, unknown>
+      : null;
 
   const boundaryError = await validateLinkedTargets(userClient, {
     userId,
@@ -374,7 +387,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     // reprocessed instead of being rebound to whatever pages happen to exist.
     const { data: processedRows, error: processedLookupError } = await userClient
       .from("processed_content")
-      .select("id")
+      .select("id, ocr_text, summary, key_concepts")
       .eq("user_id", userId)
       .eq("capture_id", body.captureId)
       .eq("model", processedModel)
@@ -384,6 +397,25 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       return json({ error: "Source recovery lookup failed" }, 500);
     }
     if (!processedRows?.length) return null;
+
+    // A byte-matched legacy result is not proof that the student approved its
+    // subject. Check its source before reactivation, evidence, or mastery repair.
+    // Without durable OCR, reread the verified images through the normal gate.
+    const priorSource = processedRows[0];
+    if (typeof priorSource.ocr_text !== "string" || !priorSource.ocr_text.trim()) return null;
+    const classMismatch = detectCaptureClassMismatch({
+      selectedClassName: ownedClass.name,
+      selectedClassCode: typeof ownedClassMeta?.code === "string" ? ownedClassMeta.code : null,
+      sourceText: priorSource.ocr_text,
+      summary: typeof priorSource.summary === "string" ? priorSource.summary : null,
+      conceptNames: Array.isArray(priorSource.key_concepts)
+        ? priorSource.key_concepts.filter((name): name is string => typeof name === "string")
+        : [],
+    });
+    if (classMismatch && body.keepInSelectedClass !== true) {
+      await failClaim();
+      return json({ ok: true, classMismatch });
+    }
 
     const { data: existing, error: existingError } = await userClient
       .from("concepts")
@@ -748,11 +780,6 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }, 422);
   }
 
-  const ownedClassMeta = ownedClass.meta
-    && typeof ownedClass.meta === "object"
-    && !Array.isArray(ownedClass.meta)
-      ? ownedClass.meta as Record<string, unknown>
-      : null;
   const classMismatch = detectCaptureClassMismatch({
     selectedClassName: ownedClass.name,
     selectedClassCode: typeof ownedClassMeta?.code === "string" ? ownedClassMeta.code : null,

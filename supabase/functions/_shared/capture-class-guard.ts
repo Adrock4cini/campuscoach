@@ -4,7 +4,7 @@ import {
   type SubjectProfileId,
 } from "./subject-profiles.ts";
 
-export const CAPTURE_CLASS_GUARD_VERSION = "photo-wrong-class-gate-v2";
+export const CAPTURE_CLASS_GUARD_VERSION = "photo-wrong-class-gate-v3";
 
 export interface CaptureClassMismatch {
   detectedSubject: string;
@@ -29,10 +29,24 @@ export function detectCaptureClassMismatch(input: {
     className: input.selectedClassName,
     classCode: input.selectedClassCode,
   });
-  const detected = classifySubject({
+  const sourceSubject = classifySubject({
     topics: [input.sourceText, input.summary],
+  });
+  const conceptSubject = classifySubject({
     conceptNames: input.conceptNames,
   });
+  // The generic study classifier deliberately takes the first matching
+  // evidence layer. For a capture gate, a thin OCR hit (for example just
+  // "Accounting") must not hide stronger, agreeing extracted concepts.
+  // Keep weak, conflicting subjects uncertain rather than choosing a side.
+  const detected = sourceSubject.primary === "general"
+    || (
+      sourceSubject.confidence < 0.6
+      && sourceSubject.primary === conceptSubject.primary
+      && conceptSubject.confidence >= 0.6
+    )
+    ? conceptSubject
+    : sourceSubject;
 
   if (
     selected.primary === "general"
