@@ -111,6 +111,7 @@ export async function getFamilyBetaAgreementStatus(): Promise<FamilyBetaAgreemen
   );
   if (error) {
     if (isMissingFunctionError(error)) throw new FamilyBetaAgreementBackendMissingError();
+    if (isDataPlaneBlockedError(error)) throw new FamilyBetaAgreementNotReadyError();
     throw new Error("agreement status unavailable");
   }
   const receipt = parseAgreementCheck(data);
@@ -125,6 +126,7 @@ export async function acceptCurrentFamilyBetaAgreement(): Promise<FamilyBetaAgre
   );
   if (error) {
     if (isMissingFunctionError(error)) throw new FamilyBetaAgreementBackendMissingError();
+    if (isDataPlaneBlockedError(error)) throw new FamilyBetaAgreementNotReadyError();
     throw new Error("agreement acceptance unavailable");
   }
   const receipt = parseAgreementCheck(data);
