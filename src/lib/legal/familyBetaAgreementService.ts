@@ -42,6 +42,29 @@ function isMissingFunctionError(error: unknown): boolean {
 }
 
 /**
+ * The client wraps Supabase's data plane in a local firewall that answers 403
+ * `demo_data_plane_blocked` until AuthContext has proven a real session. A
+ * signed-in student can hit that answer during a resume/remount race. It means
+ * "not ready yet", never "your agreement is unverifiable", so it is retryable
+ * instead of a terminal error that parks the student on the gate forever.
+ */
+export class FamilyBetaAgreementNotReadyError extends Error {
+  constructor() {
+    super("family beta agreement check not ready");
+    this.name = "FamilyBetaAgreementNotReadyError";
+  }
+}
+
+function isDataPlaneBlockedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  if (candidate.code === "demo_data_plane_blocked") return true;
+  return typeof candidate.message === "string"
+    && /demo_data_plane_blocked|unavailable in sample mode/i.test(candidate.message);
+}
+
+
+/**
  * The generated database types are produced from a backend where these RPCs
  * are not deployed. The names are still correct for backends that do have
  * them, so the call is narrowed here rather than by editing generated types.
