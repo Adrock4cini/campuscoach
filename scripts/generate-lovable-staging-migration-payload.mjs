@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-export const EXPECTED_MIGRATION_COUNT = 64;
-export const EXPECTED_FINAL_MIGRATION_VERSION = "20260830231658";
+export const EXPECTED_MIGRATION_COUNT = 65;
+export const EXPECTED_FINAL_MIGRATION_VERSION = "20260831090000";
 export const CONTROL_SCHEMA = "cc_staging_migration";
 export const PROTECTED_LOVABLE_PROJECT_IDS = Object.freeze([
   "a08a7f00-4b76-4d5b-ac89-2c15e604054a", // production Campus Coach Pro
@@ -106,6 +106,13 @@ export const POST_PHASE_GATES = Object.freeze([
     targetOrdinal: 64,
     targetVersion: "20260830231658",
     attestation: "writes-paused-practice-source-confirmation-verified",
+  },
+  {
+    previousOrdinal: 64,
+    previousVersion: "20260830231658",
+    targetOrdinal: 65,
+    targetVersion: "20260831090000",
+    attestation: "writes-paused-phonetic-bridge-technique-verified",
   },
 ].map((gate) => Object.freeze(gate)));
 export const EXPECTED_OUTER_TRANSACTION_FILES = Object.freeze([

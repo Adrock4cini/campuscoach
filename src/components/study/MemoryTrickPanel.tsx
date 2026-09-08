@@ -22,6 +22,7 @@ import {
   isNoUsefulTrickMessage,
   techniqueDisplayLabel,
   techniqueFamily,
+  inventedCueDisclosure,
 } from "@/lib/study/mnemonicQuality";
 import { evidenceAdjustment, evidenceNote } from "@/lib/study/strategyEvidence";
 import { selectVerifiedTrick } from "@/lib/study/verifiedTricks";
@@ -453,7 +454,11 @@ function MemoryTrickResult({
             <p className="text-[11px] text-muted-foreground">
               {techniqueDisplayLabel(trick.technique)} · {trick.techniqueLabel}
             </p>
+            {inventedCueDisclosure(trick.technique) && (
+              <p className="text-[11px] text-muted-foreground">{inventedCueDisclosure(trick.technique)}</p>
+            )}
           </div>
+
 
           <div className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">How to use it</p>

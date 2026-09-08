@@ -21,6 +21,11 @@
 import { isNonExplanatoryFragment } from "./grounding-quality.ts";
 import { getSubjectProfile, type SubjectProfileId } from "./subject-profiles.ts";
 import type { VerifiedShortcut } from "./math-shortcuts.ts";
+import {
+  bridgeWords,
+  scorePhoneticBridge,
+  type PhoneticBridgeScore,
+} from "./phonetic-bridge.ts";
 
 export const NO_USEFUL_MNEMONIC_ERROR = "no-useful-memory-trick";
 
@@ -43,7 +48,9 @@ export const TECHNIQUE_FAMILY: Record<string, MnemonicTechniqueFamily> = {
   first_letter_sentence: "acronymic",
   word_roots: "association",
   sound_alike: "sound",
+  phonetic_bridge: "sound",
   rhyme: "sound",
+
   familiar_bridge: "association",
   association: "association",
   visual: "visual",
@@ -66,7 +73,9 @@ export const TECHNIQUE_DISPLAY_LABEL: Record<string, string> = {
   first_letter_sentence: "Memory trick",
   word_roots: "Word roots",
   sound_alike: "Sound-alike hook",
+  phonetic_bridge: "Wordplay memory",
   rhyme: "Memory trick",
+
   familiar_bridge: "Compare these",
   association: "Memory hook",
   visual: "Visual memory",
@@ -87,6 +96,19 @@ export function techniqueDisplayLabel(technique: string, verified = false): stri
   if (verified) return "Verified shortcut";
   return TECHNIQUE_DISPLAY_LABEL[technique] ?? "Memory cue";
 }
+
+/**
+ * Techniques whose content is an INVENTED cue rather than an explanation.
+ * The UI must say so out loud: a wordplay bridge is never etymology.
+ */
+export const INVENTED_CUE_TECHNIQUES = new Set(["phonetic_bridge", "sound_alike"]);
+
+export const INVENTED_CUE_DISCLOSURE = "This is a made-up memory cue, not a real word origin.";
+
+export function inventedCueDisclosure(technique: string): string | null {
+  return INVENTED_CUE_TECHNIQUES.has(technique) ? INVENTED_CUE_DISCLOSURE : null;
+}
+
 
 export interface MnemonicCandidate {
   mnemonic: string;
@@ -166,6 +188,17 @@ function acronymTokens(text: string): string[] {
 }
 
 /**
+ * The part of the grounded fact that is the ANSWER: everything the prompt
+ * term does not already say. "The capital of Maryland is Annapolis" with the
+ * concept "Maryland" leaves "Annapolis" as the thing to retrieve.
+ */
+export function bridgeAnswerTerm(target: string, conceptName: string): string {
+  const cue = new Set(bridgeWords(conceptName));
+  const rest = bridgeWords(target).filter((word) => !cue.has(word));
+  return rest.length ? rest.join(" ") : target;
+}
+
+/**
  * Runs every gate on one candidate. Pure and deterministic: the same
  * candidate always gets the same verdict, so accepted results are cacheable
  * by grounded target + technique.
@@ -181,6 +214,7 @@ export function evaluateMnemonicCandidate(
   const explanation = (candidate.explanation ?? "").trim();
   const target = (context.target ?? "").trim();
   const verified = candidate.verified === true;
+  let bridgeScore: PhoneticBridgeScore | null = null;
 
   /* ---------------------- 1. Source truth gate ---------------------- */
   if (!target) rejections.push("insufficient-source");
@@ -197,6 +231,20 @@ export function evaluateMnemonicCandidate(
       const supported = ETYMOLOGY_CLAIM.test(source);
       if (!supported) rejections.push("unverified-etymology");
     }
+
+    // Phonetic / wordplay bridges are held to their own contract: one word
+    // must clearly cue the prompt and another must clearly cue the answer,
+    // or the sentence is just a clever thing to memorise on top of the fact.
+    if (candidate.technique === "phonetic_bridge") {
+      bridgeScore = scorePhoneticBridge({
+        bridge: mnemonic,
+        cueTerm: context.conceptName ?? "",
+        answerTerm: bridgeAnswerTerm(target, context.conceptName ?? ""),
+        explanation,
+      });
+      rejections.push(...bridgeScore.rejections);
+    }
+
 
     const looksQuantitative = /[=×x*/+%]|\bpercent\b/i.test(mnemonic) && /\d/.test(mnemonic);
     if (looksQuantitative && !CONDITION_SIGNAL.test(explanation)) {
@@ -286,6 +334,13 @@ export function evaluateMnemonicCandidate(
   if (verified) {
     score += 3;
     reasons.push("deterministically verified");
+  }
+  if (bridgeScore) {
+    // Reward the six things that make a wordplay bridge work; a weak one is
+    // already rejected above, so this only ranks the survivors.
+    score += Math.round(bridgeScore.score / 2);
+    if (bridgeScore.twoWayMapping) reasons.push("the bridge maps both ways");
+    if (bridgeScore.brevity >= 0.5) reasons.push("short and vivid");
   }
   if ((context.rejectFamilies ?? []).includes(family)) {
     rejections.push("family-already-rejected");

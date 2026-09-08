@@ -9,6 +9,10 @@ const migration = readFileSync(
   "utf8",
 );
 const sql = migration.toLowerCase();
+const techniqueSql = readFileSync(
+  resolve(migrationDirectory, "20260831090000_phonetic_bridge_technique.sql"),
+  "utf8",
+).toLowerCase();
 const syllabusCommitSql = readFileSync(
   resolve(migrationDirectory, "20260810120000_class_owned_syllabi.sql"),
   "utf8",
@@ -229,14 +233,15 @@ describe("onboarding agreement and owner boundary migration", () => {
     );
   });
 
-  it("keeps the feedback constraint and RPC aligned with the canonical 16-technique catalog", () => {
-    expect(canonicalMnemonicTechniques).toHaveLength(16);
-    expect(new Set(canonicalMnemonicTechniques).size).toBe(16);
+  it("keeps the feedback constraint and RPC aligned with the canonical technique catalog", () => {
+    expect(canonicalMnemonicTechniques).toHaveLength(17);
+    expect(new Set(canonicalMnemonicTechniques).size).toBe(17);
+    expect(canonicalMnemonicTechniques).toContain("phonetic_bridge");
 
-    const constraintList = sql.match(
+    const constraintList = techniqueSql.match(
       /add constraint study_memory_feedback_technique_check check \(\s*technique in \(([\s\S]+?)\)\s*\);/,
     )?.[1];
-    const rpcList = sql.match(
+    const rpcList = techniqueSql.match(
       /if p_technique not in \(([\s\S]+?)\) then/,
     )?.[1];
     expect(constraintList).toBeDefined();

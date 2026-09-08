@@ -48,10 +48,12 @@ import {
 import {
   aiMnemonicStrategyExecution,
   deterministicArtifactStrategyExecution,
+  deterministicStrategyExecution,
   executeMnemonicStrategy,
   type DeterministicArtifactKind,
   type StrategyExecutionMetadata,
 } from "../_shared/strategy-execution.ts";
+import { findCuratedPhoneticBridge } from "../_shared/phonetic-bridge.ts";
 import {
   summarizeStrategyEvidence,
   type StrategyOutcomeRecord,
@@ -1005,7 +1007,40 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     payload = validated.payload;
   } else {
     if (!template) return json({ error: "No generation template is available" }, 501);
-    const execution = await executeMnemonicStrategy({
+
+    // A human-curated wordplay bridge for this exact pair costs no model call.
+    // It still passes the same quality gate as an AI candidate, so a curated
+    // entry that does not hold up is discarded and generation continues.
+    const curatedConcept = typedConcepts.length === 1 ? typedConcepts[0] : null;
+    const curatedTarget = curatedConcept ? exactTargetByConcept.get(curatedConcept.id) ?? "" : "";
+    const curated = curatedConcept && curatedTarget
+      ? findCuratedPhoneticBridge(curatedConcept.name, curatedTarget)
+      : null;
+    if (curated && curatedConcept) {
+      const curatedValidated = validateArtifactPayload("mnemonic", {
+        items: [{
+          conceptId: curatedConcept.id,
+          target: curatedTarget,
+          mnemonic: curated.bridge,
+          technique: "phonetic_bridge",
+          explanation: curated.explanation,
+        }],
+      }, {
+        ...validationOptions,
+        exactTargetByConcept,
+        subjectProfileId: subject.primary,
+        taskKind,
+        avoidTechniques: subjectTechniques.avoid,
+        mnemonicOrigin: "known",
+      });
+      if (curatedValidated.ok) {
+        modelUsed = "curated-phonetic-bridge";
+        payload = curatedValidated.payload;
+        executionMetadata = deterministicStrategyExecution(strategyMetadata.cost, "phonetic-bridge");
+      }
+    }
+
+    const execution = payload ? null : await executeMnemonicStrategy({
       strategyId: strategyMetadata.id,
       strategyCost: strategyMetadata.cost,
       runAi: async (): Promise<GatewayResult> => {
@@ -1037,7 +1072,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         );
       },
     });
-    if (execution.kind === "deterministic-fallback") {
+    if (execution && execution.kind === "deterministic-fallback") {
       const concept = typedConcepts[0];
       const alternateTeaching = buildAlternateTeaching({
         selectedStrategyId: execution.strategyId,
@@ -1054,6 +1089,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
         reason: NO_USEFUL_MNEMONIC_ERROR,
       }, 422);
     }
+    if (execution && execution.kind === "ai") {
     const gateway = execution.value;
     if (!gateway.ok) return gatewayResponse(gateway, requestId);
     const validated = validateArtifactPayload(generatedKind, gateway.payload, {
@@ -1084,6 +1120,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     // be displayed. The selected strategy is only intent; mixed or ambiguous
     // displayed techniques deliberately receive no strategy credit.
     executionMetadata = aiMnemonicStrategyExecution(strategyMetadata.cost, payload);
+    }
   }
 
   if (!executionMetadata) {
