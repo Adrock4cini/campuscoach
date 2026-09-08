@@ -15,8 +15,8 @@ import { useCoachRecommendations } from "@/lib/coach/useCoachRecommendations";
 import { buildGlanceCounts } from "@/lib/dashboard/glanceCounts";
 import { buildUrgentItems, type UrgentItem } from "@/lib/dashboard/urgentItems";
 import { buildClassAlerts } from "@/lib/dashboard/classAlerts";
-import { AtAGlanceTiles } from "@/components/dashboard/AtAGlanceTiles";
-import { ClassRail } from "@/components/dashboard/ClassRail";
+import { SummarySquares } from "@/components/dashboard/SummarySquares";
+import { ClassSquareGrid } from "@/components/dashboard/ClassSquareGrid";
 import { TodayList } from "@/components/dashboard/TodayList";
 import { CoachNextCard } from "@/components/dashboard/CoachNextCard";
 import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
@@ -55,8 +55,8 @@ export function RealMobileDashboard({
 
   return (
     <div className="space-y-5">
-      <AtAGlanceTiles counts={counts} loading={loading} />
-      <ClassRail classes={classes} alerts={alerts} loading={classesLoading} />
+      <ClassSquareGrid classes={classes} alerts={alerts} loading={classesLoading} />
+      <SummarySquares counts={counts} loading={loading} />
       <TodayList items={urgent} loading={loading} onOpenItem={openItem} />
       <CoachNextCard recommendation={recommendations[0] ?? null} loading={coachLoading} />
       <QuickActionsRow onAction={handleQuickAction} />
