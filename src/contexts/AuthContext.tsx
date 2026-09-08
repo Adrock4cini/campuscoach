@@ -118,29 +118,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setAgreementStatus("checking");
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("agreement status timed out")), AGREEMENT_RESOLUTION_TIMEOUT_MS);
-    });
+    // A signed-in student is never behind the sample-data firewall. A remount
+    // or a failed session re-read used to leave the data plane on "loading",
+    // which answered every agreement RPC with a local 403 and trapped the
+    // student on the gate with no way back.
+    setSupabaseNetworkMode("real");
 
-    try {
-      const receipt = await Promise.race([
-        getFamilyBetaAgreementStatus(),
-        timeout,
-      ]);
-      if (request !== agreementRequestVersion.current) return false;
-      if (receipt.ownerId !== userId) throw new Error("agreement owner mismatch");
-      setAgreementStatus(receipt.accepted ? "accepted" : "required");
-      return receipt.accepted;
-    } catch (error) {
-      if (request !== agreementRequestVersion.current) return false;
-      console.warn("[auth] agreement status load failed", error);
-      setAgreementStatus("error");
-      return false;
-    } finally {
-      if (timer) clearTimeout(timer);
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < AGREEMENT_LOAD_ATTEMPTS; attempt += 1) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("agreement status timed out")), AGREEMENT_RESOLUTION_TIMEOUT_MS);
+      });
+
+      try {
+        const receipt = await Promise.race([
+          getFamilyBetaAgreementStatus(),
+          timeout,
+        ]);
+        if (request !== agreementRequestVersion.current) return false;
+        if (receipt.ownerId !== userId) throw new Error("agreement owner mismatch");
+        setAgreementStatus(receipt.accepted ? "accepted" : "required");
+        return receipt.accepted;
+      } catch (error) {
+        if (request !== agreementRequestVersion.current) return false;
+        lastError = error;
+        if (attempt < AGREEMENT_LOAD_ATTEMPTS - 1) {
+          setSupabaseNetworkMode("real");
+          await new Promise((resolve) => setTimeout(resolve, AGREEMENT_RETRY_DELAY_MS * (attempt + 1)));
+          if (request !== agreementRequestVersion.current) return false;
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
+
+    console.warn("[auth] agreement status load failed", lastError);
+    setAgreementStatus("error");
+    return false;
   };
+
 
   const loadProfile = async (userId: string | undefined | null) => {
     const request = ++profileRequestVersion.current;
