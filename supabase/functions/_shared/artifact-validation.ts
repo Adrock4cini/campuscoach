@@ -34,6 +34,7 @@ export const MNEMONIC_TECHNIQUE_CATALOG = [
   { id: "first_letter_sentence", use: "a long ordered sequence needs a silly sentence cue" },
   { id: "word_roots", use: "the term's real, verifiable root or literal meaning is stated in the source; never invent an origin" },
   { id: "sound_alike", use: "the term sounds like a common word the student already knows" },
+  { id: "phonetic_bridge", use: "a paired fact (term->meaning, place->capital, word->translation): invent ONE short vivid sentence where one word sounds like the prompt and another sounds like the answer, e.g. Maryland -> Annapolis: \"Marilyn picks apples\". Never present it as a real word origin, and skip it when the sounds do not genuinely overlap" },
   { id: "familiar_bridge", use: "an everyday object, place, or routine maps cleanly onto the fact" },
   { id: "visual", use: "one vivid, slightly absurd mental picture locks the fact in" },
   { id: "story", use: "several linked details are easier to keep as a short chain or scene" },
@@ -81,6 +82,8 @@ export interface ArtifactValidationOptions {
   rejectFamilies?: string[];
   /** Techniques this student has rated unhelpful. */
   avoidTechniques?: string[];
+  /** Authorship of the mnemonic being validated. Curated bridges are "known". */
+  mnemonicOrigin?: "known" | "ai_created";
 }
 
 export type ArtifactValidationResult =
@@ -613,7 +616,7 @@ function validateMnemonic(raw: unknown, options: ArtifactValidationOptions): Art
       target: exactTarget,
       mnemonic: selection.candidate.mnemonic,
       technique: selection.candidate.technique,
-      origin: "ai_created",
+      origin: options.mnemonicOrigin ?? "ai_created",
       explanation: selection.candidate.explanation,
     }, excerpt.value));
   }
