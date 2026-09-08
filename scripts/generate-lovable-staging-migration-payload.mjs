@@ -114,6 +114,14 @@ export const POST_PHASE_GATES = Object.freeze([
     targetVersion: "20260831090000",
     attestation: "writes-paused-phonetic-bridge-technique-verified",
   },
+  {
+    previousOrdinal: 65,
+    previousVersion: "20260831090000",
+    targetOrdinal: 66,
+    targetVersion: "20260908145201",
+    attestation: "writes-paused-memory-trick-feedback-technique-verified",
+  },
+
 ].map((gate) => Object.freeze(gate)));
 export const EXPECTED_OUTER_TRANSACTION_FILES = Object.freeze([
   "20260817100000_middle_school_learner_type.sql",
