@@ -573,3 +573,103 @@ describe("account setup resolves to a terminal state", () => {
     expect(mocks.profileMaybeSingle).toHaveBeenCalledTimes(2);
   });
 });
+
+function AuthAgreementGateHarness() {
+  const { agreementStatus, refreshAgreement, acceptAgreement } = useAuth();
+  return (
+    <div>
+      <output aria-label="Gate status">{agreementStatus}</output>
+      <button type="button" onClick={() => void refreshAgreement()}>Retry check</button>
+      <button type="button" onClick={() => void acceptAgreement()}>Agree</button>
+    </div>
+  );
+}
+
+describe("family beta agreement gate recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.authCallback = undefined;
+    mocks.demoModeEnabled = false;
+    localStorage.clear();
+    mocks.profileMaybeSingle.mockResolvedValue({ data: { onboarded_at: "2026-01-01", schools: null }, error: null });
+    mocks.classesIs.mockResolvedValue({ count: 1, error: null });
+    mocks.getSession.mockResolvedValue({ data: { session: sessionFor("student-1") }, error: null });
+    mocks.acceptAgreementReceipt.mockImplementation(async () => ({
+      accepted: true,
+      agreementVersion: "2026-08-17",
+      acceptedAt: "2026-08-27T12:00:00.000Z",
+      ownerId: "student-1",
+    }));
+  });
+
+  const receipt = (accepted: boolean) => ({
+    accepted,
+    agreementVersion: "2026-08-17",
+    acceptedAt: accepted ? "2026-08-27T12:00:00.000Z" : null,
+    ownerId: "student-1",
+  });
+
+  async function renderGate() {
+    render(
+      <AuthProvider>
+        <AuthAgreementGateHarness />
+      </AuthProvider>,
+    );
+    return screen.getByLabelText("Gate status");
+  }
+
+  it("keeps the data plane open for a signed-in student", async () => {
+    mocks.getAgreementStatus.mockResolvedValue(receipt(true));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("accepted"));
+    expect(mocks.setSupabaseNetworkMode).toHaveBeenCalledWith("real");
+  });
+
+  it("recovers from a transient check failure instead of trapping the student", async () => {
+    mocks.getAgreementStatus
+      .mockRejectedValueOnce(new Error("demo_data_plane_blocked"))
+      .mockResolvedValue(receipt(false));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("required"), { timeout: 5000 });
+  }, 10000);
+
+  it("shows a recoverable error after repeated failures and clears it on retry", async () => {
+    mocks.getAgreementStatus.mockRejectedValue(new Error("agreement status unavailable"));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("error"), { timeout: 6000 });
+
+    mocks.getAgreementStatus.mockResolvedValue(receipt(true));
+    fireEvent.click(screen.getByText("Retry check"));
+    await waitFor(() => expect(out).toHaveTextContent("accepted"), { timeout: 5000 });
+  }, 15000);
+
+  it("first acceptance succeeds even when the first write is blocked in flight", async () => {
+    mocks.getAgreementStatus.mockResolvedValue(receipt(false));
+    mocks.acceptAgreementReceipt
+      .mockRejectedValueOnce(new Error("demo_data_plane_blocked"))
+      .mockResolvedValue(receipt(true));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("required"));
+
+    fireEvent.click(screen.getByText("Agree"));
+    await waitFor(() => expect(out).toHaveTextContent("accepted"), { timeout: 5000 });
+  }, 10000);
+
+  it("keeps a failed acceptance blocked rather than letting the student in", async () => {
+    mocks.getAgreementStatus.mockResolvedValue(receipt(false));
+    mocks.acceptAgreementReceipt.mockRejectedValue(new Error("agreement acceptance unavailable"));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("required"));
+
+    fireEvent.click(screen.getByText("Agree"));
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    expect(out).toHaveTextContent("required");
+  }, 15000);
+
+  it("a returning accepted student passes the gate without seeing it", async () => {
+    mocks.getAgreementStatus.mockResolvedValue(receipt(true));
+    const out = await renderGate();
+    await waitFor(() => expect(out).toHaveTextContent("accepted"));
+    expect(mocks.acceptAgreementReceipt).not.toHaveBeenCalled();
+  });
+});
