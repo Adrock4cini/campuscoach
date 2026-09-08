@@ -63,6 +63,9 @@ type DataMode = "real" | "demo" | "loading";
 export type FamilyBetaAgreementStatus = "checking" | "accepted" | "required" | "error";
 
 export const AGREEMENT_RESOLUTION_TIMEOUT_MS = 8_000;
+/** A transient check failure must not become a permanent gate lockout. */
+export const AGREEMENT_LOAD_ATTEMPTS = 3;
+export const AGREEMENT_RETRY_DELAY_MS = 400;
 
 type AuthState = {
   session: Session | null;
