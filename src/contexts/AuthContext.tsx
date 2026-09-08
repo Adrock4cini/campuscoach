@@ -461,6 +461,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Session presence is authoritative for the data-plane firewall. Without
+  // this, a provider remount or a failed session re-read could leave a real
+  // signed-in student on "loading", where every REST call is answered locally
+  // with 403 and nothing (not even a retry) can recover.
+  useEffect(() => {
+    if (session?.user) setSupabaseNetworkMode("real");
+  }, [session?.user?.id]);
+
+
+
   const mode: DataMode = loading
     ? "loading"
     : session?.user
