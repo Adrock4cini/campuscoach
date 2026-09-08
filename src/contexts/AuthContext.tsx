@@ -233,20 +233,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const acceptAgreement = async (): Promise<boolean> => {
-    try {
-      const receipt = await acceptCurrentFamilyBetaAgreement();
-      const activeUserId = activeUserIdRef.current;
-      if (activeUserId && receipt.ownerId !== activeUserId) {
-        throw new Error("agreement owner mismatch");
+    // Same firewall reasoning as loadAgreement: a signed-in student's own
+    // acceptance write must never be answered by the sample-mode block.
+    if (activeUserIdRef.current) setSupabaseNetworkMode("real");
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < AGREEMENT_LOAD_ATTEMPTS; attempt += 1) {
+      try {
+        const receipt = await acceptCurrentFamilyBetaAgreement();
+        const activeUserId = activeUserIdRef.current;
+        if (activeUserId && receipt.ownerId !== activeUserId) {
+          throw new Error("agreement owner mismatch");
+        }
+        agreementRequestVersion.current += 1;
+        setAgreementStatus("accepted");
+        return true;
+      } catch (error) {
+        lastError = error;
+        if (attempt < AGREEMENT_LOAD_ATTEMPTS - 1) {
+          setSupabaseNetworkMode("real");
+          await new Promise((resolve) => setTimeout(resolve, AGREEMENT_RETRY_DELAY_MS * (attempt + 1)));
+        }
       }
-      agreementRequestVersion.current += 1;
-      setAgreementStatus("accepted");
-      return true;
-    } catch (error) {
-      console.warn("[auth] agreement acceptance failed", error);
-      return false;
     }
+    console.warn("[auth] agreement acceptance failed", lastError);
+    return false;
   };
+
 
 
   const explicitSignOutRef = useRef(false);
