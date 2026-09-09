@@ -32,16 +32,28 @@ It sequentially sends groups of at most four pages through the existing
 - Skipped pages are reported separately, never counted as processed. Starting a
   new PDF requires confirmation before discarding the device checkpoint. Saved
   captures are never deleted. Clearing browser storage loses resume metadata.
+- Saved flashcard and multiple-choice sessions show a review stack of the exact
+  first-try misses: prompt, correct answer, the stored multiple-choice explanation,
+  and an expandable source excerpt. It applies to all existing class/test scopes.
+  Recovering later in the run does not remove a first-try miss from this review.
+  Reading the stack never records a new attempt or changes preparedness.
+- Review membership comes from the existing persisted session queue, so an
+  interrupted run can resume without losing or duplicating its missed items.
+  The stack is shown on the current saved results screen; this does not add a
+  historical-results viewer after closing it. Saved learning evidence and the
+  existing weak-topic selection continue to use the existing backend.
 
 ## Checks performed locally
 
 - TypeScript: PASS.
 - Production build: PASS. PDF parser/worker are lazy loaded; fonts, CMaps and image
   decoders are emitted as versioned same-origin assets, not loaded from a vendor CDN.
-- Full regression: `TZ=UTC npm test -- --maxWorkers=4` — 251 files / 1,839 tests PASS.
-- Final focused regression (including the added single-All-target check): 6 files /
-  99 tests PASS. Includes source validation, password/size limits, renderer cleanup,
-  owner changes, immutable retry IDs, pause/resume, class/exam retention and no-Keep.
+- Full regression after the saved-session review improvement: `TZ=UTC npm test`
+  — 251 files / 1,843 tests PASS.
+- Focused study/import regression: 6 files / 69 tests PASS. Includes first-try miss
+  review after recovery/resume, unchanged evidence requests after a save failure,
+  opening sources without new writes, reset, all-correct results, incremental
+  persistence, class/test scope, and the PDF import dialog.
 - Changed-file ESLint: zero errors. Whole-repository lint is blocked by an existing
   `prefer-const` error in `src/integrations/supabase/previewAuthStorage.ts:38` already
   present at the base SHA. Not changed in this product PR.
@@ -93,6 +105,13 @@ the bundled PDF worker load without MIME, CORS or network errors on iPhone Safar
    hard-refresh. Check first-attempt evidence persists, weak concepts remain distinct
    from material coverage, and the next practice targets the student's actual misses.
    Report actual behavior; do not infer readiness from upload count or time spent.
+   Before leaving the saved results screen, verify `study-miss-review-v1`: every
+   first-try miss appears once with its exact prompt, correct answer, explanation
+   (multiple choice), and source when present. A later successful retry must not
+   erase the miss or raise the original score. Opening a source must not submit
+   another result. An all-correct round says "Nothing to review from this round."
+   Also interrupt a flashcard run after a miss, reopen it, finish, and confirm that
+   the review contains the missed card and excludes cards known on the first try.
 4. **Wrong class:** use distinctive accounting PDF pages in BIOL. Required warning
    appears BEFORE concepts; do not press Keep. Dismiss, leave, refresh. The batch may
    have private material rows but must add zero concepts and must not start later

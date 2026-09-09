@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Check, X, Loader2, RotateCcw } from "lucide-react";
 import { MemoryTrickPanel } from "@/components/study/MemoryTrickPanel";
+import { StudyMissReview } from "@/components/study/StudyMissReview";
 import { recordMemoryTrickFeedback } from "@/lib/learningArtifacts/memoryFeedback";
 import type {
   LearningArtifact,
@@ -150,6 +151,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   const feedbackRef = useRef<HTMLDivElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
   const completionRef = useRef<HTMLDivElement>(null);
+  const savedResultsRef = useRef<HTMLDivElement>(null);
 
   const total = items.length;
   const currentEntry = queue[position] ?? { itemIndex: 0, recovery: false };
@@ -243,6 +245,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   useEffect(() => {
     if (open && pendingFinal) completionRef.current?.focus();
   }, [open, pendingFinal]);
+
+  useEffect(() => {
+    if (open && done) savedResultsRef.current?.focus();
+  }, [open, done]);
 
   // Defense in depth: malformed/empty artifacts must close cleanly instead of
   // leaving the parent in a true "studying" state with a null dialog.
@@ -829,7 +835,12 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
             )}
           </div>
         ) : (
-          <div className="space-y-4 text-center py-2">
+          <div
+            ref={savedResultsRef}
+            tabIndex={-1}
+            aria-label="Saved practice results"
+            className="space-y-4 py-2 text-center outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             <p className="text-3xl font-display font-semibold text-primary">
               {Math.round((correct / total) * 100)}%
             </p>
@@ -855,6 +866,14 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                 )}
               </p>
             )}
+            <StudyMissReview
+              artifact={artifact}
+              // A recovery entry is appended only after the first-try miss.
+              // The queue is already persisted across interrupted sessions;
+              // using item positions also keeps distinct questions separate
+              // when a legacy artifact repeats a concept ID.
+              missedItemIndices={queue.filter((entry) => entry.recovery).map((entry) => entry.itemIndex)}
+            />
           </div>
         )}
 
