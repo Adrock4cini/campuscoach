@@ -1019,9 +1019,9 @@ describe("CaptureFlow class memory and next action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry processing" }));
 
     expect(await screen.findByText("Check the problem")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
-    );
+    ));
     expect(retry).toHaveBeenCalledWith("durable-capture-row-id", ["material-1"]);
   });
 
@@ -1103,9 +1103,9 @@ describe("CaptureFlow class memory and next action", () => {
     );
 
     expect(screen.getByText("Check the problem")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
-    );
+    ));
     expect(screen.queryByRole("button", { name: "Start percent walkthrough" })).not.toBeInTheDocument();
   });
 });
