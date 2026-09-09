@@ -937,7 +937,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
   const verifiedShortcuts = detectVerifiedShortcuts(
     [...sourceByConcept.values(), ...typedConcepts.map((concept) => concept.definition ?? "")].join(" \n "),
   );
-  let payload: Record<string, unknown>;
+  let payload: Record<string, unknown> | null = null;
   let modelUsed = MODEL;
   // Catalog cost describes the selected teaching method. Execution cost records
   // what this request actually did. Deterministic artifact builders stay
@@ -1123,6 +1123,9 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }
   }
 
+  if (!payload) {
+    return json({ error: "Study content could not be generated" }, 500);
+  }
   if (!executionMetadata) {
     return json({ error: "Study strategy execution could not be confirmed" }, 500);
   }

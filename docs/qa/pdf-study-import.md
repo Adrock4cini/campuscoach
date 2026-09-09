@@ -15,6 +15,11 @@ It sequentially sends groups of at most four pages through the existing
 `scan-material` capture pipeline and its server-enforced wrong-class gate.
 
 - No new database schema, buckets, Edge Functions, backend secrets or AI prompts.
+- CI repairs update Deno's workspace dependency list for PDF.js and make the
+  preview-auth timer a `const`. The existing `generate-artifact` Edge Function
+  also initializes its payload explicitly and rejects a missing payload before
+  persistence. Its valid generation routes and prompts are unchanged. Include
+  this existing-function change when reviewing deployment scope.
 - Original PDF remains on-device; rendered page images are private source material.
 - The filename + physical PDF page range appears in each capture's topic. Source
   images retain their filename/page number. This does not add per-question PDF links.
@@ -54,14 +59,37 @@ It sequentially sends groups of at most four pages through the existing
   review after recovery/resume, unchanged evidence requests after a save failure,
   opening sources without new writes, reset, all-correct results, incremental
   persistence, class/test scope, and the PDF import dialog.
-- Changed-file ESLint: zero errors. Whole-repository lint is blocked by an existing
-  `prefer-const` error in `src/integrations/supabase/previewAuthStorage.ts:38` already
-  present at the base SHA. Not changed in this product PR.
+- Whole-repository ESLint: PASS after the timer declaration fix; existing warnings
+  remain. TypeScript and the two existing auth suites (8 tests) also pass.
+- Pinned Deno 2.2.12 `deno task verify:edge`: PASS with the frozen lockfile;
+  6 shared Edge tests pass and all Edge Function entry points typecheck.
+- Existing generation/validation regression: 4 files / 96 tests PASS, covering
+  strategy execution, artifact validation, mnemonic quality and strategy routing.
 - Production dependency audit: zero vulnerabilities.
 - Default container timezone also revealed three existing date fixture failures in
   `dueStatus.test.ts`; those pass under UTC. No date behavior was changed here.
 - Cloud Browser refused access to the local test preview (`ERR_BLOCKED_BY_CLIENT`).
   Mobile/browser E2E and deployed worker MIME/asset delivery are NOT certified.
+
+## Release boundary
+
+GitHub's complete required CI must pass on the final PR head before approving
+test deployment. Local checks alone are not that gate. Record the run URL and
+head SHA in the PR handoff. Its automated browser journeys use a synthetic,
+anonymous demo account; they do not certify authenticated PDF ingestion or
+generated study content against the real handbook.
+
+Lovable's existing project `a08a7f00-4b76-4d5b-ac89-2c15e604054a` reported editor
+SHA `56331f82a73a07d78406617719909f4abce8a666` on September 9, 2026. That is the
+base of this PR, not this PR's new head. The earlier Camp Bot production PASS
+was for SHA `777318820203f685a640103e0d2ea98092be569a`; it does not certify later
+base commits or this work. Do not infer the production SHA from the editor SHA
+or `is_published` status. Verify the selected SHA and deployed build separately.
+
+After approval, use the existing project's preview for the acceptance checks
+below. Do not publish while switching the preview branch. A frontend publish
+alone does not prove the existing Edge Function source is deployed; record its
+deployed version if it is included. No database migration is part of this PR.
 
 ## Official handbook fixture
 
