@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
@@ -1103,9 +1103,9 @@ describe("CaptureFlow class memory and next action", () => {
     );
 
     expect(screen.getByText("Check the problem")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
-    ));
+    );
     expect(screen.queryByRole("button", { name: "Start percent walkthrough" })).not.toBeInTheDocument();
   });
 });
