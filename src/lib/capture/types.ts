@@ -15,6 +15,7 @@ export type CaptureKind =
   | "scan-assignment"
   | "scan-material"
   | "scan-syllabus"
+  | "scan-schedule"
   | "upload-file"
   | "quick-note"
   | "professor-hint"

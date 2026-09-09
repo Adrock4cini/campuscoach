@@ -47,6 +47,12 @@ It sequentially sends groups of at most four pages through the existing
   The stack is shown on the current saved results screen; this does not add a
   historical-results viewer after closing it. Saved learning evidence and the
   existing weak-topic selection continue to use the existing backend.
+- Capture also offers **Class Schedule** as a separate student-facing choice.
+  It uses the existing private syllabus/schedule reader and review screen, but
+  tags schedule-derived rows separately. Updating a schedule replaces only the
+  previous schedule portion; syllabus-derived dates, manual/Canvas deadlines,
+  completion state, notes, and study progress remain intact. No migration or
+  new Edge Function is required.
 
 ## Checks performed locally
 
@@ -155,7 +161,12 @@ the bundled PDF worker load without MIME, CORS or network errors on iPhone Safar
    this import. A deleted class or unverifiable test must block import rather than
    silently selecting a different class/test.
 
-Do not test or modify My Classes, walkthrough, syllabus import, old poison cleanup,
-auth, passkeys, assignments, or migrations as part of this product ticket. Log any
+Also verify **Add from class → Class Schedule** asks which class owns the file,
+uses schedule-specific copy, requires review before saving, and preserves a
+previously imported syllabus. Re-uploading a changed schedule must remove only
+obsolete schedule-derived rows and retain syllabus-derived rows.
+
+Do not test or modify walkthrough, old poison cleanup, auth, passkeys, or migrations
+as part of this product ticket. Log any
 independent CI/auth blocker separately. No merge, publish, or daughter-facing claim
 of reliable exam preparation until the relevant live acceptance checks are complete.

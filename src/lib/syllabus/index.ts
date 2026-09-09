@@ -5,6 +5,7 @@ export {
   SYLLABUS_MIME_TYPES,
   MAX_SYLLABUS_TOPICS,
   createSyllabusReviewDraft,
+  mergePlanningReviewDrafts,
   isValidIsoDate,
   normalizeSyllabusTopics,
   normalizeTime,
@@ -16,6 +17,7 @@ export {
 } from "./schema";
 export type {
   ClassWeekday,
+  PlanningDocumentKind,
   ParsedSyllabus,
   ParsedSyllabusAssignment,
   ParsedSyllabusClass,

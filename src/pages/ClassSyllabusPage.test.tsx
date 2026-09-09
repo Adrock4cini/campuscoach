@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getClassSyllabusRequest: vi.fn(),
   parseClassSyllabus: vi.fn(),
   createSyllabusReviewDraft: vi.fn(),
+  mergePlanningReviewDrafts: vi.fn(),
   uploadSyllabusSource: vi.fn(),
   commitClassSyllabus: vi.fn(),
   createSignedSyllabusUrl: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock("@/lib/syllabus", () => ({
   getClassSyllabusRequest: mocks.getClassSyllabusRequest,
   parseClassSyllabus: mocks.parseClassSyllabus,
   createSyllabusReviewDraft: mocks.createSyllabusReviewDraft,
+  mergePlanningReviewDrafts: mocks.mergePlanningReviewDrafts,
   uploadSyllabusSource: mocks.uploadSyllabusSource,
   commitClassSyllabus: mocks.commitClassSyllabus,
   createSignedSyllabusUrl: mocks.createSignedSyllabusUrl,
@@ -93,9 +95,9 @@ function parsed(...classes: Array<{ name: string; code?: string }>) {
   };
 }
 
-function renderPage() {
+function renderPage(entry = "/classes/bio-101/syllabus") {
   return render(
-    <MemoryRouter initialEntries={["/classes/bio-101/syllabus"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/classes/:classId/syllabus" element={<ClassSyllabusPage />} />
         <Route path="/classes/:classId" element={<p data-testid="class-home">Class home</p>} />
@@ -121,6 +123,7 @@ describe("ClassSyllabusPage", () => {
     mocks.getClassSyllabus.mockResolvedValue(null);
     mocks.getClassSyllabusRequest.mockResolvedValue(null);
     mocks.createSyllabusReviewDraft.mockReturnValue(validDraft);
+    mocks.mergePlanningReviewDrafts.mockImplementation((_existing, incoming) => incoming);
     mocks.uploadSyllabusSource.mockImplementation(async ({ requestId }) => ({
       requestId,
       storagePath: `student-1/class-uuid-1/${requestId}/source.pdf`,
@@ -177,7 +180,36 @@ describe("ClassSyllabusPage", () => {
       id: "class-uuid-1",
       clientClassId: "bio-101",
       name: "Biology 101",
-    }));
+    }), "syllabus");
+  });
+
+  it("treats a separate class schedule as additive planning data", async () => {
+    mocks.getClassSyllabus.mockResolvedValue({
+      id: "syllabus-1",
+      storagePath: "student-1/class-uuid-1/old/syllabus.pdf",
+      originalName: "biology-syllabus.pdf",
+      updatedAt: "2026-08-09T12:00:00Z",
+      reviewedData: validDraft,
+    });
+    mocks.parseClassSyllabus.mockResolvedValue(parsed({ name: "Biology 101", code: "BIO 101" }));
+
+    renderPage("/classes/bio-101/syllabus?document=schedule");
+    expect(await screen.findByRole("heading", { name: "Biology 101 class schedule" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Choose a class schedule file"), {
+      target: { files: [new File(["schedule"], "professor-schedule.pdf", { type: "application/pdf" })] },
+    });
+
+    await waitFor(() => expect(mocks.createSyllabusReviewDraft).toHaveBeenCalledWith(
+      expect.anything(), 0, expect.objectContaining({ id: "class-uuid-1" }), "schedule",
+    ));
+    const reviewButton = await screen.findByRole("button", { name: "Review and save schedule" });
+    await waitFor(() => expect(reviewButton).toBeEnabled());
+    fireEvent.click(reviewButton);
+    expect(screen.getByText(/saved syllabus information will remain/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save this schedule" }));
+
+    await waitFor(() => expect(mocks.mergePlanningReviewDrafts).toHaveBeenCalledWith(validDraft, validDraft));
+    expect(await screen.findByTestId("class-home")).toBeInTheDocument();
   });
 
   it("retains corrected review fields after a save error", async () => {

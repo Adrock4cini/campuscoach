@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
   X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, AlertTriangle,
-  ClipboardList, Images, FileText,
+  ClipboardList, Images, FileText, CalendarDays,
 } from "lucide-react";
 import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
@@ -79,7 +79,7 @@ const MENU: {
   requiresText?: boolean;
   requiresImages?: boolean;
   availableForRealUsers?: boolean;
-  action?: "syllabus";
+  action?: "syllabus" | "schedule";
 }[] = [
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
@@ -87,6 +87,7 @@ const MENU: {
   { kind: "scan-assignment", icon: ClipboardList, hint: "Save concepts; guided help for percent problems", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
+  { kind: "scan-schedule",   icon: CalendarDays,  hint: "Add a separate professor class schedule", availableForRealUsers: true, action: "schedule" },
   { kind: "upload-file",    icon: FileUp,        hint: "Add PDF pages to your class and practice", availableForRealUsers: true },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
@@ -436,9 +437,9 @@ export function CaptureFlow({
       return;
     }
     const selected = MENU.find((item) => item.kind === k);
-    if (selected?.action === "syllabus") {
+    if (selected?.action === "syllabus" || selected?.action === "schedule") {
       onClose();
-      navigate("/classes?intent=syllabus");
+      navigate(`/classes?intent=${selected.action}`);
       return;
     }
     // Coming back to the same capture keeps the draft (photos, note, class).

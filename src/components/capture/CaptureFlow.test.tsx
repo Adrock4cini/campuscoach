@@ -675,6 +675,23 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=syllabus");
   });
 
+  it("offers a separate class schedule path", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    const onClose = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <CaptureFlow open onClose={onClose} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Class Schedule/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=schedule");
+  });
+
   it("keeps assignment photos, links, and one attempt id across a dropped-response retry", async () => {
     mocks.classes = [math, science];
     mocks.loading = false;

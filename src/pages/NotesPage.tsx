@@ -42,6 +42,7 @@ const captureIcons: Record<CaptureKind, typeof Mic> = {
   "scan-assignment": FileText,
   "scan-material": Camera,
   "scan-syllabus": FileText,
+  "scan-schedule": FileText,
   "upload-file": FileUp,
   "quick-note": StickyNote,
   "professor-hint": MessageSquareQuote,

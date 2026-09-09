@@ -66,6 +66,7 @@ const KIND_ICON: Record<CaptureKind, typeof Mic> = {
   "scan-assignment": BookOpen,
   "scan-material": Camera,
   "scan-syllabus": BookOpen,
+  "scan-schedule": BookOpen,
   "upload-file": Upload,
   "quick-note": StickyNote,
   "professor-hint": MessageSquareQuote,

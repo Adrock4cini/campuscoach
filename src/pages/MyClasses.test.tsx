@@ -143,4 +143,25 @@ describe("My Classes data trust", () => {
     );
     expect(screen.queryByRole("link", { name: "Open Math" })).not.toBeInTheDocument();
   });
+
+  it("makes the class owner explicit before importing a separate schedule", () => {
+    mocks.error = null;
+    mocks.classes = [{
+      id: "math-1", name: "Math", professor: "Professor Rivera", location: "Room 10",
+      days: ["Tue"], time: "10:00 AM", color: "bg-primary", currentTopic: "Fractions",
+      nextExamDate: "", readiness: 25, suggestedAction: "Add notes", gradingWeights: [], chapters: [],
+    }];
+
+    render(
+      <MemoryRouter initialEntries={["/classes?intent=schedule"]}>
+        <MyClasses />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: /which class is this schedule for/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose Math for schedule" })).toHaveAttribute(
+      "href",
+      "/classes/math-1/syllabus?document=schedule",
+    );
+  });
 });

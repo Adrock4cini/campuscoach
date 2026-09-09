@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   LockKeyhole,
   RefreshCw,
   Upload,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import {
   commitClassSyllabus,
   createSignedSyllabusUrl,
   createSyllabusReviewDraft,
+  mergePlanningReviewDrafts,
   deleteUncommittedSyllabusSource,
   getClassSyllabus,
   getClassSyllabusRequest,
@@ -161,6 +163,10 @@ function existingUpdatedAt(record: ClassSyllabus) {
 export default function ClassSyllabusPage() {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const documentKind = searchParams.get("document") === "schedule" ? "schedule" : "syllabus";
+  const isSchedule = documentKind === "schedule";
+  const documentLabel = isSchedule ? "class schedule" : "syllabus";
   const { user, isDemoMode } = useAuth();
   const userId = user?.id;
   const { classes, loading, error: classesError, reload } = useMyClasses();
@@ -185,7 +191,7 @@ export default function ClassSyllabusPage() {
   const destination = classInfo ? `/classes/${classInfo.id}` : "/classes";
   // After a successful save the student lands on the class with one obvious
   // next study step instead of an unchanged-looking class page.
-  const savedDestination = classInfo ? `/classes/${classInfo.id}?saved=syllabus` : "/classes";
+  const savedDestination = classInfo ? `/classes/${classInfo.id}?saved=${documentKind}` : "/classes";
   const target = useMemo(() => classInfo ? targetContext(classInfo) : null, [classInfo]);
   const review = selectedClassIndex === null ? null : drafts[selectedClassIndex] ?? null;
   const detectedClass = parsed && selectedClassIndex !== null ? parsed.classes[selectedClassIndex] : null;
@@ -218,7 +224,7 @@ export default function ClassSyllabusPage() {
         if (!active) return;
         console.warn("[class-syllabus] source lookup failed", loadError);
         setSourceLookupBlocked(true);
-        setSourceError("We couldn’t check this class’s saved syllabus. You can retry without losing your work.");
+        setSourceError("We couldn’t check this class’s saved planning document. You can retry without losing your work.");
       })
       .finally(() => {
         if (active) setExistingLoading(false);
@@ -242,7 +248,7 @@ export default function ClassSyllabusPage() {
     setMismatchAcknowledged(false);
     setDrafts((current) => current[index]
       ? current
-      : { ...current, [index]: createSyllabusReviewDraft(parsedValue, index, target) });
+      : { ...current, [index]: createSyllabusReviewDraft(parsedValue, index, target, documentKind) });
   };
 
   const readFile = async (nextFile: File) => {
@@ -253,7 +259,7 @@ export default function ClassSyllabusPage() {
       return;
     }
     if (!isAcceptedSyllabusFile(nextFile)) {
-      setPageError("Choose a PDF, JPG, PNG, WebP, HEIC, or HEIF syllabus file.");
+      setPageError(`Choose a PDF, JPG, PNG, WebP, HEIC, or HEIF ${documentLabel} file.`);
       return;
     }
     if (!target) return;
@@ -268,7 +274,7 @@ export default function ClassSyllabusPage() {
         setSelectedClassIndex(null);
         setDrafts({});
         setPageError(
-          "We read that file but couldn’t find any class dates or topics in it. Try a clearer scan of the syllabus pages that list dates, or choose another file.",
+          `We read that file but couldn’t find any class dates or topics in it. Try a clearer scan of the ${documentLabel} pages that list dates, or choose another file.`,
         );
         return;
       }
@@ -278,7 +284,7 @@ export default function ClassSyllabusPage() {
       setMismatchAcknowledged(false);
       if (nextParsed.classes.length === 1) {
         setSelectedClassIndex(0);
-        setDrafts({ 0: createSyllabusReviewDraft(nextParsed, 0, target) });
+        setDrafts({ 0: createSyllabusReviewDraft(nextParsed, 0, target, documentKind) });
       } else {
         // Never guess when a document appears to contain more than one class.
         setSelectedClassIndex(null);
@@ -286,7 +292,7 @@ export default function ClassSyllabusPage() {
 
     } catch (parseError) {
       console.warn("[class-syllabus] parse failed", parseError);
-      setPageError(readableError(parseError, "We couldn’t read that syllabus. Try a clearer PDF or photo."));
+      setPageError(readableError(parseError, `We couldn’t read that ${documentLabel}. Try a clearer PDF or photo.`));
     } finally {
       setWorkState("idle");
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -298,7 +304,7 @@ export default function ClassSyllabusPage() {
     if (!existing) return;
     const path = existingStoragePath(existing);
     if (!path) {
-      setSourceError("This saved syllabus is missing its private file link. Replacing it will repair the source.");
+      setSourceError("This saved planning document is missing its private file link. Replacing it will repair the source.");
       return;
     }
     setSourceError("");
@@ -307,7 +313,7 @@ export default function ClassSyllabusPage() {
     try {
       const url = await createSignedSyllabusUrl(path);
       if (!sourceTab) {
-        setSourceError("Your browser blocked the syllabus tab. Allow pop-ups for Campus Companion, then try again.");
+        setSourceError("Your browser blocked the private document tab. Allow pop-ups for Campus Companion, then try again.");
         return;
       }
       sourceTab.location.href = url;
@@ -329,7 +335,7 @@ export default function ClassSyllabusPage() {
       window.dispatchEvent(new CustomEvent("real-assignments:changed"));
       window.dispatchEvent(new CustomEvent("real-exams:changed"));
       window.dispatchEvent(new CustomEvent("coach:refresh"));
-      toast.success(existing ? "Syllabus replaced" : "Syllabus saved", {
+      toast.success(isSchedule ? "Class schedule saved" : existing ? "Syllabus replaced" : "Syllabus saved", {
         description: `Reviewed assignments, exams, dates, and study topics are now connected to ${classInfo.name}.`,
       });
       navigate(savedDestination, { replace: true });
@@ -360,14 +366,14 @@ export default function ClassSyllabusPage() {
         requestId: attempt.requestId,
         source: attempt.source,
         parsed: attempt.parsed,
-        review: attempt.review,
+        review: mergePlanningReviewDrafts(existing?.reviewedData, attempt.review),
       });
       await cleanupDuplicateSource(result.cleanupPath);
       finish();
     } catch (saveError) {
       console.warn("[class-syllabus] save failed", saveError);
       if (!attempt) {
-        setPageError(readableError(saveError, "We couldn’t upload this syllabus. Your corrections are still here—please try again."));
+        setPageError(readableError(saveError, `We couldn’t upload this ${documentLabel}. Your corrections are still here—please try again.`));
         return;
       }
 
@@ -412,8 +418,8 @@ export default function ClassSyllabusPage() {
       <Card className="mx-auto mt-8 max-w-lg border-primary/20 shadow-card">
         <CardContent className="space-y-4 p-8 text-center">
           <LockKeyhole className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="font-display text-2xl font-semibold">Sign in to save a class syllabus</h1>
-          <p className="text-sm text-muted-foreground">Syllabus files and class dates stay private to your account.</p>
+          <h1 className="font-display text-2xl font-semibold">Sign in to save a {documentLabel}</h1>
+          <p className="text-sm text-muted-foreground">Your files and class dates stay private to your account.</p>
         </CardContent>
       </Card>
     );
@@ -431,7 +437,7 @@ export default function ClassSyllabusPage() {
     return (
       <div className="mx-auto max-w-2xl py-16 text-center">
         <h1 className="font-display text-2xl font-semibold">Class not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Choose an existing class before importing its syllabus.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Choose an existing class before importing its {documentLabel}.</p>
         <Button variant="outline" className="mt-4 min-h-11" onClick={() => navigate("/classes")}>Back to classes</Button>
       </div>
     );
@@ -462,7 +468,7 @@ export default function ClassSyllabusPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 pt-1">
-          <h1 className="font-display text-2xl font-semibold md:text-3xl">{classInfo.name} syllabus</h1>
+          <h1 className="font-display text-2xl font-semibold md:text-3xl">{classInfo.name} {documentLabel}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Review assignments, quizzes, exam dates, test topics, and the class schedule before anything is saved.</p>
         </div>
       </div>
@@ -488,7 +494,7 @@ export default function ClassSyllabusPage() {
                     {existingUpdatedAt(existing) && <p className="text-xs text-muted-foreground">Last saved {existingUpdatedAt(existing)}</p>}
                   </>
                 ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">{existingLoading ? "Checking…" : "No syllabus saved for this class yet."}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{existingLoading ? "Checking…" : "No syllabus or class schedule saved yet."}</p>
                 )}
               </div>
             </div>
@@ -525,8 +531,8 @@ export default function ClassSyllabusPage() {
         <CardContent className="space-y-5 p-5 sm:p-7">
           <div>
             <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
-              <FileText aria-hidden="true" className="h-5 w-5 text-primary" />
-              {existing ? "Replace this class’s syllabus" : "Add this class’s syllabus"}
+              {isSchedule ? <CalendarDays aria-hidden="true" className="h-5 w-5 text-primary" /> : <FileText aria-hidden="true" className="h-5 w-5 text-primary" />}
+              {isSchedule ? "Add or update this class’s schedule" : existing ? "Replace this class’s syllabus" : "Add this class’s syllabus"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">Choose one PDF or one clear photo up to 15 MB. Nothing is saved until you confirm the review.</p>
             <p className="mt-2 rounded-xl border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
@@ -542,7 +548,7 @@ export default function ClassSyllabusPage() {
             accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             capture="environment"
             className="sr-only"
-            aria-label="Take a syllabus photo"
+            aria-label={`Take a ${documentLabel} photo`}
             onChange={(event) => {
               const nextFile = event.target.files?.[0];
               if (nextFile) void readFile(nextFile);
@@ -553,7 +559,7 @@ export default function ClassSyllabusPage() {
             type="file"
             accept={ACCEPTED_FILE_TYPES}
             className="sr-only"
-            aria-label="Choose a syllabus file"
+            aria-label={`Choose a ${documentLabel} file`}
             onChange={(event) => {
               const nextFile = event.target.files?.[0];
               if (nextFile) void readFile(nextFile);
@@ -592,7 +598,7 @@ export default function ClassSyllabusPage() {
           {workState === "parsing" && (
             <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm" role="status" aria-live="polite">
               <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-primary" />
-              Reading the syllabus and finding assignments, dates, and study topics…
+              Reading the {documentLabel} and finding assignments, dates, and study topics…
             </div>
           )}
 
@@ -654,10 +660,10 @@ export default function ClassSyllabusPage() {
                           onCheckedChange={(checked) => setMismatchAcknowledged(checked === true)}
                           disabled={Boolean(pendingCommit)}
                           className="h-5 w-5"
-                          aria-label={`Confirm this syllabus belongs to ${classInfo.name}`}
+                          aria-label={`Confirm this ${documentLabel} belongs to ${classInfo.name}`}
                         />
                         <Label htmlFor="confirm-syllabus-class" className="flex min-h-11 cursor-pointer items-center">
-                          I confirm this syllabus belongs to {classInfo.name}.
+                          I confirm this {documentLabel} belongs to {classInfo.name}.
                         </Label>
                       </div>
                     </div>
@@ -705,7 +711,7 @@ export default function ClassSyllabusPage() {
                         ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {workState === "uploading" ? "Uploading…" : "Saving…"}</>
                         : pendingCommit
                           ? "Confirm save"
-                          : existing ? "Review and replace" : "Save syllabus"}
+                          : isSchedule ? "Review and save schedule" : existing ? "Review and replace" : "Save syllabus"}
                     </Button>
                   </div>
                 </>
@@ -720,10 +726,10 @@ export default function ClassSyllabusPage() {
           )}
           <p className="sr-only" role="status" aria-live="polite">
             {workState === "parsing"
-              ? "Reading syllabus"
+              ? `Reading ${documentLabel}`
               : workState === "uploading"
-                ? "Uploading syllabus"
-                : workState === "saving" ? "Saving syllabus" : ""}
+                ? `Uploading ${documentLabel}`
+                : workState === "saving" ? `Saving ${documentLabel}` : ""}
           </p>
         </CardContent>
       </Card>
@@ -731,15 +737,15 @@ export default function ClassSyllabusPage() {
       <AlertDialog open={replaceConfirmOpen} onOpenChange={setReplaceConfirmOpen}>
         <AlertDialogContent className="w-[calc(100vw_-_2rem)] max-w-md rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Replace the syllabus information for {classInfo.name}?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">{isSchedule ? "Add this schedule to" : "Replace the syllabus information for"} {classInfo.name}?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <span className="block">Only the previous syllabus import for this class will be reconciled.</span>
+              <span className="block">{isSchedule ? "The previous schedule import will be updated; saved syllabus information will remain." : "Only the previous syllabus import for this class will be reconciled; saved schedule information will remain."}</span>
               <span className="block">Manual and Canvas deadlines—and your completion status, notes, and study progress—stay intact.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="min-h-11">Keep reviewing</AlertDialogCancel>
-            <AlertDialogAction className="min-h-11" onClick={() => void save()}>{pendingCommit ? "Confirm this save" : "Replace this syllabus"}</AlertDialogAction>
+            <AlertDialogAction className="min-h-11" onClick={() => void save()}>{pendingCommit ? "Confirm this save" : isSchedule ? "Save this schedule" : "Replace this syllabus"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

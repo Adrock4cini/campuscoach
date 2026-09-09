@@ -73,6 +73,7 @@ export const CAPTURE_LABELS: Record<CaptureKind, string> = {
   "scan-assignment": "Scan Assignment",
   "scan-material":   "Scan Notes or Book",
   "scan-syllabus":   "Scan Syllabus",
+  "scan-schedule":   "Class Schedule",
   "upload-file":     "Upload File",
   "quick-note":      "Quick Note",
   "professor-hint":  "Teacher Hint",
@@ -111,6 +112,8 @@ function simulateSummary(kind: CaptureKind, ctx: CaptureContext): string {
       return `Photos saved${classSuffix} — concepts are being added to Class Memory.`;
     case "scan-syllabus":
       return `Syllabus ready to build your classes and calendar.`;
+    case "scan-schedule":
+      return `Class schedule ready to update your calendar.`;
     case "upload-file":
       return `File processed${classSuffix} — content added to Class Memory.`;
     case "quick-note":
