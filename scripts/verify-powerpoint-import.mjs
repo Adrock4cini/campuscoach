@@ -16,12 +16,17 @@ try {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       const external = [];
       await page.route("**/*", route => {
-        if (route.request().url().startsWith(origin)) return route.continue();
+        const url = route.request().url();
+        // WebKit reports requests for browser-created blob images; these are
+        // local resources, not external fetches.
+        if (url.startsWith(origin) || url.startsWith(`blob:${origin}/`) || url.startsWith("data:")) return route.continue();
         external.push(route.request().url());
         return route.abort();
       });
       await page.route(`${origin}/slides-render-check`, route => route.fulfill({ contentType: "text/html", body: "<!doctype html><html><head><title>Slide rendering check</title></head><body></body></html>" }));
       await page.goto(`${origin}/slides-render-check`);
+      page.on("pageerror", error => console.error(`${browserType.name()}: ${error.message}`));
+      page.on("requestfailed", request => console.error(`${browserType.name()} request failed: ${request.url().split(":")[0]} ${request.failure()?.errorText}`));
       const result = await page.evaluate(async bytes => {
         const { openStudyDocument } = await import("/src/lib/capture/studyDocument.ts");
         const deck = await openStudyDocument(new File([new Uint8Array(bytes)], "Lecture.pptx"));

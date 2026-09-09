@@ -138,6 +138,10 @@ jobs:
           done < <(grep -l -E 'https?://dl.google.com/linux/chrome(-stable)?/deb' /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true)
           npx playwright install --with-deps chromium webkit
 
+      - name: PowerPoint slides render in Chromium and WebKit
+        timeout-minutes: 2
+        run: npm run verify:slides
+
       - name: Lint
         run: npm run lint
 
@@ -149,9 +153,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: PowerPoint slides render in Chromium and WebKit
-        run: npm run verify:slides
 
       - name: Desktop, Android, and iPhone journey smoke tests
         run: npm run e2e
