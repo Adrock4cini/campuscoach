@@ -106,6 +106,12 @@ function rateFlashcardKnewIt() {
 }
 
 describe("real study set freshness", () => {
+  it("shows one All target for the multi-batch PDF class handoff", () => {
+    render(<RealStudySet classId="math" initialStudyScope={{ type: "class", id: "class", label: "All class material" }} />);
+    expect(screen.getAllByRole("button", { name: /^All$/ })).toHaveLength(1);
+    expect(mocks.scopes.at(-1)).toMatchObject({ studyScope: { type: "class", id: "class" } });
+    expect(mocks.scopes.at(-1)).toMatchObject({ conceptIds: undefined });
+  });
   beforeEach(() => {
     mocks.exams = [{
       id: "exam-1",

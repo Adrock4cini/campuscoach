@@ -29,8 +29,8 @@ vi.mock("@/lib/intelligence", () => ({
 }));
 
 vi.mock("@/components/study/RealStudySet", () => ({
-  RealStudySet: ({ classId, initialCaptureId }: { classId: string; initialCaptureId?: string }) => (
-    <p data-testid="real-study-set">{classId}:{initialCaptureId ?? "none"}</p>
+  RealStudySet: ({ classId, initialCaptureId, initialStudyScope }: { classId: string; initialCaptureId?: string; initialStudyScope?: { type: string } }) => (
+    <p data-testid="real-study-set" data-scope={initialStudyScope?.type ?? "default"}>{classId}:{initialCaptureId ?? "none"}</p>
   ),
 }));
 
@@ -66,6 +66,13 @@ function RouteHarness() {
 }
 
 describe("Study Lab class handoff", () => {
+  it("PDF handoff uses all class material, not just the last batch, and drops that scope on class change", () => {
+    render(<MemoryRouter initialEntries={["/study-lab?classId=math&scope=class&format=multiple_choice"]}><RouteHarness /></MemoryRouter>);
+    expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-scope", "class");
+    fireEvent.click(screen.getByRole("button", { name: "Science" }));
+    expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-scope", "default");
+  });
+
   it("keeps class selection in one clear, accessible control", () => {
     render(
       <MemoryRouter initialEntries={["/study-lab?classId=math"]}>

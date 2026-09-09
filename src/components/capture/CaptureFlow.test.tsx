@@ -156,6 +156,14 @@ describe("CaptureFlow class boundaries", () => {
     vi.restoreAllMocks();
   });
 
+  it("hands the real PDF menu entry to document import with its class context", () => {
+    mocks.classes = [math, science]; mocks.loading = false;
+    const documentImport = vi.fn();
+    render(<MemoryRouter><CaptureFlow open initialClassId="science" onClose={vi.fn()} onUploadDocument={documentImport} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Upload File Add PDF pages/ }));
+    expect(documentImport).toHaveBeenCalledWith(expect.objectContaining({ classId: "science" }));
+  });
+
   it("uses the class the capture was opened from, even when a draft names another class", () => {
     mocks.classes = [math, science];
     mocks.loading = false;

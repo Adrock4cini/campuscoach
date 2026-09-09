@@ -1,6 +1,9 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useState, type ReactNode } from "react";
 import { CaptureFlow } from "@/components/capture/CaptureFlow";
 import type { CaptureKind } from "@/lib/capture/types";
+import { useAuth } from "@/contexts/AuthContext";
+
+const PdfStudyImportDialog = lazy(() => import("@/components/capture/PdfStudyImportDialog"));
 
 /** Extra context an entry point already knows, so the student re-types nothing. */
 export interface CaptureOpenOptions {
@@ -20,7 +23,9 @@ interface CaptureContextValue {
 const Ctx = createContext<CaptureContextValue | null>(null);
 
 export function CaptureProvider({ children }: { children: ReactNode }) {
+  const { user, isDemoMode } = useAuth();
   const [isOpen, setOpen] = useState(false);
+  const [pdfOwner, setPdfOwner] = useState<string | null>(null);
   const [initial, setInitial] = useState<CaptureKind | undefined>(undefined);
   const [options, setOptions] = useState<CaptureOpenOptions>({});
 
@@ -31,9 +36,11 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         ? { classId: classIdOrOptions }
         : classIdOrOptions ?? {},
     );
-    setOpen(true);
-  }, []);
-  const close = useCallback(() => setOpen(false), []);
+    if (kind === "upload-file" && user && !isDemoMode) {
+      setOpen(false); setPdfOwner(user.id);
+    } else { setPdfOwner(null); setOpen(true); }
+  }, [user, isDemoMode]);
+  const close = useCallback(() => { setOpen(false); setPdfOwner(null); }, []);
 
   return (
     <Ctx.Provider value={{ open, close }}>
@@ -46,7 +53,14 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         initialExamId={options.examId}
         initialTopic={options.topic}
         onClose={close}
+        onUploadDocument={context => {
+          if (!user || isDemoMode) return;
+          setOptions(context); setOpen(false); setPdfOwner(user.id);
+        }}
       />
+      {pdfOwner && pdfOwner === user?.id && !isDemoMode && <Suspense fallback={<p role="status">Opening PDF import…</p>}>
+        <PdfStudyImportDialog key={pdfOwner} ownerId={pdfOwner} initial={options} onClose={close} />
+      </Suspense>}
     </Ctx.Provider>
   );
 }

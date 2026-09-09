@@ -198,7 +198,8 @@ export default function StudyLab() {
             initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
             initialKind={requestedFormat ?? rememberedState?.kind ?? "flashcards"}
             initialConceptIds={coachConceptIds}
-            initialStudyScope={coachStudyScope ?? undefined}
+            initialStudyScope={coachStudyScope ?? (searchParams.get("scope") === "class" && effectiveClass === preselectedClass && !requestedExamId && !activeCaptureId
+              ? { type: "class", id: "class", label: "All class material" } : undefined)}
             autoStart={Boolean(coachStudyScope || activeCaptureId)}
           />
         )

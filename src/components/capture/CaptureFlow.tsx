@@ -66,6 +66,7 @@ interface Props {
   initialExamId?: string;
   initialTopic?: string;
   onClose: () => void;
+  onUploadDocument?: (context: { classId?: string; examId?: string; assignmentId?: string; topic?: string }) => void;
 }
 
 
@@ -86,7 +87,7 @@ const MENU: {
   { kind: "scan-assignment", icon: ClipboardList, hint: "Save concepts; guided help for percent problems", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
-  { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
+  { kind: "upload-file",    icon: FileUp,        hint: "Add PDF pages to your class and practice", availableForRealUsers: true },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
   { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },
@@ -114,6 +115,7 @@ export function CaptureFlow({
   initialExamId,
   initialTopic,
   onClose,
+  onUploadDocument,
 }: Props) {
 
   const navigate = useNavigate();
@@ -429,6 +431,10 @@ export function CaptureFlow({
   }, [onClose, open, stage]);
 
   const chooseKind = (k: CaptureKind) => {
+    if (k === "upload-file" && realMode && onUploadDocument) {
+      onUploadDocument({ classId: ctx.classId || undefined, examId: ctx.examId, assignmentId: ctx.assignmentId, topic: ctx.topic });
+      return;
+    }
     const selected = MENU.find((item) => item.kind === k);
     if (selected?.action === "syllabus") {
       onClose();
@@ -613,7 +619,7 @@ export function CaptureFlow({
                           Capture now
                         </p>
                         <div className="grid grid-cols-2 gap-2">
-                          {MENU.filter((item) => item.availableForRealUsers).map((m) => (
+                          {MENU.filter((item) => item.availableForRealUsers && (item.kind !== "upload-file" || onUploadDocument)).map((m) => (
                             <button
                               key={m.kind}
                               onClick={() => chooseKind(m.kind)}
