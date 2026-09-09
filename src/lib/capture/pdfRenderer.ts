@@ -1,6 +1,7 @@
 import { PDF_MAX_BYTES, PDF_MAX_PAGES, type PdfBatch } from "./pdfImport";
 
 export interface OpenPdf {
+  sourceKind?: "pdf" | "slides";
   fileName: string;
   fileHash: string;
   pages: number;

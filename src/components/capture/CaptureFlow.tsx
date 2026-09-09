@@ -88,7 +88,7 @@ const MENU: {
   { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
   { kind: "scan-schedule",   icon: CalendarDays,  hint: "Add a separate professor class schedule", availableForRealUsers: true, action: "schedule" },
-  { kind: "upload-file",    icon: FileUp,        hint: "Add PDF pages to your class and practice", availableForRealUsers: true },
+  { kind: "upload-file",    icon: FileUp,        hint: "Add PDFs or PowerPoint slides to study", availableForRealUsers: true },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
   { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },

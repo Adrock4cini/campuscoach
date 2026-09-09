@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useCapture } from "@/contexts/CaptureContext";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
-import { dueChipLabel } from "@/lib/dashboard/dueStatus";
+import { assignmentDueLabel } from "@/lib/dashboard/dueStatus";
 
 
 import {
@@ -134,7 +134,7 @@ export function RealAssignmentDetail() {
   }
 
   
-  const dueChip = dueChipLabel(assignment.due_date);
+  const dueChip = assignmentDueLabel(assignment);
 
   const captureMatchesAssignment = Boolean(
     assignmentCapture
@@ -238,7 +238,7 @@ export function RealAssignmentDetail() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Select value={assignment.status} onValueChange={(v: AssignmentStatus) => void setStatus(v)}>
-              <SelectTrigger className="h-11 w-[150px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Assignment status" className="h-11 w-[150px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(STATUS_LABEL) as AssignmentStatus[]).map((s) => (
                   <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>

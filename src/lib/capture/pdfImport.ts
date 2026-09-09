@@ -22,6 +22,7 @@ const checkpointSchema = z.object({
   version: z.literal(PDF_IMPORT_VERSION), ownerId: z.string().min(1),
   fileHash: z.string().regex(/^[a-f0-9]{64}$/), fileName: z.string().min(1).max(255),
   pages: z.number().int().min(1).max(PDF_MAX_PAGES),
+  sourceKind: z.enum(["pdf", "slides"]).optional(),
   context: z.object({
     classId: z.string().min(1), date: z.string(), topic: z.string().optional(),
     examId: z.string().optional(), assignmentId: z.string().optional(),
@@ -80,12 +81,13 @@ export function clearPdfCheckpoint(ownerId: string, storage: Storage = localStor
   storage.removeItem(key(ownerId));
 }
 
-export function pdfPageLabel(batch: Pick<PdfBatch, "first" | "last">) {
+export function pdfPageLabel(batch: Pick<PdfBatch, "first" | "last">, sourceKind?: "pdf" | "slides") {
+  if (sourceKind === "slides") return batch.first === batch.last ? `Slide ${batch.first}` : `Slides ${batch.first}–${batch.last}`;
   return batch.first === batch.last ? `PDF page ${batch.first}` : `PDF pages ${batch.first}–${batch.last}`;
 }
 
 export function pdfCaptureContext(job: PdfCheckpoint, batch: PdfBatch): CaptureContext {
-  return { ...job.context, topic: `${job.fileName} · ${pdfPageLabel(batch)}${job.context.topic ? ` · ${job.context.topic}` : ""}` };
+  return { ...job.context, topic: `${job.fileName} · ${pdfPageLabel(batch, job.sourceKind)}${job.context.topic ? ` · ${job.context.topic}` : ""}` };
 }
 
 export function pdfProgress(job: PdfCheckpoint) {

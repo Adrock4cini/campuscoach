@@ -134,8 +134,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: PowerPoint slides render in Chromium and WebKit
+        run: npm run verify:slides
+
       - name: Desktop, Android, and iPhone journey smoke tests
         run: npm run e2e
+
+      - name: Save rendered slide evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rendered-slides-${{ github.run_id }}
+          path: test-results/slides
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload failed journey evidence
         if: failure()

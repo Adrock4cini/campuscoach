@@ -116,8 +116,8 @@ export function RealClassAssignmentsExams({ classId }: { classId: string }) {
                   {ordered.map((assignment) => {
                     const linked = signals.assignmentMaterials[assignment.id] ?? 0;
                     const material = materialSignal(linked, signals.classCaptureCount);
-                    const when = whenChip(assignment.due_date);
                     const done = assignment.status === "complete";
+                    const when = done ? { text: "Completed", urgent: false } : whenChip(assignment.due_date);
                     const isOpen = expanded === `a-${assignment.id}`;
                     return (
                       <li

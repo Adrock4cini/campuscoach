@@ -244,3 +244,24 @@ describe("RealAssignmentDetail", () => {
     expect(await screen.findByText("This assignment no longer exists")).toBeInTheDocument();
   });
 });
+
+it("removes overdue immediately after completion and after remount, restoring it if reopened", async () => {
+  const original = { id: "a-1", client_class_id: "bio", title: "Late worksheet", due_date: "2020-01-01", status: "not_started", source: "manual" };
+  mocks.getAssignment.mockResolvedValue(original);
+  mocks.getLatestCaptureForAssignment.mockResolvedValue(null);
+  mocks.updateAssignment.mockImplementation(async (_id, patch) => { const saved = { ...original, ...patch }; mocks.getAssignment.mockResolvedValue(saved); return saved; });
+  const view = renderDetail();
+  await screen.findByText(/d overdue/);
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Assignment status" }), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: "Complete" }));
+  await screen.findByText("Completed");
+  expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument();
+  view.unmount(); const savedView = renderDetail();
+  await screen.findByText("Completed");
+  expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Assignment status" }), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: "Not started" }));
+  await screen.findByText(/d overdue/);
+  expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  savedView.unmount();
+});
