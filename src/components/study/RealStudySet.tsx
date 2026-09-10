@@ -115,7 +115,7 @@ export function RealStudySet({
   }, [classId, initialConceptKey, initialExamId, initialKind, initialTarget?.id]);
 
   const studyTargets = useMemo<StudyScope[]>(() => [
-    ...(initialTarget && (initialTarget.type !== "exam" || !isPastDateKey(initialTarget.examDate))
+    ...(initialTarget && !["class", "recent"].includes(initialTarget.id) && (initialTarget.type !== "exam" || !isPastDateKey(initialTarget.examDate))
       ? [initialTarget]
       : []),
     { type: "recent", id: "recent", label: "Recent material" },
@@ -161,7 +161,7 @@ export function RealStudySet({
   ), [formatEvidence, kind, subject.primary]);
 
   const isCoachTarget = Boolean(
-    initialStudyScope && studyScope.id === initialStudyScope.id,
+    initialStudyScope?.id.startsWith("coach-") && studyScope.id === initialStudyScope.id,
   );
   const isCaptureTarget = Boolean(
     initialCaptureId && captureStudyScope && studyScope.id === captureStudyScope.id,

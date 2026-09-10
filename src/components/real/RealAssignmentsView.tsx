@@ -16,7 +16,7 @@ import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ASSIGNMENT_FILTER_TITLE,
-  dueChipLabel,
+  assignmentDueLabel,
   filterAssignments,
   parseAssignmentFilter,
 } from "@/lib/dashboard/dueStatus";
@@ -146,10 +146,10 @@ export function RealAssignmentsView() {
           {items.map((a) => {
             const fromCanvas = a.source === "canvas";
             const days = daysUntil(a.due_date);
-            const dueChip = dueChipLabel(a.due_date);
+            const dueChip = assignmentDueLabel(a);
 
             const dueTone =
-              days === null ? "text-muted-foreground" :
+              a.status === "complete" || days === null ? "text-muted-foreground" :
               days <= 1 ? "text-danger" :
               days <= 3 ? "text-warning" : "text-muted-foreground";
             return (

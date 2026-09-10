@@ -3,10 +3,12 @@ import type { CaptureResult } from "@/lib/capture/types";
 import {
   persistCaptureResult,
   retryCaptureConcepts,
+  retryCaptureImagesWithResult,
   retryCaptureProcessing,
   selectTrustworthyProcessedContent,
 } from "./capturePersistence";
 import { EDGE_FUNCTION_TIMEOUT_MS } from "./invokeEdgeFunction";
+import { CAPTURE_CLASS_GUARD_VERSION } from "../../../supabase/functions/_shared/capture-class-guard";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -78,6 +80,13 @@ const result = (): CaptureResult => ({
 
 const PHOTO_OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const PHOTO_CAPTURE_ID = "22222222-2222-4222-8222-222222222222";
+
+function guardedImageResponse(data: Record<string, unknown> = {}) {
+  return {
+    data: { ok: true, classGuardVersion: CAPTURE_CLASS_GUARD_VERSION, ...data },
+    error: null,
+  };
+}
 
 function usePhotoUuidIdentity() {
   mocks.activeOwnerId = PHOTO_OWNER_ID;
@@ -318,7 +327,9 @@ describe("real capture processing integrity", () => {
       data: { id: "material-1", ...attemptedMaterial },
       error: null,
     }));
-    mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    mocks.invoke
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce(guardedImageResponse());
     const capture = result();
     capture.kind = "scan-material";
     const photo = hashablePhoto("same page", "page.jpg");
@@ -333,8 +344,161 @@ describe("real capture processing integrity", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
       body: { captureId: PHOTO_CAPTURE_ID, materialIds: ["material-1"] },
     }));
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    expect(capture.processingStatus).toBe("ready");
+    expect(capture.classMismatch).toBeUndefined();
     expect(mocks.captureDelete).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a class mismatch and sends explicit Keep it here confirmation", async () => {
+    mocks.activeOwnerId = "user-1";
+    mocks.invoke
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce(guardedImageResponse({
+        classMismatch: {
+          detectedSubject: "Accounting, business & economics",
+          detectedSubjectId: "business_accounting",
+          selectedClassName: "BIOL",
+        },
+      }))
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce(guardedImageResponse());
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .resolves.toEqual(expect.objectContaining({
+        processingStatus: "failed",
+        classMismatch: expect.objectContaining({ selectedClassName: "BIOL" }),
+      }));
+    await expect(retryCaptureImagesWithResult(
+      "capture-1",
+      ["material-1"],
+      { keepInSelectedClass: true },
+    )).resolves.toEqual(expect.objectContaining({ processingStatus: "ready" }));
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "process-capture-images", expect.objectContaining({
+      body: { captureId: "capture-1", materialIds: ["material-1"] },
+    }));
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
+    expect(mocks.invoke).toHaveBeenNthCalledWith(4, "process-capture-images", expect.objectContaining({
+      body: {
+        captureId: "capture-1",
+        materialIds: ["material-1"],
+        keepInSelectedClass: true,
+      },
+    }));
+    expect(mocks.invoke).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    { label: "legacy worker", data: { ok: true }, error: null },
+    { label: "older guard", data: { ok: true, classGuardVersion: "photo-wrong-class-gate-v2" }, error: null },
+    { label: "failed capability check", data: { ok: false, classGuardVersion: CAPTURE_CLASS_GUARD_VERSION }, error: null },
+    { label: "unavailable worker", data: null, error: new Error("offline") },
+  ])("never sends processable ids to a $label, even for Keep", async ({ data, error }) => {
+    mocks.invoke.mockResolvedValue({ data, error });
+
+    for (const options of [{}, { keepInSelectedClass: true }]) {
+      await expect(retryCaptureImagesWithResult("capture-1", ["material-1"], options))
+        .rejects.toThrow(/photo class checking couldn't be verified/i);
+    }
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    for (const [name, options] of mocks.invoke.mock.calls) {
+      expect(name).toBe("process-capture-images");
+      expect(options.body).toEqual({ action: "verify-class-guard" });
+    }
+  });
+
+  it("stops when the capability request throws instead of sending processing ids", async () => {
+    mocks.invoke.mockRejectedValue(new Error("network disconnected"));
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .rejects.toThrow(/photo class checking couldn't be verified/i);
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
+  });
+
+  it("does not process a saved new photo when only the warning frontend is deployed", async () => {
+    usePhotoUuidIdentity();
+    mocks.upload.mockResolvedValue({ error: null });
+    mocks.materialInsert.mockImplementation((value: Record<string, unknown>) => ({
+      select: () => ({
+        maybeSingle: async () => ({ data: { id: "material-1", ...value }, error: null }),
+      }),
+    }));
+    mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    const capture = result();
+    capture.kind = "scan-material";
+    capture.context.classId = "biol";
+
+    await expect(persistCaptureResult(capture, [hashablePhoto("Accounting debits", "accounting.jpg")], PHOTO_OWNER_ID))
+      .resolves.toBe(PHOTO_CAPTURE_ID);
+
+    expect(capture.materialIds).toEqual(["material-1"]);
+    expect(capture.processingStatus).toBe("failed");
+    expect(capture.processingMessage).toMatch(/photo class checking couldn't be verified/i);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
+    expect(mocks.captureDelete).not.toHaveBeenCalled();
+    expect(mocks.materialDelete).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "photo-wrong-class-gate-v2"])("rejects an unverified processing response with version %s", async (version) => {
+    mocks.invoke
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce({ data: { ok: true, classGuardVersion: version }, error: null });
+    const dispatched = vi.spyOn(window, "dispatchEvent");
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .rejects.toThrow(/photo class checking couldn't be verified/i);
+
+    expect(dispatched).not.toHaveBeenCalled();
+    dispatched.mockRestore();
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    false,
+    "BIOL",
+    [],
+    {},
+    { detectedSubject: "Accounting", detectedSubjectId: "business_accounting" },
+    { detectedSubject: " ", detectedSubjectId: "business_accounting", selectedClassName: "BIOL" },
+  ])("never treats a malformed non-null class mismatch as ready: %j", async (classMismatch) => {
+    mocks.invoke
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce(guardedImageResponse({ classMismatch }));
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .rejects.toThrow(/photo class checking couldn't be verified/i);
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not send the processing request if the account changes during verification", async () => {
+    mocks.invoke.mockImplementationOnce(async () => {
+      mocks.activeOwnerId = "different-user";
+      return guardedImageResponse();
+    });
+
+    await expect(retryCaptureImagesWithResult("capture-1", ["material-1"]))
+      .rejects.toThrow(/account changed/i);
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a changed page retry without deleting the first durable capture", async () => {
@@ -593,7 +757,7 @@ describe("real capture processing integrity", () => {
     ])?.summary).toBe("Grounded summary");
   });
 
-  it("retries every assignment photo through image processing even when OCR text exists", async () => {
+  it.each(["scan-assignment", "scan-material"])("retries %s photos through the class-guarded image worker even when OCR text exists", async (kind) => {
     mocks.from.mockImplementation((table: string) => {
       if (table === "captures") {
         return {
@@ -603,7 +767,7 @@ describe("real capture processing integrity", () => {
                 maybeSingle: async () => ({
                   data: {
                     id: "capture-assignment",
-                    kind: "scan-assignment",
+                    kind,
                     raw_text: "What is 14% of 50?",
                     client_class_id: "math",
                     topic: "Percents",
@@ -636,19 +800,20 @@ describe("real capture processing integrity", () => {
       }
       throw new Error(`Unexpected table: ${table}`);
     });
-    mocks.invoke.mockResolvedValue({
-      data: {
-        ok: true,
+    mocks.invoke
+      .mockResolvedValueOnce(guardedImageResponse())
+      .mockResolvedValueOnce(guardedImageResponse({
         practiceSourceStatus: "needs_review",
         practiceSourceText: "What is 14% of 50?",
         practiceSourceVersion: 2,
-      },
-      error: null,
-    });
+      }));
 
     await expect(retryCaptureProcessing("capture-assignment")).resolves.toBe("ready");
 
-    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "process-capture-images", expect.objectContaining({
+      body: { action: "verify-class-guard" },
+    }));
     expect(mocks.invoke).toHaveBeenCalledWith("process-capture-images", expect.objectContaining({
       body: {
         captureId: "capture-assignment",
@@ -789,5 +954,16 @@ describe("real capture processing integrity", () => {
         kind: "scan-assignment",
       }),
     }));
+  });
+
+  it("rejects direct scan-material text extraction instead of bypassing photo class checking", async () => {
+    await expect(retryCaptureConcepts({
+      id: "capture-biol-photo",
+      kind: "scan-material",
+      clientClassId: "biol",
+      rawText: "Accounting debits increase assets.",
+    })).rejects.toThrow(/saved photos so its class can be checked/i);
+
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

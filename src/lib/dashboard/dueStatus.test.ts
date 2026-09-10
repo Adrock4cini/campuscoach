@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ASSIGNMENT_FILTER_TITLE,
+  assignmentDueLabel,
   classifyDue,
   dueChipLabel,
   filterAssignments,
@@ -80,4 +81,15 @@ describe("shared due-date classification", () => {
     expect(parseAssignmentFilter("bogus")).toBe("all");
     expect(ASSIGNMENT_FILTER_TITLE.today).toBe("Due today");
   });
+});
+
+it("completion removes overdue labels and counts, while reopening restores the original deadline", () => {
+  const done = assignment({ status: "complete", due_date: "2026-08-25" });
+  expect(assignmentDueLabel(done, NOW)).toBe("Completed");
+  expect(filterAssignments([done], "overdue", NOW)).toEqual([]);
+  expect(buildGlanceCounts([done], [], NOW).overdue).toBe(0);
+  const reopened = { ...done, status: "not_started" as const };
+  expect(assignmentDueLabel(reopened, NOW)).toBe("5d overdue");
+  expect(filterAssignments([reopened], "overdue", NOW)).toHaveLength(1);
+  expect(assignmentDueLabel({ due_date: null, status: "complete" }, NOW)).toBe("Completed");
 });

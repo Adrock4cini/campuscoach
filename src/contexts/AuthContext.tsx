@@ -63,6 +63,9 @@ type DataMode = "real" | "demo" | "loading";
 export type FamilyBetaAgreementStatus = "checking" | "accepted" | "required" | "error";
 
 export const AGREEMENT_RESOLUTION_TIMEOUT_MS = 8_000;
+/** A transient check failure must not become a permanent gate lockout. */
+export const AGREEMENT_LOAD_ATTEMPTS = 3;
+export const AGREEMENT_RETRY_DELAY_MS = 400;
 
 type AuthState = {
   session: Session | null;
@@ -118,29 +121,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setAgreementStatus("checking");
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("agreement status timed out")), AGREEMENT_RESOLUTION_TIMEOUT_MS);
-    });
+    // A signed-in student is never behind the sample-data firewall. A remount
+    // or a failed session re-read used to leave the data plane on "loading",
+    // which answered every agreement RPC with a local 403 and trapped the
+    // student on the gate with no way back.
+    setSupabaseNetworkMode("real");
 
-    try {
-      const receipt = await Promise.race([
-        getFamilyBetaAgreementStatus(),
-        timeout,
-      ]);
-      if (request !== agreementRequestVersion.current) return false;
-      if (receipt.ownerId !== userId) throw new Error("agreement owner mismatch");
-      setAgreementStatus(receipt.accepted ? "accepted" : "required");
-      return receipt.accepted;
-    } catch (error) {
-      if (request !== agreementRequestVersion.current) return false;
-      console.warn("[auth] agreement status load failed", error);
-      setAgreementStatus("error");
-      return false;
-    } finally {
-      if (timer) clearTimeout(timer);
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < AGREEMENT_LOAD_ATTEMPTS; attempt += 1) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("agreement status timed out")), AGREEMENT_RESOLUTION_TIMEOUT_MS);
+      });
+
+      try {
+        const receipt = await Promise.race([
+          getFamilyBetaAgreementStatus(),
+          timeout,
+        ]);
+        if (request !== agreementRequestVersion.current) return false;
+        if (receipt.ownerId !== userId) throw new Error("agreement owner mismatch");
+        setAgreementStatus(receipt.accepted ? "accepted" : "required");
+        return receipt.accepted;
+      } catch (error) {
+        if (request !== agreementRequestVersion.current) return false;
+        lastError = error;
+        if (attempt < AGREEMENT_LOAD_ATTEMPTS - 1) {
+          setSupabaseNetworkMode("real");
+          await new Promise((resolve) => setTimeout(resolve, AGREEMENT_RETRY_DELAY_MS * (attempt + 1)));
+          if (request !== agreementRequestVersion.current) return false;
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
+
+    console.warn("[auth] agreement status load failed", lastError);
+    setAgreementStatus("error");
+    return false;
   };
+
 
   const loadProfile = async (userId: string | undefined | null) => {
     const request = ++profileRequestVersion.current;
@@ -213,20 +233,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const acceptAgreement = async (): Promise<boolean> => {
-    try {
-      const receipt = await acceptCurrentFamilyBetaAgreement();
-      const activeUserId = activeUserIdRef.current;
-      if (activeUserId && receipt.ownerId !== activeUserId) {
-        throw new Error("agreement owner mismatch");
+    // Same firewall reasoning as loadAgreement: a signed-in student's own
+    // acceptance write must never be answered by the sample-mode block.
+    if (activeUserIdRef.current) setSupabaseNetworkMode("real");
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < AGREEMENT_LOAD_ATTEMPTS; attempt += 1) {
+      try {
+        const receipt = await acceptCurrentFamilyBetaAgreement();
+        const activeUserId = activeUserIdRef.current;
+        if (activeUserId && receipt.ownerId !== activeUserId) {
+          throw new Error("agreement owner mismatch");
+        }
+        agreementRequestVersion.current += 1;
+        setAgreementStatus("accepted");
+        return true;
+      } catch (error) {
+        lastError = error;
+        if (attempt < AGREEMENT_LOAD_ATTEMPTS - 1) {
+          setSupabaseNetworkMode("real");
+          await new Promise((resolve) => setTimeout(resolve, AGREEMENT_RETRY_DELAY_MS * (attempt + 1)));
+        }
       }
-      agreementRequestVersion.current += 1;
-      setAgreementStatus("accepted");
-      return true;
-    } catch (error) {
-      console.warn("[auth] agreement acceptance failed", error);
-      return false;
     }
+    console.warn("[auth] agreement acceptance failed", lastError);
+    return false;
   };
+
 
 
   const explicitSignOutRef = useRef(false);
@@ -428,6 +460,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
   }, []);
+
+  // Session presence is authoritative for the data-plane firewall. Without
+  // this, a provider remount or a failed session re-read could leave a real
+  // signed-in student on "loading", where every REST call is answered locally
+  // with 403 and nothing (not even a retry) can recover.
+  useEffect(() => {
+    if (session?.user) setSupabaseNetworkMode("real");
+  }, [session?.user?.id]);
+
+
 
   const mode: DataMode = loading
     ? "loading"

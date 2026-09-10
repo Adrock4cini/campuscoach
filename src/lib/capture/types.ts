@@ -15,6 +15,7 @@ export type CaptureKind =
   | "scan-assignment"
   | "scan-material"
   | "scan-syllabus"
+  | "scan-schedule"
   | "upload-file"
   | "quick-note"
   | "professor-hint"
@@ -69,6 +70,12 @@ export interface CaptureResult {
   captureId?: string;
   /** Uploaded page/material ids for this capture, used to retry image processing. */
   materialIds?: string[];
+  /** Confident server-side subject mismatch; no study evidence was written. */
+  classMismatch?: {
+    detectedSubject: string;
+    detectedSubjectId: string;
+    selectedClassName: string;
+  };
   /**
    * Exact assignment problem proposed by OCR and, when confirmed, approved by
    * the student. Ordinary typed captures omit this and keep their old path.

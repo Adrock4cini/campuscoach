@@ -225,6 +225,16 @@ async function handleRequest(
     capture = ownedCapture;
   }
 
+  // Saved photo OCR must never bypass the image worker's subject/Keep gate,
+  // including retries from older clients. Trust the durable kind, not a
+  // caller-supplied replacement kind for the same capture.
+  if ((capture?.kind ?? body.kind) === "scan-material") {
+    return json({
+      error: "photo_class_check_required",
+      message: "Retry this photo through image processing so its class can be checked.",
+    }, 409);
+  }
+
   if (!capture && body.kind === "scan-assignment") {
     return json({
       error: "assignment_confirmation_required",

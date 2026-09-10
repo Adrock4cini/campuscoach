@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CAPTURE_CLASS_GUARD_VERSION } from "../../../supabase/functions/_shared/capture-class-guard";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -133,12 +134,29 @@ describe("client capture recovery", () => {
       topic: null,
     };
     mocks.materialRows = [{ id: "material-1" }];
+    mocks.invoke
+      .mockResolvedValueOnce({
+        data: { ok: true, classGuardVersion: CAPTURE_CLASS_GUARD_VERSION },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { ok: true, classGuardVersion: CAPTURE_CLASS_GUARD_VERSION },
+        error: null,
+      });
     const { retryCaptureProcessing } = await import("@/lib/supabase/capturePersistence");
 
-    await retryCaptureProcessing("capture-2");
-    expect(mocks.invoke).toHaveBeenCalledWith(
+    await expect(retryCaptureProcessing("capture-2")).resolves.toBe("ready");
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      1,
       "process-capture-images",
-      expect.objectContaining({ body: expect.objectContaining({ captureId: "capture-2" }) }),
+      expect.objectContaining({ body: { action: "verify-class-guard" } }),
     );
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      2,
+      "process-capture-images",
+      expect.objectContaining({ body: { captureId: "capture-2", materialIds: ["material-1"] } }),
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith("extract-concepts", expect.anything());
   });
 });

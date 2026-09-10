@@ -12,8 +12,8 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const EXPECTED_MIGRATION_COUNT = 64;
-export const EXPECTED_FINAL_MIGRATION_VERSION = "20260830231658";
+export const EXPECTED_MIGRATION_COUNT = 66;
+export const EXPECTED_FINAL_MIGRATION_VERSION = "20260908145201";
 export const PROTECTED_PROJECT_REFS = Object.freeze([
   "norsaaoyppctrvxxgjtg", // production
   "dfpgnmldxphkfmobjbvr", // previous Family Beta

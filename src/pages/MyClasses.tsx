@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getDaysUntil } from "@/data/demo";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText, Pencil } from "lucide-react";
+import { MapPin, Clock, User, BookOpen, CheckCircle2, Circle, Loader2, Sparkles, Map, ChevronRight, Plus, Link2, FileText, Pencil, CalendarDays } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { ClassTruthSignals } from "@/components/real/ClassTruthSignals";
@@ -18,9 +18,12 @@ export default function MyClasses() {
   const { user, isDemoMode } = useAuth();
   const realMode = !!user && !isDemoMode;
   const [searchParams] = useSearchParams();
-  const choosingSyllabusClass = searchParams.get("intent") === "syllabus";
+  const planningIntent = searchParams.get("intent");
+  const choosingSyllabusClass = planningIntent === "syllabus";
+  const choosingScheduleClass = planningIntent === "schedule";
+  const choosingPlanningClass = choosingSyllabusClass || choosingScheduleClass;
   const canvasConnectEnabled = isCanvasConnectEnabled();
-  const truthState = useMyClassesTruth(realMode && !choosingSyllabusClass
+  const truthState = useMyClassesTruth(realMode && !choosingPlanningClass
     ? classes.map((item) => ({ id: item.id }))
     : []);
   const duplicateLabels = buildDuplicateLabels(
@@ -50,11 +53,11 @@ export default function MyClasses() {
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl font-display font-semibold text-foreground">
-                {choosingSyllabusClass ? "Add a class before its syllabus" : "Set up your term"}
+                {choosingPlanningClass ? `Add a class before its ${choosingScheduleClass ? "schedule" : "syllabus"}` : "Set up your term"}
               </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
-                {choosingSyllabusClass
-                  ? "A syllabus belongs to one class. Add or connect the class first, then upload its syllabus."
+                {choosingPlanningClass
+                  ? `A ${choosingScheduleClass ? "schedule" : "syllabus"} belongs to one class. Add or connect the class first, then upload it.`
                   : "Add your real classes to unlock captures, assignments, exams, and study sessions built from your actual coursework."}
               </p>
             </div>
@@ -85,11 +88,11 @@ export default function MyClasses() {
         )}
       </div>
 
-      {choosingSyllabusClass && (
+      {choosingPlanningClass && (
         <Card role="status" className="border-primary/30 bg-primary/5 shadow-card">
           <CardContent className="flex gap-3 p-4 sm:p-5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></span>
-            <div><h2 className="font-display font-semibold text-foreground">Which class is this syllabus for?</h2><p className="mt-1 text-sm text-muted-foreground">Choose the class first so its file, assignments, exams, and calendar dates stay together.</p></div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{choosingScheduleClass ? <CalendarDays className="h-5 w-5" /> : <FileText className="h-5 w-5" />}</span>
+            <div><h2 className="font-display font-semibold text-foreground">Which class is this {choosingScheduleClass ? "schedule" : "syllabus"} for?</h2><p className="mt-1 text-sm text-muted-foreground">Choose the class first so its file, assignments, exams, and calendar dates stay together.</p></div>
           </CardContent>
         </Card>
       )}
@@ -102,7 +105,7 @@ export default function MyClasses() {
           const hasCurrentTopic = Boolean(c.currentTopic && c.currentTopic !== "Getting started");
           return (
             <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-              <Link to={choosingSyllabusClass ? `/classes/${encodeURIComponent(c.id)}/syllabus` : `/classes/${encodeURIComponent(c.id)}`} aria-label={choosingSyllabusClass ? `Choose ${c.name} for syllabus` : `Open ${c.name}`} className="block h-full">
+              <Link to={choosingScheduleClass ? `/classes/${encodeURIComponent(c.id)}/syllabus?document=schedule` : choosingSyllabusClass ? `/classes/${encodeURIComponent(c.id)}/syllabus` : `/classes/${encodeURIComponent(c.id)}`} aria-label={choosingPlanningClass ? `Choose ${c.name} for ${choosingScheduleClass ? "schedule" : "syllabus"}` : `Open ${c.name}`} className="block h-full">
                 <Card className="group h-full cursor-pointer overflow-hidden rounded-[26px] border-border/50 bg-card/70 shadow-card backdrop-blur-md transition-all hover:border-border/80 hover:shadow-elevated">
                   <CardContent className="p-4 sm:p-5">
                     <div className="flex items-center gap-3">
@@ -125,15 +128,15 @@ export default function MyClasses() {
                     )}
                     {c.nextExamDate && <div className="mt-3 flex items-center gap-2"><Badge variant="secondary" className="bg-danger/10 text-xs text-danger">Exam in {getDaysUntil(c.nextExamDate)} days</Badge></div>}
 
-                    {realMode && !choosingSyllabusClass
+                    {realMode && !choosingPlanningClass
                       ? <ClassTruthSignals truth={truthState.byClassId[c.id]} loading={truthState.loading} error={truthState.error} />
-                      : <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary"><FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>Select this class for the syllabus</span></div>}
+                      : <div className="mt-4 flex items-start gap-2 border-t border-border/40 pt-3 text-xs font-medium text-primary">{choosingScheduleClass ? <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />}<span>Select this class for the {choosingScheduleClass ? "schedule" : "syllabus"}</span></div>}
 
                     {c.chapters.length > 0 && <div className="mt-3 flex items-center gap-1.5">{c.chapters.map(ch => <div key={ch.number} title={`Ch ${ch.number}: ${ch.title}`}>{ch.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-success" /> : ch.status === "in-progress" ? <Loader2 className="h-4 w-4 text-warning" /> : <Circle className="h-4 w-4 text-muted-foreground/30" />}</div>)}<span className="ml-1 text-xs text-muted-foreground">chapters</span></div>}
                   </CardContent>
                 </Card>
               </Link>
-              {realMode && !choosingSyllabusClass && <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/edit`} aria-label={`Edit ${c.name}`}><Pencil className="mr-1.5 h-4 w-4" /> Edit class</Link></Button><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`} aria-label={`Add or view syllabus for ${c.name}`}><FileText className="mr-1.5 h-4 w-4" /> Syllabus</Link></Button></div>}
+              {realMode && !choosingPlanningClass && <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/edit`} aria-label={`Edit ${c.name}`}><Pencil className="mr-1.5 h-4 w-4" /> Edit class</Link></Button><Button variant="outline" size="sm" className="min-h-11 rounded-xl" asChild><Link to={`/classes/${encodeURIComponent(c.id)}/syllabus`} aria-label={`Add or view syllabus for ${c.name}`}><FileText className="mr-1.5 h-4 w-4" /> Syllabus</Link></Button></div>}
             </motion.div>
           );
         })}

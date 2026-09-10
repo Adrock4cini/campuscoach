@@ -132,6 +132,7 @@ export function extractAggregateSignalFromCapture(
     "scan-assignment": "capture",
     "scan-material": "textbook_scan",
     "scan-syllabus": "capture",
+    "scan-schedule": "capture",
     "upload-file": "capture",
     "quick-note": "capture",
     "professor-hint": "professor_hint",

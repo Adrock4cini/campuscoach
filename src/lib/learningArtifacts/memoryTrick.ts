@@ -13,6 +13,7 @@ export type MemoryTrickTechnique =
   | "first_letter_sentence"
   | "word_roots"
   | "sound_alike"
+  | "phonetic_bridge"
   | "familiar_bridge"
   | "visual"
   | "story"
@@ -60,6 +61,7 @@ const TECHNIQUE_LABELS: Record<MemoryTrickTechnique, string> = {
   first_letter_sentence: "First-letter sentence",
   word_roots: "Word roots",
   sound_alike: "Sound-alike",
+  phonetic_bridge: "Wordplay memory",
   familiar_bridge: "Familiar bridge",
   visual: "Visual cue",
   story: "Mini story",

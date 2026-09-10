@@ -36,11 +36,11 @@ function configFor(entry: { ordinal: number; version: string }) {
 describe("Lovable Cloud staging migration payloads", () => {
   const manifest = readLovableMigrationManifest();
 
-  it("builds one deterministic, exact 64-file manifest", () => {
+  it("builds one deterministic, exact 66-file manifest", () => {
     expect(manifest.entries).toHaveLength(EXPECTED_MIGRATION_COUNT);
     expect(manifest.entries.at(-1)?.version).toBe(EXPECTED_FINAL_MIGRATION_VERSION);
-    expect(new Set(manifest.entries.map(({ version }) => version)).size).toBe(64);
-    expect(new Set(manifest.entries.map(({ filename }) => filename)).size).toBe(64);
+    expect(new Set(manifest.entries.map(({ version }) => version)).size).toBe(66);
+    expect(new Set(manifest.entries.map(({ filename }) => filename)).size).toBe(66);
     expect(manifest.inventorySha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(readLovableMigrationManifest()).toEqual(manifest);
 
@@ -153,7 +153,7 @@ describe("Lovable Cloud staging migration payloads", () => {
     expect(payload).toContain("staging target contains cron jobs");
     expect(payload).toContain("staging target contains vault secrets");
     expect(payload).not.toMatch(/(?:insert|update|delete|create|alter)\s+(?:into\s+)?supabase_migrations\.schema_migrations/iu);
-    expect(payload.match(/^ {2}\(\d+, '\d{14}',/gmu)).toHaveLength(64);
+    expect(payload.match(/^ {2}\(\d+, '\d{14}',/gmu)).toHaveLength(66);
     for (const entry of manifest.entries) {
       expect(payload).toContain(entry.fileSha256);
       expect(payload).toContain(entry.gitBlobSha1);
@@ -174,7 +174,7 @@ describe("Lovable Cloud staging migration payloads", () => {
     expect(analyzeMigrationSql(payload).hasOuterTransaction).toBe(true);
   });
 
-  it("encodes the exact 13 documented post-phase gates", () => {
+  it("encodes the exact 15 documented post-phase gates", () => {
     expect(POST_PHASE_GATES).toEqual([
       [51, "20260827125500", 52, "20260827126000", "writes-paused-edge-deployed-tested-drained"],
       [52, "20260827126000", 53, "20260827126500", "writes-paused-agreement-migration-verified"],
@@ -189,6 +189,8 @@ describe("Lovable Cloud staging migration payloads", () => {
       [61, "20260827140000", 62, "20260828100000", "writes-paused-onboarding-owner-guard-verified"],
       [62, "20260828100000", 63, "20260828110000", "writes-paused-evidence-contract-edge-deployed-verified"],
       [63, "20260828110000", 64, "20260830231658", "writes-paused-practice-source-confirmation-verified"],
+      [64, "20260830231658", 65, "20260831090000", "writes-paused-phonetic-bridge-technique-verified"],
+      [65, "20260831090000", 66, "20260908145201", "writes-paused-memory-trick-feedback-technique-verified"],
     ].map(([previousOrdinal, previousVersion, targetOrdinal, targetVersion, attestation]) => ({
       previousOrdinal,
       previousVersion,
@@ -236,7 +238,7 @@ describe("Lovable Cloud staging migration payloads", () => {
     }, manifest)).toThrow("not one of the 13 gated");
   });
 
-  it("allows ordinals 1-51 without gates and blocks 52-64 without the exact durable gate", () => {
+  it("allows ordinals 1-51 without gates and blocks 52-65 without the exact durable gate", () => {
     for (const entry of manifest.entries) {
       const attempt = buildAttemptPayload(configFor(entry), manifest);
       const migration = buildMigrationPayload(configFor(entry), manifest);

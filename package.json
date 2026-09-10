@@ -23,9 +23,11 @@
     "validate:release-env": "node scripts/validate-release-env.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "verify:slides": "node scripts/verify-powerpoint-import.mjs"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.4",
     "@hookform/resolvers": "^3.10.0",
     "@lovable.dev/cloud-auth-js": "^1.1.2",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -64,9 +66,11 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
+    "html-to-image": "1.11.13",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
+    "pdfjs-dist": "6.3.289",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

@@ -14,6 +14,7 @@ export const SYLLABUS_MIME_TYPES = [
 
 export const CLASS_WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export type ClassWeekday = (typeof CLASS_WEEKDAYS)[number];
+export type PlanningDocumentKind = "syllabus" | "schedule";
 
 const optionalText = (max: number) => z.string().trim().max(max).nullish()
   .transform((value) => value || undefined);
@@ -124,6 +125,7 @@ export interface SyllabusReviewAssignment {
   included: boolean;
   title: string;
   dueDate: string;
+  sourceKind?: PlanningDocumentKind;
 }
 
 export interface SyllabusReviewExam {
@@ -132,6 +134,7 @@ export interface SyllabusReviewExam {
   title: string;
   examDate: string;
   topics: string[];
+  sourceKind?: PlanningDocumentKind;
 }
 
 export interface SyllabusReviewScheduleItem {
@@ -140,9 +143,11 @@ export interface SyllabusReviewScheduleItem {
   date: string;
   topic: string;
   dueItems: string[];
+  sourceKind?: PlanningDocumentKind;
 }
 
 export interface SyllabusReviewDraft {
+  documentKind?: PlanningDocumentKind;
   selectedClassIndex: number;
   sourceClassName: string;
   sourceClassCode: string;
@@ -165,6 +170,7 @@ const optionalTime = z.string().refine((value) => value === "" || /^([01]\d|2[0-
 const stableKey = z.string().regex(/^[a-z]+:[0-9a-f]{8}:[0-9]+$/, "Invalid syllabus item identity");
 
 export const syllabusReviewDraftSchema = z.object({
+  documentKind: z.enum(["syllabus", "schedule"]).optional().default("syllabus"),
   selectedClassIndex: z.number().int().min(0).max(29),
   sourceClassName: z.string().trim().max(300),
   sourceClassCode: z.string().trim().max(100),
@@ -204,6 +210,7 @@ export const syllabusReviewDraftSchema = z.object({
     included: z.boolean(),
     title: z.string().trim().max(300),
     dueDate: z.string().trim().max(40),
+    sourceKind: z.enum(["syllabus", "schedule"]).optional().default("syllabus"),
   }).superRefine((value, context) => {
     if (!value.included) return;
     if (!value.title) context.addIssue({ code: "custom", path: ["title"], message: "Title is required" });
@@ -215,6 +222,7 @@ export const syllabusReviewDraftSchema = z.object({
     title: z.string().trim().max(300),
     examDate: z.string().trim().max(40),
     topics: z.array(z.string().trim().max(200)).max(100),
+    sourceKind: z.enum(["syllabus", "schedule"]).optional().default("syllabus"),
   }).superRefine((value, context) => {
     if (!value.included) return;
     if (!value.title) context.addIssue({ code: "custom", path: ["title"], message: "Title is required" });
@@ -226,6 +234,7 @@ export const syllabusReviewDraftSchema = z.object({
     date: z.string().trim().max(40),
     topic: z.string().trim().max(500),
     dueItems: z.array(z.string().trim().max(300)).max(100),
+    sourceKind: z.enum(["syllabus", "schedule"]).optional().default("syllabus"),
   }).superRefine((value, context) => {
     if (!value.included) return;
     if (!value.topic) context.addIssue({ code: "custom", path: ["topic"], message: "Topic is required" });
@@ -319,6 +328,7 @@ export function createSyllabusReviewDraft(
   parsed: ParsedSyllabus,
   selectedClassIndex = 0,
   targetClass?: Partial<TargetClassContext>,
+  documentKind: PlanningDocumentKind = "syllabus",
 ): SyllabusReviewDraft {
   const source = parsed.classes[selectedClassIndex];
   if (!source) throw new Error("Choose a class found in the syllabus");
@@ -326,6 +336,7 @@ export function createSyllabusReviewDraft(
   const parsedDays = normalizeWeekdays(source.days ?? []);
   const fallbackDays = normalizeWeekdays(targetClass?.weekdays ?? targetClass?.days ?? []);
   return {
+    documentKind,
     selectedClassIndex,
     sourceClassName: source.name,
     sourceClassCode: source.code ?? "",
@@ -338,9 +349,9 @@ export function createSyllabusReviewDraft(
       semesterEndDate: source.semesterEndDate ?? targetClass?.semesterEndDate ?? "",
     },
     assignments: buildStableSyllabusItemKeys("assignment", source.assignments ?? [], (item) => item.label)
-      .map(({ item, key }) => ({ key, included: true, title: item.label, dueDate: item.dueDate ?? "" })),
+      .map(({ item, key }) => ({ key, included: true, title: item.label, dueDate: item.dueDate ?? "", sourceKind: documentKind })),
     exams: buildStableSyllabusItemKeys("exam", source.examDates ?? [], (item) => item.label)
-      .map(({ item, key }) => ({ key, included: true, title: item.label, examDate: item.date ?? "", topics: normalizeSyllabusTopics(item.topics) })),
+      .map(({ item, key }) => ({ key, included: true, title: item.label, examDate: item.date ?? "", topics: normalizeSyllabusTopics(item.topics), sourceKind: documentKind })),
     schedule: buildStableSyllabusItemKeys("schedule", sourceSchedule, (item) => item.topic)
       .map(({ item, key }) => ({
         key,
@@ -348,6 +359,45 @@ export function createSyllabusReviewDraft(
         date: item.date ?? "",
         topic: item.topic,
         dueItems: item.dueItems ?? [],
+        sourceKind: documentKind,
       })),
+  };
+}
+
+function normalizedIdentity(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Combine the newest planning document with the other saved document type.
+ * A schedule refresh replaces the previous schedule portion while retaining
+ * syllabus rows, and a syllabus refresh does the inverse. When both documents
+ * name the same deadline, the newest document wins so the class gets one row.
+ */
+export function mergePlanningReviewDrafts(
+  existing: SyllabusReviewDraft | null | undefined,
+  incoming: SyllabusReviewDraft,
+): SyllabusReviewDraft {
+  if (!existing) return incoming;
+  const incomingKind = incoming.documentKind ?? "syllabus";
+  const mergeRows = <T extends { key: string; sourceKind?: PlanningDocumentKind }>(
+    prior: T[],
+    next: T[],
+    identity: (row: T) => string,
+  ) => {
+    const nextIdentities = new Set(next.map(identity));
+    const nextKeys = new Set(next.map((row) => row.key));
+    const retained = prior.filter((row) => (
+      (row.sourceKind ?? "syllabus") !== incomingKind
+      && !nextIdentities.has(identity(row))
+      && !nextKeys.has(row.key)
+    ));
+    return [...retained, ...next];
+  };
+  return {
+    ...incoming,
+    assignments: mergeRows(existing.assignments, incoming.assignments, (row) => normalizedIdentity(row.title)),
+    exams: mergeRows(existing.exams, incoming.exams, (row) => normalizedIdentity(row.title)),
+    schedule: mergeRows(existing.schedule, incoming.schedule, (row) => `${row.date}|${normalizedIdentity(row.topic)}`),
   };
 }

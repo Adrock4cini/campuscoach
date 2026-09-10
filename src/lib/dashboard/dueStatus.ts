@@ -56,6 +56,11 @@ export function isOpenAssignment(item: DueClassifiable) {
   return item.status !== "complete" && Boolean(item.due_date);
 }
 
+/** Completion removes deadline warnings without changing the stored due date. */
+export function assignmentDueLabel(item: DueClassifiable, now = new Date()): string {
+  return item.status === "complete" ? "Completed" : dueChipLabel(item.due_date, now);
+}
+
 export type AssignmentFilter = "overdue" | "today" | "upcoming" | "all";
 
 export function parseAssignmentFilter(value: string | null): AssignmentFilter {

@@ -159,6 +159,87 @@ describe("capture journey", () => {
     expect(result.processingStatus).toBe("failed");
     expect(result.processingMessage).toMatch(/note is safe/i);
     expect(listCaptures()).toEqual([]);
+    expect(mocks.contributeStudySignal).toHaveBeenCalled();
+  });
+
+  it("does not contribute intelligence when a photo belongs to another class", async () => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = "failed";
+      result.classMismatch = {
+        detectedSubject: "Accounting, business & economics",
+        detectedSubjectId: "business_economics",
+        selectedClassName: "BIOL",
+      };
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "scan-material",
+      { classId: "biology", date: "2026-09-02" },
+      {
+        simulateDerivedContent: false,
+        requireRemotePersistence: true,
+        ownerId: "user-1",
+        attachments: [new File(["credits and debits"], "ledger.jpg", { type: "image/jpeg" })],
+      },
+    );
+
+    expect(result.classMismatch?.selectedClassName).toBe("BIOL");
+    expect(mocks.contributeStudySignal).not.toHaveBeenCalled();
+    expect(mocks.updateCampusBrainAggregate).not.toHaveBeenCalled();
+  });
+
+  it.each(["failed", "processing", undefined])("does not contribute unverified photo evidence when processing is %s without a mismatch response", async (processingStatus) => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = processingStatus;
+      result.processingMessage = "Photo class checking couldn't be verified. Your photos are saved. Please try again later.";
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "scan-material",
+      { classId: "biology", date: "2026-09-02" },
+      {
+        simulateDerivedContent: false,
+        requireRemotePersistence: true,
+        ownerId: "user-1",
+        attachments: [new File(["Accounting debits"], "accounting.jpg", { type: "image/jpeg" })],
+      },
+    );
+
+    expect(result.processingStatus).toBe(processingStatus);
+    expect(result.classMismatch).toBeUndefined();
+    expect(mocks.contributeStudySignal).not.toHaveBeenCalled();
+    expect(mocks.updateCampusBrainAggregate).not.toHaveBeenCalled();
+  });
+
+  it("still contributes legitimate Math photos after guarded image processing succeeds", async () => {
+    mocks.persistCaptureResult.mockImplementationOnce(async (result) => {
+      result.processingStatus = "ready";
+      return "remote-capture-id";
+    });
+
+    const result = await commitCapture(
+      "scan-material",
+      { classId: "math", date: "2026-09-02" },
+      {
+        simulateDerivedContent: false,
+        requireRemotePersistence: true,
+        ownerId: "user-1",
+        attachments: [new File(["14% of 50 = 7"], "math.jpg", { type: "image/jpeg" })],
+      },
+    );
+
+    expect(result.processingStatus).toBe("ready");
+    expect(result.classMismatch).toBeUndefined();
+    expect(mocks.contributeStudySignal).toHaveBeenCalledWith(expect.objectContaining({
+      classId: "math",
+      sourceType: "capture:scan-material",
+      sourceId: result.id,
+    }));
+    await vi.waitFor(() => {
+      expect(mocks.updateCampusBrainAggregate).toHaveBeenCalled();
+    });
   });
 
   it("does not report success when a required remote save fails", async () => {

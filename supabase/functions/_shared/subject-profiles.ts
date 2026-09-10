@@ -93,7 +93,7 @@ export const SUBJECT_PROFILES: Record<SubjectProfileId, SubjectProfile> = {
     promptGuidance:
       "This is life-science, anatomy, health, or vocational body-work material. Pair each structure or term with its function, location, or procedure step exactly as the source states it. Use a word root only when the source states it.",
     keywords: [
-      "biology", "bio", "anatomy", "physiology", "nursing", "health", "medical", "med term",
+      "biology", "bio", "biol", "anatomy", "physiology", "nursing", "health", "medical", "med term",
       "nail tech", "cosmetology", "esthetics", "dental", "microbiology", "nutrition",
       "kinesiology", "pharmacology",
     ],
@@ -140,7 +140,9 @@ export const SUBJECT_PROFILES: Record<SubjectProfileId, SubjectProfile> = {
       "This is accounting, business, or economics material. Prefer classification rules, journal-entry or calculation scenarios, and decision patterns exactly as the source presents them. Never invent an account, amount, or rule.",
     keywords: [
       "accounting", "business", "economics", "econ", "finance", "marketing", "management",
-      "entrepreneurship", "bookkeeping", "macroeconomics", "microeconomics",
+      "entrepreneurship", "bookkeeping", "macroeconomics", "microeconomics", "debit", "debits",
+      "credit", "credits", "journal entry", "journal entries", "ledger", "trial balance",
+      "assets", "liabilities", "equity",
     ],
   },
   computing: {

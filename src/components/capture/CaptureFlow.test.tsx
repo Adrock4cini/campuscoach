@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClassInfo } from "@/data/demo";
@@ -154,6 +154,14 @@ describe("CaptureFlow class boundaries", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("hands the PDF/PowerPoint menu entry to document import with its class context", () => {
+    mocks.classes = [math, science]; mocks.loading = false;
+    const documentImport = vi.fn();
+    render(<MemoryRouter><CaptureFlow open initialClassId="science" onClose={vi.fn()} onUploadDocument={documentImport} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Upload File Add PDFs or PowerPoint slides/ }));
+    expect(documentImport).toHaveBeenCalledWith(expect.objectContaining({ classId: "science" }));
   });
 
   it("uses the class the capture was opened from, even when a draft names another class", () => {
@@ -667,6 +675,23 @@ describe("CaptureFlow class boundaries", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=syllabus");
   });
 
+  it("offers a separate class schedule path", () => {
+    mocks.classes = [math, science];
+    mocks.loading = false;
+    const onClose = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <CaptureFlow open onClose={onClose} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Class Schedule/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("location")).toHaveTextContent("/classes?intent=schedule");
+  });
+
   it("keeps assignment photos, links, and one attempt id across a dropped-response retry", async () => {
     mocks.classes = [math, science];
     mocks.loading = false;
@@ -994,9 +1019,9 @@ describe("CaptureFlow class memory and next action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry processing" }));
 
     expect(await screen.findByText("Check the problem")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Problem Campus Companion read" })).toHaveValue(
       "What is 14% of 50?",
-    );
+    ));
     expect(retry).toHaveBeenCalledWith("durable-capture-row-id", ["material-1"]);
   });
 

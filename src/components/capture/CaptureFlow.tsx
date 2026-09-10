@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   Mic, Camera, BookOpen, FileUp, StickyNote, MessageSquare, Brain,
-  X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2,
-  ClipboardList, Images, FileText,
+  X, ArrowLeft, ArrowRight, Check, Sparkles, Loader2, AlertTriangle,
+  ClipboardList, Images, FileText, CalendarDays,
 } from "lucide-react";
 import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
@@ -66,6 +66,7 @@ interface Props {
   initialExamId?: string;
   initialTopic?: string;
   onClose: () => void;
+  onUploadDocument?: (context: { classId?: string; examId?: string; assignmentId?: string; topic?: string }) => void;
 }
 
 
@@ -78,7 +79,7 @@ const MENU: {
   requiresText?: boolean;
   requiresImages?: boolean;
   availableForRealUsers?: boolean;
-  action?: "syllabus";
+  action?: "syllabus" | "schedule";
 }[] = [
   { kind: "record-lecture", icon: Mic,           hint: "Audio transcription is coming soon" },
   { kind: "scan-board",     icon: Camera,        hint: "Whiteboard scanning is coming soon" },
@@ -86,7 +87,8 @@ const MENU: {
   { kind: "scan-assignment", icon: ClipboardList, hint: "Save concepts; guided help for percent problems", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-material",   icon: Images,        hint: "Save pages and find the key concepts", requiresImages: true, availableForRealUsers: true },
   { kind: "scan-syllabus",   icon: FileText,      hint: "Choose one class and review its dates", availableForRealUsers: true, action: "syllabus" },
-  { kind: "upload-file",    icon: FileUp,        hint: "File processing is coming soon" },
+  { kind: "scan-schedule",   icon: CalendarDays,  hint: "Add a separate professor class schedule", availableForRealUsers: true, action: "schedule" },
+  { kind: "upload-file",    icon: FileUp,        hint: "Add PDFs or PowerPoint slides to study", availableForRealUsers: true },
   { kind: "quick-note",     icon: StickyNote,    hint: "Save a typed note", requiresText: true, availableForRealUsers: true },
   { kind: "professor-hint", icon: MessageSquare, hint: "Save what the teacher or instructor emphasized", requiresText: true, availableForRealUsers: true },
   { kind: "ask-brain",      icon: Brain,         hint: "Campus Brain chat is coming soon", requiresText: true },
@@ -114,6 +116,7 @@ export function CaptureFlow({
   initialExamId,
   initialTopic,
   onClose,
+  onUploadDocument,
 }: Props) {
 
   const navigate = useNavigate();
@@ -429,10 +432,14 @@ export function CaptureFlow({
   }, [onClose, open, stage]);
 
   const chooseKind = (k: CaptureKind) => {
+    if (k === "upload-file" && realMode && onUploadDocument) {
+      onUploadDocument({ classId: ctx.classId || undefined, examId: ctx.examId, assignmentId: ctx.assignmentId, topic: ctx.topic });
+      return;
+    }
     const selected = MENU.find((item) => item.kind === k);
-    if (selected?.action === "syllabus") {
+    if (selected?.action === "syllabus" || selected?.action === "schedule") {
       onClose();
-      navigate("/classes?intent=syllabus");
+      navigate(`/classes?intent=${selected.action}`);
       return;
     }
     // Coming back to the same capture keeps the draft (photos, note, class).
@@ -613,7 +620,7 @@ export function CaptureFlow({
                           Capture now
                         </p>
                         <div className="grid grid-cols-2 gap-2">
-                          {MENU.filter((item) => item.availableForRealUsers).map((m) => (
+                          {MENU.filter((item) => item.availableForRealUsers && (item.kind !== "upload-file" || onUploadDocument)).map((m) => (
                             <button
                               key={m.kind}
                               onClick={() => chooseKind(m.kind)}
@@ -1075,6 +1082,35 @@ export function CaptureFlow({
                             ...current,
                             processingStatus: processing.processingStatus,
                             processingMessage: undefined,
+                            classMismatch: "classMismatch" in processing
+                              ? processing.classMismatch
+                              : undefined,
+                            ...(processing.practiceSource
+                              ? { practiceSource: processing.practiceSource }
+                              : {}),
+                          } : current);
+                        }
+                      : undefined
+                  }
+                  onConfirmClassMismatch={
+                    realMode
+                    && result.classMismatch
+                    && result.captureId
+                    && result.materialIds?.length
+                      ? async () => {
+                          const { retryCaptureImagesWithResult } = await import(
+                            "@/lib/supabase/capturePersistence"
+                          );
+                          const processing = await retryCaptureImagesWithResult(
+                            result.captureId!,
+                            result.materialIds!,
+                            { keepInSelectedClass: true },
+                          );
+                          setResult((current) => current ? {
+                            ...current,
+                            processingStatus: processing.processingStatus,
+                            processingMessage: undefined,
+                            classMismatch: processing.classMismatch,
                             ...(processing.practiceSource
                               ? { practiceSource: processing.practiceSource }
                               : {}),
@@ -1276,7 +1312,8 @@ function ProcessingTimeline({
 }
 
 export function CaptureDoneSummary({
-  result, sample, onClose, onOpenClass, onPractice, onRetryProcessing, className,
+  result, sample, onClose, onOpenClass, onPractice, onRetryProcessing,
+  onConfirmClassMismatch, className,
 }: {
   result: CaptureResult;
   sample: boolean;
@@ -1284,6 +1321,8 @@ export function CaptureDoneSummary({
   onOpenClass: () => void;
   /** Retry AI processing in place — no trip through the class page. */
   onRetryProcessing?: () => Promise<void>;
+  /** Student explicitly keeps confidently mismatched material in this class. */
+  onConfirmClassMismatch?: () => Promise<void>;
   /** One compact next action. Omitted when there is nothing safe to study yet. */
   onPractice?: () => void;
   className?: string;
@@ -1299,6 +1338,7 @@ export function CaptureDoneSummary({
     setPracticeSource(assignmentPracticeSourceFromUnknown(result.practiceSource, result.kind));
   }, [result.id, result.kind, result.practiceSource]);
   const processingFailed = result.processingStatus === "failed";
+  const classMismatch = result.classMismatch;
   const stillProcessing = !sample && result.processingStatus === "processing";
   const assignmentReadyForReview = Boolean(
     !sample
@@ -1322,15 +1362,23 @@ export function CaptureDoneSummary({
         <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
           processingFailed ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
         }`}>
-          <Check className="h-5 w-5" />
+          {classMismatch
+            ? <AlertTriangle className="h-5 w-5" />
+            : <Check className="h-5 w-5" />}
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">
-            {sample ? `Saved in this demo for ${cls.name}` : `Saved to ${cls.name}`}
+            {classMismatch
+              ? `Looks like ${classMismatch.detectedSubject}`
+              : sample
+                ? `Saved in this demo for ${cls.name}`
+                : `Saved to ${cls.name}`}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {sample
               ? "Stored on this device for the demo only. It wasn’t uploaded or shared."
+              : classMismatch
+              ? `You chose ${classMismatch.selectedClassName}. Nothing was added to its study set.`
               : processingFailed
               ? result.processingMessage ?? "Your note is safe, but Campus Brain needs another try."
               : result.summary}
@@ -1341,9 +1389,35 @@ export function CaptureDoneSummary({
       {processingFailed && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Study tools stay off until the concepts are ready.
+            {classMismatch
+              ? "Is this photo really for this class?"
+              : "Study tools stay off until the concepts are ready."}
           </p>
-          {onRetryProcessing && (
+          {classMismatch && onConfirmClassMismatch && (
+            <button
+              type="button"
+              disabled={retrying}
+              onClick={async () => {
+                setRetrying(true);
+                setRetryError(null);
+                try {
+                  await onConfirmClassMismatch();
+                } catch (error) {
+                  setRetryError(
+                    error instanceof Error
+                      ? error.message
+                      : "That didn't work. Nothing was added to the study set.",
+                  );
+                } finally {
+                  setRetrying(false);
+                }
+              }}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-warning/40 px-4 text-sm font-medium text-foreground hover:bg-warning/10 disabled:opacity-50"
+            >
+              {retrying ? "Checking again…" : `Keep it in ${classMismatch.selectedClassName}`}
+            </button>
+          )}
+          {!classMismatch && onRetryProcessing && (
             <button
               type="button"
               disabled={retrying}

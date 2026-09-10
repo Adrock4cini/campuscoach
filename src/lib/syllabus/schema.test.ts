@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createSyllabusReviewDraft,
+  mergePlanningReviewDrafts,
   normalizeWeekdays,
   parseParsedSyllabus,
   validateSyllabusReviewDraft,
@@ -79,5 +80,36 @@ describe("class-owned syllabus schema", () => {
 
   it("normalizes common compound day labels", () => {
     expect(normalizeWeekdays(["Wed/Mon", "Friday"])).toEqual(["Mon", "Wed", "Fri"]);
+  });
+
+  it("updates a schedule without deleting saved syllabus rows", () => {
+    const syllabus = createSyllabusReviewDraft(parsed(), 0, undefined, "syllabus");
+    const scheduleSource: ParsedSyllabus = {
+      classes: [{
+        name: "Biology 101",
+        assignments: [{ label: "Field notes", dueDate: "2026-09-18" }],
+        schedule: [{ date: "2026-09-14", topic: "Ecology" }],
+      }],
+    };
+    const schedule = createSyllabusReviewDraft(scheduleSource, 0, undefined, "schedule");
+    const merged = mergePlanningReviewDrafts(syllabus, schedule);
+
+    expect(merged.assignments.map((item) => item.title)).toEqual(["Lab report", "Field notes"]);
+    expect(merged.schedule.map((item) => item.topic)).toEqual(["Cell structure", "Ecology"]);
+    expect(merged.assignments.map((item) => item.sourceKind)).toEqual(["syllabus", "schedule"]);
+  });
+
+  it("replaces only the earlier rows from the same document kind", () => {
+    const syllabus = createSyllabusReviewDraft(parsed(), 0, undefined, "syllabus");
+    const firstSchedule = createSyllabusReviewDraft({
+      classes: [{ name: "Biology 101", schedule: [{ date: "2026-09-14", topic: "Old schedule topic" }] }],
+    }, 0, undefined, "schedule");
+    const combined = mergePlanningReviewDrafts(syllabus, firstSchedule);
+    const replacement = createSyllabusReviewDraft({
+      classes: [{ name: "Biology 101", schedule: [{ date: "2026-09-21", topic: "New schedule topic" }] }],
+    }, 0, undefined, "schedule");
+    const merged = mergePlanningReviewDrafts(combined, replacement);
+
+    expect(merged.schedule.map((item) => item.topic)).toEqual(["Cell structure", "New schedule topic"]);
   });
 });

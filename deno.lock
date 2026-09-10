@@ -59,6 +59,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@aiden0z/pptx-renderer@1.2.4",
         "npm:@eslint/js@10.0.1",
         "npm:@hookform/resolvers@^3.10.0",
         "npm:@lovable.dev/cloud-auth-js@^1.1.2",
@@ -111,11 +112,13 @@
         "npm:eslint@10.9.1",
         "npm:framer-motion@^12.38.0",
         "npm:globals@17.11.0",
+        "npm:html-to-image@1.11.13",
         "npm:input-otp@^1.4.2",
         "npm:jsdom@^20.0.3",
         "npm:lovable-tagger@1.3.3",
         "npm:lucide-react@0.462",
         "npm:next-themes@0.3",
+        "npm:pdfjs-dist@6.3.289",
         "npm:postcss@^8.5.26",
         "npm:react-day-picker@^8.10.1",
         "npm:react-dom@^18.3.1",

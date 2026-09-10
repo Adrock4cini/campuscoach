@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RealStudyRunner } from "./RealStudyRunner";
 import type { LearningArtifact } from "@/lib/learningArtifacts/types";
@@ -351,6 +351,84 @@ describe("real flashcard runner", () => {
         { conceptId: "concept-2", correct: true, recovered: false },
       ],
     });
+    const review = within(screen.getByRole("region", { name: "Review missed questions" }));
+    expect(review.getByText("1 question to revisit")).toBeInTheDocument();
+    expect(review.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
+    expect(review.getByText("2 + 2 equals 4.")).toBeInTheDocument();
+    expect(review.queryByText("What does 3 + 3 equal?")).not.toBeInTheDocument();
+    expect(review.getByText(/cards you marked for review/i)).toBeInTheDocument();
+  });
+
+  it("reviews the original multiple-choice miss after recovery without recording more evidence", async () => {
+    invoke.mockClear();
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={multipleChoiceArtifact} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^3$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+    fireEvent.click(screen.getByRole("button", { name: /check answer/i }));
+    expect(screen.getByTestId("study-feedback")).toHaveTextContent(multipleChoiceArtifact.payload.questions[0].rationale);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    rateMcCorrectAndFinish();
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(screen.getByLabelText("Saved practice results")).toHaveFocus();
+    expect(screen.getByText(/0 of 1 correct on the first try/i)).toBeInTheDocument();
+    const review = within(screen.getByRole("region", { name: "Review missed questions" }));
+    expect(review.getAllByRole("listitem")).toHaveLength(1);
+    expect(review.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
+    expect(review.getByText("4", { exact: true })).toBeInTheDocument();
+    expect(review.getByText(multipleChoiceArtifact.payload.questions[0].rationale)).toBeInTheDocument();
+    fireEvent.click(review.getByText("Check your source"));
+    expect(review.getByText("2+2 = 4")).toBeVisible();
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke.mock.calls[0][1].body).toMatchObject({
+      correct: 0,
+      total: 1,
+      perConcept: [{ conceptId: "concept-1", correct: false, recovered: true, firstSelectedIndex: 0 }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: /study again/i }));
+    expect(screen.queryByRole("region", { name: "Review missed questions" })).not.toBeInTheDocument();
+    expect(screen.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
+    expect(screen.queryByText(multipleChoiceArtifact.payload.questions[0].rationale)).not.toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists a repeated miss once and keeps review hidden until saving succeeds", async () => {
+    invoke.mockClear();
+    invoke.mockRejectedValueOnce(new Error("offline"));
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={multipleChoiceArtifact} />);
+
+    for (const nextLabel of ["Next", "Finish"]) {
+      fireEvent.click(screen.getByRole("button", { name: /^3$/ }));
+      fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
+      fireEvent.click(screen.getByRole("button", { name: /check answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: nextLabel }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/answers are still on this screen/i);
+    expect(screen.queryByRole("region", { name: "Review missed questions" })).not.toBeInTheDocument();
+    const originalRequest = invoke.mock.calls[0][1].body;
+    fireEvent.click(screen.getByRole("button", { name: /try saving again/i }));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Review missed questions" })).getAllByRole("listitem")).toHaveLength(1);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke.mock.calls[1][1].body).toEqual(originalRequest);
+    expect(originalRequest).toMatchObject({
+      correct: 0,
+      total: 1,
+      perConcept: [{ correct: false, recovered: false, firstSelectedIndex: 0 }],
+    });
+  });
+
+  it("shows an honest empty review after an all-correct round", async () => {
+    render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={multipleChoiceArtifact} />);
+    rateMcCorrectAndFinish();
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    const review = within(screen.getByRole("region", { name: "Review missed questions" }));
+    expect(review.getByText(/nothing to review from this round/i)).toBeInTheDocument();
+    expect(review.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 1 correct on the first try/i)).toBeInTheDocument();
   });
 
   it("reports readiness gained across the whole incremental run", async () => {
