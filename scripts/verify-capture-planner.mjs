@@ -2,6 +2,7 @@
 // Supabase is replaced at the module boundary; no account or remote DB is used.
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 
@@ -24,9 +25,20 @@ export const supabase = { from(table) {
   }; return q;
 } };
 `;
+const entryPath = "/src/__planner_browser_fixture__.tsx";
+const entryId = resolve(process.cwd(), entryPath.slice(1));
 const server = await createServer({
-  optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime"] },
-  plugins: [{ name: "isolated-planner-fixture", enforce: "pre", load(id) {
+  optimizeDeps: { entries: [], include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"] },
+  plugins: [{ name: "isolated-planner-fixture", enforce: "pre", resolveId(id) {
+    if (id === entryPath) return entryId;
+  }, load(id) {
+    if (id === entryId) return `
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import '@/index.css';
+      import { CapturePlannerReview } from '@/components/capture/CapturePlannerReview';
+      createRoot(document.getElementById('root')).render(React.createElement(CapturePlannerReview, { classId: 'psych', className: 'Psychology', captureIds: ['capture'] }));
+    `;
     if (id.endsWith("/src/integrations/supabase/client.ts")) return fixtureClient;
     if (id.endsWith("/src/hooks/useClassIntelligence.ts")) return "export const getAuthenticatedUserId = () => 'student';";
   } }],
@@ -38,10 +50,11 @@ await mkdir("test-results/capture-planner", { recursive: true });
 try {
   for (const browserType of [chromium, webkit]) {
     const browser = await browserType.launch();
+    let page;
     try {
-      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       const errors = []; const external = [];
-      page.on("pageerror", error => errors.push(error.message));
+      page.on("pageerror", error => { errors.push(error.message); console.error(`${browserType.name()}: ${error.message}`); });
       await page.route("**/*", route => {
         const url = route.request().url();
         if (url.startsWith(origin) || url.startsWith("data:") || url.startsWith(`blob:${origin}`)) return route.continue();
@@ -49,14 +62,9 @@ try {
         if (!url.includes("fonts.googleapis.com") && !url.includes("fonts.gstatic.com")) external.push(url);
         return route.abort();
       });
-      await page.route(`${origin}/planner-check`, route => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Planner review check</title></head><body><main id="root" style="padding:16px;max-width:600px;margin:auto"></main><script type="module">
-        import RefreshRuntime from '/@react-refresh'; RefreshRuntime.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => type => type; window.__vite_plugin_react_preamble_installed__ = true;
-        const React = await import('/node_modules/.vite/deps/react.js');
-        const { createRoot } = await import('/node_modules/.vite/deps/react-dom_client.js');
-        await import('/src/index.css');
-        const { CapturePlannerReview } = await import('/src/components/capture/CapturePlannerReview.tsx');
-        createRoot(document.getElementById('root')).render(React.createElement(CapturePlannerReview, { classId: 'psych', className: 'Psychology', captureIds: ['capture'] }));
-      </script></body></html>` }));
+      // Let Vite transform both the HTML and entry imports. Direct imports of
+      // its cache files can load a second React instance with a different URL.
+      await page.route(`${origin}/planner-check`, async route => route.fulfill({ contentType: "text/html", body: await server.transformIndexHtml("/planner-check", `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Planner review check</title></head><body><main id="root" style="padding:16px;max-width:600px;margin:auto"></main><script type="module" src="${entryPath}"></script></body></html>`) }));
       await page.goto(`${origin}/planner-check`);
       await page.getByRole("button", { name: "Review dates for planner" }).click();
       assert.equal(await page.getByRole("button", { name: "Add 0 checked dates" }).isDisabled(), true);
@@ -78,6 +86,12 @@ try {
       assert.equal(await page.getByRole("button", { name: "Review dates for planner" }).count(), 0);
       assert.deepEqual(errors, []); assert.deepEqual(external, []);
       console.log(`${browserType.name()}: phone-width review, explicit confirmation, correct persisted dates, refresh dedupe; no remote requests`);
+    } catch (failure) {
+      if (page) {
+        await page.screenshot({ path: `test-results/capture-planner/${browserType.name()}-failure.png`, fullPage: true });
+        console.error(await page.locator('body').innerText());
+      }
+      throw failure;
     } finally { await browser.close(); }
   }
 } finally { await server.close(); }
