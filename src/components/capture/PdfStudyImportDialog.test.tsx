@@ -9,6 +9,7 @@ vi.mock("@/lib/onboarding/useMyClasses", () => ({ useMyClasses: () => ({ classes
 vi.mock("@/lib/realData/hooks", () => ({ useRealExams: () => ({ items: [{ id: "exam", client_class_id: "drivers", title: "Permit retest", exam_date: "2099-01-01" }], loading: false, error: null }) }));
 vi.mock("@/hooks/useClassIntelligence", () => ({ getAuthenticatedUserId: () => mocks.owner }));
 vi.mock("@/lib/capture/processor", () => ({ commitCapture: mocks.commit }));
+vi.mock("./CapturePlannerReview", () => ({ CapturePlannerReview: ({ classId, captureIds }: { classId: string; captureIds: string[] }) => <div data-testid="planner-review">{classId}:{captureIds.join(",")}</div> }));
 vi.mock("@/lib/supabase/capturePersistence", () => ({ retryCaptureImagesWithResult: mocks.retry }));
 vi.mock("@/lib/capture/studyDocument", () => ({ openStudyDocument: async () => ({ sourceKind: mocks.slides ? "slides" : "pdf", fileName: mocks.slides ? "Lecture.pptx" : "Handbook.pdf", fileHash: mocks.hash, pages: 8, render: mocks.render, destroy: mocks.destroy }) }));
 const receipt = { captureId: "capture", materialIds: ["a", "b", "c", "d"], processingStatus: "ready" };
@@ -29,6 +30,7 @@ describe("PDF study import UI", () => {
     mount(); await choosePdf(); expect(mocks.commit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Add selected pages" }));
     await screen.findByText("8 of 8 selected pages processed · 0 skipped · 0 remaining");
+    expect(screen.getByTestId("planner-review")).toHaveTextContent("drivers:capture,capture");
     expect(mocks.commit).toHaveBeenCalledTimes(2);
     expect(mocks.commit).toHaveBeenNthCalledWith(1, "scan-material", expect.objectContaining({ classId: "drivers", topic: "Handbook.pdf · PDF pages 1–4" }), expect.objectContaining({ simulateDerivedContent: false, requireRemotePersistence: true, ownerId: "owner" }));
     fireEvent.click(screen.getByRole("button", { name: "Practice questions" }));
@@ -49,6 +51,7 @@ describe("PDF study import UI", () => {
     mocks.commit.mockResolvedValue({ ...receipt, processingStatus: "failed", classMismatch: { detectedSubject: "Accounting", detectedSubjectId: "business", selectedClassName: "Driver education" } });
     const view = mount(); await choosePdf(); fireEvent.click(screen.getByRole("button", { name: "Add selected pages" }));
     await screen.findByRole("heading", { name: "Looks like Accounting" });
+    expect(screen.queryByTestId("planner-review")).not.toBeInTheDocument();
     expect(mocks.commit).toHaveBeenCalledTimes(1);
     expect(mocks.retry).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Leave without keeping" }));
