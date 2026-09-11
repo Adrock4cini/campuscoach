@@ -49,6 +49,9 @@ try {
           await page.getByRole('button',{name:/check answer/i}).click();
         } else {
           await page.getByRole('button',{name:'Encoding',exact:true}).waitFor();
+          const term = await page.getByRole('button',{name:'Encoding',exact:true}).boundingBox();
+          const answer = await page.getByRole('button',{name:'getting info into memory',exact:true}).boundingBox();
+          assert.ok(answer.x > term.x + term.width, 'Matching uses two columns on phone');
         }
         assert.equal(await page.getByText(/Hale/).isVisible(), false);
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);

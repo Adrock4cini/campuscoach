@@ -250,7 +250,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
         role={messageKind === "incorrect" ? "alert" : "status"}
         aria-live={messageKind === "incorrect" ? "assertive" : "polite"}
         aria-atomic="true"
-        className={`rounded-xl border px-3 py-2 text-sm leading-relaxed ${
+        className={`${messageKind === "instruction" ? "sr-only" : "rounded-xl border px-3 py-2 text-sm leading-relaxed"} ${
           messageKind === "incorrect"
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : messageKind === "correct"
@@ -265,7 +265,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
       </div>
 
       {!allMatched && (
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-2 gap-3">
           <div className="min-w-0 space-y-2" aria-labelledby="match-terms-heading">
             <h3 id="match-terms-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               1. Choose a term
@@ -308,7 +308,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
             )}
             {!selectedPair && (
               <p className="rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                Select a term first. Answer choices will then become available.
+                Pick a term to unlock answers.
               </p>
             )}
             {remainingRights.map((choice) => (
