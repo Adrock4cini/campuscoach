@@ -95,7 +95,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
   const [firstAttemptByPair, setFirstAttemptByPair] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState("Choose a term, then choose its match.");
+  const [message, setMessage] = useState("Pick a term, then its match.");
   const [messageKind, setMessageKind] = useState<"instruction" | "correct" | "incorrect">("instruction");
   const [openSources, setOpenSources] = useState<Set<string>>(() => new Set());
   const completedRef = useRef(false);
@@ -206,7 +206,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
     }
 
     if (!isCorrect) {
-      setMessage(`Not a match: ${selectedPair.left} does not match ${choice.label}. Try another answer.`);
+      setMessage(`Not a match for ${selectedPair.left}. Try another answer.`);
       setMessageKind("incorrect");
       return;
     }
@@ -238,10 +238,14 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
           Match each term
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          Pick one term, then pick its match. A missed first try stays in your score, but retrying helps you learn it. The final one-choice match does not count as independent evidence.
+          Pick a term, then its match.
         </p>
       </div>
 
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer py-2">How scoring works</summary>
+        First tries set your score. Retries help you learn. The last one-choice match is not scored.
+      </details>
       <div
         role={messageKind === "incorrect" ? "alert" : "status"}
         aria-live={messageKind === "incorrect" ? "assertive" : "polite"}
