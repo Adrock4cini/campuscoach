@@ -55,8 +55,8 @@ export function assessMaterial(
 
   return {
     sufficient: false,
-    label: "Not enough class material yet",
-    detail: `Only ${captureCount} capture${captureCount === 1 ? "" : "s"} and ${conceptCount} concept${conceptCount === 1 ? "" : "s"} so far — add a bit more so test prep${forTest} is grounded in your real class.`,
-    ctaLabel: "Add study material",
+    label: "Class material added",
+    detail: `${captureCount} capture${captureCount === 1 ? "" : "s"} and ${conceptCount} concept${conceptCount === 1 ? "" : "s"} are ready. Add more when you have it to strengthen test prep${forTest}.`,
+    ctaLabel: "Add more material",
   };
 }

@@ -11,6 +11,7 @@ import { classes as demoClasses } from "@/data/demo";
 import { detectCurrentClass } from "@/lib/autoClass";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { CapturePlannerReview } from "./CapturePlannerReview";
 import { useMyClasses } from "@/lib/onboarding/useMyClasses";
 import {
   CAPTURE_LABELS,
@@ -1385,6 +1386,10 @@ export function CaptureDoneSummary({
           </p>
         </div>
       </div>
+
+      {!sample && !classMismatch && result.processingStatus === "ready" && result.captureId && result.kind !== "scan-assignment" && (
+        <CapturePlannerReview classId={result.context.classId} className={cls.name} captureIds={[result.captureId]} />
+      )}
 
       {processingFailed && (
         <div className="space-y-2">

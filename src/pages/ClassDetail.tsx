@@ -29,6 +29,7 @@ import { ClassUpNext } from "@/components/real/ClassUpNext";
 import { ClassReadinessCard } from "@/components/real/ClassReadinessCard";
 import { ClassesLoadError } from "@/components/real/ClassesLoadError";
 import { formatDateKey } from "@/lib/calendar/dateKey";
+import { CapturePlannerReview } from "@/components/capture/CapturePlannerReview";
 
 export default function ClassDetail() {
   const { classId } = useParams();
@@ -116,6 +117,8 @@ export default function ClassDetail() {
 
 
         <ClassUpNext classId={c.id} className={c.name} />
+
+        <CapturePlannerReview classId={c.id} className={c.name} />
 
         <RealClassAssignmentsExams classId={c.id} />
 

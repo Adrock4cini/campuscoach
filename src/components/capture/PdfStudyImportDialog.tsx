@@ -12,6 +12,7 @@ import { clearPdfCheckpoint, PDF_IMPORT_VERSION, pdfPageBatches, pdfPageLabel, p
 import { openStudyDocument } from "@/lib/capture/studyDocument";
 import type { OpenPdf } from "@/lib/capture/pdfRenderer";
 import type { CaptureOpenOptions } from "@/contexts/CaptureContext";
+import { CapturePlannerReview } from "./CapturePlannerReview";
 
 interface Props { ownerId: string; initial: CaptureOpenOptions; onClose: () => void }
 const fieldClass = "mt-1 w-full min-w-0 rounded-lg border border-border bg-background p-3 text-base text-foreground sm:text-sm";
@@ -197,6 +198,11 @@ export default function PdfStudyImportDialog({ ownerId, initial, onClose }: Prop
         {progress.ready > 0 && <p>Material added. Preparedness comes from saved practice answers.</p>}
       </div>}
       <p role="status" className="text-sm">{message}</p>
+      {!busy && job && progress && progress.ready > 0 && <CapturePlannerReview
+        classId={job.context.classId}
+        className={selectedClass?.name}
+        captureIds={job.batches.filter(batch => batch.state === "ready").flatMap(batch => batch.receipt?.captureId ? [batch.receipt.captureId] : [])}
+      />}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {mismatch && <section role="alert" className="space-y-2 rounded-lg border border-amber-500 p-3 text-sm">
         <h3 className="font-semibold">Looks like {mismatch.detectedSubject}</h3>
