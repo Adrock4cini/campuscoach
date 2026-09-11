@@ -33,6 +33,7 @@ describe("study clarity from shared lecture slides", () => {
   });
   it("never truncates an unsupported long answer or picks a neighbour's definition", () => {
     expect(shortStudyAnswer("Consolidation", slide, 12)).toBe("");
+    expect(shortStudyAnswer("Spacing effect", `${slide} · Spacing effect beats massed practice`, 12)).toBe("Spacing effect beats massed practice");
     expect(shortStudyAnswer("Encoding", "Encoding: " + "a very long answer ".repeat(20), 12)).toBe("");
     expect(shortStudyAnswer("Storage", "Storage: does not lose information over time", 12)).toBe("does not lose information over time");
   });

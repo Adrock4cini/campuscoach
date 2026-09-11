@@ -17,6 +17,10 @@ export function shortStudyAnswer(name: string, source: string, maxWords: number)
   for (const clause of clauses.filter((part) => namesConcept.test(part))) {
     const answer = clause.replace(label, "");
     if (safe(answer, label.test(clause))) return answer;
+    // Slides often omit sentence punctuation: retain an explicit relationship,
+    // such as "Spacing effect beats massed practice", without inventing a definition.
+    if (/\b(?:beats|improves|strengthens|stores|retrieves|encodes)\b/i.test(clause)
+      && safe(`${answer}.`)) return answer;
   }
   // An already isolated definition need not repeat its term. Never choose an
   // arbitrary short line out of a multi-topic slide.
