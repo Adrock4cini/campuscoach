@@ -116,7 +116,7 @@ describe("real flashcard runner", () => {
       />,
     );
 
-    expect(screen.getByText(/choose how sure you are before checking/i)).toBeInTheDocument();
+    expect(screen.getByText(/rate your confidence/i)).toBeInTheDocument();
     expect(screen.getByText("What does 2 + 2 equal?")).toBeInTheDocument();
     expect(screen.queryByText(/addition facts/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/source from your notes/i)).not.toBeInTheDocument();
@@ -130,7 +130,8 @@ describe("real flashcard runner", () => {
 
     expect(screen.getByText("2 + 2 equals 4.")).toBeInTheDocument();
     expect(screen.getByText(/addition facts/i)).toBeInTheDocument();
-    expect(screen.getByText(/source from your notes/i)).toHaveTextContent("2+2 = 4");
+    expect(screen.getByText("Show source").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Show source").closest("details")).toHaveTextContent("2+2 = 4");
     expect(screen.getByRole("button", { name: /i knew it/i })).toBeEnabled();
     expect(screen.getByTestId("study-feedback")).toHaveFocus();
   });
@@ -497,7 +498,7 @@ describe("real flashcard runner", () => {
     expect(screen.getByRole("button", { name: /3.*your answer/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /4.*correct answer/i })).toBeInTheDocument();
     expect(screen.getByTestId("study-feedback")).toHaveTextContent("Not quite. Correct answer: 4");
-    expect(screen.getByTestId("study-feedback")).toHaveTextContent("Check the source: “2+2 = 4”");
+    expect(screen.getByText("Show source").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByTestId("study-feedback")).toHaveFocus();
   });
 

@@ -1,6 +1,7 @@
+import { shortStudyAnswer } from "./short-study-answer.ts";
 import { boundGroundedText } from "./grounded-excerpt.ts";
 import { containsSourceFurniture, isNonExplanatoryFragment } from "./grounding-quality.ts";
-import { isTeachableAnswer, isTeachableConceptName } from "./teachable-content.ts";
+import { isTeachableConceptName } from "./teachable-content.ts";
 import { buildSolvableProblemChoices, extractSolvableProblem } from "./problem-source.ts";
 import { conceptCanonicalKey } from "./concept-identity.ts";
 import { buildExactThinMultipleChoice, extractExactThinSource } from "./thin-source.ts";
@@ -152,19 +153,15 @@ export function buildDeterministicFlashcards(
       ?? boundGroundedText(`Explain ${concept.name} in your own words.`, 240);
     const back = exact?.answer
       ?? (problem ? boundGroundedText(`${problem.answer} — ${problem.rationale}`, 800) : null)
-      ?? boundGroundedText(
-        source
-          || concept.definition?.trim()
-          || concept.examples?.find((example) => example.trim())
-          || "",
-        800,
+      ?? shortStudyAnswer(concept.name,
+        source || concept.definition?.trim() || concept.examples?.find((example) => example.trim()) || "",
+        40,
       );
     const promptKey = duplicateKey(front);
     // A heading, running head, "© Publisher 159" page fragment, schedule line,
     // or the student's own misconception is not an answer. Skipping keeps the
     // set honest instead of teaching furniture.
-    const teachable = Boolean(exact || problem) || isTeachableAnswer(back);
-    if (!back || !teachable || seenPrompts.has(promptKey)) continue;
+    if (!back || seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
     cards.push({
       front,
@@ -191,14 +188,12 @@ export function buildDeterministicMultipleChoice(
   const seenPrompts = new Set<string>();
   const exactTargets = teachableConcepts(concepts).map((concept) => ({
     concept,
-    target: boundGroundedText(
-      sourceExcerptByConcept.get(concept.id)?.trim()
-        || concept.definition?.trim()
-        || concept.examples?.find((example) => example.trim())
-        || "",
-      220,
-    ),
-  })).filter((entry) => entry.target && isTeachableAnswer(entry.target));
+    target: shortStudyAnswer(concept.name,
+      sourceExcerptByConcept.get(concept.id)?.trim() || concept.definition?.trim()
+        || concept.examples?.find((example) => example.trim()) || "", 14),
+  })).filter((entry) => entry.target
+    || buildExactThinMultipleChoice(sourceExcerptByConcept.get(entry.concept.id) || "")
+    || buildSolvableProblemChoices(sourceExcerptByConcept.get(entry.concept.id) || ""));
   const safeDecoys = [
     "Not stated in the provided class material",
     "There is not enough information in the source",
@@ -235,12 +230,9 @@ export function buildDeterministicMultipleChoice(
     const promptKey = duplicateKey(prompt);
     if (seenPrompts.has(promptKey)) continue;
     seenPrompts.add(promptKey);
-    const safeDecoyKeys = new Set(safeDecoys.map((decoy) => duplicateKey(decoy)));
     const distractors = [...exactTargets.map((candidate) => candidate.target), ...safeDecoys]
       .filter((candidate, candidateIndex, all) => (
-        duplicateKey(candidate) !== duplicateKey(target)
-        // Fixed meta-decoys are authored here, never raw source fragments.
-        && (safeDecoyKeys.has(duplicateKey(candidate)) || isTeachableAnswer(candidate))
+        Boolean(candidate) && duplicateKey(candidate) !== duplicateKey(target)
         && all.findIndex((value) => duplicateKey(value) === duplicateKey(candidate)) === candidateIndex
       ))
       .slice(0, 3);
@@ -252,7 +244,7 @@ export function buildDeterministicMultipleChoice(
       prompt,
       choices,
       answerIndex,
-      rationale: boundGroundedText(`Your class material states: ${source || target}`, 500),
+      rationale: boundGroundedText(`Your class material states: ${target}`, 500),
       conceptId: concept.id,
       conceptName: concept.name,
       ...(source ? { sourceExcerpt: source } : {}),
@@ -281,18 +273,11 @@ export function buildDeterministicMatchingPairs(
     const left = boundGroundedText(concept.name, 160);
     const leftKey = duplicateKey(left);
     if (!left || seenLeft.has(leftKey)) continue;
-    const right = [
-      sourceExcerptByConcept.get(concept.id),
-      concept.definition,
-      ...(concept.examples ?? []),
-    ]
-      .filter((candidate): candidate is string => typeof candidate === "string" && Boolean(candidate.trim()))
-      .map((candidate) => boundGroundedText(candidate, 500))
-      .find((candidate) => {
-        const key = duplicateKey(candidate);
-        const vague = /^(?:please\s+)?(?:review|study|learn|remember|help|explain)\b/i.test(candidate);
-        return !vague && isTeachableAnswer(candidate) && key !== leftKey && !seenRight.has(key);
-      });
+    if (left.split(/\s+/).length > 6) continue;
+    const right = shortStudyAnswer(concept.name,
+      sourceExcerptByConcept.get(concept.id)?.trim() || concept.definition?.trim()
+        || concept.examples?.find((example) => example.trim()) || "", 12);
+    if (duplicateKey(right) === leftKey || seenRight.has(duplicateKey(right))) continue;
     if (!right) continue;
     seenLeft.add(leftKey);
     seenRight.add(duplicateKey(right));

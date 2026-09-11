@@ -1,3 +1,4 @@
+import { needsConciseStudyRebuild } from "@/lib/study/studyClarity";
 /**
  * RealStudySet — authenticated-only StudyLab section that reads the
  * freshest non-stale flashcards artifact for a class and lets the
@@ -220,7 +221,8 @@ export function RealStudySet({
 
   const needsRefresh = Boolean(
     artifact &&
-    artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
+    (artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION
+      || needsConciseStudyRebuild(kind, artifact.payload)),
   );
 
   const generationKey = JSON.stringify({

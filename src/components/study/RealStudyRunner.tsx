@@ -35,7 +35,7 @@ import type {
   StudyScope,
 } from "@/lib/learningArtifacts/types";
 import type { ConfidenceLevel } from "@/lib/mastery/updateMastery";
-import { cleanStudyText, isLongStudyText, retrievalPrompt } from "@/lib/study/studyText";
+import { cleanStudyText, retrievalPrompt } from "@/lib/study/studyText";
 import {
   clearStudyRunnerState,
   readStudyRunnerState,
@@ -575,8 +575,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
           </DialogTitle>
           {!done && (
             <DialogDescription className="text-xs leading-relaxed">
-              {artifact.study_scope_label ? `Reviewing: ${studentScopeLabel(artifact.study_scope_label)}. ` : ""}
-              Choose how sure you are before checking. Missed items return once so you can correct them.
+              Recall, rate your confidence, then check.
             </DialogDescription>
           )}
           {done && <DialogDescription>Your first attempts were saved to concept memory.</DialogDescription>}
@@ -627,9 +626,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         <p className="text-[11px] text-primary mb-3">Concept: {card.conceptName}</p>
                       )}
                       <p
-                        className={`break-words text-base text-foreground leading-relaxed sm:text-lg${
-                          revealed && isLongStudyText(card.back) ? " max-h-56 overflow-y-auto pr-1" : ""
-                        }`}
+                        className="break-words text-xl text-foreground leading-relaxed sm:text-2xl"
                       >
                         {revealed ? cleanStudyText(card.back) : retrievalPrompt(card.front, card.conceptName)}
                       </p>
@@ -638,12 +635,13 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                           Answer in your head or out loud — nothing to type.
                         </p>
                       )}
-                      {revealed && card.sourceExcerpt && (
-                        <p className="mt-4 break-words border-t border-border/40 pt-3 text-xs leading-relaxed text-muted-foreground">
-                          Source from your notes: “{card.sourceExcerpt}”
-                        </p>
-                      )}
                     </div>
+                    {revealed && card.sourceExcerpt && (
+                      <details key={`source-${itemIndex}`} className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer py-3">Show source</summary>
+                        <p className="break-words leading-relaxed">{card.sourceExcerpt}</p>
+                      </details>
+                    )}
                     {revealed && card.conceptId && card.conceptName && card.sourceExcerpt
                       && (artifact.client_class_id || artifact.class_id) && (
                       <MemoryTrickPanel
@@ -772,9 +770,10 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                           )}
                           <p className="break-words text-xs leading-relaxed text-muted-foreground">{cleanStudyText(question.rationale)}</p>
                           {question.sourceExcerpt && (
-                            <p className="border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground">
-                              Check the source: “{question.sourceExcerpt}”
-                            </p>
+                            <details key={`source-${itemIndex}`} className="text-xs text-muted-foreground">
+                              <summary className="cursor-pointer py-3">Show source</summary>
+                              <p className="break-words leading-relaxed">{question.sourceExcerpt}</p>
+                            </details>
                           )}
                         </div>
                         {question.conceptId && question.conceptName && question.sourceExcerpt
@@ -983,12 +982,6 @@ function conceptIdForItem(
   if (itemCount === artifactConceptIds.length) return artifactConceptIds[itemIndex];
   if (artifactConceptIds.length === 1) return artifactConceptIds[0];
   return undefined;
-}
-
-function studentScopeLabel(label: string) {
-  if (label.toLowerCase() === "recent material") return "what you just learned";
-  if (label.toLowerCase() === "mixed class review") return "everything in this class";
-  return label;
 }
 
 function studyScopeForArtifact(artifact: LearningArtifact): StudyScope {
