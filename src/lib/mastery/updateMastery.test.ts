@@ -6,7 +6,11 @@
  * know" promise breaks.
  */
 import { describe, expect, it } from "vitest";
-import { applyMasteryUpdate, computeReadiness } from "./updateMastery";
+import {
+  applyMasteryUpdate,
+  clampNextReviewToExam,
+  computeReadiness,
+} from "./updateMastery";
 
 describe("mastery feedback loop", () => {
   it("strengthens memory on correct answers, resets streak on miss", () => {
@@ -49,6 +53,40 @@ describe("mastery feedback loop", () => {
     expect(new Date(confidentMiss.next_review_at!).getTime()).toBeLessThan(
       new Date(uncertainMiss.next_review_at!).getTime(),
     );
+  });
+
+  it("pulls next review before an upcoming exam instead of after it", () => {
+    const now = new Date("2026-08-04T12:00:00Z");
+    // Without exam: correct answer → ~24h later
+    const open = applyMasteryUpdate({
+      prev: null,
+      correct: true,
+      confidence: "high",
+      now,
+    });
+    expect(new Date(open.next_review_at!).getTime()).toBeGreaterThan(
+      now.getTime() + 20 * 3600 * 1000,
+    );
+
+    // Exam in 18 hours → next review must land before exam (pre-exam buffer)
+    const withExam = applyMasteryUpdate({
+      prev: null,
+      correct: true,
+      confidence: "high",
+      examDate: "2026-08-05T06:00:00Z",
+      now,
+    });
+    const next = new Date(withExam.next_review_at!).getTime();
+    const exam = new Date("2026-08-05T06:00:00Z").getTime();
+    expect(next).toBeLessThan(exam);
+    expect(next).toBeLessThanOrEqual(exam - 12 * 3600 * 1000);
+  });
+
+  it("clampNextReviewToExam leaves past-exam schedules alone", () => {
+    const now = new Date("2026-08-10T12:00:00Z");
+    const proposed = new Date("2026-08-12T12:00:00Z");
+    const result = clampNextReviewToExam(proposed, now, "2026-08-01");
+    expect(result.getTime()).toBe(proposed.getTime());
   });
 
   it("readiness averages strengths to a 0-100 integer", () => {
