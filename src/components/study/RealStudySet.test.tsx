@@ -119,6 +119,8 @@ describe("real study set freshness", () => {
       exam_date: "2099-07-20",
       topics: ["Addition"],
     }];
+    mocks.artifact = null;
+    mocks.captureProcessing = false;
     mocks.generate.mockReset().mockResolvedValue(null);
     mocks.reload.mockClear();
     mocks.invoke.mockReset().mockResolvedValue({
@@ -396,12 +398,77 @@ describe("real study set freshness", () => {
     mocks.artifact = null;
     render(<RealStudySet classId="math" />);
 
-    const build = screen.getByRole("button", { name: /build study set/i });
+    const build = screen.getByRole("button", { name: /build & start/i });
     fireEvent.click(build);
     fireEvent.click(build);
 
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false });
+  });
+
+  it("builds and opens practice with one tap, then leaves saved results closed after Done", async () => {
+    mocks.generate.mockImplementation(async () => {
+      mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+      return mocks.artifact;
+    });
+    render(<RealStudySet classId="math" />);
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(screen.queryByText(/add a note or teacher hint first/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /build & start/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("What is 2 + 2?")).toBeInTheDocument();
+    rateFlashcardKnewIt();
+    fireEvent.click(screen.getByRole("button", { name: /finish session/i }));
+    expect(await screen.findByText("Session saved")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes legacy material and opens only the new concise set", async () => {
+    mocks.artifact = artifact("old-version");
+    mocks.generate.mockImplementation(async () => {
+      mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+      return mocks.artifact;
+    });
+    render(<RealStudySet classId="math" />);
+    fireEvent.click(screen.getByRole("button", { name: /refresh from notes/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledWith({ regenerate: true });
+  });
+
+  it.each(["class", "target", "format", "class round trip"])(
+    "cancels a pending start when the student changes %s",
+    async (change) => {
+      let finish!: (value: LearningArtifact<"flashcards">) => void;
+      mocks.generate.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+      const view = render(<RealStudySet classId="math" />);
+      fireEvent.click(screen.getByRole("button", { name: /build & start/i }));
+      if (change === "class" || change === "class round trip") {
+        view.rerender(<RealStudySet classId="biology" />);
+        if (change === "class round trip") view.rerender(<RealStudySet classId="math" />);
+      } else if (change === "target") {
+        fireEvent.click(screen.getByRole("button", { name: "All" }));
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: /multiple choice/i }));
+      }
+      await act(async () => { finish(artifact(CURRENT_ARTIFACT_PROMPT_VERSION)); });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mocks.generate).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["failed", "empty", "outdated"])("does not open a %s generated set", async (result) => {
+    mocks.generate.mockImplementation(async () => {
+      if (result === "failed") return null;
+      mocks.artifact = artifact(result === "outdated" ? "old-version" : CURRENT_ARTIFACT_PROMPT_VERSION);
+      if (result === "empty") mocks.artifact.payload.cards = [];
+      return mocks.artifact;
+    });
+    render(<RealStudySet classId="math" />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /build & start/i })); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
 
   it("does not let an old A generation cancel a newer C scope while repairing A → B → A", async () => {
