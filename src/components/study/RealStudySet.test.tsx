@@ -450,8 +450,14 @@ describe("real study set freshness", () => {
       } else if (change === "target") {
         fireEvent.click(screen.getByRole("button", { name: "All" }));
       } else {
-        fireEvent.click(screen.getByRole("button", { name: /multiple choice/i }));
+        fireEvent.click(screen.getByRole("button", { name: /match lab/i }));
       }
+      // A valid set is already available in the current view. The old
+      // request must not open it just because it is studyable now.
+      mocks.artifact = change === "format" ? matchingArtifact() : artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+      if (change === "class") mocks.artifact.client_class_id = "biology";
+      view.rerender(<RealStudySet classId={change === "class" ? "biology" : "math"} />);
+      expect(screen.getByRole("button", { name: /start study session/i })).toBeInTheDocument();
       await act(async () => { finish(artifact(CURRENT_ARTIFACT_PROMPT_VERSION)); });
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(mocks.generate).toHaveBeenCalledTimes(1);
