@@ -374,7 +374,7 @@ describe("real study set freshness", () => {
     render(<RealStudySet classId="math" initialCaptureId="capture-1" autoStart />);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /rebuild from notes/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /refresh from notes/i })).toBeInTheDocument();
   });
 
   it("switches a processing capture to class scope without generating", () => {

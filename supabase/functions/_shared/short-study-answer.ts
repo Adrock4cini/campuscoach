@@ -1,4 +1,10 @@
 import { isTeachableAnswer, isStudentConfusionLine, isCaptureMetadataLine } from "./teachable-content.ts";
+import { isStudyAnswerDump } from "./study-content.ts";
+
+export function studySourceClauses(source: string): string[] {
+  return source.split(/\r?\n|[•·▪]|(?<=[.!?])\s+(?=[A-Z])/)
+    .map((part) => part.trim()).filter(Boolean);
+}
 
 /** Extract complete source clauses, never truncate an answer mid-thought. */
 export function shortStudyAnswer(name: string, source: string, maxWords: number): string {
@@ -6,9 +12,9 @@ export function shortStudyAnswer(name: string, source: string, maxWords: number)
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const namesConcept = new RegExp(`\\b${escaped}\\b`, "i");
   const label = new RegExp(`^${escaped}\\s*[:–—]\\s*`, "i");
-  const clauses = text.split(/\r?\n|[•·▪]|(?<=[.!?])\s+(?=[A-Z])/)
-    .map((part) => part.trim()).filter(Boolean);
+  const clauses = studySourceClauses(text);
   const safe = (part: string, labeled = false) => part.split(/\s+/).length <= maxWords
+    && !isStudyAnswerDump(part)
     && !/\b(?:due|quiz|exam|assignment|syllabus|copyright)\b/i.test(part)
     && !isStudentConfusionLine(part) && !isCaptureMetadataLine(part)
     && !/^(?:please\s+)?(?:review|study|learn|remember|help|explain)\b/i.test(part)

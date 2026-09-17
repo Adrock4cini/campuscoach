@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.1
 import { corsHeaders } from "npm:@supabase/supabase-js@2.110.1/cors";
 import type { Database, Json } from "../../../src/integrations/supabase/types.ts";
 import { CURRENT_ARTIFACT_PROMPT_VERSION } from "../_shared/artifact-version.ts";
+import { STUDY_CONTENT_VERSION, isConciseStudyKind, needsConciseStudyRebuild } from "../_shared/study-content.ts";
 import { buildAlternateTeaching } from "../_shared/alternate-teaching.ts";
 import { buildAssignmentTutorPractice } from "../_shared/assignment-tutor.ts";
 import {
@@ -747,6 +748,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
       requireCompletePracticeSource: body.kind === "practice",
       confirmedAssignmentBoundary: assignmentPracticeBoundary,
       explicitCaptureId: body.captureId,
+      preferStudyClauses: isConciseStudyKind(body.kind),
       allowAssignmentReview: !body.captureId
         && ["flashcards", "multiple_choice", "matching"].includes(body.kind),
     },
@@ -972,7 +974,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     payload = validated.payload;
   } else if (body.kind === "flashcards") {
     const cards = buildDeterministicFlashcards(typedConcepts, sourceByConcept, count);
-    if (!cards.length) return json({ error: "No usable concept content was available for flashcards" }, 422);
+    if (!cards.length) return json({ error: "This material doesn’t contain a clear answer yet. Add a definition, explanation, or worked example for this study target.", reason: "study_content_needed" }, 422);
     modelUsed = "deterministic-grounded";
     const validated = validateArtifactPayload("flashcards", { cards }, {
       ...validationOptions,
@@ -1147,6 +1149,9 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
 
   // 3. Persist the replacement before retiring the prior set. A failed
   // insert must never make the student's last working artifact disappear.
+  if (needsConciseStudyRebuild(body.kind, payload)) {
+    return json({ error: "We couldn’t build clear practice from this material. Add a short definition or worked example.", reason: "study_content_needed" }, 422);
+  }
   const insertRow: Database["public"]["Tables"]["learning_artifacts"]["Insert"] = {
     user_id: userId,
     // `class_id` is the database UUID. `client_class_id` is the stable key
@@ -1165,6 +1170,7 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     study_scope_label: resolvedScope.label,
     study_scope_snapshot: {
       ...resolvedScope,
+      ...(isConciseStudyKind(body.kind) ? { studyContentVersion: STUDY_CONTENT_VERSION } : {}),
       ...(body.assignmentId ? { assignmentId: body.assignmentId, intent: "assignment-help" } : {}),
       ...(assignmentPracticeBoundary
         ? {
@@ -1406,7 +1412,9 @@ Deno.serve((req) => withPrivateJsonErrors(req, corsHeaders, async (requestId) =>
     }
   }
 
-  return json({ ok: true, artifact: inserted });
+  return json({ ok: true, artifact: inserted,
+    ...(isConciseStudyKind(body.kind) ? { studyContentVersion: STUDY_CONTENT_VERSION } : {}),
+  });
 }));
 
 async function resolveStudyScope(
@@ -1653,6 +1661,7 @@ async function loadSourceExcerpts(
     confirmedAssignmentBoundary?: AssignmentPracticeBoundary | null;
     explicitCaptureId?: string | null;
     allowAssignmentReview?: boolean;
+    preferStudyClauses?: boolean;
   } = {},
 ): Promise<LoadedSourceExcerpts | Response> {
   const confirmedBoundary = options.confirmedAssignmentBoundary;
@@ -1758,6 +1767,7 @@ async function loadSourceExcerpts(
 
   const sourceByConcept = buildCapturePolicyGroundedExcerptMap(concepts, captureSources, {
     captureIdsByConcept,
+    preferStudyClauses: options.preferStudyClauses,
   });
 
   // One assignment-only weakness may reappear in a normal set. Its exact

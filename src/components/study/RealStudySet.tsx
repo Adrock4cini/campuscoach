@@ -175,7 +175,7 @@ export function RealStudySet({
     conceptIds: isCoachTarget ? initialConceptIds : undefined,
     captureId: isCaptureTarget ? initialCaptureId : undefined,
   }), [classId, initialCaptureId, initialConceptIds, isCaptureTarget, isCoachTarget, studyScope]);
-  const { artifact, loading, generating, error, captureProcessing, generate, reload } =
+  const { artifact, loading, generating, error, captureProcessing, generationBlocked, generate, reload } =
     useLearningArtifact(kind, scope);
   const [retryingCapture, setRetryingCapture] = useState(false);
   const startGenerationRef = useRef<((regenerate: boolean) => Promise<unknown>) | null>(null);
@@ -426,7 +426,7 @@ export function RealStudySet({
 
         {loading ? (
           <p role="status" aria-live="polite" className="text-sm text-muted-foreground">Loading study set…</p>
-        ) : needsRefresh ? (
+        ) : generationBlocked ? null : needsRefresh ? (
           <div>
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
           </div>
@@ -581,7 +581,7 @@ export function RealStudySet({
               }
             }}
             className={canStudy ? "h-11 w-full rounded-xl" : "h-12 w-full rounded-2xl text-base font-semibold shadow-elegant"}
-            disabled={generating}
+            disabled={generating || generationBlocked}
             aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
             {generating ? (
