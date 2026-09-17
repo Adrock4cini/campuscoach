@@ -95,7 +95,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
   const [firstAttemptByPair, setFirstAttemptByPair] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState("Choose a term, then choose its match.");
+  const [message, setMessage] = useState("Pick a term, then its match.");
   const [messageKind, setMessageKind] = useState<"instruction" | "correct" | "incorrect">("instruction");
   const [openSources, setOpenSources] = useState<Set<string>>(() => new Set());
   const completedRef = useRef(false);
@@ -206,7 +206,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
     }
 
     if (!isCorrect) {
-      setMessage(`Not a match: ${selectedPair.left} does not match ${choice.label}. Try another answer.`);
+      setMessage(`Not a match for ${selectedPair.left}. Try another answer.`);
       setMessageKind("incorrect");
       return;
     }
@@ -238,15 +238,19 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
           Match each term
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          Pick one term, then pick its match. A missed first try stays in your score, but retrying helps you learn it. The final one-choice match does not count as independent evidence.
+          Pick a term, then its match.
         </p>
       </div>
 
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer py-2">How scoring works</summary>
+        First tries set your score. Retries help you learn. The last one-choice match is not scored.
+      </details>
       <div
         role={messageKind === "incorrect" ? "alert" : "status"}
         aria-live={messageKind === "incorrect" ? "assertive" : "polite"}
         aria-atomic="true"
-        className={`rounded-xl border px-3 py-2 text-sm leading-relaxed ${
+        className={`${messageKind === "instruction" ? "sr-only" : "rounded-xl border px-3 py-2 text-sm leading-relaxed"} ${
           messageKind === "incorrect"
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : messageKind === "correct"
@@ -261,7 +265,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
       </div>
 
       {!allMatched && (
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-2 gap-3">
           <div className="min-w-0 space-y-2" aria-labelledby="match-terms-heading">
             <h3 id="match-terms-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               1. Choose a term
@@ -304,7 +308,7 @@ function MatchingBoard({ pairs, onComplete, shuffle }: ValidGameProps) {
             )}
             {!selectedPair && (
               <p className="rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                Select a term first. Answer choices will then become available.
+                Pick a term to unlock answers.
               </p>
             )}
             {remainingRights.map((choice) => (

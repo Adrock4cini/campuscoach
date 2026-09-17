@@ -166,7 +166,7 @@ export function RealMatchingSession({ open, onOpenChange, artifact, onCompleted 
           <DialogHeader className="pr-8 text-left">
             <DialogTitle className="font-display">{saved ? "Match Lab saved" : "Match Lab"}</DialogTitle>
             <DialogDescription>
-              Match from memory. First tries set the score; retries help you learn without inflating it.
+              Match from memory.
             </DialogDescription>
           </DialogHeader>
           <p role="status" aria-live="polite" className="sr-only">

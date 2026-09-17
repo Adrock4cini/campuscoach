@@ -16,6 +16,8 @@ import { checkCaptureConceptReadiness } from "./captureReadiness";
 import { describeFunctionError } from "./functionError";
 import { invokeEdgeFunction } from "@/lib/supabase/invokeEdgeFunction";
 import { sanitizeLearnerContent } from "@/lib/study/sanitizeLearnerText";
+import { STUDY_CONTENT_VERSION, isConciseStudyKind, needsConciseStudyRebuild } from "../../../supabase/functions/_shared/study-content";
+import { CURRENT_ARTIFACT_PROMPT_VERSION } from "./types";
 
 import {
   parseAlternateTeaching,
@@ -97,9 +99,11 @@ export function useLearningArtifact<K extends ArtifactKind>(
     scopeKey,
   });
   const requestVersion = useRef(0);
+  const [blockedScopeKey, setBlockedScopeKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const request = ++requestVersion.current;
+    setBlockedScopeKey(null);
     setState((s) => ({
       artifact: s.scopeKey === scopeKey ? s.artifact : null,
       alternateTeaching: null,
@@ -178,6 +182,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
       /** Routing-only error evidence; never becomes generated answer content. */
       studentConfusion?: string;
     }) => {
+      if (blockedScopeKey === scopeKey) return null;
       const request = ++requestVersion.current;
       setState((s) => ({
         artifact: s.scopeKey === scopeKey ? s.artifact : null,
@@ -238,7 +243,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
           setState((s) => ({ ...s, generating: false, error: message }));
           return null;
         }
-        const response = data as { artifact?: unknown; alternateTeaching?: unknown } | null;
+        const response = data as { artifact?: unknown; alternateTeaching?: unknown; studyContentVersion?: unknown } | null;
         if (kind === "mnemonic" && response && "alternateTeaching" in response) {
           const alternateTeaching = scope.alternateTeachingBoundary
             ? parseAlternateTeaching(response.alternateTeaching, scope.alternateTeachingBoundary)
@@ -276,6 +281,19 @@ export function useLearningArtifact<K extends ArtifactKind>(
           return null;
         }
         const artifact = candidate;
+        if (isConciseStudyKind(kind) && (
+          response?.studyContentVersion !== STUDY_CONTENT_VERSION
+          || artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION
+          || needsConciseStudyRebuild(kind, artifact.payload)
+        )) {
+          // A successful HTTP response is not proof that the matching backend
+          // was released. Stop here instead of offering a paid refresh loop.
+          setBlockedScopeKey(scopeKey);
+          setState((s) => ({ ...s, generating: false,
+            error: "Study practice is temporarily unavailable because this set could not be verified. Your notes and progress are safe. Please try again after the app is updated.",
+          }));
+          return null;
+        }
         if (!belongsToAssignment(artifact, scope.assignmentId)) {
           setState((s) => ({
             ...s,
@@ -298,7 +316,7 @@ export function useLearningArtifact<K extends ArtifactKind>(
         return null;
       }
     },
-    [kind, scopeKey], // eslint-disable-line react-hooks/exhaustive-deps
+    [kind, scopeKey, blockedScopeKey], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const visibleState = state.scopeKey === scopeKey
@@ -315,6 +333,5 @@ export function useLearningArtifact<K extends ArtifactKind>(
       } as LearningArtifact<K>)
     : null;
 
-  return { ...visibleState, artifact, reload: load, generate };
+  return { ...visibleState, artifact, generationBlocked: blockedScopeKey === scopeKey, reload: load, generate };
 }
-

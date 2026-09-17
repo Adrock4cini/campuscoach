@@ -1,3 +1,4 @@
+import { needsConciseStudyRebuild } from "@/lib/study/studyClarity";
 /**
  * RealStudySet — authenticated-only StudyLab section that reads the
  * freshest non-stale flashcards artifact for a class and lets the
@@ -90,6 +91,8 @@ export function RealStudySet({
   const [kind, setKind] = useState<Kind>(initialKind);
   const [showWhy, setShowWhy] = useState(false);
   const [studying, setStudying] = useState(false);
+  const [readyToStart, setReadyToStart] = useState<string | null>(null);
+  const startIntent = useRef<{ key: string } | null>(null);
 
   const captureStudyScope = useMemo<StudyScope | undefined>(() => (
     initialCaptureId
@@ -172,10 +175,10 @@ export function RealStudySet({
     conceptIds: isCoachTarget ? initialConceptIds : undefined,
     captureId: isCaptureTarget ? initialCaptureId : undefined,
   }), [classId, initialCaptureId, initialConceptIds, isCaptureTarget, isCoachTarget, studyScope]);
-  const { artifact, loading, generating, error, captureProcessing, generate, reload } =
+  const { artifact, loading, generating, error, captureProcessing, generationBlocked, generate, reload } =
     useLearningArtifact(kind, scope);
   const [retryingCapture, setRetryingCapture] = useState(false);
-  const startGenerationRef = useRef<((regenerate: boolean) => Promise<void>) | null>(null);
+  const startGenerationRef = useRef<((regenerate: boolean) => Promise<unknown>) | null>(null);
 
 
   // A capture that is still extracting must never be an infinite wait: give
@@ -220,8 +223,10 @@ export function RealStudySet({
 
   const needsRefresh = Boolean(
     artifact &&
-    artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION,
+    (artifact.prompt_version !== CURRENT_ARTIFACT_PROMPT_VERSION
+      || needsConciseStudyRebuild(kind, artifact.payload)),
   );
+  const canStudy = Boolean(artifact && count > 0 && !needsRefresh && !matchingUnusable);
 
   const generationKey = JSON.stringify({
     kind,
@@ -232,20 +237,26 @@ export function RealStudySet({
   });
   currentGenerationKey.current = generationKey;
 
+  useEffect(() => {
+    setReadyToStart(null);
+    startIntent.current = null;
+    return () => { startIntent.current = null; };
+  }, [generationKey]);
+
   const startGeneration = useCallback(async (regenerate: boolean) => {
     const existing = generationInFlight.current.get(generationKey);
     if (existing) {
-      await existing;
+      const result = await existing;
       // A → B → A can make the first A response intentionally stale inside
       // the owner/scope-keyed hook. Reloading after its keyed promise settles
       // prevents the returned A scope from becoming stranded.
       if (currentGenerationKey.current === generationKey) await reload();
-      return;
+      return result;
     }
     const task = generate({ regenerate });
     generationInFlight.current.set(generationKey, task);
     try {
-      await task;
+      return await task;
     } finally {
       if (generationInFlight.current.get(generationKey) === task) {
         generationInFlight.current.delete(generationKey);
@@ -253,6 +264,31 @@ export function RealStudySet({
     }
   }, [generate, generationKey, reload]);
   startGenerationRef.current = startGeneration;
+
+  const buildAndStart = useCallback(async () => {
+    // One explicit student action; duplicate taps share the existing request.
+    if (startIntent.current?.key === generationKey) return;
+    const intent = { key: generationKey };
+    startIntent.current = intent;
+    try {
+      const result = await startGeneration(Boolean(artifact));
+      if (result && startIntent.current === intent && currentGenerationKey.current === generationKey) {
+        setReadyToStart(generationKey);
+      }
+    } finally {
+      if (startIntent.current === intent) startIntent.current = null;
+    }
+  }, [artifact, generationKey, startGeneration]);
+
+  useEffect(() => {
+    if (readyToStart !== generationKey || loading || generating) return;
+    setReadyToStart(null);
+    if (!error && artifact && !needsRefresh && count > 0 && !matchingUnusable) {
+      // Consume the intent once: closing a session must not reopen it.
+      autoStartKey.current = `open:${kind}:${artifact.id}`;
+      setStudying(true);
+    }
+  }, [readyToStart, generationKey, loading, generating, error, artifact, needsRefresh, count, matchingUnusable, kind]);
 
 
   useEffect(() => {
@@ -390,7 +426,7 @@ export function RealStudySet({
 
         {loading ? (
           <p role="status" aria-live="polite" className="text-sm text-muted-foreground">Loading study set…</p>
-        ) : needsRefresh ? (
+        ) : generationBlocked ? null : needsRefresh ? (
           <div>
             <p className="text-sm font-medium text-foreground">Refresh this set before studying</p>
           </div>
@@ -454,7 +490,7 @@ export function RealStudySet({
             </p>
             {!isCoachTarget && !isCaptureTarget && studyScope.type !== "exam" && (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add a note or teacher hint first.
+                Build practice from this class’s material.
               </p>
             )}
           </div>
@@ -523,7 +559,7 @@ export function RealStudySet({
         )}
 
         <div className="space-y-2">
-          {artifact && count > 0 && !needsRefresh && !matchingUnusable && (
+          {canStudy && (
             <Button
               aria-label="Start study session"
               className="h-12 w-full rounded-2xl text-base font-semibold shadow-elegant"
@@ -536,10 +572,16 @@ export function RealStudySet({
           )}
           <Button
             size="sm"
-            variant={artifact && !needsRefresh ? "ghost" : "outline"}
-            onClick={() => { void startGeneration(Boolean(artifact)); }}
-            className="h-11 w-full rounded-xl"
-            disabled={generating}
+            variant={canStudy ? "ghost" : "default"}
+            onClick={() => {
+              if (!canStudy) {
+                void buildAndStart();
+              } else {
+                void startGeneration(true);
+              }
+            }}
+            className={canStudy ? "h-11 w-full rounded-xl" : "h-12 w-full rounded-2xl text-base font-semibold shadow-elegant"}
+            disabled={generating || generationBlocked}
             aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
             {generating ? (
@@ -550,12 +592,12 @@ export function RealStudySet({
             ) : artifact ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Refresh
+                {needsRefresh || count === 0 || matchingUnusable ? "Refresh & start" : "Refresh"}
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                {studyScope.type === "exam" ? "Build test practice" : "Build study set"}
+                Build & start
               </>
             )}
           </Button>

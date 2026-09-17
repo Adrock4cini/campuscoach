@@ -1,4 +1,5 @@
 import { extractAssignmentTutorSource } from "./assignment-tutor.ts";
+import { shortStudyAnswer, studySourceClauses } from "./short-study-answer.ts";
 
 export const MAX_GROUNDED_EXCERPT_CHARS = 360;
 
@@ -222,6 +223,7 @@ export function buildGroundedExcerptMap(
   concepts: GroundedExcerptConcept[],
   rawSourceByCapture: Map<string, string>,
   maxChars = MAX_GROUNDED_EXCERPT_CHARS,
+  preferStudyClauses = false,
 ) {
   const result = new Map<string, string>();
   const usedChunks = new Set<string>();
@@ -238,11 +240,17 @@ export function buildGroundedExcerptMap(
     const terms = meaningfulTerms(concept);
     const facts = symbolicFacts(concept);
     const problems = solvableProblemKeys(concept);
-    const ranked = sentenceChunks(raw, chunkLimit)
+    // Split before whitespace normalization: one slide paragraph must not consume
+    // all definitions and leave sibling concepts with only quiz logistics.
+    const precise = preferStudyClauses ? studySourceClauses(raw)
+      .filter((clause) => containsPhrase(normalizedLexicalText(clause), normalizedLexicalText(concept.name))
+        && Boolean(shortStudyAnswer(concept.name, clause, 40))) : [];
+    const ranked = [...precise, ...sentenceChunks(raw, chunkLimit)]
       .map((chunk, index) => ({
         chunk,
         index,
         ...excerptRelevance(chunk, concept.name, terms, facts, problems),
+        precise: index < precise.length,
       }))
       // A same-capture sentence is not automatically evidence for every
       // extracted concept. Accept an exact symbolic fact, the full normalized
@@ -250,7 +258,7 @@ export function buildGroundedExcerptMap(
       // generic word such as "cell" must not turn "cell phone" into biology
       // evidence.
       .filter(({ chunk, relevant }) => relevant && !usedChunks.has(comparisonKey(chunk)))
-      .sort((left, right) => right.score - left.score || left.index - right.index);
+      .sort((left, right) => Number(right.precise) - Number(left.precise) || right.score - left.score || left.index - right.index);
 
     const selected: string[] = [];
     let length = 0;
@@ -281,6 +289,7 @@ export function buildCapturePolicyGroundedExcerptMap(
   options: {
     captureIdsByConcept?: ReadonlyMap<string, readonly string[]>;
     maxChars?: number;
+    preferStudyClauses?: boolean;
   } = {},
 ) {
   const sourceByCapture = new Map<string, string>();
@@ -306,6 +315,7 @@ export function buildCapturePolicyGroundedExcerptMap(
     sourceOccurrences,
     sourceByCapture,
     options.maxChars ?? MAX_GROUNDED_EXCERPT_CHARS,
+    options.preferStudyClauses ?? false,
   );
 }
 

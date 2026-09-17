@@ -102,7 +102,7 @@ describe("RealMatchingGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Builds proteins" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Not a match: Mitochondria does not match Builds proteins. Try another answer.",
+      "Not a match for Mitochondria. Try another answer.",
     );
     expect(screen.getByRole("button", { name: /^Mitochondria/ })).toHaveAttribute("aria-pressed", "true");
     expect(onComplete).not.toHaveBeenCalled();
