@@ -11,7 +11,7 @@ function record(value: unknown): value is Record<string, unknown> {
 
 /** A short slide dump is still a slide dump. Never grade clipped prose or logistics. */
 export function isStudyAnswerDump(value: string): boolean {
-  return /[•·▪]/.test(value)
+  return /[•▪]|\s·\s.*(?:\s·\s|:)/.test(value)
     || /(?:…|\.{3})\s*$/.test(value)
     || /\b(?:assignment\s+(?:due|\()|due\s*:|(?:quiz|exam)\s+\d|key concepts for|write\s+\d+\s+pages?|upload to canvas|sometime next week|bring (?:your|a) (?:textbook|pencil))/i.test(value)
     || (value.match(/(?:^|[;\n]|\s)\p{Lu}[\p{L} -]{1,35}:\s/gu)?.length ?? 0) > 1;

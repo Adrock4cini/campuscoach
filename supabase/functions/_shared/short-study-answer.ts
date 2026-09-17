@@ -30,6 +30,7 @@ export function shortStudyAnswer(name: string, source: string, maxWords: number)
   }
   // An already isolated definition need not repeat its term. Never choose an
   // arbitrary short line out of a multi-topic slide.
-  if (clauses.length === 1 && safe(text)) return text.replace(label, "");
+  const differentLabel = /^[\p{L}][\p{L} -]{1,60}\s*:/u.test(text) && !label.test(text);
+  if (clauses.length === 1 && !differentLabel && safe(text)) return text.replace(label, "");
   return "";
 }

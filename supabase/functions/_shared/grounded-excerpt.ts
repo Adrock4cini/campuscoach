@@ -243,7 +243,8 @@ export function buildGroundedExcerptMap(
     // Split before whitespace normalization: one slide paragraph must not consume
     // all definitions and leave sibling concepts with only quiz logistics.
     const precise = preferStudyClauses ? studySourceClauses(raw)
-      .filter((clause) => Boolean(shortStudyAnswer(concept.name, clause, 40))) : [];
+      .filter((clause) => containsPhrase(normalizedLexicalText(clause), normalizedLexicalText(concept.name))
+        && Boolean(shortStudyAnswer(concept.name, clause, 40))) : [];
     const ranked = [...precise, ...sentenceChunks(raw, chunkLimit)]
       .map((chunk, index) => ({
         chunk,
