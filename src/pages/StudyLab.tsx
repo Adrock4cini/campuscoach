@@ -82,6 +82,16 @@ export default function StudyLab() {
     || rememberedState?.classId
     || availableClasses[0]?.id
     || "";
+  const activeClass = availableClasses.find((item) => item.id === effectiveClass);
+  const missingClass = isRealUser && !classesLoading && !classesError
+    && Boolean(effectiveClass) && !activeClass;
+  const changeClass = (classId: string) => {
+    if (classId === effectiveClass) return;
+    setSelectedClass(classId);
+    // A new class starts a new room. Never carry another class's capture,
+    // assignment, test, or coach-picked concept IDs across this boundary.
+    navigate(`/study-lab?classId=${encodeURIComponent(classId)}`);
+  };
   const activeCaptureId = effectiveClass === preselectedClass
     ? requestedCaptureId
     : undefined;
@@ -108,16 +118,16 @@ export default function StudyLab() {
   // finishing (or bailing out of) a session never becomes a dead end.
   const origin = requestedAssignmentId
     ? { to: `/assignments/${encodeURIComponent(requestedAssignmentId)}`, label: "Back to assignment" }
-    : preselectedClass
+    : activeClass
       ? {
-          to: `/classes/${encodeURIComponent(preselectedClass)}`,
-          label: `Back to ${availableClasses.find((c) => c.id === preselectedClass)?.name ?? "class"}`,
+          to: `/classes/${encodeURIComponent(activeClass.id)}`,
+          label: `Back to ${activeClass.name}`,
         }
       : null;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 md:space-y-8">
-      <div>
+      <div className="space-y-2">
         {origin && (
           <Link
             to={origin.to}
@@ -128,35 +138,28 @@ export default function StudyLab() {
           </Link>
         )}
         <div className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-primary/90 mb-1.5">
-          <Sparkles className="h-3 w-3" /> Study Lab
+          <Sparkles className="h-3 w-3" /> {isRealUser ? "Your study space" : "Study Lab"}
         </div>
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-foreground tracking-tight">
-          {assignmentHelp ? "Let’s work through this assignment" : "What do you want to study?"}
+          {isRealUser && activeClass ? activeClass.name : "What do you want to study?"}
         </h1>
+        {assignmentHelp && <p className="text-sm text-muted-foreground">Let’s work through this assignment</p>}
       </div>
 
-      {/* Keep class selection on one line so a full course load does not crowd the page. */}
-      <div
-        role="group"
-        aria-label="Choose a class"
-        className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {availableClasses.map(c => (
-          <button
-            key={c.id}
-            type="button"
-            aria-pressed={effectiveClass === c.id}
-            onClick={() => setSelectedClass(c.id)}
-            className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-medium transition-colors ${
-              effectiveClass === c.id
-                ? "border-primary/60 bg-primary/10 text-foreground"
-                : "border-border/40 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {c.name}
-          </button>
-        ))}
-      </div>
+      {(availableClasses.length > 1 || (missingClass && availableClasses.length > 0)) && (
+        <details key={effectiveClass} className="rounded-2xl border border-border/40 px-4">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm text-muted-foreground">Change class</summary>
+          <div role="group" aria-label="Choose a class" className="flex flex-wrap gap-2 pb-4">
+            {availableClasses.map(c => (
+              <button key={c.id} type="button" aria-pressed={effectiveClass === c.id}
+                onClick={() => changeClass(c.id)}
+                className={`min-h-11 max-w-full break-words rounded-xl border px-4 py-2 text-left text-sm transition-colors ${effectiveClass === c.id ? "border-primary/60 bg-primary/10 text-foreground" : "border-border/40 text-muted-foreground hover:text-foreground"}`}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* Real users: concept-backed study set (flashcards / MCQ). */}
       {isRealUser && classesLoading && (
@@ -173,13 +176,21 @@ export default function StudyLab() {
           </CardContent>
         </Card>
       )}
+      {missingClass && (
+        <Card className="border-dashed border-border/50">
+          <CardContent className="p-6 text-center space-y-3">
+            <p role="status" className="text-sm text-foreground">This class is no longer available. Choose a class to keep studying.</p>
+            <Button variant="outline" onClick={() => navigate("/classes")}>Go to classes</Button>
+          </CardContent>
+        </Card>
+      )}
       {/* Never keep a test scope from a different class silently: say it was dropped. */}
       {isRealUser && requestedExamId && effectiveClass !== preselectedClass && (
         <p role="status" className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           You switched classes, so this session is no longer scoped to that test.
         </p>
       )}
-      {isRealUser && !classesError && effectiveClass && (
+      {isRealUser && !classesLoading && !classesError && activeClass && (
         assignmentHelp && activeCaptureId && requestedAssignmentId ? (
           <AssignmentTutorSet
             classId={effectiveClass}
@@ -191,16 +202,16 @@ export default function StudyLab() {
           />
         ) : (
           <RealStudySet
-            className={availableClasses.find((c) => c.id === effectiveClass)?.name}
-            classTopic={availableClasses.find((c) => c.id === effectiveClass)?.currentTopic}
+            className={activeClass?.name}
+            classTopic={activeClass?.currentTopic}
             classId={effectiveClass}
             initialCaptureId={activeCaptureId}
             initialExamId={effectiveClass === preselectedClass ? requestedExamId : undefined}
             initialKind={requestedFormat ?? rememberedState?.kind ?? "flashcards"}
-            initialConceptIds={coachConceptIds}
-            initialStudyScope={coachStudyScope ?? (searchParams.get("scope") === "class" && effectiveClass === preselectedClass && !requestedExamId && !activeCaptureId
+            initialConceptIds={effectiveClass === preselectedClass ? coachConceptIds : []}
+            initialStudyScope={(effectiveClass === preselectedClass ? coachStudyScope : undefined) ?? (searchParams.get("scope") === "class" && effectiveClass === preselectedClass && !requestedExamId && !activeCaptureId
               ? { type: "class", id: "class", label: "All class material" } : undefined)}
-            autoStart={Boolean(coachStudyScope || activeCaptureId)}
+            autoStart={Boolean((effectiveClass === preselectedClass && coachStudyScope) || activeCaptureId)}
           />
         )
       )}

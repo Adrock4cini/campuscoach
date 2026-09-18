@@ -10,6 +10,11 @@ const auth = vi.hoisted(() => ({
   recovering: false,
   agreementStatus: "checking" as "checking" | "accepted" | "required" | "error",
 }));
+const route = vi.hoisted(() => ({ pathname: "/dashboard" }));
+vi.mock("react-router-dom", () => ({
+  useLocation: () => route,
+  Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
+}));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => auth,
@@ -43,11 +48,32 @@ vi.mock("@/contexts/CaptureContext", () => ({
 
 describe("AppLayout auth boundary", () => {
   beforeEach(() => {
+    route.pathname = "/dashboard";
     auth.mode = "loading";
     auth.user = null;
     auth.loading = true;
     auth.recovering = false;
     auth.agreementStatus = "checking";
+  });
+
+  it("keeps study focused and restores navigation without clearing a capture draft", () => {
+    auth.mode = "real";
+    auth.user = { id: "child-a" };
+    auth.loading = false;
+    auth.agreementStatus = "accepted";
+    const view = render(<AppLayout><div>Study content</div></AppLayout>);
+    fireEvent.change(screen.getByRole("textbox", { name: "Capture draft" }), { target: { value: "Unfinished class note" } });
+    route.pathname = "/study-lab";
+    view.rerender(<AppLayout><div>Study content</div></AppLayout>);
+    expect(screen.queryByText("Demo sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Capture" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "All classes" })).toHaveAttribute("href", "/classes");
+    expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("Unfinished class note");
+    route.pathname = "/classes";
+    view.rerender(<AppLayout><div>Class content</div></AppLayout>);
+    expect(screen.getByText("Demo sidebar")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Capture" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Capture draft" })).toHaveValue("Unfinished class note");
   });
 
   it("keeps all demo navigation and capture actions hidden while auth resolves", () => {
