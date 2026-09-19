@@ -52,3 +52,25 @@ No paid AI calls, deployment, merge or production student-data changes were made
 
 PR #63 still requires its own exact frontend/backend release and live acceptance.
 Retarget this draft after that dependency merges; do not bypass its release gate.
+
+## Flashcards and multiple choice polish (2026-09-19)
+
+Continues this same draft using the reviewed visual direction, without a timer.
+Practice dialogs use an ivory surface, dark text and a restrained violet accent.
+The palette is scoped to these dialogs; the rest of the application keeps its
+existing theme. Cards have a larger centered prompt and a distinct answer state.
+Answer choices have 56px minimum height, decorative A–D markers, wrapped feedback
+labels and full-width Check/Next actions. Instructions sit outside the card.
+
+Bold emphasis only wraps literal words already present in the question: a short
+concept name, NOT or EXCEPT. No new hint, answer, illustration or AI generation
+is introduced. Existing source disclosures remain available after reveal/check;
+the confidence requirement, first-attempt scoring and persistence stay unchanged.
+Priority controls and optional assisted hints remain future work.
+
+Verification: 81 focused tests across six files passed, TypeScript check passed,
+production build passed with existing size warnings, targeted lint and diff
+checks passed. The existing silent-recall test now also checks that the visible
+question wording remains intact when its concept is bold. This remains a draft
+pending phone/desktop visual review and live student QA. Check long answers,
+large text, and post-answer feedback before release; nothing was published.

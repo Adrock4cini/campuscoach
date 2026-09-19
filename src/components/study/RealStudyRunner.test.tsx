@@ -489,7 +489,7 @@ describe("real flashcard runner", () => {
     render(<RealStudyRunner open onOpenChange={vi.fn()} artifact={multipleChoiceArtifact} />);
 
     const wrong = screen.getByRole("button", { name: "3" });
-    expect(wrong).toHaveClass("min-h-11");
+    expect(wrong).toHaveClass("min-h-14");
     fireEvent.click(wrong);
     expect(screen.queryByText(/your answer/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /very sure/i }));
@@ -595,7 +595,9 @@ describe("RealStudyRunner presentation", () => {
       />,
     );
 
-    expect(screen.getByText("What do you remember about Muscles of the Hand?")).toBeInTheDocument();
+    const prompt = screen.getByLabelText("Question 1: What do you remember about Muscles of the Hand?");
+    expect(prompt).toHaveTextContent("What do you remember about Muscles of the Hand?");
+    expect(prompt.querySelector("strong")).toHaveTextContent("Muscles of the Hand");
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByText(/answer in your head or out loud/i)).toBeInTheDocument();
 

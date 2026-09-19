@@ -568,13 +568,13 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
 
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
-      <DialogContent className="w-[calc(100vw_-_1rem)] max-w-[calc(100vw_-_1rem)] min-w-0 max-h-[calc(100dvh_-_1rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-md sm:p-6 gap-3">
+      <DialogContent className="study-practice-dialog w-[calc(100vw_-_1rem)] max-w-[calc(100vw_-_1rem)] min-w-0 max-h-[calc(100dvh_-_1rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-md sm:p-6 gap-4">
         <DialogHeader className="pr-8 text-left">
-          <DialogTitle className="font-display">
+          <DialogTitle className="text-lg font-semibold tracking-tight">
             {done ? "Session saved" : artifact.kind === "flashcards" ? "Flashcards" : "Multiple choice"}
           </DialogTitle>
           {!done && (
-            <DialogDescription className="text-xs leading-relaxed">
+            <DialogDescription className="sr-only">
               Recall, rate your confidence, then check.
             </DialogDescription>
           )}
@@ -617,25 +617,21 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                       aria-live={revealed ? "polite" : undefined}
                       aria-label={!revealed ? `Question ${position + 1}: ${retrievalPrompt(card.front, card.conceptName)}` : undefined}
                       tabIndex={-1}
-                      className="w-full min-w-0 min-h-44 overflow-hidden rounded-2xl border border-border/60 p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+                      className={`relative flex w-full min-w-0 min-h-[15rem] flex-col rounded-3xl border px-5 py-6 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[18rem] sm:p-7 ${revealed ? "border-primary/30 bg-primary/5" : "border-primary/25 bg-card"}`}
                     >
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                        {revealed ? "Answer" : currentEntry.recovery ? "Try again from memory" : "Question"}
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-3">
+                        {revealed ? "Answer" : currentEntry.recovery ? "Try again from memory" : "Recall"}
                       </p>
                       {revealed && card.conceptName && (
                         <p className="text-[11px] text-primary mb-3">Concept: {card.conceptName}</p>
                       )}
                       <p
-                        className="break-words text-xl text-foreground leading-relaxed sm:text-2xl"
+                        className={`my-auto break-words py-4 text-center text-2xl leading-relaxed tracking-tight text-foreground sm:text-[1.75rem] ${revealed ? "font-semibold" : "font-normal"}`}
                       >
-                        {revealed ? cleanStudyText(card.back) : retrievalPrompt(card.front, card.conceptName)}
+                        {revealed ? cleanStudyText(card.back) : <StudyPromptText text={retrievalPrompt(card.front, card.conceptName)} conceptName={card.conceptName} />}
                       </p>
-                      {!revealed && (
-                        <p className="mt-3 text-xs text-muted-foreground">
-                          Answer in your head or out loud — nothing to type.
-                        </p>
-                      )}
                     </div>
+                    {!revealed && <p className="text-center text-xs text-muted-foreground">Answer in your head or out loud.</p>}
                     {revealed && card.sourceExcerpt && (
                       <details key={`source-${itemIndex}`} className="text-xs text-muted-foreground">
                         <summary className="cursor-pointer py-3">Show source</summary>
@@ -676,16 +672,16 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                     {!revealed ? (
                       <div className="space-y-3">
                         <ConfidencePicker value={confidence} onChange={setConfidence} />
-                        <Button className="w-full" disabled={!confidence} onClick={() => setRevealed(true)}>
+                        <Button className="min-h-12 w-full rounded-2xl text-base" disabled={!confidence} onClick={() => setRevealed(true)}>
                           Reveal answer
                         </Button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-2 border-t border-border/50 pt-4 min-[430px]:grid-cols-2">
-                        <Button variant="outline" onClick={() => record(false)}>
+                      <div className="grid grid-cols-2 gap-2 pt-2">
+                        <Button className="min-h-12 h-auto whitespace-normal rounded-2xl px-2 py-3" variant="outline" onClick={() => record(false)}>
                           <X className="h-4 w-4 mr-1.5" /> {currentEntry.recovery ? "Still learning" : "Review again"}
                         </Button>
-                        <Button onClick={() => record(true)}>
+                        <Button className="min-h-12 h-auto whitespace-normal rounded-2xl px-2 py-3" onClick={() => record(true)}>
                           <Check className="h-4 w-4 mr-1.5" /> {currentEntry.recovery ? "Got it this time" : "I knew it"}
                         </Button>
                       </div>
@@ -703,8 +699,8 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                     aria-label={revealed ? undefined : `Question ${position + 1}: ${cleanStudyText(question.prompt)}`}
                     className="space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <p className="break-words text-base text-foreground">{cleanStudyText(question.prompt)}</p>
-                    <div className="space-y-2">
+                    <p className="break-words py-3 text-2xl leading-relaxed tracking-tight text-foreground"><StudyPromptText text={cleanStudyText(question.prompt)} conceptName={question.conceptName} /></p>
+                    <div className="space-y-3" role="group" aria-label="Answer choices">
                       {question.choices.map((choice, choiceIndex) => {
                         const isPicked = picked === choiceIndex;
                         const isAnswer = choiceIndex === question.answerIndex;
@@ -724,17 +720,22 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                             disabled={revealed}
                             aria-pressed={!revealed ? isPicked : undefined}
                             onClick={() => setPicked(choiceIndex)}
-                            className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${cls}`}
+                            className={`flex min-h-14 w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${cls}`}
                           >
-                            <span className="min-w-0 break-words">{cleanStudyText(choice)}</span>
-                            {revealed && isAnswer && (
-                              <span className="shrink-0 text-xs font-semibold text-primary">
-                                {isPicked ? "Correct · your answer" : "Correct answer"}
-                              </span>
-                            )}
-                            {revealed && isPicked && !isAnswer && (
-                              <span className="shrink-0 text-xs font-semibold text-destructive">Your answer</span>
-                            )}
+                            <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${isPicked ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                              {String.fromCharCode(65 + choiceIndex)}
+                            </span>
+                            <span className="min-w-0 flex-1 space-y-1 pt-0.5">
+                              <span className="block break-words">{cleanStudyText(choice)}</span>
+                              {revealed && isAnswer && (
+                                <span className="block text-xs font-semibold text-primary">
+                                  {isPicked ? "Correct · your answer" : "Correct answer"}
+                                </span>
+                              )}
+                              {revealed && isPicked && !isAnswer && (
+                                <span className="block text-xs font-semibold text-destructive">Your answer</span>
+                              )}
+                            </span>
                           </button>
                         );
                       })}
@@ -743,7 +744,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                       <div className="space-y-3">
                         <ConfidencePicker value={confidence} onChange={setConfidence} />
                         <div className="flex justify-end">
-                          <Button disabled={picked === null || !confidence} onClick={() => setRevealed(true)}>
+                          <Button className="min-h-12 w-full rounded-2xl text-base" disabled={picked === null || !confidence} onClick={() => setRevealed(true)}>
                             Check answer
                           </Button>
                         </div>
@@ -809,7 +810,7 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
                         )}
 
                         <div className="flex justify-end">
-                          <Button onClick={() => record(picked === question.answerIndex)}>
+                          <Button className="min-h-12 w-full rounded-2xl text-base" onClick={() => record(picked === question.answerIndex)}>
                             {position >= queue.length - 1 && (currentEntry.recovery || picked === question.answerIndex)
                               ? "Finish"
                               : "Next"}
@@ -927,6 +928,17 @@ export function RealStudyRunner({ open, onOpenChange, artifact, onCompleted }: P
   );
 }
 
+/** Emphasize only words already in the question. Never inject an answer or hint. */
+function StudyPromptText({ text, conceptName }: { text: string; conceptName?: string }) {
+  const concept = conceptName?.trim();
+  const terms = ["not", "except", ...(concept && concept.length <= 60 ? [concept] : [])];
+  const escaped = terms.sort((a, b) => b.length - a.length).map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${escaped.join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  return <>{text.split(pattern).map((part, index) => index % 2 === 1
+    ? <strong key={index} className="font-semibold">{part}</strong>
+    : part)}</>;
+}
+
 function ConfidencePicker({
   value,
   onChange,
@@ -942,7 +954,7 @@ function ConfidencePicker({
   return (
     <div className="space-y-2" role="group" aria-label="How sure are you before checking?">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        How sure are you before checking?
+        How sure are you?
       </p>
       <div className="grid grid-cols-3 gap-2">
         {options.map((option) => (

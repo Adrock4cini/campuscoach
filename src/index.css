@@ -311,3 +311,26 @@
   from { stroke-dashoffset: var(--from, 283); }
   to   { stroke-dashoffset: var(--to, 100); }
 }
+
+/* A quiet, paper-like surface scoped to practice dialogs only. */
+.study-practice-dialog {
+  --background: 40 33% 99%;
+  --foreground: 240 24% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 24% 14%;
+  --primary: 250 62% 56%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 248 22% 95%;
+  --muted-foreground: 240 12% 40%;
+  --border: 245 22% 77%;
+  --input: 245 22% 77%;
+  --ring: 250 62% 56%;
+  --accent: 250 55% 94%;
+  --accent-foreground: 240 24% 14%;
+  --secondary: 248 22% 95%;
+  --secondary-foreground: 240 24% 14%;
+  --destructive: 0 65% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --warning: 32 90% 30%;
+  color: hsl(var(--foreground));
+}
