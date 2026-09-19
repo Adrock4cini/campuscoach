@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   scopes: [] as unknown[],
   captureProcessing: false,
+  loading: false,
   retryCaptureProcessing: vi.fn(),
   exams: [] as Array<{
     id: string;
@@ -29,7 +30,7 @@ vi.mock("@/lib/learningArtifacts/useLearningArtifact", () => ({
     mocks.scopes.push(scope);
     return ({
     artifact: mocks.artifact,
-    loading: false,
+    loading: mocks.loading,
     generating: false,
     error: null,
     captureProcessing: mocks.captureProcessing,
@@ -108,7 +109,7 @@ function rateFlashcardKnewIt() {
 describe("real study set freshness", () => {
   it("shows one All target for the multi-batch PDF class handoff", () => {
     render(<RealStudySet classId="math" initialStudyScope={{ type: "class", id: "class", label: "All class material" }} />);
-    expect(screen.getAllByRole("button", { name: /^All$/ })).toHaveLength(1);
+    expect(screen.getAllByRole("option", { name: "All class material" })).toHaveLength(1);
     expect(mocks.scopes.at(-1)).toMatchObject({ studyScope: { type: "class", id: "class" } });
     expect(mocks.scopes.at(-1)).toMatchObject({ conceptIds: undefined });
   });
@@ -120,6 +121,7 @@ describe("real study set freshness", () => {
       topics: ["Addition"],
     }];
     mocks.artifact = null;
+    mocks.loading = false;
     mocks.captureProcessing = false;
     mocks.generate.mockReset().mockResolvedValue(null);
     mocks.reload.mockClear();
@@ -145,6 +147,20 @@ describe("real study set freshness", () => {
 
     expect(screen.getByRole("button", { name: /start study session/i })).toBeInTheDocument();
     expect(screen.queryByText("Refresh this set before studying")).not.toBeInTheDocument();
+  });
+
+  it("waits for the saved set before allowing a paid rebuild", () => {
+    mocks.loading = true;
+    const view = render(<RealStudySet classId="math" />);
+    const build = screen.getByRole("button", { name: /build & start/i });
+    expect(build).toBeDisabled();
+    fireEvent.click(build);
+    expect(mocks.generate).not.toHaveBeenCalled();
+    mocks.loading = false;
+    mocks.artifact = artifact(CURRENT_ARTIFACT_PROMPT_VERSION);
+    view.rerender(<RealStudySet classId="math" />);
+    expect(screen.getByRole("button", { name: /start study session/i })).toBeEnabled();
+    expect(mocks.generate).not.toHaveBeenCalled();
   });
 
   it("presents study formats as one accessible segmented choice", () => {
@@ -261,11 +277,11 @@ describe("real study set freshness", () => {
     render(<RealStudySet classId="math" />);
 
     expect(screen.getByText("Focus")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /^test · unit 1 exam/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Study focus" }), { target: { value: "exam-1" } });
     expect(screen.queryByText(/focuses on concepts linked to unit 1 exam/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /about unit 1 exam/i }));
     expect(screen.getByText(/focuses on concepts linked to unit 1 exam/i)).toBeInTheDocument();
-    expect(screen.getByText("Your notes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About this study set" })).toBeInTheDocument();
   });
 
   it("offers future and undated tests without turning past tests into study targets", () => {
@@ -288,16 +304,16 @@ describe("real study set freshness", () => {
 
     render(<RealStudySet classId="math" />);
 
-    expect(screen.getByRole("button", { name: /^Test · Unit 1 Exam/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Test · Pop quiz" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Old final/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Test · Unit 1 Exam/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Test · Pop quiz" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Old final/i })).not.toBeInTheDocument();
   });
 
   it("opens the exact exam selected from the academic calendar", () => {
     mocks.artifact = null;
     render(<RealStudySet classId="math" initialExamId="exam-1" />);
 
-    expect(screen.getByRole("button", { name: /^test · unit 1 exam/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Study focus" })).toHaveValue("exam-1");
     expect(mocks.scopes.at(-1)).toMatchObject({
       classId: "math",
       studyScope: { type: "exam", id: "exam-1", examId: "exam-1" },
@@ -337,7 +353,7 @@ describe("real study set freshness", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Coach picks" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Study focus" })).toHaveValue("coach-abc");
     fireEvent.click(screen.getByRole("button", { name: /about coach picks/i }));
     expect(screen.getByText(/uses your mastery, review timing, teacher emphasis/i)).toBeInTheDocument();
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith({ regenerate: false }));
@@ -354,7 +370,7 @@ describe("real study set freshness", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "This capture" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Study focus" })).toHaveValue("capture-capture-1");
     fireEvent.click(screen.getByRole("button", { name: /about this capture/i }));
     expect(screen.getByText(/only concepts extracted from this capture/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /multiple choice/i })).toHaveClass("text-primary");
@@ -448,7 +464,7 @@ describe("real study set freshness", () => {
         view.rerender(<RealStudySet classId="biology" />);
         if (change === "class round trip") view.rerender(<RealStudySet classId="math" />);
       } else if (change === "target") {
-        fireEvent.click(screen.getByRole("button", { name: "All" }));
+        fireEvent.change(screen.getByRole("combobox", { name: "Study focus" }), { target: { value: "class" } });
       } else {
         fireEvent.click(screen.getByRole("button", { name: /match lab/i }));
       }

@@ -4,16 +4,15 @@ import { needsConciseStudyRebuild } from "@/lib/study/studyClarity";
  * freshest non-stale flashcards artifact for a class and lets the
  * user (re)generate it via the `generate-artifact` edge function.
  *
- * This is intentionally minimal for Sprint B: it proves the
- * Concept → Artifact pipeline end-to-end. UI is not being redesigned.
+ * The study room keeps class focus, format choice, and the start action
+ * visible while source and strategy details remain available on demand.
  * Demo/anon flows are untouched — this component is only rendered when
  * `mode === "real"`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, RefreshCw, Sparkles, ListChecks, Play, Target, Info, Puzzle } from "lucide-react";
 import { RealStudyRunner } from "@/components/study/RealStudyRunner";
@@ -88,6 +87,7 @@ export function RealStudySet({
   initialStudyScope,
   autoStart = false,
 }: Props) {
+  const focusId = useId();
   const [kind, setKind] = useState<Kind>(initialKind);
   const [showWhy, setShowWhy] = useState(false);
   const [studying, setStudying] = useState(false);
@@ -355,42 +355,38 @@ export function RealStudySet({
               {targetDetail}
             </InfoPopover>
           </div>
-          <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <label htmlFor={focusId} className="sr-only">Study focus</label>
+          <select
+            id={focusId}
+            value={studyScope.id}
+            onChange={(event) => {
+              setSelectedTarget(event.target.value);
+              setStudying(false);
+              reloadAfterStudy.current = false;
+            }}
+            className="min-h-12 w-full min-w-0 rounded-xl border border-border/60 bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             {studyTargets.map((target) => (
-              <button
-                key={`${target.type}:${target.id}`}
-                type="button"
-                aria-pressed={studyScope.type === target.type && studyScope.id === target.id}
-                onClick={() => {
-                  setSelectedTarget(target.id);
-                  setStudying(false);
-                  reloadAfterStudy.current = false;
-                }}
-                className={`min-h-11 max-w-[12rem] shrink-0 truncate rounded-full border px-3 text-xs transition-colors ${
-                  studyScope.type === target.type && studyScope.id === target.id
-                    ? "border-primary bg-primary/15 text-primary"
-                    : "border-border/60 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {targetButtonLabel(target)}
+              <option key={`${target.type}:${target.id}`} value={target.id}>
+                {target.type === "recent" && target.id === "recent" ? "Recent material" : target.type === "class" ? "All class material" : targetButtonLabel(target)}
                 {target.type === "exam" && target.examDate
                   ? ` · ${new Date(`${target.examDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
                   : ""}
-              </button>
+              </option>
             ))}
-            {examsLoading && <span className="shrink-0 px-2 py-2 text-xs text-muted-foreground">Loading exams…</span>}
-            {examsError && <span className="shrink-0 px-2 py-2 text-xs text-danger">Exams unavailable</span>}
-          </div>
+          </select>
+          {examsLoading && <p role="status" className="text-xs text-muted-foreground">Loading exams…</p>}
+          {examsError && <p role="status" className="text-xs text-danger">Exams unavailable</p>}
         </div>
 
         <div className="space-y-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <KindIcon className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground">Study set</span>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-              Your notes
-            </Badge>
-            <InfoPopover label="About this study set">{sourceDetail}</InfoPopover>
+            <span className="text-sm font-medium text-foreground">{KIND_META[kind].label}</span>
+            <InfoPopover label="About this study set">
+              <p>{sourceDetail}</p>
+              {subject.primary !== "general" && <p className="mt-2">{subjectProfile.label}: {subjectProfile.studyFocus}</p>}
+            </InfoPopover>
           </div>
           <div
             role="group"
@@ -416,12 +412,7 @@ export function RealStudySet({
           {kindNote && (
             <p className="text-xs font-medium text-primary">{kindNote}</p>
           )}
-          {subject.primary !== "general" && (
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              <span className="font-medium text-foreground">{subjectProfile.label}:</span>{" "}
-              {subjectProfile.studyFocus}
-            </p>
-          )}
+
         </div>
 
         {loading ? (
@@ -581,7 +572,7 @@ export function RealStudySet({
               }
             }}
             className={canStudy ? "h-11 w-full rounded-xl" : "h-12 w-full rounded-2xl text-base font-semibold shadow-elegant"}
-            disabled={generating || generationBlocked}
+            disabled={loading || generating || generationBlocked}
             aria-label={needsRefresh ? "Refresh from notes" : artifact ? "Rebuild from notes" : undefined}
           >
             {generating ? (

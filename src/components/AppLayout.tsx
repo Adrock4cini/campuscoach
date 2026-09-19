@@ -10,6 +10,7 @@ import { Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
 import { CanvasAutoSync } from "@/components/CanvasAutoSync";
+import { Link, useLocation } from "react-router-dom";
 
 function HeaderSearchButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -39,6 +40,8 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
   const { mode } = useFocusMode();
   const { open, setOpen } = useCommandPalette();
   const { mode: dataMode } = useAuth();
+  const { pathname } = useLocation();
+  const inStudyRoom = dataMode === "real" && pathname === "/study-lab";
   const dampen = mode === "hyperfocus"; // dim ambient orbs in hyperfocus
 
   // Keep the global shell neutral until auth resolves. Rendering the sidebar
@@ -61,29 +64,37 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full max-w-full overflow-x-hidden relative">
         {/* Ambient aurora orbs — softer in hyperfocus mode */}
-        <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div aria-hidden hidden={inStudyRoom} className="pointer-events-none fixed inset-0 overflow-hidden z-0">
           <div className={`absolute -top-40 -left-32 h-[480px] w-[480px] rounded-full blur-[120px] animate-float-slow transition-opacity duration-700 ${dampen ? "bg-primary/5 opacity-50" : "bg-primary/15"}`} />
           <div className={`absolute top-1/3 -right-40 h-[520px] w-[520px] rounded-full blur-[140px] animate-float-slow transition-opacity duration-700 ${dampen ? "bg-accent/5 opacity-50" : "bg-accent/15"}`} style={{ animationDelay: "2s" }} />
           <div className={`absolute -bottom-40 left-1/3 h-[420px] w-[420px] rounded-full blur-[140px] animate-float-slow transition-opacity duration-700 ${dampen ? "bg-primary/5 opacity-50" : "bg-primary/10"}`} style={{ animationDelay: "4s" }} />
         </div>
 
-        <AppSidebar />
+        {!inStudyRoom && <AppSidebar />}
         <div className="flex-1 flex flex-col min-w-0 relative z-10">
           <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border/50 px-3 glass md:h-14 md:gap-3 md:px-4">
-            <SidebarTrigger className="-ml-1 h-11 w-11" />
+            {!inStudyRoom && <SidebarTrigger className="-ml-1 h-11 w-11" />}
             <span className="truncate text-xs font-medium tracking-wide text-muted-foreground sm:text-sm">Campus Companion</span>
             <div className="ml-auto flex items-center gap-2">
-              <HeaderSearchButton onOpen={() => setOpen(true)} />
-              <FocusModeToggle />
+              {inStudyRoom ? (
+                <Link to="/classes" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm text-muted-foreground hover:text-foreground">
+                  All classes
+                </Link>
+              ) : (
+                <>
+                  <HeaderSearchButton onOpen={() => setOpen(true)} />
+                  <FocusModeToggle />
+                </>
+              )}
               
             </div>
           </header>
-          <main className="flex-1 min-w-0 max-w-full p-4 pb-[calc(9rem+env(safe-area-inset-bottom))] md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden">
+          <main className={`flex-1 min-w-0 max-w-full p-4 md:p-6 lg:p-10 overflow-y-auto overflow-x-hidden ${inStudyRoom ? "pb-[calc(2rem+env(safe-area-inset-bottom))]" : "pb-[calc(9rem+env(safe-area-inset-bottom))]"}`}>
             {children}
           </main>
         </div>
-        <CaptureButton />
-        <MobileBottomNav />
+        {!inStudyRoom && <CaptureButton />}
+        {!inStudyRoom && <MobileBottomNav />}
         <CommandPalette open={open} onOpenChange={setOpen} />
         <CanvasAutoSync />
       </div>

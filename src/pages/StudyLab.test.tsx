@@ -29,8 +29,8 @@ vi.mock("@/lib/intelligence", () => ({
 }));
 
 vi.mock("@/components/study/RealStudySet", () => ({
-  RealStudySet: ({ classId, initialCaptureId, initialStudyScope }: { classId: string; initialCaptureId?: string; initialStudyScope?: { type: string } }) => (
-    <p data-testid="real-study-set" data-scope={initialStudyScope?.type ?? "default"}>{classId}:{initialCaptureId ?? "none"}</p>
+  RealStudySet: ({ classId, initialCaptureId, initialStudyScope, initialConceptIds, autoStart }: { classId: string; initialCaptureId?: string; initialStudyScope?: { type: string }; initialConceptIds?: string[]; autoStart?: boolean }) => (
+    <p data-testid="real-study-set" data-scope={initialStudyScope?.type ?? "default"} data-concepts={initialConceptIds?.join(",") ?? ""} data-autostart={String(autoStart)}>{classId}:{initialCaptureId ?? "none"}</p>
   ),
 }));
 
@@ -66,9 +66,16 @@ function RouteHarness() {
 }
 
 describe("Study Lab class handoff", () => {
+  it("keeps the capture scope when choosing the already active class", () => {
+    render(<MemoryRouter initialEntries={["/study-lab?classId=math&captureId=math-note"]}><RouteHarness /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Change class"));
+    fireEvent.click(screen.getByRole("button", { name: "Math" }));
+    expect(screen.getByTestId("real-study-set")).toHaveTextContent("math:math-note");
+  });
   it("PDF handoff uses all class material, not just the last batch, and drops that scope on class change", () => {
     render(<MemoryRouter initialEntries={["/study-lab?classId=math&scope=class&format=multiple_choice"]}><RouteHarness /></MemoryRouter>);
     expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-scope", "class");
+    fireEvent.click(screen.getByText("Change class"));
     fireEvent.click(screen.getByRole("button", { name: "Science" }));
     expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-scope", "default");
   });
@@ -80,9 +87,24 @@ describe("Study Lab class handoff", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole("heading", { name: "Math" })).toBeInTheDocument();
+    expect(screen.getByText("Change class").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Change class"));
     expect(screen.getByRole("group", { name: "Choose a class" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Math" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Science" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("clears coach concepts and automatic start when moving to another class", () => {
+    render(<MemoryRouter initialEntries={["/study-lab?classId=math&conceptIds=11111111-1111-4111-8111-111111111111"]}><RouteHarness /></MemoryRouter>);
+    expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-autostart", "true");
+    fireEvent.click(screen.getByText("Change class"));
+    fireEvent.click(screen.getByRole("button", { name: "Science" }));
+    expect(screen.getByRole("heading", { name: "Science" })).toBeInTheDocument();
+    expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-concepts", "");
+    expect(screen.getByTestId("real-study-set")).toHaveAttribute("data-autostart", "false");
+    expect(screen.getByText("Change class").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Back to Science" })).toHaveAttribute("href", "/classes/science");
   });
 
   it("drops a stale capture scope when the student switches class by hand", () => {
@@ -93,6 +115,7 @@ describe("Study Lab class handoff", () => {
     );
 
     expect(screen.getByTestId("real-study-set")).toHaveTextContent("math:math-note");
+    fireEvent.click(screen.getByText("Change class"));
     fireEvent.click(screen.getByRole("button", { name: "Science" }));
     expect(screen.getByTestId("real-study-set")).toHaveTextContent("science:none");
   });
@@ -118,7 +141,7 @@ describe("Study Lab class handoff", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: /work through this assignment/i })).toBeInTheDocument();
+    expect(screen.getByText(/work through this assignment/i)).toBeInTheDocument();
     expect(screen.getByTestId("assignment-tutor-set")).toHaveTextContent(
       "math:capture-1:assignment-1",
     );
@@ -134,6 +157,7 @@ describe("Study Lab class handoff", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByText("Change class"));
     fireEvent.click(screen.getByRole("button", { name: "Science" }));
     expect(screen.queryByTestId("assignment-tutor-set")).not.toBeInTheDocument();
     expect(screen.getByTestId("real-study-set")).toHaveTextContent("science:none");
